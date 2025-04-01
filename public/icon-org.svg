@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- 
+    Icon for Online-Everything-Tool
+    Container: Square (implied by viewBox)
+    Element: Cloud, Blue (#4A90E2)
+    Content: Symbols "{}", Green (#2ECC71)
+  -->
+  <defs>
+    <style>
+      .cloud-fill { fill: #4A90E2; }
+      .symbol-fill { 
+        fill: #2ECC71; 
+        font-family: monospace, sans-serif; /* Monospace often looks good for code symbols */
+        font-weight: bold; 
+        font-size: 28px; /* Adjusted for scale */
+        text-anchor: middle; 
+        dominant-baseline: central; 
+      }
+    </style>
+  </defs>
+
+  <!-- 
+    Cloud path scaled and centered within the 100x100 viewbox.
+    Original path was roughly 80x47 (aspect ratio ~1.7).
+    Scale it down to fit nicely, e.g., width ~ 80-90 units.
+    Translate it to center. If width is 85, translate X by (100-85)/2 = 7.5.
+    If height is ~50 (85 / 1.7), translate Y by (100-50)/2 = 25.
+  -->
+  <g transform="translate(7.5, 25) scale(1.06)"> 
+    <path class="cloud-fill" d="M 56.7,16.9 C 54.8,10.2 48.8,5 41.5,5 c -5.9,0 -11.1,3.1 -14.1,7.7 C 24.7,12.3 20.9,12 17.5,12 c -6.9,0 -12.5,5.6 -12.5,12.5 c 0,1.1 0.2,2.2 0.5,3.2 C 2.2,30.3 0,34.6 0,39.5 C 0,46.4 5.6,52 12.5,52 h 55 C 74.4,52 80,46.4 80,39.5 c 0,-5.7 -3.8,-10.6 -9.1,-12.4 C 70.1,22.1 64.3,18.4 56.7,16.9 z"/>
+  </g>
+  
+  <!-- 
+    Symbols "{}" placed inside the cloud.
+    The cloud's center is roughly (40, 28.5) in its original coordinates.
+    Scaled and translated, the center is approx:
+    X = 7.5 + 40 * 1.06 = 50 (approx center of viewBox)
+    Y = 25 + 28.5 * 1.06 = 55 (approx center of viewBox)
+    So place text at x=50, y=55. Adjust font size.
+  -->
+  <text x="46" y="65" class="symbol-fill">{ }</text> 
+
+</svg>
