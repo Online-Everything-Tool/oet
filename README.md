@@ -33,7 +33,7 @@ Use OET with confidence that no data leaves your browser. This means sensitive i
 *   **Framework:** [Next.js](https://nextjs.org/) (App Router)
 *   **UI Components:** [Shoelace](https://shoelace.style/)
 *   **Language:** [TypeScript](https://www.typescriptlang.org/)
-*   **Styling:** [CSS Modules / Tailwind CSS / Styled Components - Specify what you use]
+*   **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 *   **Deployment:** [AWS Cloudfront with Functions]
 
 ## ⚙️ Getting Started (Development)
@@ -90,7 +90,7 @@ Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 This project is licensed under the [MIT License](LICENSE). *(Make sure you have a LICENSE file in the repo)*
 
-##📧 Contact
+## 📧 Contact
 
 *   Project Maintainer: [Kevin McIntyre/kmcintyre](https://github.com/kmcintyre)
 *   Issues: [https://github.com/Online-Everything-Tool/oet/issues](https://github.com/Online-Everything-Tool/oet/issues)
