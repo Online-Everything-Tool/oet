@@ -26,15 +26,7 @@ Use OET with confidence that no data leaves your browser. This means sensitive i
 
 ## 🚀 Live Demo
 
-*[Link to your deployed application - Highly Recommended!]*
-*   Example: `https://oet.example.com` (Replace with your actual URL once deployed)
-
-## 📸 Screenshots
-
-*(Include a few screenshots or GIFs showcasing the main interface and some key tools)*
-
-![Screenshot of OET Homepage](URL_TO_HOMEPAGE_SCREENSHOT.png)
-![Screenshot of Tool X](URL_TO_TOOL_X_SCREENSHOT.png)
+*   Example: `https://online-everything-tool.com`
 
 ## 🛠️ Tech Stack
 
@@ -42,7 +34,7 @@ Use OET with confidence that no data leaves your browser. This means sensitive i
 *   **UI Components:** [Shoelace](https://shoelace.style/)
 *   **Language:** [TypeScript](https://www.typescriptlang.org/)
 *   **Styling:** [CSS Modules / Tailwind CSS / Styled Components - Specify what you use]
-*   **Deployment:** [Vercel / Netlify / Docker / etc. - Specify your target]
+*   **Deployment:** [AWS Cloudfront with Functions]
 
 ## ⚙️ Getting Started (Development)
 
@@ -100,9 +92,5 @@ This project is licensed under the [MIT License](LICENSE). *(Make sure you have 
 
 ##📧 Contact
 
-*   Project Maintainer: [Your Name/GitHub Handle]
+*   Project Maintainer: [Kevin McIntyre/kmcintyre](https://github.com/kmcintyre)
 *   Issues: [https://github.com/Online-Everything-Tool/oet/issues](https://github.com/Online-Everything-Tool/oet/issues)
-
----
-
-*Remember to replace placeholders like URLs, tool names, tech stack details, etc., with your actual project information.*
