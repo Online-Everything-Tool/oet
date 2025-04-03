@@ -21,7 +21,7 @@ This document provides guidelines for contributing to OET. Please read it to ens
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [OET Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [Your Email or Contact Method - Optional]. *(Make sure to create the CODE_OF_CONDUCT.md file)*
+This project and everyone participating in it is governed by the [OET Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [Your Email or Contact Method - Optional].
 
 ## How Can I Contribute?
 
@@ -50,7 +50,7 @@ When suggesting an enhancement:
 
 ### Your First Code Contribution
 
-Unsure where to begin contributing to OET? You can start by looking through `good first issue` or `help wanted` issues: [Link to good first issues](https://github.com/Online-Everything-Tool/oet/labels/good%20first%20issue) (You'll need to create/use these labels on your issues).
+Unsure where to begin contributing to OET? You can start by looking through `good first issue` or `help wanted` issues: [Link to good first issues](https://github.com/Online-Everything-Tool/oet/labels/good%20first%20issue)
 
 Working on your first Pull Request? You can learn how from this *free* series: [How to Contribute to an Open Source Project on GitHub](https://egghead.io/courses/how-to-contribute-to-an-open-source-project-on-github).
 
