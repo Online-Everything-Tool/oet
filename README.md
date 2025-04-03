@@ -1,5 +1,11 @@
 # Online Everything Tool (OET)
 
+<!-- Optional: Add your new organization logo/icon here -->
+<!-- ![OET Logo](URL_TO_YOUR_LOGO.png) -->
+
+<!-- Optional: Add Badges (Build Status, License, Version, etc.) -->
+<!-- Example: [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) -->
+
 **A versatile collection of useful online tools, accessible directly from your browser.**
 
 OET aims to provide a single, easy-to-use interface for various common (and maybe uncommon!) tasks you might need to perform online, without needing to install separate applications.
@@ -20,13 +26,11 @@ Use OET with confidence that no data leaves your browser. This means sensitive i
 *   **[Tool Category 3 - e.g., Developer Tools]:**
     *   [Specific Tool 6 - e.g., JSON Formatter/Validator]
     *   [Specific Tool 7 - e.g., URL Encoder/Decoder]
-*   *(Add more categories and tools as you build them)*
 *   **Modern UI:** Built with Next.js and Shoelace for a clean and responsive experience.
-*   **Client-Side Focus:** Many tools operate directly in your browser for privacy and speed. (Mention if some require server interaction).
 
-## 🚀 Live Demo
+## 🚀 Live
 
-*   Example: `https://online-everything-tool.com`
+[https://online-everything-tool.com](https://online-everything-tool.com)
 
 ## 🛠️ Tech Stack
 
@@ -43,7 +47,7 @@ Follow these instructions to get a local copy up and running for development pur
 **Prerequisites:**
 
 *   Node.js (Version specified in `.nvmrc` or >= v18 recommended)
-*   npm or yarn or pnpm (Specify which one you use)
+*   Package manager: This project uses **[Specify: npm | yarn | pnpm]** (Ensure you have it installed. Check the lockfile in the repository: `package-lock.json` for npm, `yarn.lock` for Yarn, or `pnpm-lock.yaml` for pnpm).
 
 **Installation:**
 
@@ -52,7 +56,7 @@ Follow these instructions to get a local copy up and running for development pur
     git clone https://github.com/Online-Everything-Tool/oet.git
     cd oet
     ```
-2.  **Install dependencies:**
+2.  **Install dependencies (use the package manager specified above):**
     ```bash
     # Using npm
     npm install
@@ -88,7 +92,7 @@ Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE). *(Make sure you have a LICENSE file in the repo)*
+This project is licensed under the [MIT License](LICENSE). *(Make sure you add a LICENSE file containing the MIT license text to the repo)*
 
 ## 📧 Contact
 
