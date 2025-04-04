@@ -23,7 +23,7 @@ export default function CaseConverterPage() {
     <main className="p-4 sm:p-8 max-w-3xl mx-auto">
       <h1 className="text-2xl font-bold mb-2 text-gray-800">Case Converter</h1>
       <p className="text-gray-600 mb-6">
-        Convert text using various case styles. The "Preserve Case" option affects snake & kebab cases.
+        Convert text using various case styles. The &ldquo;Preserve Case`&rdquo;` option affects snake & kebab cases.
       </p>
 
       <div className="flex flex-col gap-4">
