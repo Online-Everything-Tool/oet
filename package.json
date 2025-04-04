@@ -1,5 +1,6 @@
 {
   "name": "oet",
+  "description": "Online everything tool - largest assortment of free client-based utilities",
   "version": "0.1.0",
   "private": true,
   "scripts": {
