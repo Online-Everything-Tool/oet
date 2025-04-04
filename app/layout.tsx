@@ -37,7 +37,8 @@ export default function RootLayout({
             {children} {/* Page content */}
           </main>
           {/* Optional: Add a Footer component here later */}
-          {/* <Footer /> */}        </HistoryProvider>
+          {/* <Footer /> */}        
+        </HistoryProvider>
       </body>
     </html>
   );

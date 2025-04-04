@@ -29,6 +29,7 @@ export interface HistoryEntry {
   input?: any; // The primary input data (string, object snippet, etc.) - Keep serializable!
   output?: any; // The resulting output/result (string, boolean, object snippet) - Keep serializable!
   status?: 'success' | 'error'; // Optional: Outcome indicator
+  options?: Record<string, any>; // Ensure this line exists and is not commented out
 }
 
 /**
