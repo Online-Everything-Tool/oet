@@ -1,4 +1,4 @@
-// /app/emoji/EmojiSearchClient.tsx
+// /app/emojis/EmojiSearchClient.tsx
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';

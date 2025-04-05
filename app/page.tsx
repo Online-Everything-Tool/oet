@@ -14,9 +14,9 @@ export default function Home() {
          <h2 className="text-xl font-semibold mb-3">Available Tools:</h2>
          <ul className="list-disc list-inside space-y-1">
            {/* Example links - update these later */}
-           <li><a href="/reverser" className="text-purple-600 hover:underline">Text Reverser</a></li>
-           <li><a href="/word-counter" className="text-purple-600 hover:underline">Word Counter</a></li>
-           <li><a href="/json-formatter-validator" className="text-purple-600 hover:underline">JSON Formatter/Validator</a></li>
+           <li><a href="/text-reverse" className="text-purple-600 hover:underline">Text Reverse</a></li>
+           <li><a href="/text-counter" className="text-purple-600 hover:underline">Text Counter</a></li>
+           <li><a href="/json-validator-formatter" className="text-purple-600 hover:underline">JSON Validator &  Formatter</a></li>
            <li><a href="/emojis" className="text-purple-600 hover:underline">Emoji Explorer</a></li>
            <li><a href="/url-decode-encode" className="text-purple-600 hover:underline">URL Decode/Encode</a></li>
            <li><a href="/case-converter" className="text-purple-600 hover:underline">Case Converter</a></li>

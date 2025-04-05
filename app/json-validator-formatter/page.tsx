@@ -1,10 +1,10 @@
-// /app/json-formatter-validator/page.tsx
+// /app/json-validator-formatter/page.tsx
 'use client';
 
 import React, { useState, useCallback } from 'react'; // Added useCallback for consistency
 import { useHistory } from '../context/HistoryContext'; // 1. Import useHistory
 
-export default function JsonFormatterValidatorPage() {
+export default function JsonValidatorFormatterPage() {
   // --- State ---
   const [inputValue, setInputValue] = useState<string>('');
   const [outputValue, setOutputValue] = useState<string>('');
@@ -131,16 +131,15 @@ export default function JsonFormatterValidatorPage() {
   // --- JSX --- (No changes needed in JSX)
   return (
     <main className="p-4 sm:p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2 text-gray-800">JSON Formatter & Validator</h1>
+      <h1 className="text-2xl font-bold mb-2 text-gray-800">JSON Validator & Formatter</h1>
       <p className="text-gray-600 mb-6">
-        Paste your JSON data below to validate and format it beautifully.
+        Paste your JSON data below to validate and format.
       </p>
       <div className="flex flex-col gap-5">
         {/* Input Area */}
         <div>
-          <label htmlFor="json-input" className="block text-sm font-medium text-gray-700 mb-1">Input JSON:</label>
           <textarea
-            id="json-input" rows={12} value={inputValue} onChange={handleInputChange}
+            id="json-input" rows={5} value={inputValue} onChange={handleInputChange}
             placeholder={`Paste your JSON here...\n{\n  "example": "data",\n  "isValid": true\n}`}
             className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y text-base font-mono"
             spellCheck="false"
@@ -149,7 +148,7 @@ export default function JsonFormatterValidatorPage() {
         {/* Action Controls */}
         <div className="flex flex-wrap gap-3 items-center">
           <button onClick={handleFormatValidate} className="px-5 py-2 rounded-md text-white font-medium bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-150 ease-in-out">
-            Format & Validate
+            Validate & Format
           </button>
           <div className="flex items-center gap-2">
              <label htmlFor="indentation-select" className="text-sm font-medium text-gray-700">Indentation:</label>
@@ -181,9 +180,8 @@ export default function JsonFormatterValidatorPage() {
         )}
         {/* Output Area */}
         <div>
-          <label htmlFor="json-output" className="block text-sm font-medium text-gray-700 mb-1">Formatted Output:</label>
           <textarea
-            id="json-output" rows={16} value={outputValue} readOnly
+            id="json-output" rows={2} value={outputValue} readOnly
             placeholder="Formatted JSON will appear here..."
             className="w-full p-3 border border-gray-300 rounded-md shadow-sm bg-gray-50 resize-y text-base font-mono focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             spellCheck="false" aria-live="polite"
