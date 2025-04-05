@@ -2,25 +2,42 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import type { RichEmojiData } from './page';
+import type { RichEmojiData } from './page'; // Import the richer type
 import { useHistory } from '../context/HistoryContext'; // 1. Import useHistory
 
-// Helper function (keep as is)
-const getUniqueSortedValues = (/* ... */): string[] => {
-    // ... function implementation ...
-     if (!items || items.length === 0) { return []; }
-     const values = new Set<string>();
-     items.forEach(item => {
-       const value = item[key];
-       if (value && typeof value === 'string' && value.trim() !== '' && value !== 'Unknown') {
-         values.add(value);
-       }
-     });
-     const sortedValues = Array.from(values);
-     if (sort === 'version-desc') { sortedValues.sort((a, b) => parseFloat(b) - parseFloat(a)); }
-     else if (sort === 'desc') { sortedValues.sort((a, b) => b.localeCompare(a)); }
-     else { sortedValues.sort((a, b) => a.localeCompare(b)); }
-     return sortedValues;
+// --- Refined Helper Function ---
+// Utility to get unique sorted values from an array of objects, filtering out unwanted ones
+const getUniqueSortedValues = (
+  items: RichEmojiData[], // Use the correct type here
+  key: keyof RichEmojiData, // Key must exist on RichEmojiData
+  sort: 'asc' | 'desc' | 'version-desc' = 'asc'
+): string[] => {
+  // Early exit if no items
+  if (!items || items.length === 0) {
+    return [];
+  }
+
+  const values = new Set<string>();
+  items.forEach(item => {
+    // Ensure the key exists and the value is a non-empty, non-"Unknown" string
+    if (item && typeof item[key] === 'string' && item[key] && (item[key] as string).trim() !== '' && item[key] !== 'Unknown') {
+      values.add(item[key] as string); // Add the valid string value
+    }
+  });
+
+  // Convert Set to Array for sorting
+  const sortedValues = Array.from(values);
+
+  // Apply specific sorting logic
+  if (sort === 'version-desc') {
+    sortedValues.sort((a, b) => parseFloat(b) - parseFloat(a));
+  } else if (sort === 'desc') {
+    sortedValues.sort((a, b) => b.localeCompare(a));
+  } else {
+    sortedValues.sort((a, b) => a.localeCompare(b)); // Default asc
+  }
+
+  return sortedValues;
 };
 
 
@@ -37,66 +54,82 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const { addHistoryEntry } = useHistory(); // 2. Get addHistoryEntry
 
-  // --- Effect Hook (keep as is) ---
-  useEffect(() => { /* ... */ }, [initialEmojis]);
+  // --- Effect Hook ---
+  useEffect(() => {
+      console.log("EmojiSearchClient received initialEmojis:", initialEmojis?.length);
+      // Removed console log of first item to avoid potential large object logging
+      if (!initialEmojis || initialEmojis.length === 0) {
+          console.warn("EmojiSearchClient received empty or no initialEmojis array.");
+      }
+  }, [initialEmojis]);
 
-  // --- Memoized Calculations (keep as is) ---
+  // --- Memoized Calculations ---
   const availableGroups = useMemo(() => getUniqueSortedValues(initialEmojis, 'group', 'asc'), [initialEmojis]);
   const availableVersions = useMemo(() => getUniqueSortedValues(initialEmojis, 'version', 'version-desc'), [initialEmojis]);
-  const availableSubgroups = useMemo(() => { /* ... */ }, [initialEmojis, selectedGroup]);
-  const activeFilterCount = useMemo(() => { /* ... */ }, [selectedGroup, selectedSubgroup, selectedVersion]);
-  const filteredEmojis = useMemo(() => { /* ... */ }, [searchTerm, initialEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
+  const availableSubgroups = useMemo(() => {
+    if (!selectedGroup) return [];
+    const filteredByGroup = initialEmojis.filter(e => e.group === selectedGroup);
+    return getUniqueSortedValues(filteredByGroup, 'subgroup', 'asc');
+  }, [initialEmojis, selectedGroup]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedGroup) count++;
+    if (selectedSubgroup && selectedGroup) count++;
+    if (selectedVersion) count++;
+    return count;
+  }, [selectedGroup, selectedSubgroup, selectedVersion]);
+
+  const filteredEmojis = useMemo(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
+    return initialEmojis.filter(emoji => {
+      if (lowerCaseSearchTerm && !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)) return false;
+      if (selectedGroup && emoji.group !== selectedGroup) return false;
+      if (selectedGroup && selectedSubgroup && emoji.subgroup !== selectedSubgroup) return false;
+      if (selectedVersion && emoji.version !== selectedVersion) return false;
+      return true;
+    });
+  }, [searchTerm, initialEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
 
   // --- Event Handlers ---
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(event.target.value);
   const toggleFilterPanel = () => setIsFilterPanelOpen(prev => !prev);
-  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => { /* ... */ setSelectedGroup(event.target.value); setSelectedSubgroup(''); };
+  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => { setSelectedGroup(event.target.value); setSelectedSubgroup(''); };
   const handleSubgroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => setSelectedSubgroup(event.target.value);
   const handleVersionChange = (event: React.ChangeEvent<HTMLSelectElement>) => setSelectedVersion(event.target.value);
-  const handleClearFilters = useCallback(() => { /* ... */ setSelectedGroup(''); setSelectedSubgroup(''); setSelectedVersion(''); }, []);
+  const handleClearFilters = useCallback(() => { setSelectedGroup(''); setSelectedSubgroup(''); setSelectedVersion(''); }, []);
 
-  // --- 3. Modified Emoji Click Handler ---
+  // --- Emoji Click Handler (with History) ---
   const handleEmojiClick = useCallback((emojiData: RichEmojiData) => {
-    // Copy to clipboard (add basic error handling for unsupported browsers)
     if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(emojiData.emoji)
-            .then(() => {
-                // --- Add History Entry on Successful Copy ---
-                addHistoryEntry({
-                    toolName: 'Emoji Explorer',
-                    toolRoute: '/emoji',
-                    action: 'copy',
-                    input: emojiData.name, // Use emoji name as 'input' for context
-                    output: emojiData.emoji, // The copied emoji character
-                    status: 'success',
-                    // Options could include the filters active at the time, if desired
-                    options: {
-                       ...(selectedGroup && { group: selectedGroup }),
-                       ...(selectedSubgroup && { subgroup: selectedSubgroup }),
-                       ...(selectedVersion && { version: selectedVersion }),
-                       ...(searchTerm && { searchTerm: searchTerm })
-                    }
-                });
-                // Optional: Add temporary visual feedback for copy success
-                // e.g., set some temporary state to show "Copied!"
-                console.log(`Copied ${emojiData.emoji} to clipboard.`);
-            })
-            .catch(err => {
-                console.error('Failed to copy emoji:', err);
-                // Optionally log copy failure? Maybe not necessary for history.
-            });
+      navigator.clipboard.writeText(emojiData.emoji)
+        .then(() => {
+          addHistoryEntry({
+              toolName: 'Emoji Explorer',
+              toolRoute: '/emoji',
+              action: 'copy',
+              input: emojiData.name,
+              output: emojiData.emoji,
+              status: 'success',
+              options: {
+                 ...(selectedGroup && { group: selectedGroup }),
+                 ...(selectedSubgroup && { subgroup: selectedSubgroup }),
+                 ...(selectedVersion && { version: selectedVersion }),
+                 ...(searchTerm && { searchTerm: searchTerm })
+              }
+          });
+          console.log(`Copied ${emojiData.emoji} to clipboard.`);
+        })
+        .catch(err => console.error('Failed to copy emoji:', err));
     } else {
-        console.warn('Clipboard API not available.');
-        // Handle fallback or just do nothing if clipboard isn't available
+      console.warn('Clipboard API not available.');
     }
-  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]); // Include dependencies for options logging
-
+  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]);
 
   // --- Render ---
   return (
     <div className="flex flex-col gap-5">
-      {/* Search and Filter Trigger Row (keep as is) */}
-      {/* ... */}
+      {/* Search and Filter Trigger Row */}
       <div className="flex gap-3 items-center">
         <div className="flex-grow">
            <label htmlFor="emoji-search" className="sr-only">Search Emojis</label>
@@ -110,8 +143,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
         </div>
       </div>
 
-      {/* Filter Panel (Conditional - keep as is) */}
-      {isFilterPanelOpen && (/* ... */)}
+      {/* Filter Panel */}
        {isFilterPanelOpen && (
          <div className="p-4 border border-gray-200 rounded-md bg-gray-50 flex flex-col gap-4">
            <div className="flex justify-between items-center">
@@ -144,29 +176,20 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
          </div>
        )}
 
+      {/* Results Count */}
+      <p className="text-sm text-gray-500">Showing {filteredEmojis.length} of {initialEmojis.length} emojis.</p>
 
-      {/* Results Count (keep as is) */}
-      {/* ... */}
-        <p className="text-sm text-gray-500">Showing {filteredEmojis.length} of {initialEmojis.length} emojis.</p>
-
-
-      {/* Emoji Display Grid (Modification in map) */}
-      {/* Error/Empty States (keep as is) */}
-      {/* ... */}
+      {/* Emoji Display Grid */}
       {initialEmojis.length === 0 && (<p className="text-red-600">Could not load emoji data...</p>)}
       {initialEmojis.length > 0 && filteredEmojis.length === 0 && (searchTerm || activeFilterCount > 0) && (<p className="text-gray-600">No emojis found...</p>)}
 
-
-      {/* Grid Rendering */}
       {filteredEmojis.length > 0 && (
          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
-           {/* Pass the full emojiData to the handler */}
-           {filteredEmojis.map((emojiData) => ( // Get the whole object
+           {filteredEmojis.map((emojiData) => (
              <button
                key={emojiData.codePoints || emojiData.name}
                title={`${emojiData.name}\nCode: ${emojiData.codePoints}`}
                className="flex items-center justify-center p-2 text-3xl sm:text-4xl bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 transition duration-150 ease-in-out aspect-square"
-               // Call the new handler, passing the specific emoji's data
                onClick={() => handleEmojiClick(emojiData)}
                aria-label={`Copy emoji: ${emojiData.name}`}
              >
