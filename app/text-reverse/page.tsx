@@ -1,4 +1,4 @@
-// /app/reverser/page.tsx
+// /app/text-reverse/page.tsx
 'use client';
 
 import React, { useState, useCallback } from 'react';
@@ -7,7 +7,7 @@ import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
 // Define the different modes for reversing
 type ReverseMode = 'characters' | 'words' | 'lines';
 
-export default function ReverserPage() {
+export default function TextReversePage() {
   const [inputValue, setInputValue] = useState<string>('');
   const [outputValue, setOutputValue] = useState<string>('');
   const [reverseMode, setReverseMode] = useState<ReverseMode>('characters'); // Default mode
@@ -101,25 +101,21 @@ export default function ReverserPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Text Reverser</h1>
+      <h1 className="text-2xl font-bold text-gray-800">Text Reverse</h1>
       <p className="text-gray-600">
-        Reverse the order of characters, words, or lines in your text.
+        Reverse the order of characters, words, or lines in text.
       </p>
 
       {/* Input Area */}
-      <div>
-        <label htmlFor="text-input" className="block text-sm font-medium text-gray-700 mb-1">
-          Input Text:
-        </label>
+      
         <textarea
           id="text-input"
           rows={10}
           value={inputValue}
           onChange={handleInputChange}
           placeholder="Enter text to reverse..."
-          className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y text-base"
+          className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:border-transparent resize-y text-base"
         />
-      </div>
 
        {/* Controls Row */}
       <div className="flex flex-wrap gap-4 items-center border p-3 rounded-md bg-gray-50">
@@ -134,7 +130,7 @@ export default function ReverserPage() {
                  value="characters"
                  checked={reverseMode === 'characters'}
                  onChange={handleModeChange}
-                 className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                 className="h-4 w-4 text-purple-600 border-gray-300"
               />
               <label htmlFor="mode-chars" className="ml-2 block text-sm text-gray-900">
                  Characters
@@ -148,7 +144,7 @@ export default function ReverserPage() {
                  value="words"
                  checked={reverseMode === 'words'}
                  onChange={handleModeChange}
-                 className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                 className="h-4 w-4 text-purple-600 border-gray-300"
               />
               <label htmlFor="mode-words" className="ml-2 block text-sm text-gray-900">
                  Words
@@ -162,7 +158,7 @@ export default function ReverserPage() {
                  value="lines"
                  checked={reverseMode === 'lines'}
                  onChange={handleModeChange}
-                 className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                 className="h-4 w-4 text-purple-600 border-gray-300"
               />
               <label htmlFor="mode-lines" className="ml-2 block text-sm text-gray-900">
                  Lines
@@ -174,14 +170,14 @@ export default function ReverserPage() {
          <div className="flex gap-3 ml-auto">
              <button
                onClick={handleReverse}
-               className="px-5 py-2 rounded-md text-white font-medium bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-150 ease-in-out"
+               className="px-5 py-2 rounded-md text-white font-medium bg-purple-600 hover:bg-purple-700 transition duration-150 ease-in-out"
              >
                Reverse
              </button>
              <button
                onClick={handleClear}
                title="Clear input and output"
-               className="px-3 py-2 rounded-md text-gray-700 font-medium bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition duration-150 ease-in-out"
+               className="px-3 py-2 rounded-md text-gray-700 font-medium bg-gray-200 hover:bg-gray-300 transition duration-150 ease-in-out"
              >
                Clear
              </button>
@@ -192,9 +188,7 @@ export default function ReverserPage() {
       {/* Output Area */}
       {outputValue && ( // Only show if there is output (or an error message)
          <div>
-           <label htmlFor="text-output" className="block text-sm font-medium text-gray-700 mb-1">
-             Output Text:
-           </label>
+           
            <textarea
              id="text-output"
              rows={10}
