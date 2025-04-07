@@ -2,25 +2,13 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
-import ClientOnly from '@/components/ClientOnly'; // Import the ClientOnly wrapper
+import { useHistory } from '../context/HistoryContext';
 
-// Crypto Libraries (ensure they are installed)
+// Crypto Libraries
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import ECPairFactory from 'ecpair';
 import * as tinysecp from 'tiny-secp256k1';
-
-// Shoelace components used (ensure base path/setup is correct in layout)
-// These imports register the components
-import '@shoelace-style/shoelace/dist/components/radio-group/radio-group.js';
-import '@shoelace-style/shoelace/dist/components/radio/radio.js';
-import '@shoelace-style/shoelace/dist/components/button/button.js';
-import '@shoelace-style/shoelace/dist/components/input/input.js';
-import '@shoelace-style/shoelace/dist/components/alert/alert.js';
-import '@shoelace-style/shoelace/dist/components/icon/icon.js';
-import '@shoelace-style/shoelace/dist/components/icon-button/icon-button.js';
-import '@shoelace-style/shoelace/dist/components/copy-button/copy-button.js';
 
 // Initialize ECPair for bitcoinjs-lib
 const ECPair = ECPairFactory(tinysecp);
@@ -33,64 +21,66 @@ export default function CryptoWalletGeneratorPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null); // For ETH, this is the address
   const [isPrivateKeyVisible, setIsPrivateKeyVisible] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [generating, setGenerating] = useState<boolean>(false); // Basic loading state
+  const [generating, setGenerating] = useState<boolean>(false);
 
   const { addHistoryEntry } = useHistory();
 
   const handleGenerateWallet = useCallback(async () => {
+    console.log("[HTML Version] Attempting to generate wallet. Current walletType state:", walletType);
+
     setGenerating(true);
     setError(null);
     setPrivateKey(null);
     setPublicKey(null);
-    setIsPrivateKeyVisible(false); // Hide private key on new generation
+    setIsPrivateKeyVisible(false);
 
     try {
       let generatedPrivateKey: string;
-      let generatedPublicKey: string; // Actually Address for ETH, Address for BTC
+      let generatedPublicKey: string;
 
       if (walletType === 'ethereum') {
+        console.log("[HTML Version] Executing Ethereum generation block.");
         const wallet = ethers.Wallet.createRandom();
         generatedPrivateKey = wallet.privateKey;
-        generatedPublicKey = wallet.address; // Use address as the "public" identifier
-        console.log('Generated ETH Wallet:', { address: generatedPublicKey, pk: generatedPrivateKey });
+        generatedPublicKey = wallet.address;
+        console.log('[HTML Version] Generated ETH Wallet:', { address: generatedPublicKey });
       } else if (walletType === 'bitcoin') {
-        // Generate a random key pair (defaults to compressed)
+        console.log("[HTML Version] Executing Bitcoin generation block.");
         const keyPair = ECPair.makeRandom();
-        generatedPrivateKey = keyPair.toWIF(); // Wallet Import Format
-
-        // Generate P2PKH address (most common legacy/compatible type)
+        generatedPrivateKey = keyPair.toWIF();
         const { address } = bitcoin.payments.p2pkh({ pubkey: Buffer.from(keyPair.publicKey) });
         if (!address) {
             throw new Error('Failed to generate Bitcoin address.');
         }
         generatedPublicKey = address;
-        console.log('Generated BTC Wallet:', { address: generatedPublicKey, pk_wif: generatedPrivateKey });
+        console.log('[HTML Version] Generated BTC Wallet:', { address: generatedPublicKey });
       } else {
+        console.log("[HTML Version] Executing ELSE block (Invalid type).");
         throw new Error('Invalid wallet type selected.');
       }
 
       setPrivateKey(generatedPrivateKey);
       setPublicKey(generatedPublicKey);
 
-      // Add to history - ONLY log public key/address
+      // Add successful generation to history (omits private key)
       addHistoryEntry({
         toolName: 'Wallet Generator',
-        toolRoute: '/crypto-wallet-generator', // Ensure route matches file path if needed
+        toolRoute: '/crypto-wallet-generator',
         action: `generate-${walletType}`,
         input: { type: walletType },
-        output: generatedPublicKey, // Log the public address/identifier
+        output: generatedPublicKey,
         status: 'success',
-        // DO NOT LOG THE PRIVATE KEY
       });
 
     } catch (err: any) {
-      console.error('Error generating wallet:', err);
+      console.error('[HTML Version] Error generating wallet:', err);
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setError(`Error: ${message}`);
-      // Optionally log error to history
+
+      // Add error to history (omits private key)
       addHistoryEntry({
         toolName: 'Wallet Generator',
-        toolRoute: '/crypto-wallet-generator', // Ensure route matches file path if needed
+        toolRoute: '/crypto-wallet-generator',
         action: `generate-${walletType}`,
         input: { type: walletType },
         output: `Error: ${message}`,
@@ -101,9 +91,11 @@ export default function CryptoWalletGeneratorPage() {
     }
   }, [walletType, addHistoryEntry]);
 
-  const handleTypeChange = (event: any /* SlChangeEvent */) => {
-    // Reset on type change
-    setWalletType((event.target as HTMLInputElement).value as WalletType);
+  // Handler for standard HTML radio button changes
+  const handleTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newType = event.target.value as WalletType;
+    console.log("[HTML Version] Wallet type selected via UI:", newType);
+    setWalletType(newType);
     setPrivateKey(null);
     setPublicKey(null);
     setError(null);
@@ -114,115 +106,158 @@ export default function CryptoWalletGeneratorPage() {
     setIsPrivateKeyVisible(!isPrivateKeyVisible);
   };
 
+  // Basic copy to clipboard function
+  const copyToClipboard = async (text: string | null, type: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log(`${type} copied to clipboard!`);
+      // Consider adding brief visual feedback to the UI here
+    } catch (err) {
+      console.error(`Failed to copy ${type}:`, err);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Non-Shoelace content can render immediately */}
       <h1 className="text-2xl font-bold text-gray-800">Wallet Generator</h1>
       <p className="text-gray-600 mb-4">
         Generate new cryptocurrency wallet keys client-side.
       </p>
 
-      {/* Wrap all Shoelace-dependent UI in ClientOnly */}
-      <ClientOnly>
-        {/* Security Warning */}
-        <sl-alert variant="warning" open class="mb-4">
-          <sl-icon slot="icon" name="exclamation-triangle"></sl-icon>
-          <strong>Security Warning:</strong> Generating keys in a web browser is convenient but less secure than offline methods. Do not use these keys for significant amounts. Always back up your private key securely offline and never share it. Be aware of potential malware or browser extensions that could compromise your keys.
-        </sl-alert>
+      {/* Security Warning */}
+      <div role="alert" className="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-300 dark:bg-gray-800 dark:text-yellow-300 dark:border-yellow-800">
+         <span className="font-medium">⚠️ Security Warning:</span> Generating keys in a web browser is convenient but less secure than offline methods. Do not use these keys for significant amounts. Always back up your private key securely offline and never share it. Be aware of potential malware or browser extensions that could compromise your keys.
+      </div>
 
-        {/* Controls */}
-        <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-gray-50 border border-gray-200">
-          <sl-radio-group
-            label="Select Wallet Type:"
-            value={walletType}
-            onSlChange={handleTypeChange}
-            class="flex-grow"
-            name="walletType"
-          >
-            <sl-radio value="ethereum" class="mr-4">Ethereum (ETH)</sl-radio>
-            <sl-radio value="bitcoin">Bitcoin (BTC)</sl-radio>
-          </sl-radio-group>
-
-          <sl-button
-            variant="primary"
-            onClick={handleGenerateWallet}
-            loading={generating} // Show loading state on button
-            disabled={generating}
-            class="flex-shrink-0"
-          >
-            {generating ? 'Generating...' : 'Generate New Wallet'}
-          </sl-button>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-           <sl-alert variant="danger" open closable onSlAfterHide={() => setError(null)}>
-               <sl-icon slot="icon" name="exclamation-octagon"></sl-icon>
-               {error}
-           </sl-alert>
-        )}
-
-        {/* Results Area - Conditionally rendered based on state */}
-        {/* This condition now happens *inside* ClientOnly, which is fine */}
-        {publicKey && privateKey && !error && (
-          <div className="space-y-4 border border-gray-200 p-4 rounded-md">
-            <h2 className="text-lg font-semibold text-gray-700">Generated Wallet Details ({walletType.toUpperCase()})</h2>
-
-            {/* Public Key / Address */}
-            <div>
-              <sl-input
-                label={walletType === 'ethereum' ? 'Address' : 'Bitcoin Address (P2PKH)'}
-                value={publicKey}
-                readonly
-                class="input-display" // Add a class for potential shared styling
-              >
-                <sl-copy-button
-                  slot="label"
-                  value={publicKey}
-                  copy-label="Copy Address"
-                  success-label="Address Copied!"
-                  error-label="Error Copying"
-                  style={{ marginLeft: '8px' }}
-                  title="Copy public address"
-                ></sl-copy-button>
-              </sl-input>
-               <div className="text-xs text-gray-500 mt-1">This is your public identifier, safe to share.</div>
+      {/* Controls */}
+      <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-gray-50 border border-gray-200">
+        <fieldset className="flex-grow">
+          <legend className="block text-sm font-medium text-gray-700 mb-1">Select Wallet Type:</legend>
+          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
+            <div className="flex items-center">
+              <input
+                id="type-ethereum"
+                name="walletType"
+                type="radio"
+                value="ethereum"
+                checked={walletType === 'ethereum'}
+                onChange={handleTypeChange}
+                className="h-4 w-4 border-gray-300 text-indigo-600 focus:outline-none"
+              />
+              <label htmlFor="type-ethereum" className="ml-2 block text-sm font-medium leading-6 text-gray-900">
+                Ethereum (ETH)
+              </label>
             </div>
-
-            {/* Private Key */}
-            <div>
-              <sl-input
-                label={`Private Key (${walletType === 'bitcoin' ? 'WIF format' : 'Hex'})`}
-                value={isPrivateKeyVisible ? privateKey : '••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••'}
-                readonly
-                class="input-display font-mono" // Use mono font for keys
-              >
-                 {/* Visibility Toggle Button */}
-                 <sl-icon-button
-                   name={isPrivateKeyVisible ? 'eye-slash' : 'eye'}
-                   label={isPrivateKeyVisible ? 'Hide Private Key' : 'Show Private Key'}
-                   slot="suffix"
-                   onClick={togglePrivateKeyVisibility}
-                   title={isPrivateKeyVisible ? 'Hide Private Key' : 'Show Private Key'}
-                 ></sl-icon-button>
-
-                 {/* Copy Button */}
-                 <sl-copy-button
-                   slot="suffix"
-                   value={privateKey} // Ensure privateKey is not null here due to outer condition
-                   copy-label="Copy Private Key"
-                   success-label="Private Key Copied!"
-                   error-label="Error Copying"
-                   title="Copy private key (Use with extreme caution!)"
-                   style={{ marginLeft: '4px' }}
-                 ></sl-copy-button>
-              </sl-input>
-              <div className="text-xs text-red-600 font-semibold mt-1">NEVER share this private key! Keep it safe and secret.</div>
+            <div className="flex items-center">
+              <input
+                id="type-bitcoin"
+                name="walletType"
+                type="radio"
+                value="bitcoin"
+                checked={walletType === 'bitcoin'}
+                onChange={handleTypeChange}
+                className="h-4 w-4 border-gray-300 text-indigo-600 focus:outline-none"
+              />
+              <label htmlFor="type-bitcoin" className="ml-2 block text-sm font-medium leading-6 text-gray-900">
+                Bitcoin (BTC)
+              </label>
             </div>
-
           </div>
-        )}
-      </ClientOnly> {/* End of ClientOnly wrapper */}
+        </fieldset>
+
+        {/* Generate Button */}
+        <button
+          type="button"
+          onClick={handleGenerateWallet}
+          disabled={generating}
+          className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        >
+          {generating ? (
+             <>
+               <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+               </svg>
+               Generating...
+             </>
+          ) : (
+            'Generate New Wallet'
+          )}
+        </button>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div role="alert" className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 border border-red-300 dark:bg-gray-800 dark:text-red-400 dark:border-red-800">
+          <span className="font-medium">⛔ Error:</span> {error.replace('Error: ','')}
+        </div>
+      )}
+
+      {/* Results Area */}
+      {publicKey && privateKey && !error && (
+        <div className="space-y-4 border border-gray-200 p-4 rounded-md">
+          <h2 className="text-lg font-semibold text-gray-700">Generated Wallet Details ({walletType.toUpperCase()})</h2>
+
+          {/* Public Key / Address */}
+          <div>
+            <label htmlFor="publicKeyOutput" className="block text-sm font-medium leading-6 text-gray-900">
+              {walletType === 'ethereum' ? 'Address' : 'Bitcoin Address (P2PKH)'}
+            </label>
+            <div className="mt-1 flex rounded-md shadow-sm">
+               <input
+                  id="publicKeyOutput"
+                  type="text"
+                  value={publicKey}
+                  readOnly
+                  className="block w-full flex-1 rounded-none rounded-l-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:outline-none sm:text-sm sm:leading-6 bg-gray-50"
+               />
+               <button
+                  type="button"
+                  onClick={() => copyToClipboard(publicKey, 'Address')}
+                  title="Copy public address"
+                  className="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:outline-none"
+               >
+                   📋 Copy
+               </button>
+            </div>
+             <p className="mt-1 text-xs text-gray-500">This is your public identifier, safe to share.</p>
+          </div>
+
+          {/* Private Key */}
+          <div>
+             <label htmlFor="privateKeyOutput" className="block text-sm font-medium leading-6 text-gray-900">
+               Private Key ({walletType === 'bitcoin' ? 'WIF format' : 'Hex'})
+            </label>
+            <div className="mt-1 flex rounded-md shadow-sm">
+               <input
+                  id="privateKeyOutput"
+                  type={isPrivateKeyVisible ? 'text' : 'password'} // Toggle type for visibility
+                  value={privateKey}
+                  readOnly
+                  className="block w-full flex-1 rounded-none rounded-l-md border-0 py-1.5 font-mono text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:outline-none sm:text-sm sm:leading-6 bg-gray-50"
+               />
+                <button
+                  type="button"
+                  onClick={togglePrivateKeyVisibility}
+                  title={isPrivateKeyVisible ? 'Hide Private Key' : 'Show Private Key'}
+                  className="relative -ml-px inline-flex items-center gap-x-1.5 rounded-none px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:outline-none"
+               >
+                   {isPrivateKeyVisible ? '👁️ Hide' : '👁️ Show'}
+               </button>
+               <button
+                  type="button"
+                  onClick={() => copyToClipboard(privateKey, 'Private Key')}
+                  title="Copy private key (Use with extreme caution!)"
+                  className="relative -ml-px inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-100 focus:outline-none"
+               >
+                   📋 Copy
+               </button>
+            </div>
+            <p className="mt-1 text-xs text-red-600 font-semibold">NEVER share this private key! Keep it safe and secret.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
