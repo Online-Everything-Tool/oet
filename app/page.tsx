@@ -23,6 +23,7 @@ export default function Home() {
            <li><a href="/case-converter" className="text-[#900027] hover:underline">Case Converter</a></li>
            <li><a href="/base64-converter" className="text-[#900027] hover:underline">Base64 Converter</a></li>
            <li><a href="/hash-generator" className="text-[#900027] hover:underline">Hash Generator</a></li>
+           <li><a href="/zip-file-explorer" className="text-[#900027] hover:underline">Zip File Explorer</a></li>
            {/* Add links to other tools as they are built */}
          </ul>
       </div>

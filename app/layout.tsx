@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 
 // --- Shoelace Integration Step 2: Import the setup component ---
 import ShoelaceSetup from "@/components/ShoelaceSetup"; // Adjust path if needed
+import '@shoelace-style/shoelace/dist/themes/light.css'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
