@@ -1,6 +1,6 @@
-export default function PhotoFlipPage() {
+export default function ImageFlipPage() {
     return <div>
-        <h1>Photo Flip Page</h1>
+        <h1>Image Flip Page</h1>
         <div>Flip any pic horizontally or vertically</div>
     </div>
 }

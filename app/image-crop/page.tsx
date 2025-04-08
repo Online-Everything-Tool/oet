@@ -1,6 +1,6 @@
-export default function PhotoCropPage() {
+export default function ImageCropPage() {
     return <div>
-        <h1>Photo Crop Page</h1>
+        <h1>Image Crop Page</h1>
         <div>Crop any pic into a variety of shapes</div>
     </div>
 }
