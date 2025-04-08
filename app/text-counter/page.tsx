@@ -1,7 +1,7 @@
 // /app/text-counter/page.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 // import { useHistory } from '../context/HistoryContext'; // Keep if needed later, comment out for now
 
 // Interface for all counts, calculated dynamically

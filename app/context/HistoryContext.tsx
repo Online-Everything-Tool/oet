@@ -26,9 +26,12 @@ export interface HistoryEntry {
   toolName: string; // User-friendly name of the tool (e.g., "JSON Formatter")
   toolRoute: string; // Route path of the tool (e.g., "/json-formatter-validator")
   action?: string; // Optional: Specific action performed (e.g., "format", "validate", "copyEmoji")
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   input?: any; // The primary input data (string, object snippet, etc.) - Keep serializable!
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   output?: any; // The resulting output/result (string, boolean, object snippet) - Keep serializable!
   status?: 'success' | 'error'; // Optional: Outcome indicator
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options?: Record<string, any>; // Ensure this line exists and is not commented out
 }
 

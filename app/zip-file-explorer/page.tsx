@@ -89,6 +89,7 @@ export default function ZipFileExplorerPage() {
         output: `${entries.length} files found`,
         status: 'success',
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Error processing zip file:", err);
       const errorMessage = err.message || 'Failed to read or process the zip file. It might be corrupted or not a valid zip.';
@@ -153,6 +154,7 @@ export default function ZipFileExplorerPage() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
         console.error(`Error downloading file ${entry.name}:`, err);
         setError(`Failed to generate download for ${entry.name}. ${err.message || ''}`);
@@ -193,6 +195,7 @@ export default function ZipFileExplorerPage() {
       } else {
         setPreviewType('unsupported');
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(`Error generating preview for ${entry.name}:`, err);
       setPreviewError(`Failed to load preview: ${err.message || 'Unknown error'}`);
@@ -325,7 +328,7 @@ export default function ZipFileExplorerPage() {
         {!isLoading && fileList.length > 0 && (
             <div className="p-4 border rounded">
                 <h2 className="text-lg font-semibold mb-2">
-                     Showing {filteredAndSortedFileList.length} of {fileList.length} entries in "{selectedFile?.name}":
+                     Showing {filteredAndSortedFileList.length} of {fileList.length} entries in &ldquo;{selectedFile?.name}&rdquo;:
                 </h2>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">

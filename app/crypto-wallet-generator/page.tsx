@@ -71,7 +71,7 @@ export default function CryptoWalletGeneratorPage() {
         output: generatedPublicKey,
         status: 'success',
       });
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('[HTML Version] Error generating wallet:', err);
       const message = err instanceof Error ? err.message : 'An unexpected error occurred.';

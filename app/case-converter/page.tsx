@@ -58,7 +58,7 @@ export default function CaseConverterPage() {
   const convertToSnakeCase = useCallback(() => {
     const originalText = text;
     // Assuming implementation here, potentially using preserveCase...
-    let result = originalText
+    const result = originalText
         .replace(/\W+/g, " ") // Replace non-word chars with space
         .split(/ |\B(?=[A-Z])/) // Split on space or before uppercase letter
         .map(word => word.toLowerCase())
@@ -78,7 +78,7 @@ export default function CaseConverterPage() {
   const convertToKebabCase = useCallback(() => {
     const originalText = text;
     // Assuming implementation here, potentially using preserveCase...
-    let result = originalText
+    const result = originalText
         .replace(/\W+/g, " ") // Replace non-word chars with space
         .split(/ |\B(?=[A-Z])/) // Split on space or before uppercase letter
         .map(word => word.toLowerCase())
