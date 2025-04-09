@@ -1,13 +1,12 @@
 // /app/zip-file-explorer/page.tsx
 'use client';
 
-import React, { useState, useCallback, ChangeEvent, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import JSZip from 'jszip';
 import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
-import { useDebounce } from 'use-debounce';
 
 // --- Import from new files ---
-import type { RawZipEntry, TreeNodeData, SortKey, SortDirection, ActionEntryData } from './types';
+import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode'; // Import the TreeNode component
 // --- End Imports ---
@@ -82,6 +81,7 @@ export default function ZipFileExplorerPage() {
         input: file.name,
         output: `${rawEntries.filter(e => !e.isDirectory).length} files found`, status: 'success',
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Error processing zip file:", err);
       const errorMessage = err.message || 'Failed to read or process the zip file.';
@@ -135,6 +135,7 @@ export default function ZipFileExplorerPage() {
         link.download = entryData.name.substring(entryData.name.lastIndexOf('/') + 1) || entryData.name;
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
         console.error(`Error downloading file ${entryData.name}:`, err);
         setError(`Failed to generate download for ${entryData.name}. ${err.message || ''}`);
@@ -172,6 +173,7 @@ export default function ZipFileExplorerPage() {
       } else {
         setPreviewType('unsupported');
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(`Error generating preview for ${entryData.name}:`, err);
       setPreviewError(`Failed to load preview: ${err.message || 'Unknown error'}`);
@@ -269,7 +271,7 @@ export default function ZipFileExplorerPage() {
         {/* Results Area - Render Tree */}
         {!isLoading && fileTree.length > 0 && (
             <div className="p-4 border rounded">
-                <h2 className="text-lg font-semibold mb-2"> Contents of "{selectedFile?.name}": </h2>
+                <h2 className="text-lg font-semibold mb-2"> Contents of &ldquo;{selectedFile?.name}&rdquo;: </h2>
                 <div className="font-mono text-sm space-y-1 max-h-[60vh] overflow-auto">
                      {/* Use fileTree state */}
                      {fileTree.length > 0 ? fileTree.map(node => (
@@ -290,7 +292,7 @@ export default function ZipFileExplorerPage() {
         )}
          {/* Show message if zip was processed but resulted in no tree data */}
          {!isLoading && !error && selectedFile && fileTree.length === 0 && (
-             <p className="p-4 text-gray-500 italic">No files or folders found in "{selectedFile.name}".</p>
+             <p className="p-4 text-gray-500 italic">No files or folders found in &ldquo;{selectedFile.name}&rdquo;.</p>
          )}
 
         {/* Preview Modal */}
