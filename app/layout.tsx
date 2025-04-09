@@ -33,8 +33,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* Shoelace theme CSS is imported via the import statement above */}
-        {/* Next.js will handle including it in the head */}
+        {/* PWA Meta Tags */}
+        <meta name="application-name" content="OET" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="OET" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="theme-color" content="#ffffff" />
+
+        {/* --- Manifest Link (Inside Head) --- */}
+        <link rel="manifest" href="/manifest.json" />
+        {/* --- End Manifest Link --- */}
+
+        {/* Optional: Add apple-touch-icon links if needed */}
+        {/* <link rel="apple-touch-icon" href="/icons/touch-icon-iphone.png" /> */}
+
+        {/* Other head elements like Shoelace theme CSS import handled via module imports */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
