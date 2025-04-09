@@ -7,8 +7,13 @@
 /build
 .DS_Store
 *.pem
+*.log
 .env*
 next-env.d.ts
 /.vscode/
 
 public/assets
+
+public/sw.js
+public/swe-worker-*.js
+public/workbox-*.js
