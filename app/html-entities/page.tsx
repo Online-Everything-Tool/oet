@@ -84,7 +84,7 @@ async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], c
          continue;
        }
 
-      let entityName = (typeof item.entity === 'string' && item.entity.startsWith('&') && item.entity.endsWith(';'))
+      const entityName = (typeof item.entity === 'string' && item.entity.startsWith('&') && item.entity.endsWith(';'))
                          ? item.entity.trim() : code;
       const description = (typeof item.name === 'string' && item.name.trim()) || 'No description available';
 
