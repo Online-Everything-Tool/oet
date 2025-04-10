@@ -18,6 +18,7 @@ export default function Home() {
            <li><a href="/text-reverse" className="text-[#900027] hover:underline">Text Reverse</a></li>
            <li><a href="/text-counter" className="text-[#900027] hover:underline">Text Counter</a></li>
            <li><a href="/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator &  Formatter</a></li>
+           <li><a href="/html-entities" className="text-[#900027] hover:underline">Html Entities Explorer</a></li>
            <li><a href="/emojis" className="text-[#900027] hover:underline">Emoji Explorer</a></li>
            <li><a href="/url-decode-encode" className="text-[#900027] hover:underline">URL Decode/Encode</a></li>
            <li><a href="/case-converter" className="text-[#900027] hover:underline">Case Converter</a></li>
