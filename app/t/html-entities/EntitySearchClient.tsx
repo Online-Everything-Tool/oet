@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import type { RichEntityData } from './page';
-import { useHistory } from '../context/HistoryContext';
+import { useHistory } from '../../context/HistoryContext';
 
 interface EntitySearchClientProps {
   initialEntities: RichEntityData[];

@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { RichEmojiData } from './page'; // Import the richer type
-import { useHistory } from '../context/HistoryContext'; // 1. Import useHistory
+import { useHistory } from '../../context/HistoryContext'; // 1. Import useHistory
 
 // --- Refined Helper Function ---
 // Utility to get unique sorted values from an array of objects, filtering out unwanted ones

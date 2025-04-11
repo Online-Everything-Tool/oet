@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
+import { useHistory } from '../../context/HistoryContext'; // Adjust path if needed
 
 // Define the different modes for reversing
 type ReverseMode = 'characters' | 'words' | 'lines';

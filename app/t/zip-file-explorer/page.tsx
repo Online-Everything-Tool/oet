@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import JSZip from 'jszip';
-import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
+import { useHistory } from '../../context/HistoryContext'; // Adjust path if needed
 
 // --- Import from new files ---
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';

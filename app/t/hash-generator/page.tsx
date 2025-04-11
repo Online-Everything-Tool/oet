@@ -2,7 +2,7 @@
 'use client'; // Ensure this is the very first line
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../context/HistoryContext'; // Adjust path if needed
+import { useHistory } from '../../context/HistoryContext'; // Adjust path if needed
 
 // Supported hash algorithms by Web Crypto API's digest method
 type HashAlgorithm = 'SHA-1' | 'SHA-256' | 'SHA-512';

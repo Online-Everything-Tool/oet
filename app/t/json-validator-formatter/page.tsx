@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react'; // Added useCallback for consistency
-import { useHistory } from '../context/HistoryContext'; // 1. Import useHistory
+import { useHistory } from '../../context/HistoryContext'; // 1. Import useHistory
 
 export default function JsonValidatorFormatterPage() {
   // --- State ---

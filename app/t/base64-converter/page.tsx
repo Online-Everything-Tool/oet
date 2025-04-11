@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react'; // Added useCallback
-import { useHistory } from '../context/HistoryContext'; // 1. Import useHistory
+import { useHistory } from '../../context/HistoryContext'; // 1. Import useHistory
 
 export default function Base64ConverterPage() {
   const [inputValue, setInputValue] = useState<string>('');

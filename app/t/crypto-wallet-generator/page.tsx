@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../context/HistoryContext';
+import { useHistory } from '../../context/HistoryContext';
 
 // Crypto Libraries
 import { ethers } from 'ethers';
