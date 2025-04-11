@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@serwist/next": "^9.0.13",
+    "@serwist/strategies": "^9.0.13",
     "@shoelace-style/shoelace": "^2.20.1",
     "bitcoinjs-lib": "^6.1.7",
     "ecpair": "^3.0.0",
@@ -22,7 +23,8 @@
     "react-dom": "^19.1.0",
     "tiny-secp256k1": "^2.2.3",
     "use-debounce": "^10.0.4",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "workbox-routing": "^7.3.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function Home() {
   // Add any state or handlers needed for the homepage here later
 
@@ -28,6 +30,21 @@ export default function Home() {
            {/* Add links to other tools as they are built */}
          </ul>
       </div>
+
+              {/* Suggest a New Tool Section */}
+      <div className="mt-8 p-4 border rounded-lg bg-white shadow">
+          <h2 className="text-xl font-semibold mb-3">Suggest a New Tool</h2>
+          <p className="text-gray-600 mb-4">
+            Have an idea for another useful client-side utility? Help expand OET by suggesting it!
+            Click the button below to open a pre-filled issue on GitHub.
+          </p>
+          <Link
+            href="/suggest-tool"
+            className="text-[#900027] hover:underline"
+          >
+            Suggest Tool
+          </Link>
+        </div>
 
     </div>
   );
