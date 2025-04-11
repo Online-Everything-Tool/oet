@@ -1,0 +1,21 @@
+name: Log PR Creation
+
+# Trigger this workflow only when a Pull Request is opened
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  log_event:
+    name: Log PR Details
+    runs-on: ubuntu-latest # Use a standard runner environment
+    permissions: {} # No special permissions needed just to log
+
+    steps:
+      - name: Print PR Number and Title
+        run: |
+          echo "New Pull Request Created!"
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+          echo "PR Title: ${{ github.event.pull_request.title }}"
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Triggered by event: ${{ github.event_name }}"
