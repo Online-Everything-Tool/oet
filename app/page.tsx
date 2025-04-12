@@ -16,17 +16,19 @@ export default function Home() {
          <h2 className="text-xl font-semibold mb-3">Available Tools:</h2>
          <ul className="list-disc list-inside space-y-1">
            {/* Example links - update these later */}
+           <li><a href="/t/base64-converter" className="text-[#900027] hover:underline">Base64 Converter</a></li>
+           <li><a href="/t/case-converter" className="text-[#900027] hover:underline">Case Converter</a></li>
            <li><a href="/t/crypto-wallet-generator" className="text-[#900027] hover:underline">Crypto Wallet Generator</a></li>
-           <li><a href="/t/text-reverse" className="text-[#900027] hover:underline">Text Reverse</a></li>
-           <li><a href="/t/text-counter" className="text-[#900027] hover:underline">Text Counter</a></li>
-           <li><a href="/t/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator &  Formatter</a></li>
+           <li><a href="/t/hash-generator" className="text-[#900027] hover:underline">Hash Generator</a></li>
            <li><a href="/t/html-entities" className="text-[#900027] hover:underline">Html Entities Explorer</a></li>
            <li><a href="/t/emojis" className="text-[#900027] hover:underline">Emoji Explorer</a></li>
+           <li><a href="/t/image-montage" className="text-[#900027] hover:underline">Image Montage</a></li>
+           <li><a href="/t/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator Formatter</a></li>           
+           <li><a href="/t/text-counter" className="text-[#900027] hover:underline">Text Counter</a></li>
+           <li><a href="/t/text-reverse" className="text-[#900027] hover:underline">Text Reverse</a></li>
+           <li><a href="/t/text-strike-through" className="text-[#900027] hover:underline">Text Strike Through</a></li>          
            <li><a href="/t/url-decode-encode" className="text-[#900027] hover:underline">URL Decode/Encode</a></li>
-           <li><a href="/t/case-converter" className="text-[#900027] hover:underline">Case Converter</a></li>
-           <li><a href="/t/base64-converter" className="text-[#900027] hover:underline">Base64 Converter</a></li>
-           <li><a href="/t/hash-generator" className="text-[#900027] hover:underline">Hash Generator</a></li>
-           <li><a href="/t/zip-file-explorer" className="text-[#900027] hover:underline">Zip File Explorer</a></li>
+           <li><a href="/t/zip-file-explorer" className="text-[#900027] hover:underline">Zip File Explorer</a></li>           
            {/* Add links to other tools as they are built */}
          </ul>
       </div>

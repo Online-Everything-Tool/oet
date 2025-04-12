@@ -1,31 +1,28 @@
-// app/zip-file-explorer/types.ts
-import type { JSZipObject } from 'jszip';
+// /app/t/zip-file-explorer/types.ts
+import type JSZip from 'jszip';
 
-// Represents the raw data extracted directly from JSZip entry
+// Type for raw data extracted from JSZip
 export interface RawZipEntry {
-  name: string; // Full path
+  name: string;
   isDirectory: boolean;
-  date: Date;
-  _zipObject: JSZipObject;
+  date: Date | null;
+  _zipObject: JSZip.JSZipObject; // Store the original JSZip object
 }
 
-// Represents a node in our hierarchical file tree
+// Type for the nodes in our hierarchical tree structure
 export interface TreeNodeData {
-  id: string; // Typically the full path, used as React key
-  name: string; // The display name (last part of the path)
-  path: string; // Full path from zip root
+  id: string; // Unique ID for React keys, often the full path
+  name: string; // Display name (usually the last part of the path)
+  path: string; // Full path used as ID and for expansion tracking
   type: 'file' | 'folder';
-  children?: TreeNodeData[]; // Nested children for folders
-  date: Date; // Modification date
-  _zipObject?: JSZipObject; // Reference to the original JSZip object (only for files)
+  date: Date | null;
+  children?: TreeNodeData[]; // Children for folders
+  _zipObject?: JSZip.JSZipObject | null; // Zip object reference (primarily for files)
 }
 
-// Types for sorting (can stay here or move to a more global types file if needed)
-export type SortKey = 'name' | 'date';
-export type SortDirection = 'asc' | 'desc';
-
-// Type for data passed to action handlers from TreeNode
+// Type for data passed to action handlers like download/preview
 export interface ActionEntryData {
-    name: string; // Full path
-    _zipObject: JSZipObject;
+    name: string; // Original full name/path for reference
+    id: string; // Path ID
+    _zipObject: JSZip.JSZipObject; // Action requires the zip object
 }

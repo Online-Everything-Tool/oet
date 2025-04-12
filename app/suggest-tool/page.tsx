@@ -2,7 +2,6 @@
 'use client'; // Required for useState and event handlers
 
 import React, { useState } from 'react';
-import Link from 'next/link'; // Import Link for the success message
 
 export default function SuggestToolPage() {
   const [toolName, setToolName] = useState('');
@@ -59,13 +58,13 @@ export default function SuggestToolPage() {
       setFeedbackMessage(data.message || 'Suggestion submitted successfully!');
       setPrUrl(data.url || null); // Store the PR URL from the response
 
-    } catch (error: any) {
-      // Handle fetch errors or errors thrown from response handling
+    } catch (error: unknown) { // Use unknown
       console.error("Frontend Submission Error:", error);
       setSubmitStatus('error');
-      setFeedbackMessage(error.message || 'An unexpected error occurred during submission.');
+      // Safer message extraction
+      const message = error instanceof Error ? error.message : "An unexpected error occurred during submission.";
+      setFeedbackMessage(message);
     } finally {
-      // Ensure submitting state is reset regardless of outcome
       setIsSubmitting(false);
     }
   };

@@ -7,7 +7,7 @@ import React, {
   useEffect,
   useContext,
   useCallback,
-  useMemo, 
+  useMemo,
   ReactNode,
 } from 'react';
 
@@ -24,15 +24,15 @@ export interface HistoryEntry {
   id: string; // Unique identifier for the entry
   timestamp: number; // Date.now() when the entry was created
   toolName: string; // User-friendly name of the tool (e.g., "JSON Formatter")
-  toolRoute: string; // Route path of the tool (e.g., "/json-formatter-validator")
+  toolRoute: string; // Route path of the tool (e.g., "/t/json-validator-formatter")
   action?: string; // Optional: Specific action performed (e.g., "format", "validate", "copyEmoji")
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  input?: any; // The primary input data (string, object snippet, etc.) - Keep serializable!
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  output?: any; // The resulting output/result (string, boolean, object snippet) - Keep serializable!
+  // *** Use specific types or 'unknown' instead of 'any' ***
+  input?: string | number | boolean | Record<string, unknown> | null | unknown; // Allow common primitives, objects, or unknown for safety
+  output?: string | number | boolean | Record<string, unknown> | null | unknown; // Allow common primitives, objects, or unknown for safety
   status?: 'success' | 'error'; // Optional: Outcome indicator
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options?: Record<string, any>; // Ensure this line exists and is not commented out
+  // Allow options object with unknown value types
+  options?: Record<string, unknown>; // Use unknown for values within options
+  // *** End Type Correction ***
 }
 
 /**
@@ -48,18 +48,11 @@ interface HistoryContextValue {
 
 // --- Context Creation ---
 
-// Create the context with a default value (prevents errors when used outside provider)
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
-  addHistoryEntry: () => {
-    console.warn('addHistoryEntry called outside of HistoryProvider');
-  },
-  deleteHistoryEntry: () => {
-    console.warn('deleteHistoryEntry called outside of HistoryProvider');
-  },
-  clearHistory: () => {
-    console.warn('clearHistory called outside of HistoryProvider');
-  },
+  addHistoryEntry: () => { console.warn('addHistoryEntry called outside of HistoryProvider'); },
+  deleteHistoryEntry: () => { console.warn('deleteHistoryEntry called outside of HistoryProvider'); },
+  clearHistory: () => { console.warn('clearHistory called outside of HistoryProvider'); },
   isLoaded: false,
 });
 
@@ -89,24 +82,20 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       const storedHistory = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (storedHistory) {
         const parsedHistory = JSON.parse(storedHistory);
-        // Basic validation - check if it's an array
         if (Array.isArray(parsedHistory)) {
            console.log(`HistoryProvider: Loaded ${parsedHistory.length} entries.`);
+          // TODO: Add more validation here if needed (check structure of entries)
           setHistory(parsedHistory);
         } else {
             console.warn('HistoryProvider: Invalid data found in localStorage, resetting.');
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
-            setHistory([]);
+            localStorage.removeItem(LOCAL_STORAGE_KEY); setHistory([]);
         }
       } else {
-        console.log('HistoryProvider: No history found in localStorage.');
-        setHistory([]);
+        console.log('HistoryProvider: No history found in localStorage.'); setHistory([]);
       }
     } catch (error) {
       console.error('HistoryProvider: Error parsing history from localStorage:', error);
-      // Clear corrupted data
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-      setHistory([]);
+      localStorage.removeItem(LOCAL_STORAGE_KEY); setHistory([]);
     } finally {
         setIsLoaded(true); // Mark loading as complete
     }
@@ -114,56 +103,58 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   // Persist history to localStorage whenever it changes *after* initial load
   useEffect(() => {
-    // Only save after the initial load is complete to prevent overwriting loaded data
     if (isLoaded) {
       try {
-        // console.log(`HistoryProvider: Saving ${history.length} entries to localStorage...`);
+        // Limited logging to avoid spamming console on every history change
+        // console.log(`HistoryProvider: Saving ${history.length} entries...`);
         const historyString = JSON.stringify(history);
         localStorage.setItem(LOCAL_STORAGE_KEY, historyString);
       } catch (error) {
         console.error('HistoryProvider: Error saving history to localStorage:', error);
+        // Consider notifying user if saving fails repeatedly?
       }
     }
   }, [history, isLoaded]); // Re-run whenever history state or loaded status changes
 
   // --- Context Functions ---
 
+  // Add a new entry, ensuring it doesn't exceed the max limit
   const addHistoryEntry = useCallback(
     (entryData: Omit<HistoryEntry, 'id' | 'timestamp'>) => {
       const newEntry: HistoryEntry = {
         ...entryData,
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, // Unique enough ID
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, // Reasonably unique ID
         timestamp: Date.now(),
       };
 
       setHistory((prevHistory) => {
         const updatedHistory = [newEntry, ...prevHistory];
-        // Enforce size limit
-        if (updatedHistory.length > MAX_HISTORY_ENTRIES) {
-          return updatedHistory.slice(0, MAX_HISTORY_ENTRIES);
-        }
-        return updatedHistory;
+        // Enforce size limit by slicing the array if it exceeds the max
+        return updatedHistory.length > MAX_HISTORY_ENTRIES
+               ? updatedHistory.slice(0, MAX_HISTORY_ENTRIES)
+               : updatedHistory;
       });
        console.log('HistoryProvider: Added entry for', newEntry.toolName);
     },
-    [] // No dependencies needed as it uses setHistory's functional update form
+    [] // No external dependencies needed for this implementation
   );
 
+  // Delete a specific entry by its ID
   const deleteHistoryEntry = useCallback((idToDelete: string) => {
     setHistory((prevHistory) =>
       prevHistory.filter((entry) => entry.id !== idToDelete)
     );
     console.log('HistoryProvider: Deleted entry with ID', idToDelete);
-  }, []); // No dependencies
+  }, []);
 
+  // Clear the entire history state and localStorage
   const clearHistory = useCallback(() => {
     setHistory([]);
-    // Also remove from storage immediately for clarity, although the effect would catch it
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear storage immediately
     console.log('HistoryProvider: Cleared all history.');
-  }, []); // No dependencies
+  }, []);
 
-  // Assemble the context value
+  // Memoize the context value to prevent unnecessary re-renders of consumers
   const value = useMemo(
     () => ({
       history,
@@ -172,7 +163,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       clearHistory,
       isLoaded,
     }),
-    [history, addHistoryEntry, deleteHistoryEntry, clearHistory, isLoaded] // Dependencies for memoization
+    [history, addHistoryEntry, deleteHistoryEntry, clearHistory, isLoaded]
   );
 
   return (

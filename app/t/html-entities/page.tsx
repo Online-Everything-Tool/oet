@@ -31,7 +31,7 @@ export interface RichEntityData {
 // --- Function to load and process entity data (Server Side) ---
 // Now returns both entities and the list of categories
 async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], categories: string[] }> {
-  const filePath = path.join(process.cwd(), 'app', 'html-entities', 'html-entities-data.json');
+  const filePath = path.join(process.cwd(), 'app', 't', 'html-entities', 'html-entities-data.json');
   let jsonData: CategorizedRawData;
 
   try {
