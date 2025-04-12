@@ -1,6 +1,6 @@
-export default function ClipboardPage() {
+export default function ClipboardExplorerPage() {
     return <div>
-        <h1>Clipboard Tool</h1>
+        <h1>Clipboard Explorer Tool</h1>
         <div>Dump & preserve clipboard contents</div>
     </div>
 }
