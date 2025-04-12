@@ -25,6 +25,7 @@ export default function Home() {
            <li><Link href="/t/emojis" className="text-[#900027] hover:underline">Emoji Explorer</Link></li>
            <li><Link href="/t/image-montage" className="text-[#900027] hover:underline">Image Montage</Link></li>
            <li><Link href="/t/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator Formatter</Link></li>
+           <li><Link href="/t/random-password-generator" className="text-[#900027] hover:underline">Random Password Generator</Link></li>
            <li><Link href="/t/text-counter" className="text-[#900027] hover:underline">Text Counter</Link></li>
            <li><Link href="/t/text-reverse" className="text-[#900027] hover:underline">Text Reverse</Link></li>
            <li><Link href="/t/text-strike-through" className="text-[#900027] hover:underline">Text Strike Through</Link></li>
