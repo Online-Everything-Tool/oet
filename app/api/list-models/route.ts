@@ -14,8 +14,8 @@ if (!API_KEY) {
 
 // We don't need the genAI instance for this specific REST call route
 // const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
-
-export async function GET(request: Request) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_request: Request) {
     console.log('[API /list-models] Received request (Using REST API)');
 
     if (!API_KEY) {
@@ -50,7 +50,8 @@ export async function GET(request: Request) {
                 const errorData = await response.json();
                 console.error('[API /list-models] REST API Error Response:', errorData);
                 errorBody = errorData?.error?.message || `API request failed with status ${response.status}`;
-            } catch (parseError) {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            } catch (_parseError) {
                 console.error('[API /list-models] Failed to parse error response body.');
                 errorBody = `API request failed with status ${response.status}`;
             }

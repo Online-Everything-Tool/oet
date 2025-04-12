@@ -257,7 +257,7 @@ export default function BuildToolPage() {
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-[#900027] focus:border-[#900027] sm:text-sm disabled:bg-gray-100"
             placeholder="e.g., markdown-formatter, base64-encoder"
           />
-          <p className="mt-1 text-xs text-gray-500">Lowercase letters, numbers, hyphens. Defines the tool's URL: `/t/{formatSlug(toolDirective) || '...'}`</p>
+          <p className="mt-1 text-xs text-gray-500">Lowercase letters, numbers, hyphens. Defines the tool&apos;s URL: `/t/{formatSlug(toolDirective) || '...'}`</p>
         </div>
 
         {/* Model Selection Dropdown */}
