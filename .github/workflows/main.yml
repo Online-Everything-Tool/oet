@@ -1,11 +1,11 @@
-name: oet
+name: Deploy Static Frontend to S3 (Ignoring API)
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build:
+  build-and-deploy-static:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,19 +15,60 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
-      - name: Build
-        run: npm run build
+
+      # --- Modification Starts ---
+      - name: Temporarily Hide API Directory
+        run: mv app/api app/api_hidden_during_export # Rename the directory
+
+      - name: Build Static Export
+        env:
+          BUILDING_STATIC: 'true' # Set env var for next.config.mjs
+        run: |
+          echo "Building static export with API directory hidden..."
+          npm run build # Should now succeed without seeing API routes
+        # Optional: Add error handling here if build fails for other reasons
+        # run: npm run build || { echo "Build failed!"; exit 1; }
+
+      - name: Restore API Directory (Crucial!)
+        # Always run this step, even if build failed, to keep repo clean
+        if: always()
+        run: |
+          echo "Restoring API directory..."
+          mv app/api_hidden_during_export app/api || echo "API directory already restored or not found."
+      # --- Modification Ends ---
+
+      # Check if build output exists before deploying
+      - name: Check for output directory
+        id: check_out_dir
+        run: |
+          if [ -d "./out" ]; then
+            echo "Output directory ./out found."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "Output directory ./out NOT found. Build might have failed."
+            echo "exists=false" >> $GITHUB_OUTPUT
+            # Optionally fail the workflow here if needed: exit 1
+          fi
+
+      # --- Deployment steps only run if ./out exists ---
       - name: Configure AWS Credentials
+        if: steps.check_out_dir.outputs.exists == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
       - name: Copy files to S3 with the AWS CLI
+        if: steps.check_out_dir.outputs.exists == 'true'
         run: |
-          aws s3 sync ./out s3://online-everything-tool.com
+          echo "Syncing ./out to S3..."
+          aws s3 sync ./out s3://online-everything-tool.com --delete
+
       - name: Invalidate CloudFront Cache
+        if: steps.check_out_dir.outputs.exists == 'true'
         run: |
+          echo "Invalidating CloudFront cache..."
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
             --paths "/*"

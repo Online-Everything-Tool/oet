@@ -6,7 +6,7 @@ import withSerwist from "@serwist/next";
 
 // Your base Next.js configuration (remains the same)
 const nextConfig: NextConfig = {
-  // output: 'export',
+  output: process.env.BUILDING_STATIC === 'true' ? 'export' : undefined,
   images: { unoptimized: true },
   trailingSlash: true,
   webpack(config, options) {
