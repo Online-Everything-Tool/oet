@@ -118,7 +118,7 @@ async function fetchAndParseEmojis(): Promise<RichEmojiData[]> {
 
 
 // --- The Page Component (Server Component) ---
-export default async function EmojiPage() {
+export default async function EmojiExplorerPage() {
   // Fetch data on the server during render/build
   const allEmojis = await fetchAndParseEmojis();
 

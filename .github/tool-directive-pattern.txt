@@ -1,0 +1,20 @@
+# Allowed Directive Patterns (one pattern per line)
+# Use simple prefix/suffix or valid regex patterns.
+# Comments start with #
+
+# Patterns based on prefix
+^image-
+^text-
+^json-
+^yaml-
+^url-
+
+# Patterns based on suffix
+-converter$
+-formatter$
+-generator$
+-validator$
+-explorer$
+
+# More complex regex example (e.g., json-to-something or something-to-json)
+# ^json-to-[a-z0-9-]+$|^[a-z0-9-]+-to-json$

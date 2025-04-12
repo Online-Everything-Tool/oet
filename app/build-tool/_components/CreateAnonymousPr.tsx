@@ -89,7 +89,7 @@ export default function CreateAnonymousPr({
             {/* Review Context Section */}
             <div className="mb-4 space-y-3 p-3 bg-gray-50 border border-gray-200 rounded">
                  <p className="text-sm"><span className="font-medium text-gray-600">Target Directive:</span> <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs">{toolDirective}</code></p>
-                 {validationResult?.generativeDescription && (<div><p className="text-sm font-medium text-gray-600">AI Description:</p><p className="text-sm text-gray-800 pl-2 italic">"{validationResult.generativeDescription}"</p></div>)}
+                 {validationResult?.generativeDescription && (<div><p className="text-sm font-medium text-gray-600">AI Description:</p><p className="text-sm text-gray-800 pl-2 italic">&ldquo;{validationResult.generativeDescription}&rdquo;</p></div>)}
                  {additionalDescription && (<div><p className="text-sm font-medium text-gray-600">Your Additional Details:</p><p className="text-sm text-gray-800 pl-2 whitespace-pre-wrap">{additionalDescription}</p></div>)}
                  {validationResult?.generativeRequestedDirectives && validationResult.generativeRequestedDirectives.length > 0 && (<div><p className="text-sm font-medium text-gray-600 mb-1">AI Requested Examples:</p><ul className="list-disc list-inside space-y-1 pl-2">{validationResult.generativeRequestedDirectives.map(d => ( <li key={d} className="text-sm text-indigo-700"><Link href={`/t/${d}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900">{d}</Link></li> ))}</ul></div>)}
             </div>

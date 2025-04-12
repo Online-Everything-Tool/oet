@@ -1,0 +1,120 @@
+name: Validate Generated Tool PR
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Validate Tool Directive and File Paths
+    if: startsWith(github.head_ref, 'feat/gen-')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    outputs:
+      tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
+      path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
+      pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Tool Directive from Branch Name
+        id: extract_directive
+        run: |
+          # ... (extraction logic unchanged) ...
+          BRANCH_NAME="${{ github.head_ref }}"
+          TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
+          TOOL_DIRECTIVE=$(echo "$TEMP_DIRECTIVE" | sed 's/-[0-9]*$//')
+          if [ -z "$TOOL_DIRECTIVE" ]; then exit 1; fi
+          echo "Extracted Tool Directive: $TOOL_DIRECTIVE"
+          echo "tool_directive=${TOOL_DIRECTIVE}" >> $GITHUB_OUTPUT
+
+      - name: Check if Directive Matches Allowed Patterns
+        id: check_patterns
+        run: |
+          TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
+          # --- USE CORRECT FILENAME ---
+          PATTERN_FILE=".github/tool-directive-patterns.txt"
+          MATCH_FOUND=false
+
+          echo "Checking if '$TOOL_DIRECTIVE' matches any pattern in $PATTERN_FILE..."
+
+          if [ ! -f "$PATTERN_FILE" ]; then
+             echo "::error::Pattern file not found at $PATTERN_FILE."
+             echo "check_passed=false" >> $GITHUB_OUTPUT
+             exit 1
+          fi
+
+          # Read patterns file and check for match
+          while IFS= read -r pattern || [[ -n "$pattern" ]]; do
+             if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$pattern"; then
+                 echo "Directive '$TOOL_DIRECTIVE' matches pattern: $pattern"
+                 MATCH_FOUND=true
+                 break
+             fi
+          done < <(grep -v '^#' "$PATTERN_FILE" | grep -v '^$')
+
+          if $MATCH_FOUND; then
+             echo "Directive matches an allowed pattern."
+             echo "check_passed=true" >> $GITHUB_OUTPUT
+          else
+             echo "::error::Directive '$TOOL_DIRECTIVE' does NOT match any allowed pattern in $PATTERN_FILE."
+             echo "check_passed=false" >> $GITHUB_OUTPUT
+             exit 1
+          fi
+
+      - name: Validate Changed File Paths
+        id: validate_paths
+        if: steps.check_patterns.outputs.check_passed == 'true'
+        env:
+          TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
+        run: |
+          # ... (Path validation logic unchanged) ...
+          if [ -z "$TOOL_DIRECTIVE" ]; then exit 1; fi
+          git fetch origin main; BASE_SHA=$(git merge-base HEAD origin/main); CHANGED_FILES=$(git diff --name-status $BASE_SHA HEAD)
+          if [ -z "$CHANGED_FILES" ]; then echo "validation_passed=true" >> $GITHUB_OUTPUT; exit 0; fi
+          echo "Changed files:" && echo "$CHANGED_FILES"; ALLOWED_FOLDER_PATTERN="^app/t/${TOOL_DIRECTIVE}/"
+          echo "Allowed folder pattern: $ALLOWED_FOLDER_PATTERN"; INVALID_FILES="" && ALL_VALID=true
+          echo "$CHANGED_FILES" | while IFS=$'\t' read -r status filepath; do if [[ -n "$filepath" ]]; then if [[ ! "$filepath" =~ $ALLOWED_FOLDER_PATTERN ]]; then echo "::error file=$filepath::Invalid path."; INVALID_FILES="${INVALID_FILES}${filepath}\n" && ALL_VALID=false; fi; fi; done
+          if $ALL_VALID; then echo "validation_passed=true" >> $GITHUB_OUTPUT; else echo "validation_passed=false" >> $GITHUB_OUTPUT; INVALID_FILES=$(echo -e "$INVALID_FILES" | sed -z 's/\n/\\n/g'); echo "invalid_files_list=${INVALID_FILES}" >> $GITHUB_OUTPUT; exit 1; fi
+
+      - name: Add failure comment to PR
+        if: failure() && (steps.check_patterns.outputs.check_passed == 'false' || steps.validate_paths.outputs.validation_passed == 'false')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo, owner } = context.repo; const issue_number = context.issue.number;
+            const toolDirective = `${{ steps.extract_directive.outputs.tool_directive }}`;
+            const patternCheckPassed = `${{ steps.check_patterns.outputs.check_passed || 'true' }}` === 'true';
+            const pathValidationPassed = `${{ steps.validate_paths.outputs.validation_passed || 'true' }}` === 'true';
+            const invalidFilesList = `${{ steps.validate_paths.outputs.invalid_files_list || '' }}`.replace(/\\n/g, '\n- ');
+            let failureReason = '';
+            if (!patternCheckPassed) {
+              // --- USE CORRECT FILENAME IN COMMENT ---
+              failureReason += `- The directive \`${toolDirective}\` does not match any allowed pattern defined in \`.github/tool-directive-patterns.txt\`. Please use an approved pattern or update the pattern file.\n`;
+            }
+            if (!pathValidationPassed) {
+              failureReason += `- Files were changed outside the allowed directory \`app/t/${toolDirective}/*\`. Please ensure all changes are contained within this specific folder.\n`;
+              if (invalidFilesList) { failureReason += `  - Invalid files found:\n- ${invalidFilesList}\n`; }
+            }
+            const body = `🚨 **Automatic Validation Failed!** 🚨\n\nThis Pull Request could not be automatically validated for the following reason(s):\n${failureReason || '- Unknown validation error.'}\nPlease investigate and address the issues.`;
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            // core.setFailed() is redundant if the job already failed
+
+      # Optional Auto-Close PR step (commented out)
+      # - name: Close Pull Request on Failure
+      #   if: failure() # Simplified condition, runs if job fails
+      #   uses: peter-evans/close-pull@v3
+      #   with:
+      #     token: ${{ secrets.GITHUB_TOKEN }}
+      #     pull-request-number: ${{ github.event.pull_request.number }}
+      #     comment: "Automatically closing PR due to validation failure (pattern mismatch or invalid file path)."
