@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useHistory } from '../../context/HistoryContext'; // Re-enabled import
 import ToolHeader from '../_components/ToolHeader'; // Import ToolHeader
 import metadata from './metadata.json'; // Import local metadata

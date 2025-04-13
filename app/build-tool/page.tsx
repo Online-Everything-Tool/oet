@@ -73,7 +73,7 @@ export default function BuildToolPage() {
                 setAvailableModels(models);
                 // Default model selection logic (simplified for brevity)
                 const defaultEnv = process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
-                let defaultModel = models.find(m => m.name === defaultEnv)
+                const defaultModel = models.find(m => m.name === defaultEnv)
                                   ?? models.find(m => m.name.includes('flash'))
                                   ?? models.find(m => m.name.includes('pro'))
                                   ?? models[0];
