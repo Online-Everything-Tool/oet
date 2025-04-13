@@ -12,6 +12,8 @@
 next-env.d.ts
 /.vscode/
 
+
+infra/data
 public/assets
 
 public/sw.js
