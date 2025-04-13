@@ -1,4 +1,4 @@
-// /app/html-entities/page.tsx
+// /app/html-entity-explorer/page.tsx
 import fs from 'fs/promises';
 import path from 'path';
 import EntitySearchClient from './EntitySearchClient';

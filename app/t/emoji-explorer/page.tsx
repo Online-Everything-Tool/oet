@@ -1,4 +1,4 @@
-// /app/emoji/page.tsx
+// /app/emoji-explorer/page.tsx
 import React from 'react';
 import EmojiSearchClient from './EmojiSearchClient';
 

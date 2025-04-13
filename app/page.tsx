@@ -21,8 +21,8 @@ export default function Home() {
            <li><Link href="/t/case-converter" className="text-[#900027] hover:underline">Case Converter</Link></li>
            <li><Link href="/t/crypto-wallet-generator" className="text-[#900027] hover:underline">Crypto Wallet Generator</Link></li>
            <li><Link href="/t/hash-generator" className="text-[#900027] hover:underline">Hash Generator</Link></li>
-           <li><Link href="/t/html-entities" className="text-[#900027] hover:underline">Html Entities Explorer</Link></li>
-           <li><Link href="/t/emojis" className="text-[#900027] hover:underline">Emoji Explorer</Link></li>
+           <li><Link href="/t/html-entity-explorer" className="text-[#900027] hover:underline">Html Entity Explorer</Link></li>
+           <li><Link href="/t/emoji-explorer" className="text-[#900027] hover:underline">Emoji Explorer</Link></li>
            <li><Link href="/t/image-montage" className="text-[#900027] hover:underline">Image Montage</Link></li>
            <li><Link href="/t/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator Formatter</Link></li>
            <li><Link href="/t/random-password-generator" className="text-[#900027] hover:underline">Random Password Generator</Link></li>
