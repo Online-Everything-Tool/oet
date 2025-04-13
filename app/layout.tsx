@@ -1,14 +1,14 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import fs from 'fs/promises';
+import path from 'path';
 
-import "./globals.css"; // Keep your global styles
+import "./globals.css";
 import { HistoryProvider } from "./context/HistoryContext";
-import Header from "@/components/Header";
-
-// --- Shoelace Integration Step 2: Import the setup component ---
-import ShoelaceSetup from "@/components/ShoelaceSetup"; // Adjust path if needed
-import '@shoelace-style/shoelace/dist/themes/light.css'
+import Header from "./_components/Header";
+import ShoelaceSetup from "@/app/_components/ShoelaceSetup";
+import '@shoelace-style/shoelace/dist/themes/light.css';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,10 +20,64 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Online Everything Tool",
-  description: "All-in-One Utility for transforming Data, Images, and Text",
-};
+const DEFAULT_TITLE = "Online Everything Tool";
+const DEFAULT_DESCRIPTION = "A versatile collection of free, client-side utilities for transforming data, images, and text.";
+
+interface ProjectAnalysisData {
+  siteTagline?: string;
+  siteDescription?: string;
+}
+
+// --- Dynamic Metadata Generation ---
+export async function generateMetadata(): Promise<Metadata> {
+  const analysisFilePath = path.join(process.cwd(), 'public', 'data', 'project_analysis.json');
+  let analysisData: ProjectAnalysisData | null = null;
+
+  try {
+    await fs.access(analysisFilePath);
+    const analysisContent = await fs.readFile(analysisFilePath, 'utf-8');
+    analysisData = JSON.parse(analysisContent);
+  } catch (error: unknown) { // <-- Changed from any to unknown
+    // --- Type checking before accessing properties ---
+    const message = error instanceof Error ? error.message : String(error);
+    // Check if it's a Node.js filesystem error with a code property
+    const isFsError = typeof error === 'object' && error !== null && 'code' in error;
+    const errorCode = isFsError ? (error as { code: string }).code : null;
+
+    if (errorCode !== 'ENOENT') { // Log only if NOT file not found
+      console.error("[Layout Metadata] Error reading or parsing project_analysis.json:", message);
+    } else {
+      console.log("[Layout Metadata] project_analysis.json not found. Using default metadata.");
+    }
+    // --- End Type Checking ---
+  }
+
+  const description = analysisData?.siteDescription?.trim() || DEFAULT_DESCRIPTION;
+
+  return {
+    metadataBase: new URL('https://online-everything-tool.com'),
+    title: {
+        default: DEFAULT_TITLE,
+        template: `%s | ${DEFAULT_TITLE}`,
+    },
+    description: description,
+    applicationName: 'OET',
+    openGraph: {
+        title: DEFAULT_TITLE,
+        description: description,
+        url: 'https://online-everything-tool.com',
+        siteName: DEFAULT_TITLE,
+        locale: 'en_US',
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: DEFAULT_TITLE,
+        description: description,
+    },
+    manifest: '/manifest.json',
+  };
+}
 
 export default function RootLayout({
   children,
@@ -33,38 +87,21 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        {/* PWA Meta Tags */}
-        <meta name="application-name" content="OET" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="OET" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="theme-color" content="#ffffff" />
-
-        {/* --- Manifest Link (Inside Head) --- */}
-        <link rel="manifest" href="/manifest.json" />
-        {/* --- End Manifest Link --- */}
-
-        {/* Optional: Add apple-touch-icon links if needed */}
-        {/* <link rel="apple-touch-icon" href="/icons/touch-icon-iphone.png" /> */}
-
-        {/* Other head elements like Shoelace theme CSS import handled via module imports */}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* --- Shoelace Integration Step 3: Render the setup component --- */}
-        {/* This component runs client-side to set the asset base path */}
         <ShoelaceSetup />
-
         <HistoryProvider>
-          <Header /> {/* Header is rendered first */}
-          <main className="flex-grow container mx-auto max-w-6xl px-4 py-8"> {/* Main content area grows */}
-            {children} {/* Page content */}
+          <Header />
+          <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+            {children}
           </main>
-          {/* Optional: Add a Footer component here later */}
-          {/* <Footer /> */}
         </HistoryProvider>
       </body>
     </html>
