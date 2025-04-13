@@ -1,8 +1,9 @@
-// /app/t/image-montage/page.tsx
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import { useHistory } from '../../context/HistoryContext'; // Import HistoryEntry type too
+import { useHistory } from '../../context/HistoryContext';
+import ToolHeader from '../_components/ToolHeader'; // Import ToolHeader
+import metadata from './metadata.json'; // Import local metadata
 
 // Interface for storing image data and its properties
 interface MontageImage {
@@ -69,7 +70,7 @@ const calculateRenderedBounds = (
 export default function ImageMontagePage() {
   const [montageImages, setMontageImages] = useState<MontageImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isClipboardCopied, setIsClipboardCopied] = useState(false);
+  const [isClipboardCopied, setIsClipboardCopied] = useState(false); // Keep for button text change
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { addHistoryEntry } = useHistory();
 
@@ -112,9 +113,8 @@ export default function ImageMontagePage() {
       .then((newImages) => {
         const updatedImageList = [...montageImages, ...newImages];
         setMontageImages(updatedImageList);
-        // *** FIXED: History entry for success ***
         addHistoryEntry({
-          toolName: 'Image Montage',
+          toolName: metadata.title,
           toolRoute: '/t/image-montage',
           action: `add-${newImages.length}-images`,
           input: addedFileNames.join(', ').substring(0, 500),
@@ -124,9 +124,8 @@ export default function ImageMontagePage() {
       })
       .catch((error) => {
          console.error("Error loading one or more images:", error);
-         // *** FIXED: History entry for error ***
          addHistoryEntry({
-            toolName: 'Image Montage',
+            toolName: metadata.title,
             toolRoute: '/t/image-montage',
             action: `add-images-failed`,
             input: addedFileNames.join(', ').substring(0, 500),
@@ -140,7 +139,7 @@ export default function ImageMontagePage() {
       });
   }, [addHistoryEntry, montageImages]);
 
-  // --- Canvas Drawing Logic (useEffect) --- (Keep as before)
+  // --- Canvas Drawing Logic (useEffect) ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -149,7 +148,14 @@ export default function ImageMontagePage() {
      if (montageImages.length === 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height); return;
     }
-    console.log("Redrawing canvas...");
+    console.log("Redrawing canvas..."); // Keep console log for debugging draw trigger
+
+    // --- FIX: Get computed style once for reuse ---
+    const computedStyle = getComputedStyle(document.documentElement);
+    const subtleBgColor = computedStyle.getPropertyValue('--color-bg-subtle').trim();
+    const componentBgColor = computedStyle.getPropertyValue('--color-bg-component').trim();
+    const borderBaseColor = computedStyle.getPropertyValue('--color-border-base').trim();
+
     const { maxH } = calculateMaxBounds(TOTAL_POLAROID_WIDTH, TOTAL_POLAROID_HEIGHT);
     const canvasPadding = maxH * 0.2;
     const canvasHeight = Math.ceil(maxH + canvasPadding * 2);
@@ -161,7 +167,11 @@ export default function ImageMontagePage() {
     }
     const canvasWidth = Math.ceil(totalContentWidth + canvasPadding * 2);
     canvas.width = canvasWidth; canvas.height = canvasHeight;
-    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Clear canvas with subtle background
+    ctx.fillStyle = `rgb(${subtleBgColor})`;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
     let nextImageStartX = canvasPadding;
     montageImages.forEach((imgData, index) => {
         const { image, tilt } = imgData;
@@ -170,13 +180,24 @@ export default function ImageMontagePage() {
         const centerY = canvasHeight / 2;
         ctx.save(); ctx.translate(centerX, centerY); ctx.rotate(tiltRad);
         const polaroidX = -TOTAL_POLAROID_WIDTH / 2; const polaroidY = -TOTAL_POLAROID_HEIGHT / 2;
+
+        // Polaroid background and shadow
         ctx.shadowColor = 'rgba(0, 0, 0, 0.35)'; ctx.shadowBlur = 12; ctx.shadowOffsetX = 1; ctx.shadowOffsetY = 4;
-        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(polaroidX, polaroidY, TOTAL_POLAROID_WIDTH, TOTAL_POLAROID_HEIGHT);
+        // --- FIX: Set fillStyle to component background (white) BEFORE filling the polaroid rect ---
+        ctx.fillStyle = `rgb(${componentBgColor})`;
+        ctx.fillRect(polaroidX, polaroidY, TOTAL_POLAROID_WIDTH, TOTAL_POLAROID_HEIGHT);
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+
+        // Image placement
         const imageX = polaroidX + BORDER_PADDING; const imageY = polaroidY + BORDER_PADDING;
         ctx.drawImage(image, imageX, imageY, POLAROID_WIDTH, POLAROID_HEIGHT);
-        ctx.strokeStyle = '#EEEEEE'; ctx.lineWidth = 1; ctx.strokeRect(imageX, imageY, POLAROID_WIDTH, POLAROID_HEIGHT);
+
+        // Subtle border around image inside polaroid
+        ctx.strokeStyle = `rgba(${borderBaseColor}, 0.5)`; // Use rgba with the fetched RGB values
+        ctx.lineWidth = 1; ctx.strokeRect(imageX, imageY, POLAROID_WIDTH, POLAROID_HEIGHT);
         ctx.restore();
+
+        // Calculate next position based on overlap
         if (index < montageImages.length - 1) {
             const nextOverlapPercent = Math.max(0, Math.min(MAX_OVERLAP_PERCENT, montageImages[index + 1].overlapPercent));
             const nextOverlapPixels = TOTAL_POLAROID_WIDTH * (nextOverlapPercent / 100);
@@ -184,7 +205,8 @@ export default function ImageMontagePage() {
             nextImageStartX += stepX;
         }
     });
-  }, [montageImages]);
+  }, [montageImages]); // Dependency remains the same
+
 
   // --- Action Handlers ---
 
@@ -193,9 +215,9 @@ export default function ImageMontagePage() {
     const imageCount = montageImages.length;
     setMontageImages([]);
     if (imageCount > 0) {
-        // *** FIXED: History entry for clear ***
         addHistoryEntry({
-             toolName: 'Image Montage', toolRoute: '/t/image-montage',
+             toolName: metadata.title,
+             toolRoute: '/t/image-montage',
              action: 'clear-montage', input: `${imageCount} images present`,
              output: 'Montage cleared', status: 'success',
         });
@@ -210,28 +232,32 @@ export default function ImageMontagePage() {
 
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
       console.error("Could not calculate valid bounds for download.");
-      // *** FIXED: History entry for bounds error ***
        addHistoryEntry({
-          toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'download-failed',
+          toolName: metadata.title,
+          toolRoute: '/t/image-montage', action: 'download-failed',
           input: `${montageImages.length} images`, output: 'Error calculating bounds', status: 'error',
       });
       return;
     }
 
-    console.log("Calculated download bounds:", bounds);
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = bounds.width; tempCanvas.height = bounds.height;
     const tempCtx = tempCanvas.getContext('2d');
 
     if (!tempCtx) {
       console.error("Failed to get context for temporary canvas.");
-      // *** FIXED: History entry for context error ***
        addHistoryEntry({
-          toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'download-failed',
+          toolName: metadata.title,
+          toolRoute: '/t/image-montage', action: 'download-failed',
           input: `${montageImages.length} images`, output: 'Error creating temp canvas context', status: 'error',
       });
       return;
     }
+    // Draw component background color on temp canvas before drawing main content
+    const computedStyle = getComputedStyle(document.documentElement);
+    const componentBgColor = computedStyle.getPropertyValue('--color-bg-component').trim();
+    tempCtx.fillStyle = `rgb(${componentBgColor})`; // Ensure background matches component bg
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     tempCtx.drawImage( mainCanvas, bounds.minX, bounds.minY, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height );
 
@@ -242,16 +268,16 @@ export default function ImageMontagePage() {
         link.href = url; link.download = `oet-montage-clipped-${Date.now()}.png`;
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        // *** FIXED: History entry for download success ***
         addHistoryEntry({
-             toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'download-montage-clipped',
+             toolName: metadata.title,
+             toolRoute: '/t/image-montage', action: 'download-montage-clipped',
              input: `${montageImages.length} images`, output: link.download, status: 'success',
         });
       } else {
         console.error("Failed to create blob from temporary canvas.");
-        // *** FIXED: History entry for blob error ***
         addHistoryEntry({
-            toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'download-clipped-failed',
+            toolName: metadata.title,
+            toolRoute: '/t/image-montage', action: 'download-clipped-failed',
             input: `${montageImages.length} images`, output: 'Error creating blob from temp canvas', status: 'error',
         });
       }
@@ -262,15 +288,14 @@ export default function ImageMontagePage() {
    const handleCopyToClipboard = useCallback(async () => {
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) return;
-    // const imageCount = montageImages.length; // Use length directly below
     setIsClipboardCopied(false);
 
     const bounds = calculateRenderedBounds(montageImages, mainCanvas.height);
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
       console.error("Could not calculate valid bounds for clipboard.");
-       // *** FIXED: History entry for bounds error ***
       addHistoryEntry({
-        toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'copy-failed',
+        toolName: metadata.title,
+        toolRoute: '/t/image-montage', action: 'copy-failed',
         input: `${montageImages.length} images`, output: 'Error calculating bounds', status: 'error',
       });
       return;
@@ -281,13 +306,18 @@ export default function ImageMontagePage() {
     const tempCtx = tempCanvas.getContext('2d');
     if (!tempCtx) {
          console.error("Failed to get context for temporary canvas (clipboard).");
-         // *** FIXED: History entry for context error ***
          addHistoryEntry({
-            toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'copy-failed',
+            toolName: metadata.title,
+            toolRoute: '/t/image-montage', action: 'copy-failed',
             input: `${montageImages.length} images`, output: 'Error creating temp canvas context', status: 'error',
          });
         return;
      }
+    // Draw component background color on temp canvas before drawing main content
+    const computedStyle = getComputedStyle(document.documentElement);
+    const componentBgColor = computedStyle.getPropertyValue('--color-bg-component').trim();
+    tempCtx.fillStyle = `rgb(${componentBgColor})`; // Ensure background matches component bg
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
     tempCtx.drawImage(mainCanvas, bounds.minX, bounds.minY, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
 
@@ -301,31 +331,33 @@ export default function ImageMontagePage() {
             await navigator.clipboard.write([clipboardItem]);
             console.log("Image copied to clipboard successfully.");
             setIsClipboardCopied(true);
-            // *** FIXED: History entry for copy success ***
             addHistoryEntry({
-                 toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'copy-to-clipboard',
+                 toolName: metadata.title,
+                 toolRoute: '/t/image-montage', action: 'copy-to-clipboard',
                  input: `${montageImages.length} images`, output: 'Image copied successfully', status: 'success',
             });
             setTimeout(() => setIsClipboardCopied(false), 2000);
         } catch (err) {
              console.error('Failed to copy image to clipboard:', err);
              const message = err instanceof Error ? err.message : 'Unknown clipboard error';
-             // *** FIXED: History entry for copy error ***
              addHistoryEntry({
-                toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'copy-failed',
+                toolName: metadata.title,
+                toolRoute: '/t/image-montage', action: 'copy-failed',
                 input: `${montageImages.length} images`, output: `Clipboard Error: ${message}`, status: 'error',
              });
+             // Consider a less intrusive error notification than alert if possible
              alert(`Failed to copy image: ${message}\n\nEnsure permissions are granted and the page is focused.`);
         }
       }, 'image/png');
     } catch (err) {
         console.error('Clipboard API access error:', err);
         const message = err instanceof Error ? err.message : 'Unknown clipboard error';
-        // *** FIXED: History entry for API access error ***
         addHistoryEntry({
-            toolName: 'Image Montage', toolRoute: '/t/image-montage', action: 'copy-failed',
+            toolName: metadata.title,
+            toolRoute: '/t/image-montage', action: 'copy-failed',
             input: `${montageImages.length} images`, output: `Clipboard API Error: ${message}`, status: 'error',
         });
+         // Consider a less intrusive error notification than alert if possible
          alert(`Failed to access clipboard: ${message}`);
     }
 
@@ -343,55 +375,106 @@ export default function ImageMontagePage() {
 
   // --- JSX Structure ---
   return (
-    <div className="max-w-full mx-auto p-4 flex flex-col h-[calc(100vh-80px)] overflow-hidden"> {/* Adjust height calc if needed */}
-      {/* Top Controls Area */}
-      <div className="flex-shrink-0 mb-4 pb-4 border-b border-gray-200 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-             <h1 className="text-2xl font-bold text-gray-800">Image Montage</h1>
-              <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                   <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-[#900027] hover:bg-[#7a0021] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#900027] transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                        {isLoading ? 'Processing...' : 'Add Images'}
-                    </label>
-                   <input id="imageUpload" type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" disabled={isLoading}/>
-                   <button type="button" onClick={handleClearMontage} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#900027] disabled:opacity-50 disabled:cursor-not-allowed">
-                        Clear
-                    </button>
-                    <button type="button" onClick={handleDownload} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                        Download
-                    </button>
-                     <button type="button" onClick={handleCopyToClipboard} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isClipboardCopied ? 'Copied!' : 'Copy'}
-                     </button>
-              </div>
-        </div>
-      </div>
+    // Main container relies on parent layout for padding, uses flex-col and gap
+    <div className="flex flex-col gap-6">
+        <ToolHeader
+            title={metadata.title}
+            description={metadata.description}
+        />
 
-       {/* Individual Image Controls Area */}
-       {montageImages.length > 0 && (
-         <div className="flex-shrink-0 mb-4 pb-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold mb-2 text-gray-700">Adjust Images</h2>
-            <div className="flex space-x-6 overflow-x-auto py-2">
-                {montageImages.map((img, index) => (
-                    <div key={img.id} className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border rounded bg-white shadow-sm w-[180px]">
-                        <p className="text-xs font-medium text-gray-600 truncate w-full text-center" title={img.alt}>{index + 1}. {img.alt}</p>
-                        {/* Tilt Control */}
-                        <div className="w-full">
-                            <label htmlFor={`tilt-${img.id}`} className="text-xs text-gray-500 block text-center mb-1">Tilt ({img.tilt}°)</label>
-                            <input id={`tilt-${img.id}`} type="range" min={-MAX_TILT_DEG} max={MAX_TILT_DEG} step="1" value={img.tilt} onChange={(e) => handleTiltChange(img.id, Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer accent-[#900027]" disabled={isLoading} />
-                        </div>
-                        {/* Overlap Control */}
-                        {index > 0 && ( <div className="w-full"> <label htmlFor={`overlap-${img.id}`} className="text-xs text-gray-500 block text-center mb-1">Overlap ({img.overlapPercent}%)</label> <input id={`overlap-${img.id}`} type="range" min="0" max={MAX_OVERLAP_PERCENT} step="1" value={img.overlapPercent} onChange={(e) => handleImageOverlapChange(img.id, Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg cursor-pointer accent-[#900027]" disabled={isLoading} /> </div> )}
-                    </div>
-                ))}
+       {/* Inner content container */}
+       <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
+
+         {/* Top Controls Area */}
+         <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))] space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                 {/* Button Group */}
+                 <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                     {/* Add Images Button (Accent2 - Orange) */}
+                     <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                         {isLoading ? 'Processing...' : 'Add Images'}
+                     </label>
+                     <input id="imageUpload" type="file" multiple accept="image/*" onChange={handleFileChange} className="hidden" disabled={isLoading}/>
+
+                     {/* Clear Button (Neutral) */}
+                     <button type="button" onClick={handleClearMontage} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                         Clear
+                     </button>
+
+                     {/* Download Button (Primary - Blue) */}
+                     <button type="button" onClick={handleDownload} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                         Download
+                     </button>
+
+                     {/* Copy Button (Secondary - Green) */}
+                      <button type="button" onClick={handleCopyToClipboard} disabled={montageImages.length === 0 || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-secondary-text))] bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                         {isClipboardCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                 </div>
             </div>
          </div>
-       )}
 
-      {/* Canvas Display Area */}
-      <div className="flex-grow overflow-auto border border-gray-300 rounded-md bg-gray-50 p-2 min-h-[200px] flex items-center justify-start">
-        <canvas ref={canvasRef} className="block">Your browser does not support the canvas element.</canvas>
-        {montageImages.length === 0 && !isLoading && ( <div className="absolute inset-0 flex items-center justify-center text-gray-500 text-center p-4 pointer-events-none">Upload images using the &lsquo;Add Images&rsquo; button...</div> )}
-      </div>
-    </div>
+          {/* Individual Image Controls Area */}
+          {montageImages.length > 0 && (
+            <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))]">
+               <h2 className="text-lg font-semibold mb-2 text-[rgb(var(--color-text-base))]">Adjust Images</h2>
+               {/* Horizontal scroll container */}
+               <div className="flex space-x-4 overflow-x-auto py-2">
+                   {montageImages.map((img, index) => (
+                       <div key={img.id} className="flex-shrink-0 flex flex-col items-center space-y-3 p-3 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-component))] shadow-sm w-[180px]">
+                           {/* Image Name */}
+                           <p className="text-xs font-medium text-[rgb(var(--color-text-muted))] truncate w-full text-center" title={img.alt}>{index + 1}. {img.alt}</p>
+                           {/* Tilt Control */}
+                           <div className="w-full">
+                               <label htmlFor={`tilt-${img.id}`} className="text-xs text-[rgb(var(--color-text-muted))] block text-center mb-1">Tilt ({img.tilt}°)</label>
+                               <input
+                                   id={`tilt-${img.id}`}
+                                   type="range"
+                                   min={-MAX_TILT_DEG}
+                                   max={MAX_TILT_DEG}
+                                   step="1"
+                                   value={img.tilt}
+                                   onChange={(e) => handleTiltChange(img.id, Number(e.target.value))}
+                                   // Style range input for better cross-browser appearance if needed, using accent color for thumb
+                                   className="w-full h-2 bg-[rgba(var(--color-border-base)/0.5)] rounded-lg appearance-none cursor-pointer accent-[rgb(var(--color-button-accent2-bg))]"
+                                   disabled={isLoading}
+                               />
+                           </div>
+                           {/* Overlap Control */}
+                           {index > 0 && (
+                               <div className="w-full">
+                                   <label htmlFor={`overlap-${img.id}`} className="text-xs text-[rgb(var(--color-text-muted))] block text-center mb-1">Overlap ({img.overlapPercent}%)</label>
+                                   <input
+                                       id={`overlap-${img.id}`}
+                                       type="range"
+                                       min="0"
+                                       max={MAX_OVERLAP_PERCENT}
+                                       step="1"
+                                       value={img.overlapPercent}
+                                       onChange={(e) => handleImageOverlapChange(img.id, Number(e.target.value))}
+                                       // Style range input for better cross-browser appearance if needed, using accent color for thumb
+                                       className="w-full h-2 bg-[rgba(var(--color-border-base)/0.5)] rounded-lg appearance-none cursor-pointer accent-[rgb(var(--color-button-accent2-bg))]"
+                                       disabled={isLoading}
+                                   />
+                               </div>
+                           )}
+                       </div>
+                   ))}
+               </div>
+            </div>
+          )}
+
+         {/* Canvas Display Area */}
+         <div className="flex-grow overflow-auto border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] p-2 min-h-[300px] flex items-center justify-start relative">
+           <canvas ref={canvasRef} className="block">Your browser does not support the canvas element.</canvas>
+           {/* Placeholder text */}
+           {montageImages.length === 0 && !isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-[rgb(var(--color-text-muted))] text-center p-4 pointer-events-none">
+                    Upload images using the ‘Add Images’ button above to start creating your montage.
+                </div>
+            )}
+         </div>
+       </div> {/* End inner flex container */}
+    </div> // End main container
   );
 }

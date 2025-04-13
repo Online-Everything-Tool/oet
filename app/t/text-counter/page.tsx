@@ -1,8 +1,9 @@
-// /app/text-counter/page.tsx
 'use client';
 
-import React, { useState, useMemo } from 'react';
-// import { useHistory } from '../context/HistoryContext'; // Keep if needed later, comment out for now
+import React, { useState, useMemo, useCallback } from 'react';
+import { useHistory } from '../../context/HistoryContext'; // Re-enabled import
+import ToolHeader from '../_components/ToolHeader'; // Import ToolHeader
+import metadata from './metadata.json'; // Import local metadata
 
 // Interface for all counts, calculated dynamically
 interface TextCounts {
@@ -18,8 +19,8 @@ export default function TextCounterPage() {
   const [text, setText] = useState<string>('');
   const [customStringToCount, setCustomStringToCount] = useState<string>('');
 
-  // --- History Hook (Commented out - not used without logging action) ---
-  // const { addHistoryEntry } = useHistory();
+  // --- History Hook ---
+  const { addHistoryEntry } = useHistory(); // Re-enabled
 
   // --- Dynamic Calculation using useMemo ---
   const allCounts = useMemo((): TextCounts => {
@@ -30,119 +31,174 @@ export default function TextCounterPage() {
     const characters = inputText.length;
     const lines = inputText === '' ? 0 : inputText.split(/\r\n|\r|\n/).length;
     let customCount = 0;
+    // Only count if both text and string exist
     if (inputText && customString) {
+        // Basic split count - handles overlaps correctly for simple cases
+        // For more complex regex/overlapping needs, a different approach might be needed
        customCount = inputText.split(customString).length - 1;
     }
     return { words, characters, lines, customString: customString, customCount };
   }, [text, customStringToCount]);
 
-  // --- Logging Handler Removed ---
-  /*
-  const handleLogHistory = useCallback(() => {
-    addHistoryEntry({
-      toolName: 'Text Counter',
-      toolRoute: '/text-counter',
-      action: 'count',
-      input: text.length > 500 ? text.substring(0, 500) + '...' : text,
-      output: allCounts,
-      status: 'success',
-      options: { ...(allCounts.customString && { searchedFor: allCounts.customString }) },
-    });
-  }, [text, allCounts, addHistoryEntry]);
-  */
-
   // --- Event Handlers ---
-  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => { setText(event.target.value); };
-  const handleCustomStringChange = (event: React.ChangeEvent<HTMLInputElement>) => { setCustomStringToCount(event.target.value); };
-  const handleClearCustomString = () => { setCustomStringToCount(''); }
-  const handleClear = () => { setText(''); }
+  const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setText(event.target.value);
+    // Note: No history logging on every keystroke - too noisy.
+  };
+
+  const handleCustomStringChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newCustomString = event.target.value;
+    setCustomStringToCount(newCustomString);
+
+    // Log when the custom string changes *to* a non-empty value
+    if (newCustomString) {
+        // Calculate count based on current text and *new* custom string for the log
+        const currentText = text;
+        const countForLog = currentText ? currentText.split(newCustomString).length - 1 : 0;
+        addHistoryEntry({
+          toolName: metadata.title,
+          toolRoute: '/t/text-counter',
+          action: 'count-custom-string',
+          input: { textLength: currentText.length, searchString: newCustomString },
+          output: { count: countForLog },
+          status: 'success',
+        });
+    }
+  };
+
+  const handleClearCustomString = () => {
+    const oldString = customStringToCount;
+    setCustomStringToCount('');
+    // Log clearing the custom string if it wasn't already empty
+    if (oldString) {
+        addHistoryEntry({
+          toolName: metadata.title,
+          toolRoute: '/t/text-counter',
+          action: 'clear-custom-string',
+          input: { previousString: oldString },
+          output: 'Custom string cleared',
+          status: 'success',
+        });
+    }
+  };
+
+  const handleClearText = () => {
+     const oldText = text;
+     setText('');
+     // Log clearing the main text if it wasn't already empty
+     if (oldText) {
+        addHistoryEntry({
+          toolName: metadata.title,
+          toolRoute: '/t/text-counter',
+          action: 'clear-text',
+          input: { previousLength: oldText.length },
+          output: 'Text cleared',
+          status: 'success',
+        });
+     }
+  };
 
   // --- JSX ---
   return (
-    <main className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-4">Text Counter</h1>
-      <p className="mb-6 text-gray-700">Count words, characters, lines, and occurrences of specific text.</p>
+    // Main container relies on parent layout for padding, uses flex-col and gap
+    <div className="flex flex-col gap-6">
+        <ToolHeader
+            title={metadata.title}
+            description={metadata.description}
+        />
 
-      <div className="flex flex-col gap-5"> {/* Main container with spacing */}
+        {/* Inner content container */}
+        <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
 
-        {/* Input Area */}
-        <div>
-            <textarea
-                id="text-input" rows={10} value={text} onChange={handleInputChange}
-                placeholder="Paste or type your text here..."
-                aria-label="Text input area"
-                className="w-full p-3 border border-gray-300 rounded-md text-base font-inherit focus:ring focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
-            />
+            {/* Input Area */}
+            <div>
+                {/* Added explicit label */}
+                <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
+                    Your Text:
+                </label>
+                <textarea
+                    id="text-input"
+                    rows={10}
+                    value={text}
+                    onChange={handleInputChange}
+                    placeholder="Paste or type your text here..."
+                    aria-label="Text input area"
+                    className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
+                    spellCheck="false"
+                />
+            </div>
+
+            {/* Base Counts Display & Clear Button */}
+            <div className='flex flex-wrap items-center gap-4 p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]'>
+                {/* Counts Grid */}
+                <div className="flex-grow grid grid-cols-3 gap-4 text-center">
+                    {/* Words */}
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.words.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Words</p>
+                    </div>
+                    {/* Characters */}
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.characters.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Characters</p>
+                    </div>
+                    {/* Lines */}
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.lines.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Lines</p>
+                    </div>
+                </div>
+                {/* Clear Text Button (Neutral) */}
+                <div className='flex-shrink-0'>
+                    <button
+                        type="button"
+                        onClick={handleClearText}
+                        title="Clear input text"
+                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out"
+                    >
+                        Clear Text
+                    </button>
+                </div>
+            </div>
+
+            {/* Custom Count Section */}
+            <div className="flex flex-wrap gap-4 items-center justify-between border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))]">
+                 {/* Occurrence Count Display */}
+                 <div className="text-center px-4 shrink-0 order-1 sm:order-none"> {/* Order for mobile */}
+                    <p className="text-2xl font-bold text-[rgb(var(--color-button-secondary-bg))]">{allCounts.customCount.toLocaleString()}</p>
+                    <p className="text-xs text-[rgb(var(--color-button-secondary-bg))] opacity-90" title={allCounts.customString ? `Occurrences of "${allCounts.customString}"` : 'Occurrences'}>
+                        Occurrences
+                    </p>
+                </div>
+
+                {/* Custom String Input */}
+                <div className="flex-grow min-w-[200px] order-3 sm:order-none w-full sm:w-auto"> {/* Take full width on small screens */}
+                    <label htmlFor="custom-string-input" className="sr-only">Text to count occurrences of</label>
+                    <input
+                        type="text"
+                        id="custom-string-input"
+                        value={customStringToCount}
+                        onChange={handleCustomStringChange}
+                        placeholder="Text to Count Occurrences..."
+                        aria-label="Text to count occurrences of"
+                        className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
+                    />
+                </div>
+
+                {/* Clear Custom String Button (Neutral) */}
+                <div className="flex items-center shrink-0 order-2 sm:order-none">
+                    <button
+                        type="button"
+                        onClick={handleClearCustomString}
+                        title="Clear occurrence search text"
+                        disabled={!customStringToCount} // Disable if already empty
+                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Clear Search
+                    </button>
+                </div>
+            </div>
         </div>
-
-        {/* Base Counts Display (Words, Chars, Lines) */}
-        <div className='flex flex-cols gap-1 border rounded-md bg-gray-50'>
-        <div className="w-full grid grid-cols-3 gap-4 text-center p-4">
-             <div>
-                 <p className="text-xl font-semibold text-gray-700">{allCounts.words}</p>
-                 <p className="text-xs text-gray-500">Words</p>
-              </div>
-              <div>
-                 <p className="text-xl font-semibold text-gray-700">{allCounts.characters}</p>
-                 <p className="text-xs text-gray-500">Characters</p>
-              </div>
-              <div>
-                 <p className="text-xl font-semibold text-gray-700">{allCounts.lines}</p>
-                 <p className="text-xs text-gray-500">Lines</p>
-              </div>
-                
-        </div>
-        <div className='p-1'>
-            <button
-                     onClick={handleClear}
-                     title="Clear count text"
-                     className="px-3 py-2 rounded-md text-gray-700 text-sm font-medium bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
-                  >
-                     Clear
-                  </button>
-
-        </div>
-        </div>
-
-        {/* Custom Count Input, Display & Clear Button Row */}
-
-
-        
-        <div className="flex flex-wrap gap-4 items-center justify-between border p-4 rounded-md bg-slate-50">
-            <div className="text-center px-4 shrink-0">
-                 <p className="text-2xl font-bold text-lime-700">{allCounts.customCount}</p>
-                 <p className="text-xs text-lime-600" title={allCounts.customString ? `Occurrences of "${allCounts.customString}"` : 'Occurrences'}>
-                     Occurrences
-                 </p>
-             </div>
-             {/* Input Section */}
-             <div className="flex-grow min-w-[200px]">
-                 <input
-                     type="text"
-                     id="custom-string-input"
-                     value={customStringToCount}
-                     onChange={handleCustomStringChange}
-                     placeholder="Text to Count Occurrences Of..."
-                     aria-label="Text to count occurrences of"
-                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-base focus:ring focus:ring-blue-500 focus:border-blue-500 outline-none"
-                 />
-             </div>
-
-             {/* Occurrence Count Display Section */}
-             
-
-             {/* Clear Button */}
-             <div className="flex items-center shrink-0"> {/* Aligned with other items */}
-                 <button
-                     onClick={handleClearCustomString}
-                     title="Clear occurrence text"
-                     className="px-3 py-2 rounded-md text-gray-700 text-sm font-medium bg-gray-200 hover:bg-gray-300"
-                  >
-                     Clear
-                  </button>
-             </div>
-        </div>
-      </div>
-    </main>
+    </div>
   );
 }

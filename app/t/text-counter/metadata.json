@@ -1,0 +1,8 @@
+{
+  "title": "Text Counter",
+  "description": "Count words, characters, lines, and occurrences of specific text.",
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

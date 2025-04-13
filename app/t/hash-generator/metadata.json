@@ -1,0 +1,8 @@
+{
+  "title": "Hash Generator",
+  "description": "Generates cryptographic hash values (digests) for text input using MD5 or common SHA algorithms.",
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

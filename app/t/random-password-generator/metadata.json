@@ -1,0 +1,8 @@
+{
+  "title": "Random Password Generator",
+  "description": "Generate strong, random passwords with customizable options.",
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

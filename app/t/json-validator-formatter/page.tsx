@@ -1,8 +1,9 @@
-// /app/json-validator-formatter/page.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react'; // Added useCallback for consistency
-import { useHistory } from '../../context/HistoryContext'; // 1. Import useHistory
+import React, { useState, useCallback } from 'react';
+import { useHistory } from '../../context/HistoryContext';
+import ToolHeader from '../_components/ToolHeader'; // Import ToolHeader
+import metadata from './metadata.json'; // Import local metadata
 
 export default function JsonValidatorFormatterPage() {
   // --- State ---
@@ -13,31 +14,29 @@ export default function JsonValidatorFormatterPage() {
   const [indentation, setIndentation] = useState<number>(2);
 
   // --- History Hook ---
-  const { addHistoryEntry } = useHistory(); // 2. Get addHistoryEntry function
+  const { addHistoryEntry } = useHistory();
 
   // --- Core Function ---
-  // Wrapped in useCallback, though dependencies mean it changes often anyway
   const handleFormatValidate = useCallback(() => {
     let currentIsValid: boolean | null = null;
     let currentError = '';
     let currentOutput = '';
-    let status: 'success' | 'error' = 'success'; // Assume success initially
+    let status: 'success' | 'error' = 'success';
 
     const trimmedInput = inputValue.trim();
 
     if (!trimmedInput) {
       currentError = "Input is empty.";
       currentIsValid = false;
-      status = 'error'; // Treat empty input submission as an error for logging perhaps? Or skip logging? Let's log as error for now.
+      status = 'error';
       setError(currentError);
       setIsValid(currentIsValid);
       setOutputValue('');
-      // Log empty input attempt
       addHistoryEntry({
-         toolName: 'JSON Formatter & Validator',
-         toolRoute: '/json-formatter-validator',
+         toolName: metadata.title, // Use metadata title
+         toolRoute: '/t/json-validator-formatter', // Ensure route matches folder structure if needed
          action: 'format-validate',
-         input: '', // Explicitly empty
+         input: '',
          output: `Error: ${currentError}`,
          status: status,
          options: { indentation: indentation }
@@ -47,63 +46,66 @@ export default function JsonValidatorFormatterPage() {
 
     try {
       const parsedJson = JSON.parse(trimmedInput);
-      const formattedJson = JSON.stringify(parsedJson, null, indentation);
+      // Handle non-object/array inputs which are valid JSON but might not be what users expect to format
+      if (typeof parsedJson !== 'object' || parsedJson === null) {
+           currentOutput = JSON.stringify(parsedJson); // No indentation for primitives/null
+           currentIsValid = true;
+           currentError = ''; // Valid, but not formatted with indentation
+      } else {
+           currentOutput = JSON.stringify(parsedJson, null, indentation);
+           currentIsValid = true;
+           currentError = '';
+      }
 
-      // Set state values for immediate UI update
-      currentOutput = formattedJson;
-      currentIsValid = true;
-      currentError = '';
       setOutputValue(currentOutput);
       setIsValid(currentIsValid);
       setError(currentError);
       status = 'success';
 
-      // --- 3. Add History Entry on Success ---
       addHistoryEntry({
-        toolName: 'JSON Formatter & Validator',
-        toolRoute: '/json-formatter-validator',
+        toolName: metadata.title, // Use metadata title
+        toolRoute: '/t/json-validator-formatter',
         action: 'format-validate',
-        input: trimmedInput.length > 1000 ? trimmedInput.substring(0, 1000) + '...' : trimmedInput, // Truncate long input
-        output: currentOutput.length > 1000 ? currentOutput.substring(0, 1000) + '...' : currentOutput, // Truncate long output
+        input: trimmedInput.length > 1000 ? trimmedInput.substring(0, 1000) + '...' : trimmedInput,
+        output: currentOutput.length > 1000 ? currentOutput.substring(0, 1000) + '...' : currentOutput,
         status: status,
-        options: { indentation: indentation }, // Log the indentation used
+        options: { indentation: indentation },
       });
 
     } catch (err) {
       console.error("JSON Processing Error:", err);
-      // Determine error message
       if (err instanceof Error) {
         currentError = `Invalid JSON: ${err.message}`;
       } else {
         currentError = "Invalid JSON: An unknown error occurred during parsing.";
       }
-      // Set state for UI update
-      currentOutput = '';
+      currentOutput = ''; // Clear output on error
       currentIsValid = false;
       setOutputValue(currentOutput);
       setIsValid(currentIsValid);
       setError(currentError);
       status = 'error';
 
-      // --- 4. Add History Entry on Failure ---
       addHistoryEntry({
-        toolName: 'JSON Formatter & Validator',
-        toolRoute: '/json-formatter-validator',
+        toolName: metadata.title, // Use metadata title
+        toolRoute: '/t/json-validator-formatter',
         action: 'format-validate',
         input: trimmedInput.length > 1000 ? trimmedInput.substring(0, 1000) + '...' : trimmedInput,
-        output: `Error: ${currentError}`, // Log the specific error message
+        output: `Error: ${currentError}`,
         status: status,
         options: { indentation: indentation },
       });
     }
-  }, [inputValue, indentation, addHistoryEntry]); // Dependencies for useCallback
+  }, [inputValue, indentation, addHistoryEntry]);
 
-  // --- Event Handlers --- (No changes needed in these for history)
+  // --- Event Handlers ---
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(event.target.value);
+    // Reset validation status on input change
     setIsValid(null);
     setError('');
+    setOutputValue(''); // Clear output when input changes
   };
 
   const handleClear = () => {
@@ -116,78 +118,138 @@ export default function JsonValidatorFormatterPage() {
   const handleIndentationChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newIndentation = parseInt(event.target.value, 10);
     setIndentation(newIndentation);
-    // Auto-reformat is a display update, maybe don't log this change?
-    // Or add a separate history entry for 'reformat-on-option-change'?
-    // Let's stick to logging only the main button click for now.
-    if (isValid) {
+    // Attempt to reformat immediately if current input was valid JSON
+    if (isValid && inputValue.trim()) {
        try {
          const parsed = JSON.parse(inputValue.trim());
-         const formatted = JSON.stringify(parsed, null, newIndentation);
-         setOutputValue(formatted);
-       } catch { /* ignore */ }
+         // Only format objects/arrays with indentation
+         if (typeof parsed === 'object' && parsed !== null) {
+            const formatted = JSON.stringify(parsed, null, newIndentation);
+            setOutputValue(formatted);
+         } else {
+            // If it was valid but primitive/null, keep the unindented stringified version
+            setOutputValue(JSON.stringify(parsed));
+         }
+         setError(''); // Clear any previous format error
+       } catch (err) {
+          // Should not happen if isValid was true, but handle defensively
+          console.error("Error reformatting on indent change:", err);
+          setError("Error reformatting with new indentation.");
+          setIsValid(false); // Mark as invalid if reformatting fails unexpectedly
+       }
+    } else if (!isValid && inputValue.trim()) {
+        // If input exists but wasn't valid, clear the output as indentation change won't fix it
+        setOutputValue('');
     }
   };
 
-  // --- JSX --- (No changes needed in JSX)
+  // --- JSX ---
   return (
-    <main className="p-4 sm:p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2 text-gray-800">JSON Validator & Formatter</h1>
-      <p className="text-gray-600 mb-6">
-        Paste your JSON data below to validate and format.
-      </p>
-      <div className="flex flex-col gap-5">
-        {/* Input Area */}
-        <div>
-          <textarea
-            id="json-input" rows={5} value={inputValue} onChange={handleInputChange}
-            placeholder={`Paste your JSON here...\n{\n  "example": "data",\n  "isValid": true\n}`}
-            className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-y text-base font-mono"
-            spellCheck="false"
-          />
-        </div>
-        {/* Action Controls */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <button onClick={handleFormatValidate} className="px-5 py-2 rounded-md text-white font-medium bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-150 ease-in-out">
-            Validate & Format
-          </button>
-          <div className="flex items-center gap-2">
-             <label htmlFor="indentation-select" className="text-sm font-medium text-gray-700">Indentation:</label>
-             <select id="indentation-select" value={indentation} onChange={handleIndentationChange} className="rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 text-sm py-1.5">
-                <option value={2}>2 Spaces</option>
-                <option value={4}>4 Spaces</option>
-                <option value={0}>Compact</option>
-             </select>
-          </div>
-          <button onClick={handleClear} title="Clear input and output" className="px-3 py-2 rounded-md text-gray-700 font-medium bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition duration-150 ease-in-out ml-auto">
-            Clear
-          </button>
-        </div>
-        {/* Status/Error Display */}
-        {isValid !== null && (
-          <div className={`p-3 border rounded-md text-sm flex items-center gap-2 ${isValid ? 'bg-green-100 border-green-300 text-green-800' : 'bg-red-100 border-red-300 text-red-700'}`} role="alert">
-            {isValid ? (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                <strong>Valid JSON</strong>
-              </>
-            ) : (
-               <>
-                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-                 <strong>Error:</strong> {error}
-               </>
+    // Main container relies on parent layout for padding, uses flex-col and gap
+    <div className="flex flex-col gap-6">
+        <ToolHeader
+            title={metadata.title}
+            description={metadata.description}
+        />
+
+        {/* Inner content container */}
+        <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
+            {/* Input Area */}
+            <div>
+                <label htmlFor="json-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Input JSON:</label>
+                <textarea
+                    id="json-input"
+                    rows={8} // Increased rows for better initial view
+                    value={inputValue}
+                    onChange={handleInputChange}
+                    placeholder={`Paste your JSON here...\n{\n  "example": "data",\n  "isValid": true\n}`}
+                    className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-sm font-mono placeholder:text-[rgb(var(--color-input-placeholder))]" // Text-sm for more content view
+                    spellCheck="false"
+                    aria-invalid={isValid === false}
+                    aria-describedby={isValid === false ? "json-error-feedback" : undefined}
+                />
+            </div>
+
+            {/* Action Controls */}
+            <div className="flex flex-wrap gap-3 items-center">
+                 {/* Validate Button (Accent - Purple) */}
+                 <button
+                     type="button"
+                     onClick={handleFormatValidate}
+                     className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out"
+                 >
+                    Validate & Format
+                 </button>
+
+                 {/* Indentation Select */}
+                 <div className="flex items-center gap-2">
+                    <label htmlFor="indentation-select" className="text-sm font-medium text-[rgb(var(--color-text-muted))]">Indentation:</label>
+                    <select
+                        id="indentation-select"
+                        value={indentation}
+                        onChange={handleIndentationChange}
+                        className="rounded-md border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm py-1.5 px-2" // Added padding
+                    >
+                       <option value={2}>2 Spaces</option>
+                       <option value={4}>4 Spaces</option>
+                       <option value={0}>Compact</option>
+                    </select>
+                 </div>
+
+                 {/* Clear Button (Neutral) */}
+                 <button
+                    type="button"
+                    onClick={handleClear}
+                    title="Clear input and output"
+                    className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ml-auto" // ml-auto pushes to the right
+                 >
+                    Clear
+                 </button>
+            </div>
+
+            {/* Status/Error Display */}
+            {isValid !== null && (
+                <div
+                    id="json-error-feedback" // ID for aria-describedby
+                    className={`p-3 border rounded-md text-sm flex items-start sm:items-center gap-2 ${isValid ? 'bg-green-100 border-green-300 text-green-800' : 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]'}`} role="alert">
+                    {isValid ? (
+                        <>
+                            {/* Success Icon (Heroicon check-circle) */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <strong>Valid JSON</strong>
+                        </>
+                    ) : (
+                        <>
+                            {/* Error Icon (Heroicon x-circle) */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            {/* Wrap error text for better layout */}
+                            <div>
+                                <strong className="font-semibold">Error:</strong> {error}
+                            </div>
+                        </>
+                    )}
+                </div>
             )}
-          </div>
-        )}
-        {/* Output Area */}
-        <div>
-          <textarea
-            id="json-output" rows={2} value={outputValue} readOnly
-            placeholder="Formatted JSON will appear here..."
-            className="w-full p-3 border border-gray-300 rounded-md shadow-sm bg-gray-50 resize-y text-base font-mono focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            spellCheck="false" aria-live="polite"
-          />
-        </div>
-      </div>
-    </main>
+
+            {/* Output Area */}
+            <div>
+               <label htmlFor="json-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Output:</label>
+               <textarea
+                  id="json-output"
+                  rows={10} // Increased rows for better initial view
+                  value={outputValue}
+                  readOnly
+                  placeholder="Formatted JSON will appear here..."
+                  className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-sm font-mono placeholder:text-[rgb(var(--color-input-placeholder))]" // Text-sm, subtle bg
+                  spellCheck="false"
+                  aria-live="polite" // Announce changes
+               />
+            </div>
+        </div> {/* End inner flex container */}
+    </div> // End main container
   );
 }

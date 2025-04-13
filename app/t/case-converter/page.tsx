@@ -1,39 +1,43 @@
-// /app/case-converter/page.tsx
+// /app/t/case-converter/page.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react'; // Added useCallback
-import { useHistory } from '../../context/HistoryContext'; // 1. Import useHistory
+import React, { useState, useCallback } from 'react';
+// Assuming useHistory context setup exists elsewhere and works
+// If not, replace with the dummy implementation like in Base64 example
+import { useHistory } from '../../context/HistoryContext';
+
+import ToolHeader from '../_components/ToolHeader';
+import metadata from './metadata.json'; // Assumes metadata.json exists here
 
 export default function CaseConverterPage() {
   const [text, setText] = useState<string>('');
   const [preserveCase, setPreserveCase] = useState<boolean>(false);
 
   // --- History Hook ---
-  const { addHistoryEntry } = useHistory(); // 2. Get addHistoryEntry function
+  const { addHistoryEntry } = useHistory();
 
   // --- Helper Function for Logging ---
-  // Avoids repeating the addHistoryEntry call structure in each function
   const logCaseConversion = useCallback((action: string, originalText: string, resultText: string, options: { preserveCase?: boolean }) => {
-      if (originalText.length > 0) { // Only log if there was original text
+      if (originalText.length > 0) {
           addHistoryEntry({
-              toolName: 'Case Converter',
-              toolRoute: '/case-converter',
-              action: action, // e.g., 'uppercase', 'snake_case'
-              input: originalText.length > 500 ? originalText.substring(0, 500) + '...' : originalText,
-              output: resultText.length > 500 ? resultText.substring(0, 500) + '...' : resultText,
-              status: 'success', // Assuming simple string conversions don't fail easily
-              options: options, // Log relevant options like preserveCase
+              toolName: metadata.title, // Use title from metadata
+              toolRoute: '/t/case-converter',
+              action: action,
+              input: originalText.substring(0, 500) + (originalText.length > 500 ? '...' : ''),
+              output: resultText.substring(0, 500) + (resultText.length > 500 ? '...' : ''),
+              status: 'success',
+              options: options,
           });
       }
-  }, [addHistoryEntry]); // Dependency for the helper
+  }, [addHistoryEntry]);
 
-  // --- Case Conversion Functions (Modified for logging) ---
+  // --- Case Conversion Functions ---
 
   const convertToUppercase = useCallback(() => {
     const originalText = text;
     const result = originalText.toUpperCase();
     setText(result);
-    logCaseConversion('uppercase', originalText, result, {}); // No specific options here
+    logCaseConversion('uppercase', originalText, result, {});
   }, [text, logCaseConversion]);
 
   const convertToLowercase = useCallback(() => {
@@ -45,116 +49,114 @@ export default function CaseConverterPage() {
 
   const convertToCapitalCase = useCallback(() => {
     const originalText = text;
-    // Assuming you have the implementation logic here...
     const result = originalText
       .toLowerCase()
       .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' '); // Example implementation
+      .map(word => word ? word.charAt(0).toUpperCase() + word.slice(1) : '')
+      .join(' ');
     setText(result);
     logCaseConversion('capital_case', originalText, result, {});
   }, [text, logCaseConversion]);
 
+  // --- UPDATED Split Regex ---
+  const splitRegex = /[\s_]+|\B(?=[A-Z])/;
+
   const convertToSnakeCase = useCallback(() => {
     const originalText = text;
-    // Assuming implementation here, potentially using preserveCase...
     const result = originalText
-        .replace(/\W+/g, " ") // Replace non-word chars with space
-        .split(/ |\B(?=[A-Z])/) // Split on space or before uppercase letter
+        .replace(/\W+/g, " ") // Optional: Clean other non-word chars first
+        .split(splitRegex)     // USE UPDATED REGEX
         .map(word => word.toLowerCase())
-        .filter(Boolean) // Remove empty strings
+        .filter(Boolean)
         .join('_');
-     // Simplified preserveCase example (you might have more complex logic)
      if (preserveCase) {
-         // This is a placeholder - actual preserve case logic is complex
-         // You'd need to track original casing patterns before lowercasing everything
-         console.warn("Preserve case for snake_case is complex and not fully implemented in this example");
-         // For logging, we still log the result achieved
+         console.warn("Preserve case for snake_case is complex and not fully implemented.");
      }
     setText(result);
-    logCaseConversion('snake_case', originalText, result, { preserveCase }); // Log preserveCase option
+    logCaseConversion('snake_case', originalText, result, { preserveCase });
   }, [text, preserveCase, logCaseConversion]);
 
   const convertToKebabCase = useCallback(() => {
     const originalText = text;
-    // Assuming implementation here, potentially using preserveCase...
     const result = originalText
-        .replace(/\W+/g, " ") // Replace non-word chars with space
-        .split(/ |\B(?=[A-Z])/) // Split on space or before uppercase letter
+        .replace(/\W+/g, " ") // Optional: Clean other non-word chars first
+        .split(splitRegex)     // USE UPDATED REGEX
         .map(word => word.toLowerCase())
-        .filter(Boolean) // Remove empty strings
+        .filter(Boolean)
         .join('-');
     if (preserveCase) {
-        console.warn("Preserve case for kebab-case is complex and not fully implemented in this example");
+        console.warn("Preserve case for kebab-case is complex and not fully implemented.");
     }
     setText(result);
-    logCaseConversion('kebab-case', originalText, result, { preserveCase }); // Log preserveCase option
+    logCaseConversion('kebab-case', originalText, result, { preserveCase });
   }, [text, preserveCase, logCaseConversion]);
+
 
   // --- Event Handlers ---
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => { setText(event.target.value); };
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => { setPreserveCase(event.target.checked); };
-
-  // Added Clear Handler
-  const handleClear = useCallback(() => {
-    setText('');
-    // Set preserveCase back to default? Optional.
-    // setPreserveCase(false);
-  }, []);
+  const handleClear = useCallback(() => { setText(''); }, []);
 
   // --- JSX ---
   return (
-    <main className="p-4 sm:p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2 text-gray-800">Case Converter</h1>
-      <p className="text-gray-600 mb-6">
-        Convert text using various case styles. The “Preserve Case” option affects snake & kebab cases.
-      </p>
+    <div className="p-0"> {/* Rely on layout for padding */}
+        <ToolHeader
+            title={metadata.title}
+            description={metadata.description}
+        />
 
-      <div className="flex flex-col gap-4">
-        <label htmlFor="text-input" className="sr-only">Text to Convert:</label>
+      {/* Main content area */}
+      <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
+        <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Text to Convert:</label>
         <textarea
           id="text-input"
           rows={10}
           value={text}
           onChange={handleInputChange}
           placeholder="Paste or type your text here..."
-          className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y text-base font-mono"
+          className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
         />
 
-        {/* Main Button/Controls Container */}
-        <div className="flex flex-wrap gap-x-3 gap-y-4 items-center justify-between"> {/* Added justify-between */}
+        {/* Controls Container */}
+        <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-start">
 
           {/* Left Group of Buttons */}
           <div className="flex flex-wrap gap-x-3 gap-y-3 items-center">
-            <button onClick={convertToUppercase} className="px-5 py-2 rounded-md text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out">UPPERCASE</button>
-            <button onClick={convertToLowercase} className="px-5 py-2 rounded-md text-white font-medium bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-150 ease-in-out">lowercase</button>
-            <button onClick={convertToCapitalCase} className="px-5 py-2 rounded-md text-white font-medium bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-150 ease-in-out">Capital Case</button>
+            <button onClick={convertToUppercase} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition duration-150 ease-in-out">UPPERCASE</button>
+            <button onClick={convertToLowercase} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-secondary-text))] font-medium bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:outline-none transition duration-150 ease-in-out">lowercase</button>
+            <button onClick={convertToCapitalCase} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition duration-150 ease-in-out">Capital Case</button>
+          </div>
 
-            {/* Snake/Kebab/Options Group */}
-            <div className="bg-slate-100 p-3 rounded-md border border-slate-200 inline-flex flex-wrap gap-3 items-center">
+          {/* Right Group (Snake/Kebab/Options) */}
+          <div className="flex flex-col gap-3 items-start">
+            <div className="flex items-center gap-2 p-3 rounded-md border border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] w-full md:w-auto">
                  <input
                     id="preserve-case-checkbox" type="checkbox" checked={preserveCase} onChange={handleCheckboxChange}
-                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    className="h-4 w-4 border-[rgb(var(--color-border-base))] rounded text-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-0 focus:outline-none" // Simple focus
                   />
-                  <label htmlFor="preserve-case-checkbox" className="ml-2 block text-sm font-medium text-gray-700">
-                    Preserve Case
+                  <label htmlFor="preserve-case-checkbox" className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
+                    Preserve Case (snake/kebab)
                   </label>
-                 <button onClick={convertToSnakeCase} className="px-5 py-2 rounded-md text-white font-medium bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition duration-150 ease-in-out">snake_case</button>
-                 <button onClick={convertToKebabCase} className="px-5 py-2 rounded-md text-white font-medium bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-150 ease-in-out">kebab-case</button>
             </div>
-           </div>
+            <div className="flex flex-wrap gap-3 items-center">
+                 <button onClick={convertToSnakeCase} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent2-text))] font-medium bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition duration-150 ease-in-out">snake_case</button>
+                 <button onClick={convertToKebabCase} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-danger-text))] font-medium bg-[rgb(var(--color-button-danger-bg))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none transition duration-150 ease-in-out">kebab-case</button>
+            </div>
+          </div>
 
-           {/* Clear Button (Aligned Right) */}
-           <button
-              onClick={handleClear}
-              title="Clear text"
-              className="px-3 py-2 rounded-md text-gray-700 font-medium bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 transition duration-150 ease-in-out self-center" // Added self-center for alignment if needed
-           >
-             Clear
-           </button>
+        </div> {/* End Controls Container */}
 
+        <div className="mt-2 text-right">
+             <button
+                onClick={handleClear}
+                title="Clear text"
+                className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition duration-150 ease-in-out"
+             >
+               Clear
+             </button>
         </div>
-      </div>
-    </main>
+
+      </div> {/* End Main content area */}
+    </div>
   );
 }

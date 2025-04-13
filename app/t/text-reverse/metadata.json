@@ -1,0 +1,8 @@
+{
+  "title": "Text Reverse",
+  "description": "Reverse the order of characters, words, or lines in text.",
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

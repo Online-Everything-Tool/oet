@@ -1,0 +1,8 @@
+{
+  "title": "Emoji Explorer",
+  "description": "Search, filter, and copy emojis from the latest official Unicode emoji dataset.",
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

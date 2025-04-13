@@ -1,9 +1,10 @@
-// /app/t/random-password-generator/page.tsx
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import Head from 'next/head';
-import { useHistory } from '../../context/HistoryContext'; // Adjust path if needed based on your project structure
+// Removed Head import: import Head from 'next/head';
+import { useHistory } from '../../context/HistoryContext';
+import ToolHeader from '../_components/ToolHeader'; // Import ToolHeader
+import metadata from './metadata.json'; // Import local metadata
 
 const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
 const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -23,14 +24,15 @@ export default function RandomPasswordGeneratorPage() {
   // --- History Hook ---
   const { addHistoryEntry } = useHistory();
 
+  // --- Generation Logic ---
   const generatePassword = useCallback(() => {
     let currentError = '';
-    let generatedPassword = ''; // Still needed for the UI state
+    let generatedPassword = '';
     let status: 'success' | 'error' = 'success';
 
-    setError(''); // Clear previous errors
-    setCopied(false); // Reset copied status
-    setPassword(''); // Clear previous password
+    setError('');
+    setCopied(false);
+    setPassword('');
 
     let charset = '';
     if (includeLowercase) charset += LOWERCASE;
@@ -38,21 +40,22 @@ export default function RandomPasswordGeneratorPage() {
     if (includeNumbers) charset += NUMBERS;
     if (includeSymbols) charset += SYMBOLS;
 
-    // --- Input Validation ---
     if (charset.length === 0) {
       currentError = 'Please select at least one character type.';
       setError(currentError);
       status = 'error';
-    } else if (length <= 0 || !Number.isInteger(length)) { // Also check for integer
+    } else if (length <= 0 || !Number.isInteger(length)) {
         currentError = 'Password length must be a positive whole number.';
+        setError(currentError);
+        status = 'error';
+    } else if (length > 256) { // Add a reasonable upper limit
+        currentError = 'Password length is too long (max 256 recommended).';
         setError(currentError);
         status = 'error';
     }
 
-    // --- Generation (only if no errors) ---
     if (status === 'success') {
         try {
-            // Prefer crypto.getRandomValues for better randomness
             if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
                 const randomValues = new Uint32Array(length);
                 window.crypto.getRandomValues(randomValues);
@@ -60,215 +63,248 @@ export default function RandomPasswordGeneratorPage() {
                     generatedPassword += charset[randomValues[i] % charset.length];
                 }
             } else {
-                // Fallback to Math.random (less secure)
                 console.warn("Using Math.random for password generation as window.crypto is not available.");
                 for (let i = 0; i < length; i++) {
                     const randomIndex = Math.floor(Math.random() * charset.length);
                     generatedPassword += charset[randomIndex];
                 }
             }
-            setPassword(generatedPassword); // Update UI state
+            setPassword(generatedPassword);
         } catch (err) {
              console.error("Password Generation Error:", err);
              currentError = "An unexpected error occurred during password generation.";
              setError(currentError);
              status = 'error';
-             generatedPassword = ''; // Ensure password is empty on error
+             generatedPassword = '';
         }
     }
 
     // --- History Logging ---
-    const historyInput = { // Log the settings used
+    const historyInput = {
       length: length,
       uppercase: includeUppercase,
       lowercase: includeLowercase,
       numbers: includeNumbers,
       symbols: includeSymbols,
     };
-
-    // *** Secure History Output: Do NOT log the actual password ***
     const historyOutput = status === 'success'
-        ? "[Password Generated Successfully]" // Use a placeholder for success
-        : `Error: ${currentError}`;          // Log the error message on failure
+        ? "[Password Generated Successfully]"
+        : `Error: ${currentError}`;
 
     addHistoryEntry({
-        toolName: 'Random Password Generator',
-        toolRoute: '/t/random-password-generator', // Use the actual route
+        toolName: metadata.title, // Use metadata title
+        toolRoute: '/t/random-password-generator', // Use actual route
         action: 'generate',
-        input: historyInput, // Store options as input
-        output: historyOutput, // Store placeholder or error, NOT the password
+        input: historyInput,
+        output: historyOutput, // DO NOT log the password
         status: status,
     });
 
   }, [length, includeUppercase, includeLowercase, includeNumbers, includeSymbols, addHistoryEntry]);
 
+  // --- Copy Handler ---
   const handleCopy = useCallback(async () => {
     if (!password || !navigator.clipboard) {
+      setError(!navigator.clipboard ? 'Clipboard API not available.' : 'No password to copy.');
       return;
     }
     try {
       await navigator.clipboard.writeText(password);
       setCopied(true);
+      setError(''); // Clear any previous copy errors
       setTimeout(() => setCopied(false), 2000);
+      // Optionally log successful copy to history (without password)
+      addHistoryEntry({
+          toolName: metadata.title, toolRoute: '/t/random-password-generator',
+          action: 'copy', input: { length: password.length }, output: '[Password Copied]', status: 'success'
+      });
     } catch (err) {
       console.error('Failed to copy password: ', err);
-      setError('Failed to copy password.'); // Show error to user
+      setError('Failed to copy password.');
+      // Optionally log copy failure
+      addHistoryEntry({
+         toolName: metadata.title, toolRoute: '/t/random-password-generator',
+         action: 'copy', input: { length: password.length }, output: `Error: Failed to copy`, status: 'error'
+      });
     }
-  }, [password]);
+  }, [password, addHistoryEntry]); // Added addHistoryEntry dependency
 
-  // Ensure at least one checkbox remains checked
+  // --- Input Handlers ---
   const handleCheckboxChange = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentValue: boolean) => {
     const othersChecked = [includeUppercase, includeLowercase, includeNumbers, includeSymbols].filter(val => val).length > (currentValue ? 1 : 0);
     if (currentValue && !othersChecked) {
-        setError('At least one character type must be selected.'); // Give feedback
-        return; // Prevent unchecking the last box
+        setError('At least one character type must be selected.');
+        return;
     }
     setter(!currentValue);
-    // Clear error only if the *reason* for the error was the lack of character types
     if (error === 'Please select at least one character type.' || error === 'At least one character type must be selected.') {
         setError('');
     }
+     setPassword(''); // Clear password when options change
+     setCopied(false);
   };
 
   const handleLengthChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(event.target.value, 10);
-    setLength(isNaN(val) ? 0 : val); // Handle potential NaN if input is cleared/invalid
-    // Clear error only if the *reason* for the error was the length
-    if (error === 'Password length must be a positive whole number.') {
+    setLength(isNaN(val) ? 0 : val);
+    if (error === 'Password length must be a positive whole number.' || error.includes('length is too long')) {
         setError('');
     }
+     setPassword(''); // Clear password when options change
+     setCopied(false);
   };
 
+  const canGenerate = length > 0 && Number.isInteger(length) && length <= 256 && (includeLowercase || includeUppercase || includeNumbers || includeSymbols);
 
-  const canGenerate = length > 0 && Number.isInteger(length) && (includeLowercase || includeUppercase || includeNumbers || includeSymbols);
-
+  // --- JSX Structure ---
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
-      <Head>
-        <title>Random Password Generator - OET</title>
-        <meta name="description" content="Generate strong, random passwords with customizable options." />
-      </Head>
+    // Main container relies on parent layout for padding, uses flex-col and gap
+    <div className="flex flex-col gap-6">
+        <ToolHeader
+            title={metadata.title}
+            description={metadata.description}
+        />
 
-      <h1 className="text-2xl font-bold text-gray-800">Random Password Generator</h1>
+        {/* Inner content container */}
+        <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
 
-      {/* Generated Password Display & Copy */}
-      <div className="space-y-2">
-        <label htmlFor="generated-password-output" className="block text-sm font-medium text-gray-700">Generated Password</label>
-        <div className="flex items-stretch gap-2"> {/* Use items-stretch for button height */}
-           <input
-              id="generated-password-output"
-              type="text"
-              value={password}
-              readOnly
-              className="flex-grow p-3 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-base font-mono focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              placeholder="Click 'Generate' to create a password"
-            />
-           <button
-             onClick={handleCopy}
-             disabled={!password}
-             title={copied ? "Copied!" : "Copy to clipboard"}
-             aria-label="Copy password to clipboard"
-             className={`px-4 py-2 rounded-md font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out ${
-                copied
-                 ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                 : 'bg-gray-600 hover:bg-gray-700 focus:ring-gray-500'
-             } disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-500`}
-           >
-             {copied ? 'Copied!' : 'Copy'}
-           </button>
-        </div>
-        {/* Error Display - Consistent with Base64 Example */}
-        {error && (
-          <div className="mt-2 p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">
-            <strong>Error:</strong> {error}
-          </div>
-        )}
-      </div>
-
-      {/* Configuration Options */}
-      <div className="space-y-4 border-t pt-4">
-        <h2 className="text-lg font-semibold text-gray-700">Options</h2>
-
-        {/* Length */}
-        <div>
-          <label htmlFor="password-length" className="block text-sm font-medium text-gray-700 mb-1">Password Length: {length}</label>
-          <input
-            id="password-length"
-            type="number"
-            min="1" // Minimum length is 1
-            max="128" // Maximum reasonable length
-            step="1" // Ensure whole numbers
-            value={length} // Input type number handles string conversion
-            onChange={handleLengthChange}
-            className="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-base"
-          />
-        </div>
-
-        {/* Character Types */}
-        <fieldset className="space-y-3"> {/* Use fieldset for grouping related controls */}
-            <legend className="sr-only">Character types</legend> {/* Hidden legend for screen readers */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="include-uppercase"
-                        checked={includeUppercase}
-                        onChange={() => handleCheckboxChange(setIncludeUppercase, includeUppercase)}
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            {/* Generated Password Display & Copy */}
+            <div className="space-y-2">
+                <label htmlFor="generated-password-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Generated Password</label>
+                <div className="flex items-stretch gap-2">
+                   {/* Output Input */}
+                   <input
+                      id="generated-password-output"
+                      type="text"
+                      value={password}
+                      readOnly
+                      className="flex-grow p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
+                      placeholder="Click 'Generate' to create a password"
+                      aria-live="polite" // Announce password generation
                     />
-                    <label htmlFor="include-uppercase" className="text-sm text-gray-700 select-none cursor-pointer"> {/* Added select-none and cursor-pointer */}
-                        Uppercase (A-Z)
-                    </label>
+                   {/* Copy Button (Secondary - Green when copied, Neutral otherwise) */}
+                   <button
+                     type="button"
+                     onClick={handleCopy}
+                     disabled={!password}
+                     title={copied ? "Copied!" : "Copy to clipboard"}
+                     aria-label="Copy password to clipboard"
+                     className={`px-4 py-2 rounded-md font-medium focus:outline-none transition-colors duration-150 ease-in-out
+                        ${copied
+                         ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]'
+                         : 'bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] text-[rgb(var(--color-button-neutral-text))]'
+                        }
+                        disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]`}
+                   >
+                     {copied ? 'Copied!' : 'Copy'}
+                   </button>
                 </div>
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="include-lowercase"
-                        checked={includeLowercase}
-                        onChange={() => handleCheckboxChange(setIncludeLowercase, includeLowercase)}
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="include-lowercase" className="text-sm text-gray-700 select-none cursor-pointer">
-                        Lowercase (a-z)
-                    </label>
-                </div>
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="include-numbers"
-                        checked={includeNumbers}
-                        onChange={() => handleCheckboxChange(setIncludeNumbers, includeNumbers)}
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="include-numbers" className="text-sm text-gray-700 select-none cursor-pointer">
-                        Numbers (0-9)
-                    </label>
-                </div>
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        id="include-symbols"
-                        checked={includeSymbols}
-                        onChange={() => handleCheckboxChange(setIncludeSymbols, includeSymbols)}
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <label htmlFor="include-symbols" className="text-sm text-gray-700 select-none cursor-pointer">
-                        Symbols (!@#...)
-                    </label>
-                </div>
+                {/* Error Display */}
+                {error && (
+                    <div role="alert" className="mt-2 p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2">
+                         {/* Error Icon (Heroicon x-circle) */}
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                         </svg>
+                        <strong>Error:</strong> {error}
+                    </div>
+                )}
             </div>
-        </fieldset>
-      </div>
 
-      {/* Generate Button */}
-      <button
-        onClick={generatePassword}
-        disabled={!canGenerate}
-        className="w-full sm:w-auto px-6 py-3 rounded-md text-white font-medium bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-150 ease-in-out disabled:bg-gray-400 disabled:cursor-not-allowed"
-      >
-        Generate Password
-      </button>
+            {/* Configuration Options */}
+            <div className="space-y-4 border-t border-[rgb(var(--color-border-base))] pt-4">
+                <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">Options</h2>
 
-    </div>
+                {/* Length Input */}
+                <div>
+                    <label htmlFor="password-length" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Password Length: {length}</label>
+                    <input
+                        id="password-length"
+                        type="number"
+                        min="1"
+                        max="256" // Increased max, added check in generatePassword
+                        step="1"
+                        value={length}
+                        onChange={handleLengthChange}
+                        className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
+                    />
+                </div>
+
+                {/* Character Types Checkboxes */}
+                <fieldset className="space-y-3">
+                    <legend className="sr-only">Character types to include</legend>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                        {/* Uppercase */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="include-uppercase"
+                                checked={includeUppercase}
+                                onChange={() => handleCheckboxChange(setIncludeUppercase, includeUppercase)}
+                                className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" // Use accent color, remove ring
+                                style={{ accentColor: `rgb(var(--color-checkbox-accent))` }} // Explicit accent color
+                            />
+                            <label htmlFor="include-uppercase" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">
+                                Uppercase (A-Z)
+                            </label>
+                        </div>
+                        {/* Lowercase */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="include-lowercase"
+                                checked={includeLowercase}
+                                onChange={() => handleCheckboxChange(setIncludeLowercase, includeLowercase)}
+                                className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
+                                style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
+                            />
+                            <label htmlFor="include-lowercase" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">
+                                Lowercase (a-z)
+                            </label>
+                        </div>
+                        {/* Numbers */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="include-numbers"
+                                checked={includeNumbers}
+                                onChange={() => handleCheckboxChange(setIncludeNumbers, includeNumbers)}
+                                className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
+                                style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
+                            />
+                            <label htmlFor="include-numbers" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">
+                                Numbers (0-9)
+                            </label>
+                        </div>
+                        {/* Symbols */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="include-symbols"
+                                checked={includeSymbols}
+                                onChange={() => handleCheckboxChange(setIncludeSymbols, includeSymbols)}
+                                className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
+                                style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
+                            />
+                            <label htmlFor="include-symbols" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">
+                                Symbols (!@#...)
+                            </label>
+                        </div>
+                    </div>
+                </fieldset>
+            </div>
+
+            {/* Generate Button (Primary - Blue) */}
+            <button
+                type="button" // Explicit type
+                onClick={generatePassword}
+                disabled={!canGenerate}
+                className="w-full sm:w-auto px-6 py-3 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
+            >
+                Generate Password
+            </button>
+
+        </div> {/* End inner flex container */}
+    </div> // End main container
   );
 }

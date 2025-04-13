@@ -1,8 +1,9 @@
-// /app/html-entity-explorer/page.tsx
 import fs from 'fs/promises';
 import path from 'path';
 import EntitySearchClient from './_components/HtmlEntitySearchClient';
 import { v4 as uuidv4 } from 'uuid';
+import ToolHeader from '../_components/ToolHeader'; // Adjusted path
+import metadata from './metadata.json';
 
 // Interfaces remain the same
 interface RawEntityItem {
@@ -31,7 +32,7 @@ export interface RichEntityData {
 // --- Function to load and process entity data (Server Side) ---
 // Now returns both entities and the list of categories
 async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], categories: string[] }> {
-  const filePath = path.join(process.cwd(), 'app', 't', 'html-entities', '_data', 'html-entities-data.json');
+  const filePath = path.join(process.cwd(), 'app', 't', 'html-entity-explorer', '_data', 'html-entities-data.json');
   let jsonData: CategorizedRawData;
 
   try {
@@ -62,7 +63,6 @@ async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], c
     const entityArray = jsonData[categoryName];
 
     for (const item of entityArray) {
-       // (Validation logic remains the same as the previous correct version)
       if (!item || typeof item !== 'object') {
         totalSkipped++;
         continue;
@@ -74,12 +74,14 @@ async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], c
         totalSkipped++;
         continue;
       }
-      if (code === ' ' || code === ' ') {
-          if (char === null || char === '') char = '\u00A0';
+      // Special handling for Non-breaking space which might appear as ' ' in JSON
+      if (code === ' ' || code === ' ') { // Check for actual nbsp character if needed
+          if (char === null || char === '') char = '\u00A0'; // Assign Unicode nbsp
       }
-       char = (char === null || char.trim() === '') ? '\u00A0' : char;
-       if (char === '\u00A0' && !(code === ' ' || code === ' ')) {
-         // If char became nbsp but wasn't originally, skip
+      // Default to nbsp only if char is genuinely missing/empty AND the code indicates nbsp
+      char = (char === null || char.trim() === '') ? '\u00A0' : char;
+      if (char === '\u00A0' && !(code === ' ' || code === ' ')) {
+         // If char became nbsp but wasn't originally meant to be, skip
          totalSkipped++;
          continue;
        }
@@ -130,13 +132,14 @@ export default async function HtmlEntityPage() {
   }
 
   return (
-    <main className="p-4 sm:p-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">HTML Entity Explorer</h1>
-      <p className="mb-6 text-gray-600">
-        Search for HTML entities by name, code, character, or description. Click to copy.
-      </p>
+    // Container relies on parent layout for padding/max-width
+    <div className="flex flex-col gap-6">
+      <ToolHeader
+          title={metadata.title}
+          description={metadata.description}
+      />
       {/* Pass both initialEntities and availableCategories */}
       <EntitySearchClient initialEntities={entities} availableCategories={categories} />
-    </main>
+    </div>
   );
 }
