@@ -1,19 +1,94 @@
+/* /app/globals.css */
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* === Core Palette (RGB values for Tailwind arbitrary syntax) === */
+  --color-text-base: 24 24 27; /* zinc-900 */
+  --color-text-muted: 82 82 91; /* zinc-600 */
+  --color-text-inverted: 255 255 255; /* white */
+  --color-text-error: 185 28 28; /* red-700 */
+  --color-text-link: 59 130 246; /* blue-600 */ /* Added */
+
+  --color-bg-page: 255 255 255; /* white */
+  --color-bg-subtle: 244 244 245; /* zinc-100 / gray-50 */
+  --color-bg-component: 255 255 255; /* white */
+  --color-bg-error-subtle: 254 226 226; /* red-100 */
+  --color-bg-disabled: 228 228 231; /* zinc-200 */ /* Added */
+
+  --color-border-base: 212 212 216; /* zinc-300 / gray-300 */ /* Adjusted */
+  --color-border-error: 252 165 165; /* red-300 */
+  --color-border-focus: 99 102 241; /* indigo-500 */
+
+  /* === Semantic UI Colors === */
+  /* Buttons */
+  --color-button-primary-bg: 59 130 246; /* blue-600 */
+  --color-button-primary-hover-bg: 37 99 235; /* blue-700 */
+  --color-button-primary-text: var(--color-text-inverted);
+
+  --color-button-secondary-bg: 22 163 74; /* green-600 */
+  --color-button-secondary-hover-bg: 21 128 61; /* green-700 */
+  --color-button-secondary-text: var(--color-text-inverted);
+
+  --color-button-neutral-bg: 228 228 231; /* zinc-200 / gray-200 */
+  --color-button-neutral-hover-bg: 212 212 216; /* zinc-300 / gray-300 */
+  --color-button-neutral-text: var(--color-text-base);
+  /* Accent Button (Purple) */
+  --color-button-accent-bg: 126 34 206; /* purple-600 */
+  --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
+  --color-button-accent-text: var(--color-text-inverted);
+
+  /* Accent 2 Button (Orange) */
+  --color-button-accent2-bg: 234 88 12; /* orange-600 */
+  --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
+  --color-button-accent2-text: var(--color-text-inverted);
+
+  /* Danger Button (Red) */
+  --color-button-danger-bg: 220 38 38; /* red-600 */
+  --color-button-danger-hover-bg: 185 28 28; /* red-700 */
+  --color-button-danger-text: var(--color-text-inverted);
+
+  /* Checkbox */
+  --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
+  /* Indicators (Likelihood Bar) */
+  --color-indicator-ambiguous: 250 204 21; /* yellow-400 */
+  --color-indicator-text: 59 130 246; /* blue-500 */ /* Matched primary button */
+  --color-indicator-success: 34 197 94; /* green-500 */ /* Matched secondary button */
+  --color-indicator-base: 212 212 216; /* zinc-300 / gray-300 */
+  --color-indicator-track-bg: 228 228 231; /* zinc-200 / gray-200 */
+
+  /* Inputs */
+  --color-input-border: var(--color-border-base);
+  --color-input-focus-border: var(--color-border-focus);
+  --color-input-bg: var(--color-bg-page);
+  --color-input-disabled-bg: var(--color-bg-disabled); /* Corrected name */
+  --color-input-text: var(--color-text-base);
+  --color-input-placeholder: 161 161 170; /* zinc-400 */
+
+    /* Accent Button (Purple) */
+    --color-button-accent-bg: 126 34 206; /* purple-600 */
+    --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
+    --color-button-accent-text: var(--color-text-inverted);
+  
+    /* Accent 2 Button (Orange) */
+    --color-button-accent2-bg: 234 88 12; /* orange-600 */
+    --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
+    --color-button-accent2-text: var(--color-text-inverted);
+  
+    /* Danger Button (Red) */
+    --color-button-danger-bg: 220 38 38; /* red-600 */
+    --color-button-danger-hover-bg: 185 28 28; /* red-700 */
+    --color-button-danger-text: var(--color-text-inverted);
+  
+    /* Checkbox */
+    --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+
+
+/* Optional: Dark mode overrides can go here */
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: rgb(var(--color-bg-page));
+  color: rgb(var(--color-text-base));
+  /* Add base font settings if needed */
 }

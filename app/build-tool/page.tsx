@@ -16,10 +16,21 @@ export interface ValidationResult {
     generativeDescription: string;
     generativeRequestedDirectives: string[];
 }
-export interface GenerationResult {
-    generatedCode: string;
-    message: string;
+
+// --- Updated Types ---
+export interface LibraryDependency {
+    packageName: string;
+    reason?: string;
+    importUsed?: string;
 }
+
+export interface GenerationResult {
+    message: string;
+    generatedFiles: { [filePath: string]: string } | null; // Object mapping path to content
+    identifiedDependencies: LibraryDependency[] | null; // Array of identified dependencies
+}
+// --- End Updated Types ---
+
 export interface PrSubmissionResult {
     prUrl: string | null;
     message: string;
@@ -37,9 +48,16 @@ export default function BuildToolPage() {
     const [modelsLoading, setModelsLoading] = useState<boolean>(true);
     const [modelsError, setModelsError] = useState<string | null>(null);
 
+    // --- NEW State for Directives List ---
+    const [allAvailableToolDirectives, setAllAvailableToolDirectives] = useState<string[]>([]);
+    const [directivesLoading, setDirectivesLoading] = useState<boolean>(true);
+    const [directivesError, setDirectivesError] = useState<string | null>(null);
+
     // Data passed between steps
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [additionalDescription, setAdditionalDescription] = useState('');
+    // --- NEW State for User Selected Directive ---
+    const [userSelectedDirective, setUserSelectedDirective] = useState<string | null>(null);
     const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
     const [prSubmissionResult, setPrSubmissionResult] = useState<PrSubmissionResult | null>(null);
 
@@ -49,28 +67,74 @@ export default function BuildToolPage() {
             setModelsLoading(true); setModelsError(null);
             try {
                 const response = await fetch('/api/list-models');
-                if (!response.ok) { const e = await response.json(); throw new Error(e.error || `E ${response.status}`); }
-                const data = await response.json(); const models: AiModel[] = data.models || []; setAvailableModels(models);
-                const defaultEnv = process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME; let defaultSet = false;
-                if (models.length > 0) {
-                    if (defaultEnv) { const found = models.find(m => m.name === defaultEnv); if (found) { setSelectedModel(found.name); defaultSet = true; console.log("Set default model from ENV:", found.name); } else { console.warn(`Default model "${defaultEnv}" from env not found.`);} }
-                    if (!defaultSet) { const flash = models.find(m => m.name.includes('flash')); const pro = models.find(m => m.name.includes('pro')); if (flash) { setSelectedModel(flash.name); console.log("Set default model to Flash:", flash.name); } else if (pro) { setSelectedModel(pro.name); console.log("Set default model to Pro:", pro.name); } else { setSelectedModel(models[0].name); console.log("Set default model to first available:", models[0].name); } }
-                } else { console.warn("No compatible AI models found after fetch."); }
-            } catch (error) { console.error("Error fetching AI models:", error); const message = error instanceof Error ? error.message : "Could not load AI models."; setModelsError(message); setAvailableModels([]); }
-            finally { setModelsLoading(false); }
+                if (!response.ok) { const e = await response.json(); throw new Error(e.error || `HTTP ${response.status}`); }
+                const data = await response.json();
+                const models: AiModel[] = data.models || [];
+                setAvailableModels(models);
+                // Default model selection logic (simplified for brevity)
+                const defaultEnv = process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
+                let defaultModel = models.find(m => m.name === defaultEnv)
+                                  ?? models.find(m => m.name.includes('flash'))
+                                  ?? models.find(m => m.name.includes('pro'))
+                                  ?? models[0];
+                if (defaultModel) {
+                    setSelectedModel(defaultModel.name);
+                    console.log("Set default model to:", defaultModel.name);
+                } else {
+                    console.warn("No compatible AI models found after fetch.");
+                }
+            } catch (error) {
+                console.error("Error fetching AI models:", error);
+                const message = error instanceof Error ? error.message : "Could not load AI models.";
+                setModelsError(message);
+                setAvailableModels([]);
+            } finally {
+                setModelsLoading(false);
+            }
           };
           fetchModels();
+    }, []);
+
+    // --- NEW: Fetch Tool Directives on Mount ---
+    useEffect(() => {
+        const fetchDirectives = async () => {
+            setDirectivesLoading(true); setDirectivesError(null);
+            try {
+                // NOTE: You need to create this API endpoint
+                const response = await fetch('/api/list-directives');
+                if (!response.ok) { const e = await response.json(); throw new Error(e.error || `HTTP ${response.status}`); }
+                const data = await response.json();
+                // Assuming API returns { directives: ["tool1", "tool2"] }
+                setAllAvailableToolDirectives(data.directives || []);
+            } catch (error) {
+                console.error("Error fetching tool directives:", error);
+                const message = error instanceof Error ? error.message : "Could not load existing tools.";
+                setDirectivesError(message);
+                setAllAvailableToolDirectives([]);
+            } finally {
+                setDirectivesLoading(false);
+            }
+        };
+        fetchDirectives();
     }, []); // Empty dependency array ensures this runs only once on mount
 
     // --- Callback Handlers Passed Down to Child Components ---
     const handleValidationSuccess = useCallback((result: ValidationResult) => {
         console.log("Validation Success:", result);
         setValidationResult(result);
+        // Reset user directive choice when moving past validation
+        setUserSelectedDirective(null);
         setCurrentStep('generation'); // Move to generation step
     }, []);
 
+    // Updated handler for Generation success
     const handleGenerationSuccess = useCallback((result: GenerationResult) => {
-        console.log("Generation Success:", { message: result.message, codeLength: result.generatedCode?.length });
+        // Log new structure
+        console.log("Generation Success:", {
+            message: result.message,
+            filesGenerated: result.generatedFiles ? Object.keys(result.generatedFiles).length : 0,
+            dependenciesIdentified: result.identifiedDependencies?.length ?? 0
+        });
         setGenerationResult(result);
         setCurrentStep('submission'); // Move to submission step
     }, []);
@@ -81,15 +145,17 @@ export default function BuildToolPage() {
         setCurrentStep('complete'); // Move to final 'complete' state
     }, []);
 
+    // Updated handler for Reset
     const handleReset = useCallback(() => {
         console.log("Resetting build flow...");
         setCurrentStep('validation');
         setToolDirective('');
         setValidationResult(null);
         setAdditionalDescription('');
+        setUserSelectedDirective(null); // Reset user choice
         setGenerationResult(null);
         setPrSubmissionResult(null);
-        // Note: Intentionally keeping selectedModel and availableModels
+        // Intentionally keep: selectedModel, availableModels, allAvailableToolDirectives
     }, []);
 
     // --- Render Logic: Chooses which step component to display ---
@@ -98,30 +164,50 @@ export default function BuildToolPage() {
             case 'validation':
                 return (
                     <ValidateDirective
-                        // State Props passed concisely
                         {...{ toolDirective, selectedModel, availableModels, modelsLoading, modelsError, setToolDirective, setSelectedModel }}
-                        // Callbacks passed explicitly
                         onValidationSuccess={handleValidationSuccess}
                         onReset={handleReset}
                     />
                 );
             case 'generation':
-                if (!validationResult) { handleReset(); return null; }
-                return (
+                 // Add checks for directives loading/error
+                 if (directivesLoading) return <p className="text-center p-4">Loading existing tools...</p>;
+                 if (directivesError) return <p className="text-center text-red-500 p-4">Error loading tools: {directivesError}</p>;
+                 if (!validationResult) { handleReset(); return null; } // Existing check
+
+                 return (
                     <GenerateToolResources
-                         // State Props
-                        {...{ toolDirective, validationResult, additionalDescription, selectedModel, setAdditionalDescription }}
+                         // Pass down all required props, including new ones
+                        {...{
+                             toolDirective,
+                             validationResult,
+                             additionalDescription,
+                             selectedModel,
+                             allAvailableToolDirectives, // Pass fetched list
+                             userSelectedDirective, // Pass current user choice
+                             setAdditionalDescription,
+                             setUserSelectedDirective // Pass setter for user choice
+                        }}
                          // Callbacks
                         onGenerationSuccess={handleGenerationSuccess}
-                        onBack={handleReset} // Or: () => setCurrentStep('validation')
+                        onBack={handleReset}
                     />
                 );
              case 'submission':
-                 if (!generationResult || !toolDirective || !validationResult) { handleReset(); return null; }
+                 // Updated check for generationResult structure
+                 if (!generationResult?.generatedFiles || !toolDirective || !validationResult) {
+                     handleReset(); return null;
+                 }
                  return (
                      <CreateAnonymousPr
-                         // State Props
-                         {...{ toolDirective, generationResult, validationResult, additionalDescription }}
+                         // Pass generationResult and userSelectedDirective
+                         {...{
+                             toolDirective,
+                             generationResult,
+                             validationResult,
+                             additionalDescription,
+                             userSelectedDirective // Pass user choice for PR context
+                         }}
                          // Callbacks
                          onPrSubmissionSuccess={handlePrSubmissionSuccess}
                          onBack={() => setCurrentStep('generation')}
@@ -156,7 +242,11 @@ export default function BuildToolPage() {
     return (
         <div className="max-w-3xl mx-auto p-4 space-y-6">
             <h1 className="text-2xl font-bold text-gray-800">Build a New Tool (AI Assisted)</h1>
-            {renderCurrentStep()}
+            {/* Render loading/error states for models *before* steps if critical */}
+            {modelsLoading && <p className="text-center p-4">Loading AI models...</p>}
+            {modelsError && <p className="text-center text-red-500 p-4">Error loading AI models: {modelsError}</p>}
+            {!modelsLoading && !modelsError && renderCurrentStep()}
+            {/* Add Start Over button */}
              {currentStep !== 'validation' && currentStep !== 'complete' && (
                  <div className="text-center mt-4">
                      <button type="button" onClick={handleReset} className="text-sm text-gray-500 hover:text-gray-700 hover:underline">

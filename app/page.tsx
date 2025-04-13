@@ -1,57 +1,88 @@
 // /app/page.tsx
 import Link from 'next/link';
 
+// TODO: Fetch tool list dynamically instead of hardcoding
+// Example (conceptual - would require a server component or useEffect in client component):
+// import { listTools } from '@/lib/tool-metadata'; // Assume a helper function exists
+// const availableTools = await listTools(); // Fetch { directive, title, description }[]
+
 export default function Home() {
-  // Add any state or handlers needed for the homepage here later
+  // --- Hardcoded list for now ---
+  const tools = [
+    { href: '/t/base64-converter', title: 'Base64 Converter' },
+    { href: '/t/case-converter', title: 'Case Converter' },
+    { href: '/t/crypto-wallet-generator', title: 'Crypto Wallet Generator' },
+    { href: '/t/emoji-explorer', title: 'Emoji Explorer' },
+    { href: '/t/hash-generator', title: 'Hash Generator' },
+    { href: '/t/html-entity-explorer', title: 'Html Entity Explorer' },    
+    { href: '/t/image-montage', title: 'Image Montage' },
+    { href: '/t/json-validator-formatter', title: 'JSON Validator Formatter' },
+    { href: '/t/random-password-generator', title: 'Random Password Generator' },
+    { href: '/t/text-counter', title: 'Text Counter' },
+    { href: '/t/text-reverse', title: 'Text Reverse' },
+    { href: '/t/text-strike-through', title: 'Text Strike Through' },
+    { href: '/t/url-decode-encode', title: 'URL Decode/Encode' },
+    { href: '/t/zip-file-explorer', title: 'Zip File Explorer' },
+  ];
+  // --- End hardcoded list ---
 
   return (
-    // You might want a container and some layout styling here
-    <div className="space-y-2">
-      <h1 className="text-3xl font-bold text-gray-800">Welcome to the Online Everything Tool</h1>
-      <p className="text-lg text-gray-600">
-        One-stop utility for client-side data transformations, conversions, and more.
-      </p>
+    // Add overall page padding and max-width
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-8"> {/* Increased max-width slightly, added vertical spacing */}    
 
-      {/* Tool List using Next.js Link */}
-      <div className="mt-8 p-4 border rounded-lg bg-white shadow">
-        <h2 className="text-xl font-semibold mb-3">Available Tools:</h2>
-        <ul className="list-disc list-inside space-y-1">
-            {/* Use Link for internal navigation */}
-           <li><Link href="/t/base64-converter" className="text-[#900027] hover:underline">Base64 Converter</Link></li>
-           <li><Link href="/t/case-converter" className="text-[#900027] hover:underline">Case Converter</Link></li>
-           <li><Link href="/t/crypto-wallet-generator" className="text-[#900027] hover:underline">Crypto Wallet Generator</Link></li>
-           <li><Link href="/t/hash-generator" className="text-[#900027] hover:underline">Hash Generator</Link></li>
-           <li><Link href="/t/html-entity-explorer" className="text-[#900027] hover:underline">Html Entity Explorer</Link></li>
-           <li><Link href="/t/emoji-explorer" className="text-[#900027] hover:underline">Emoji Explorer</Link></li>
-           <li><Link href="/t/image-montage" className="text-[#900027] hover:underline">Image Montage</Link></li>
-           <li><Link href="/t/json-validator-formatter" className="text-[#900027] hover:underline">JSON Validator Formatter</Link></li>
-           <li><Link href="/t/random-password-generator" className="text-[#900027] hover:underline">Random Password Generator</Link></li>
-           <li><Link href="/t/text-counter" className="text-[#900027] hover:underline">Text Counter</Link></li>
-           <li><Link href="/t/text-reverse" className="text-[#900027] hover:underline">Text Reverse</Link></li>
-           <li><Link href="/t/text-strike-through" className="text-[#900027] hover:underline">Text Strike Through</Link></li>
-           <li><Link href="/t/url-decode-encode" className="text-[#900027] hover:underline">URL Decode/Encode</Link></li>
-           <li><Link href="/t/zip-file-explorer" className="text-[#900027] hover:underline">Zip File Explorer</Link></li>
-           {/* Add links to other tools as they are built */}
-        </ul>
+        {/* Welcome Header */}
+        <div className="text-center border-b border-[rgb(var(--color-border-base))] pb-6 mb-6"> {/* Added centering, border, margin */}
+            <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2"> {/* Explicit text color */}
+                Online Everything Tool
+            </h1>
+            <p className="text-lg text-[rgb(var(--color-text-muted))]"> {/* Muted text color */}
+                Your one-stop utility for client-side data transformations & generation.
+            </p>
+        </div>
+
+      {/* Tool List Section */}
+      {/* Using CSS variables for background and border */}
+      <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm">
+        <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-base))]"> {/* Explicit text color, margin */}
+          Available Tools:
+        </h2>
+        {/* Check if tools exist before mapping */}
+        {tools && tools.length > 0 ? (
+            <ul className="list-disc list-inside space-y-1.5"> {/* Increased spacing */}
+                {tools.map((tool) => (
+                    <li key={tool.href}>
+                        {/* Using CSS variable for link color */}
+                        <Link href={tool.href} className="text-[rgb(var(--color-text-link))] hover:underline">
+                            {tool.title} {/* Use title from data */}
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        ) : (
+            <p className="text-[rgb(var(--color-text-muted))]">No tools available yet.</p>
+        )}
       </div>
 
-      {/* Build a New Tool Section - UPDATED with Button Style */}
-      <div className="mt-8 p-4 border rounded-lg bg-white shadow">
-          <h2 className="text-xl font-semibold mb-3">Build a New Tool</h2>
-          <p className="text-gray-600 mb-4"> {/* Added bottom margin */}
-            Have an idea for another useful client-side utility? Build it via prompt engineering!
+      {/* Build a New Tool Section */}
+       {/* Using CSS variables for background and border */}
+      <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm">
+          <h2 className="text-xl font-semibold mb-3 text-[rgb(var(--color-text-base))]"> {/* Explicit text color */}
+            Build a New Tool
+          </h2>
+          <p className="text-[rgb(var(--color-text-muted))] mb-4"> {/* Muted text color */}
+            Have an idea for another useful client-side utility? Build it with AI assistance!
           </p>
 
-          {/* --- Link Styled as a Button --- */}
+          {/* Link Styled as Primary Button using CSS Variables */}
           <Link
-            href="/build-tool" // Link still points to the correct page
-            className="inline-block px-5 py-2 bg-[#900027] text-white font-medium text-sm rounded-md shadow-sm hover:bg-[#7a0021] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#900027] transition-colors" // Button styles applied
+            href="/build-tool"
+            className="inline-block px-5 py-2 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors" // Using variables, removed focus ring
           >
             Build a Tool
           </Link>
           {/* --- End Button Style --- */}
 
-          <p className="text-gray-600 mt-4"> {/* Added top margin */}
+          <p className="text-[rgb(var(--color-text-muted))] mt-4"> {/* Muted text color */}
             Use AI (Gemini) to validate the directive and attempt to generate a proof-of-concept tool.
             Successful generations will result in a pull request for review and potential inclusion in the site.
           </p>
