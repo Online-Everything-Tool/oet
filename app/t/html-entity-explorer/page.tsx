@@ -1,7 +1,7 @@
 // /app/html-entity-explorer/page.tsx
 import fs from 'fs/promises';
 import path from 'path';
-import EntitySearchClient from './EntitySearchClient';
+import EntitySearchClient from './_components/HtmlEntitySearchClient';
 import { v4 as uuidv4 } from 'uuid';
 
 // Interfaces remain the same
@@ -31,7 +31,7 @@ export interface RichEntityData {
 // --- Function to load and process entity data (Server Side) ---
 // Now returns both entities and the list of categories
 async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], categories: string[] }> {
-  const filePath = path.join(process.cwd(), 'app', 't', 'html-entities', 'html-entities-data.json');
+  const filePath = path.join(process.cwd(), 'app', 't', 'html-entities', '_data', 'html-entities-data.json');
   let jsonData: CategorizedRawData;
 
   try {

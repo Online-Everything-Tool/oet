@@ -1,6 +1,6 @@
 // /app/emoji-explorer/page.tsx
 import React from 'react';
-import EmojiSearchClient from './EmojiSearchClient';
+import EmojiSearchClient from './_components/EmojiSearchClient';
 
 // Define the richer structure (remains the same)
 export interface RichEmojiData {
@@ -17,7 +17,7 @@ export interface RichEmojiData {
 async function fetchAndParseEmojis(): Promise<RichEmojiData[]> {
   const EMOJI_DATA_URL = 'https://unicode.org/Public/emoji/latest/emoji-test.txt';
   console.log(`Server: Fetching emoji data from: ${EMOJI_DATA_URL}`);
-
+  mkdir _components
   try {
     const response = await fetch(EMOJI_DATA_URL, {
       next: { revalidate: 60 * 60 * 24 }, // Revalidate daily

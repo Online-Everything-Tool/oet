@@ -1,16 +1,16 @@
-// /app/html-entities/EntitySearchClient.tsx
+// /app/html-entities/HtmlEntitySearchClient.tsx
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { RichEntityData } from './page';
-import { useHistory } from '../../context/HistoryContext';
+import type { RichEntityData } from '../page';
+import { useHistory } from '../../../context/HistoryContext';
 
 interface EntitySearchClientProps {
   initialEntities: RichEntityData[];
   availableCategories: string[]; // Add prop for categories
 }
 
-export default function EntitySearchClient({ initialEntities, availableCategories }: EntitySearchClientProps) {
+export default function HtmlEntitySearchClient({ initialEntities, availableCategories }: EntitySearchClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); // State for selected category (' ' = All)
   const { addHistoryEntry } = useHistory();

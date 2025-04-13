@@ -8,9 +8,9 @@ import { useHistory } from '../../context/HistoryContext'; // Adjust path if nee
 
 // --- Import from local files ---
 // Assuming these types and utils are defined in separate files in the same directory
-import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
-import { buildFileTree } from './utils'; // Assuming buildFileTree is in utils.ts
-import TreeNode from './TreeNode';
+import type { RawZipEntry, TreeNodeData, ActionEntryData } from './_components/types';
+import { buildFileTree } from './_components/utils'; // Assuming buildFileTree is in utils.ts
+import TreeNode from './_components/TreeNode';
 // --- End Imports ---
 
 
