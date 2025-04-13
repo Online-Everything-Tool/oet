@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     let body;
     try { body = await request.json(); }
-    catch (_error) { return NextResponse.json({ success: false, message: 'Invalid request body format', generatedCode: null }, { status: 400 }); }
+    catch (_error) { return NextResponse.json({ success: false, message: `Invalid request body format: ${_error}`, generatedCode: null }, { status: 400 }); }
 
     const toolDirective: string | undefined = body.toolDirective?.trim();
     const generativeDescription: string | undefined = body.generativeDescription?.trim();

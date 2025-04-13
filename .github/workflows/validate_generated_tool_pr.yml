@@ -9,186 +9,176 @@ on:
 jobs:
   validate:
     name: Validate Tool Directive and File Paths
-    # Only run if the head branch (PR branch) matches the expected pattern
     if: startsWith(github.head_ref, 'feat/gen-')
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # To add comments
-      contents: read     # To checkout code
+      pull-requests: write
+      contents: read
 
-    outputs: # Define job outputs for potential use in other jobs/workflows
+    outputs:
       tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
       path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
       pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
+      analysis_succeeded: ${{ steps.analyze_name.outputs.analysis_succeeded }} # Output for analysis success/failure
 
     steps:
-      # Step 1: Check out the repository code
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Needed for diffing against base
+          fetch-depth: 0
 
-      # Step 2: Extract the specific tool directive from the branch name
-      - name: Extract Tool Directive from Branch Name
+      - name: Extract Tool Directive
         id: extract_directive
         run: |
+          # ... (extraction logic unchanged) ...
           BRANCH_NAME="${{ github.head_ref }}"
-          # Remove 'feat/gen-' prefix
           TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
-          # Remove trailing '-<timestamp>' suffix
           TOOL_DIRECTIVE=$(echo "$TEMP_DIRECTIVE" | sed 's/-[0-9]*$//')
-          # Check if extraction was successful
-          if [ -z "$TOOL_DIRECTIVE" ]; then
-            echo "::error::Could not extract tool directive from branch name: $BRANCH_NAME"
-            exit 1
-          fi
-          echo "Extracted Tool Directive: $TOOL_DIRECTIVE"
-          # Set output for other steps
+          if [ -z "$TOOL_DIRECTIVE" ]; then exit 1; fi
           echo "tool_directive=${TOOL_DIRECTIVE}" >> $GITHUB_OUTPUT
 
-      # Step 3: Check if the extracted directive matches patterns in the specified file
-      - name: Check if Directive Matches Allowed Patterns
+      - name: Check Directive Pattern
         id: check_patterns
         run: |
+          # ... (pattern checking logic unchanged) ...
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
-          # --- Use the correct filename ---
-          PATTERN_FILE=".github/tool-directive-patterns.txt"
-          MATCH_FOUND=false
+          PATTERN_FILE=".github/tool-directive-patterns.txt"; MATCH_FOUND=false
+          if [ ! -f "$PATTERN_FILE" ]; then echo "::error::Pattern file not found."; echo "check_passed=false" >> $GITHUB_OUTPUT; exit 1; fi
+          while IFS= read -r pattern || [[ -n "$pattern" ]]; do if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$pattern"; then MATCH_FOUND=true; break; fi; done < <(grep -v '^#' "$PATTERN_FILE" | grep -v '^$')
+          if $MATCH_FOUND; then echo "check_passed=true" >> $GITHUB_OUTPUT; else echo "::error::Directive does not match patterns."; echo "check_passed=false" >> $GITHUB_OUTPUT; exit 1; fi
 
-          echo "Checking if '$TOOL_DIRECTIVE' matches any pattern in $PATTERN_FILE..."
+      # --- MODIFIED STEP: Analyze Directive Name via API (Non-blocking) ---
+      - name: Analyze Directive Name (AI Check)
+        id: analyze_name
+        # Run only if the basic pattern check passed
+        if: steps.check_patterns.outputs.check_passed == 'true'
+        # Allow this step to fail without failing the entire job immediately
+        continue-on-error: true # <-- ADDED: Allows workflow to proceed even if curl/jq fails
+        run: |
+          TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
+          # Use secret or default for testing
+          API_ENDPOINT="${{ secrets.APP_URL || 'http://localhost:3000' }}/api/analyze-directive-name"
+          # Placeholder context - enhance API later if needed
+          EXISTING_DIRECTIVES='[]'; GENERATIVE_DESC="Function related to ${TOOL_DIRECTIVE//-/ }"
 
-          # Check if the pattern file exists
-          if [ ! -f "$PATTERN_FILE" ]; then
-             echo "::error::Pattern file not found at $PATTERN_FILE."
-             echo "check_passed=false" >> $GITHUB_OUTPUT
-             exit 1 # Fail immediately if pattern file is missing
-          fi
+          echo "Attempting AI Analysis API call: $API_ENDPOINT"
+          # Use curl, capture HTTP status code, allow failure (-f removed), save output
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "$API_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -d "{
+                  \"proposedDirective\": \"$TOOL_DIRECTIVE\",
+                  \"existingDirectives\": $EXISTING_DIRECTIVES,
+                  \"generativeDescription\": \"$GENERATIVE_DESC\"
+                }" \
+            -o response.json)
 
-          # Read patterns file (ignore comments '#' and empty lines)
-          # Use process substitution <(...) to feed cleaned lines to the loop
-          while IFS= read -r pattern || [[ -n "$pattern" ]]; do
-             # Use grep with extended regex (-E) to check if the directive matches the pattern
-             if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$pattern"; then
-                 echo "Directive '$TOOL_DIRECTIVE' matches pattern: $pattern"
-                 MATCH_FOUND=true
-                 break # Exit loop on first successful match
-             fi
-          done < <(grep -v '^#' "$PATTERN_FILE" | grep -v '^$')
+          echo "API HTTP Status: $HTTP_STATUS"
+          echo "API Response Body:"
+          cat response.json || echo "<empty response>"
 
-          # Set output based on whether a match was found
-          if $MATCH_FOUND; then
-             echo "Directive matches an allowed pattern."
-             echo "check_passed=true" >> $GITHUB_OUTPUT
+          # Check if API call was successful (2xx status) AND response body is valid JSON
+          if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]] && jq -e . response.json > /dev/null; then
+             echo "API call successful and response is valid JSON."
+             SCORE=$(jq -r '.score // 0.5' response.json)
+             IS_TYPO=$(jq -r '.is_likely_typo // false' response.json)
+             SUGGESTIONS=$(jq -c '.suggestions // []' response.json)
+             REASONING=$(jq -r '.reasoning // "Analysis incomplete."' response.json)
+             ANALYSIS_SUCCEEDED="true"
           else
-             echo "::error::Directive '$TOOL_DIRECTIVE' does NOT match any allowed pattern in $PATTERN_FILE."
-             echo "check_passed=false" >> $GITHUB_OUTPUT
-             # Fail the step if no pattern matches
-             exit 1
+             echo "::warning::AI Analysis API call failed or returned invalid JSON (HTTP Status: $HTTP_STATUS). Skipping detailed analysis."
+             SCORE="N/A"; IS_TYPO="N/A"; SUGGESTIONS="[]"; REASONING="Analysis could not be performed."; ANALYSIS_SUCCEEDED="false"
           fi
 
-      # Step 4: Validate that all changed files are within the specific tool's directory
+          # Set outputs regardless of success/failure of the API call
+          echo "analysis_succeeded=$ANALYSIS_SUCCEEDED" >> $GITHUB_OUTPUT
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          echo "is_typo=$IS_TYPO" >> $GITHUB_OUTPUT
+          echo "suggestions=$SUGGESTIONS" >> $GITHUB_OUTPUT
+          echo "reasoning=$REASONING" >> $GITHUB_OUTPUT
+          # DO NOT exit 1 here, let the workflow continue
+
+      # --- END MODIFIED STEP ---
+
       - name: Validate Changed File Paths
         id: validate_paths
-        # Only run this step if the previous pattern check passed
+        # Run only if pattern check passed
         if: steps.check_patterns.outputs.check_passed == 'true'
         env:
-          # Pass the extracted directive to this step's environment
           TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
         run: |
-          # Double-check env var is set
+          # ... (Path validation logic - exits 1 on failure) ...
           if [ -z "$TOOL_DIRECTIVE" ]; then exit 1; fi
-
-          # Fetch main branch and find merge base for accurate diff
-          git fetch origin main
-          BASE_SHA=$(git merge-base HEAD origin/main)
-          # Get changed files list
-          CHANGED_FILES=$(git diff --name-status $BASE_SHA HEAD)
-
-          # If no files changed, pass validation
+          git fetch origin main; BASE_SHA=$(git merge-base HEAD origin/main); CHANGED_FILES=$(git diff --name-status $BASE_SHA HEAD)
           if [ -z "$CHANGED_FILES" ]; then echo "validation_passed=true" >> $GITHUB_OUTPUT; exit 0; fi
+          ALLOWED_FOLDER_PATTERN="^app/t/${TOOL_DIRECTIVE}/"; INVALID_FILES="" && ALL_VALID=true
+          echo "$CHANGED_FILES" | while IFS=$'\t' read -r status filepath; do if [[ -n "$filepath" ]]; then if [[ ! "$filepath" =~ $ALLOWED_FOLDER_PATTERN ]]; then echo "::error file=$filepath::Invalid path."; INVALID_FILES="${INVALID_FILES}${filepath}\n" && ALL_VALID=false; fi; fi; done
+          if $ALL_VALID; then echo "validation_passed=true" >> $GITHUB_OUTPUT; else echo "validation_passed=false" >> $GITHUB_OUTPUT; INVALID_FILES=$(echo -e "$INVALID_FILES" | sed -z 's/\n/\\n/g'); echo "invalid_files_list=${INVALID_FILES}" >> $GITHUB_OUTPUT; exit 1; fi
 
-          echo "Changed files:" && echo "$CHANGED_FILES"
-          # Define the allowed folder pattern using the specific tool directive
-          ALLOWED_FOLDER_PATTERN="^app/t/${TOOL_DIRECTIVE}/"
-          echo "Allowed folder pattern: $ALLOWED_FOLDER_PATTERN"
-
-          INVALID_FILES=""
-          ALL_VALID=true
-
-          # Loop through changed files and check path prefix
-          echo "$CHANGED_FILES" | while IFS=$'\t' read -r status filepath; do
-            if [[ -n "$filepath" ]]; then
-              # Check if filepath does NOT match the allowed folder pattern
-              if [[ ! "$filepath" =~ $ALLOWED_FOLDER_PATTERN ]]; then
-                echo "::error file=$filepath::Invalid path. Changes only allowed in 'app/t/${TOOL_DIRECTIVE}/'."
-                INVALID_FILES="${INVALID_FILES}${filepath}\n"
-                ALL_VALID=false
-              fi
-            fi
-          done
-
-          # Set output based on path validation result
-          if $ALL_VALID; then
-            echo "All changed file paths are valid."
-            echo "validation_passed=true" >> $GITHUB_OUTPUT;
-          else
-            echo "Invalid file paths detected outside allowed directory."
-            echo "validation_passed=false" >> $GITHUB_OUTPUT
-            # Format invalid file list for comment step output
-            INVALID_FILES=$(echo -e "$INVALID_FILES" | sed -z 's/\n/\\n/g')
-            echo "invalid_files_list=${INVALID_FILES}" >> $GITHUB_OUTPUT
-            # Fail the step if paths are invalid
-            exit 1
-          fi
-
-      # Step 5: Add a comment to the PR if any validation check failed
-      - name: Add failure comment to PR
-        # Run this step if the job has failed AND either of the checks specifically failed
-        # Using failure() ensures it runs even if a step exited early with 'exit 1'
-        if: failure() && (steps.check_patterns.outputs.check_passed == 'false' || steps.validate_paths.outputs.validation_passed == 'false')
+      # --- MODIFIED STEP: Add Result Comment to PR (Handles Analysis Failure) ---
+      - name: Add Result Comment to PR
+        # Always run this step to report status, unless the job was cancelled etc.
+        if: always() && steps.extract_directive.outputs.tool_directive # Only run if directive was extracted
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { repo, owner } = context.repo;
-            const issue_number = context.issue.number; // PR number
+            const { repo, owner } = context.repo; const issue_number = context.issue.number;
             const toolDirective = `${{ steps.extract_directive.outputs.tool_directive }}`;
-            // Check outputs, default to true if step didn't run or set output (shouldn't happen with exit 1)
-            const patternCheckPassed = `${{ steps.check_patterns.outputs.check_passed || 'true' }}` === 'true';
-            const pathValidationPassed = `${{ steps.validate_paths.outputs.validation_passed || 'true' }}` === 'true';
+            // Determine overall success based ONLY on mandatory checks
+            const patternCheckPassed = `${{ steps.check_patterns.outputs.check_passed || 'false' }}` === 'true';
+            const pathValidationPassed = `${{ steps.validate_paths.outputs.validation_passed || 'false' }}` === 'true';
+            const criticalChecksPassed = patternCheckPassed && pathValidationPassed;
             const invalidFilesList = `${{ steps.validate_paths.outputs.invalid_files_list || '' }}`.replace(/\\n/g, '\n- ');
 
-            let failureReason = '';
-            // Construct message based on which check failed
-            if (!patternCheckPassed) {
-              // --- Use the correct filename in the comment ---
-              failureReason += `- The directive \`${toolDirective}\` does not match any allowed pattern defined in \`.github/tool-directive-patterns.txt\`. Please use an approved pattern or update the pattern file.\n`;
+            // Get analysis results (check if analysis step succeeded)
+            const analysisSucceeded = `${{ steps.analyze_name.outputs.analysis_succeeded || 'false' }}` === 'true';
+            const analysisScore = `${{ steps.analyze_name.outputs.score || 'N/A' }}`;
+            const isLikelyTypo = `${{ steps.analyze_name.outputs.is_typo || 'N/A' }}` === 'true';
+            const suggestions = JSON.parse(`${{ steps.analyze_name.outputs.suggestions || '[]' }}`);
+            const reasoning = `${{ steps.analyze_name.outputs.reasoning || 'Analysis not performed.' }}`;
+
+            let commentBody = '';
+
+            // Report failure if critical checks failed
+            if (!criticalChecksPassed) {
+              commentBody += `🚨 **Automatic Validation Failed!** 🚨\n\n`;
+              let failureReason = '';
+              if (!patternCheckPassed) failureReason += `- Directive \`${toolDirective}\` does not match patterns in \`.github/tool-directive-patterns.txt\`.\n`;
+              if (!pathValidationPassed) failureReason += `- Files changed outside allowed directory \`app/t/${toolDirective}/*\`. Invalid files:\n- ${invalidFilesList || 'List unavailable.'}\n`;
+              commentBody += failureReason;
+              commentBody += `\nPlease investigate and address the issues. This PR should likely be closed.\n\n---\n`;
+            } else {
+              commentBody += `✅ **Automatic Validation Passed!** ✅\n\n - Directive \`${toolDirective}\` matches allowed patterns.\n - All changed files are within the allowed directory.\n\n---\n`;
             }
-            if (!pathValidationPassed) {
-              failureReason += `- Files were changed outside the allowed directory \`app/t/${toolDirective}/*\`. Please ensure all changes are contained within this specific folder.\n`;
-              if (invalidFilesList) {
-                 failureReason += `  - Invalid files found:\n- ${invalidFilesList}\n`;
-              }
+
+            // Always add AI Analysis section
+            commentBody += `**🤖 AI Directive Name Analysis:**\n\n`;
+            if (analysisSucceeded) {
+               commentBody += `- **Score:** ${analysisScore} (0.0 = bad, 1.0 = good)\n`;
+               commentBody += `- **Likely Typo:** ${isLikelyTypo ? 'Yes ❗' : 'No'}\n`;
+               commentBody += `- **Reasoning:** ${reasoning}\n`;
+               if (suggestions && suggestions.length > 0) {
+                 commentBody += `- **Suggestions:** ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
+               }
+               if (isLikelyTypo || parseFloat(analysisScore) < 0.6 && analysisScore !== 'N/A') {
+                  commentBody += `\n⚠️ **Suggestion:** Consider if \`${toolDirective}\` is the best name or a potential typo based on the analysis.\n`;
+               }
+            } else {
+               // Add specific message if analysis API call failed
+               commentBody += ` - ⚠️ AI analysis could not be performed (API endpoint unreachable or returned an error).\n`;
             }
 
-            // Construct the final comment body
-            const body = `🚨 **Automatic Validation Failed!** 🚨
+            // Post the comment
+            await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
 
-            This Pull Request could not be automatically validated for the following reason(s):
-            ${failureReason || '- Unknown validation error.'}
+            // Explicitly fail the workflow run only if critical checks failed
+            if (!criticalChecksPassed) {
+                 core.setFailed('PR validation failed (pattern or path checks). See comment for details.');
+            }
+      # --- END MODIFIED STEP ---
 
-            Please investigate and address the issues. This PR should likely be closed if the failures are not intentional.`;
-
-            // Post the comment to the PR
-            await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            // core.setFailed() is technically redundant if the job already failed due to exit 1, but doesn't hurt
-
-      # Optional Step 6: Automatically Close Pull Request on Failure (Commented Out)
+      # Optional Auto-Close PR step (commented out)
       # - name: Close Pull Request on Failure
-      #   if: failure() # Run if the job failed for any reason in previous steps
+      #   if: failure() && !steps.validate.outputs.criticalChecksPassed # Hypothetical combined output
       #   uses: peter-evans/close-pull@v3
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     pull-request-number: ${{ github.event.pull_request.number }}
-      #     comment: "Automatically closing PR due to validation failure (pattern mismatch or invalid file path)."
-      #     # delete-branch: true # Optionally delete branch after closing
+      #   # ... (rest of close config) ...
