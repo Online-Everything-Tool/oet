@@ -13,17 +13,38 @@ const GITHUB_DEFAULT_BRANCH = 'main';
 // --- Load Environment Variables ---
 const appId = process.env.GITHUB_APP_ID;
 const privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
-if (!appId || !privateKeyBase64) console.error("[API STARTUP create-anonymous-pr] ERROR: GitHub App credentials missing.");
-else console.log("[API STARTUP create-anonymous-pr] Required GitHub App credentials loaded.");
+if (!appId || !privateKeyBase64) {
+    console.error("[API STARTUP create-anonymous-pr] ERROR: GitHub App credentials missing.");
+} else {
+    console.log("[API STARTUP create-anonymous-pr] Required GitHub App credentials loaded.");
+}
 // --- End Load Environment Variables ---
 
-// --- Type Guards ---
+// --- Interfaces (matching frontend/API expectations) ---
+interface LibraryDependency {
+    packageName: string;
+    reason?: string;
+    importUsed?: string;
+}
+
+interface RequestBody {
+    toolDirective: string;
+    generatedFiles: { [filePath: string]: string }; // Expecting an object map
+    identifiedDependencies?: LibraryDependency[]; // Optional array
+    generativeDescription?: string;
+    additionalDescription?: string;
+    generativeRequestedDirectives?: string[];
+    userSelectedExampleDirective?: string | null;
+}
+
+// --- Type Guards (Keep as is) ---
 const hasMessage = (e: unknown): e is { message: string } => typeof e === 'object' && e !== null && 'message' in e && typeof (e as { message: unknown }).message === 'string';
 const isPotentialErrorObject = (e: unknown): e is { status?: unknown; message?: unknown; response?: { data?: { message?: string } } } => typeof e === 'object' && e !== null;
 // --- End Type Guards ---
 
-// --- Helper: Get Authenticated Octokit Instance ---
+// --- Helper: Get Authenticated Octokit Instance (Keep as is) ---
 async function getInstallationOctokit(): Promise<Octokit> {
+    // ... (Authentication logic remains the same - Assuming it works)
     console.log("[API create-anonymous-pr] Attempting GitHub App auth...");
     if (!appId || !privateKeyBase64) throw new Error("Server config error: GitHub App credentials missing.");
     let privateKeyPem: string;
@@ -53,40 +74,68 @@ async function getInstallationOctokit(): Promise<Octokit> {
 export async function POST(request: Request) {
     console.log(`[API create-anonymous-pr] -------- POST Start (${new Date().toISOString()}) --------`);
 
-    // 1. Parse Correct Request Body
-    let toolDirective: string | undefined;
-    let generatedPageTsx: string | undefined;
-    let generativeDescription: string | undefined;
-    let additionalDescription: string | undefined;
-    let generativeRequestedDirectives: string[] = [];
+    let body: RequestBody;
+    let toolDirective: string;
+    let generatedFiles: { [filePath: string]: string };
+    let identifiedDependencies: LibraryDependency[];
+    let generativeDescription: string;
+    let additionalDescription: string;
+    let generativeRequestedDirectives: string[];
+    let userSelectedExampleDirective: string | null;
 
+    // 1. Parse and Validate Request Body
     try {
-        const body = await request.json();
-        toolDirective = body.toolDirective?.trim();
-        generatedPageTsx = body.generatedPageTsx?.trim();
-        generativeDescription = body.generativeDescription?.trim();
-        additionalDescription = body.additionalDescription?.trim() || '';
-        if (Array.isArray(body.generativeRequestedDirectives)) {
-            generativeRequestedDirectives = body.generativeRequestedDirectives.filter((d: unknown) => typeof d === 'string');
-        }
+        body = await request.json();
 
-        // 2. Validate Input
-        if (!toolDirective || !generatedPageTsx) {
-            return NextResponse.json({ success: false, message: "Missing required fields: toolDirective and generatedPageTsx" }, { status: 400 });
+        // Extract and validate required fields
+        toolDirective = body.toolDirective?.trim();
+        generatedFiles = body.generatedFiles; // Keep as object
+        identifiedDependencies = Array.isArray(body.identifiedDependencies) ? body.identifiedDependencies : []; // Default to empty array
+
+        if (!toolDirective) throw new Error("Missing required field: toolDirective");
+        if (typeof generatedFiles !== 'object' || generatedFiles === null || Object.keys(generatedFiles).length === 0) {
+            throw new Error("Missing or invalid required field: generatedFiles must be a non-empty object.");
         }
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolDirective)) {
-            return NextResponse.json({ success: false, message: 'Invalid toolDirective format.' }, { status: 400 });
+            throw new Error('Invalid toolDirective format.');
         }
-         if (!generatedPageTsx.startsWith("'use client';") && !generatedPageTsx.startsWith('"use client";')) {
-             console.warn(`[API create-anonymous-pr] Warning: Generated code for ${toolDirective} does not start with 'use client';`)
-         }
-        console.log(`[API create-anonymous-pr] Processing PR for new tool: ${toolDirective}`);
 
-    } catch (error) {
-        console.error("[API create-anonymous-pr] Error parsing request body:", error);
-        return NextResponse.json({ success: false, message: "Invalid request body format" }, { status: 400 });
+        // Validate content of generatedFiles (basic check)
+        for (const [filePath, fileContent] of Object.entries(generatedFiles)) {
+             if (typeof fileContent !== 'string') {
+                 throw new Error(`Invalid content for file '${filePath}': Must be a string.`);
+             }
+             // Optionally add more specific path validation if needed
+             if (!filePath.startsWith('app/t/')) { // Basic sanity check
+                 console.warn(`[API create-anonymous-pr] Unexpected file path found: ${filePath}`);
+             }
+             // Warn if page.tsx is missing 'use client'
+             if (filePath.endsWith('/page.tsx') && !fileContent.trim().startsWith("'use client';") && !fileContent.trim().startsWith('"use client";')) {
+                console.warn(`[API create-anonymous-pr] Warning: Generated file ${filePath} does not start with 'use client';`)
+             }
+        }
+
+        // Extract optional fields
+        generativeDescription = body.generativeDescription?.trim() || '';
+        additionalDescription = body.additionalDescription?.trim() || '';
+        generativeRequestedDirectives = Array.isArray(body.generativeRequestedDirectives)
+            ? body.generativeRequestedDirectives.filter((d: unknown): d is string => typeof d === 'string')
+            : [];
+        userSelectedExampleDirective = (typeof body.userSelectedExampleDirective === 'string' && body.userSelectedExampleDirective.trim())
+            ? body.userSelectedExampleDirective.trim()
+            : null;
+
+        console.log(`[API create-anonymous-pr] Processing PR for new tool: ${toolDirective}`);
+        console.log(`[API create-anonymous-pr] Files to commit: ${Object.keys(generatedFiles).length}`);
+        console.log(`[API create-anonymous-pr] Identified dependencies: ${identifiedDependencies.length}`);
+
+    } catch (error: unknown) {
+        const message = hasMessage(error) ? error.message : "Invalid request body format";
+        console.error("[API create-anonymous-pr] Error parsing request body:", message, error);
+        return NextResponse.json({ success: false, message: message }, { status: 400 });
     }
 
+    // 2. GitHub Interaction
     let octokit: Octokit;
     let newBranchName: string | null = null;
     try {
@@ -105,28 +154,43 @@ export async function POST(request: Request) {
         await octokit.rest.git.createRef({ owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, ref: newBranchRef, sha: latestSha });
         console.log(`[API create-anonymous-pr] Branch ${newBranchName} created.`);
 
-        // Prepare file commit
-        const filePath = `app/t/${toolDirective}/page.tsx`; // Correct path
-        const encodedContent = Buffer.from(generatedPageTsx).toString('base64'); // Use the generated code
-        const commitMessage = `feat: Add AI generated tool - ${toolDirective}`; // Correct commit message
-        console.log(`[API create-anonymous-pr] Committing file "${filePath}"...`);
+        // --- Commit ALL Generated Files Sequentially ---
+        const commitMessage = `feat: Add AI generated tool - ${toolDirective}`; // Use one main message
+        const committer = { name: 'OET Bot', email: 'bot@online-everything-tool.com' }; // Define once
+        const author = { name: 'OET Bot', email: 'bot@online-everything-tool.com' };   // Define once
 
-        // Commit the file
-        await octokit.rest.repos.createOrUpdateFileContents({
-            owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, path: filePath,
-            message: commitMessage, content: encodedContent, branch: newBranchName,
-            committer: { name: 'OET Bot', email: 'bot@online-everything-tool.com' },
-            author: { name: 'OET Bot', email: 'bot@online-everything-tool.com' },
-        });
-        console.log(`[API create-anonymous-pr] File committed.`);
-
-        // Create PR Body
-        const prTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
-        let requestedDirectivesList = '_None requested or loaded._';
-        if (generativeRequestedDirectives.length > 0) {
-             requestedDirectivesList = generativeRequestedDirectives.map(d => `- \`${d}\``).join('\n');
+        for (const [filePath, fileContent] of Object.entries(generatedFiles)) {
+            console.log(`[API create-anonymous-pr] Committing file "${filePath}" to branch ${newBranchName}...`);
+            const encodedContent = Buffer.from(fileContent).toString('base64');
+            await octokit.rest.repos.createOrUpdateFileContents({
+                owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, path: filePath,
+                message: commitMessage, // Use the same message for all files in this logical change
+                content: encodedContent,
+                branch: newBranchName,
+                committer: committer,
+                author: author,
+            });
+            console.log(`[API create-anonymous-pr] File "${filePath}" committed.`);
         }
-        const prBody = `Adds the new tool \`${toolDirective}\` generated via the AI Build Tool feature (submitted anonymously).
+        console.log(`[API create-anonymous-pr] All ${Object.keys(generatedFiles).length} files committed.`);
+        // --- End File Committing ---
+
+
+        // --- Create Enhanced PR Body ---
+        const prTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
+
+        const formatList = (items: string[], noneMessage: string, prefix = '- '): string => {
+            if (!items || items.length === 0) return noneMessage;
+            return items.map(item => `${prefix}\`${item}\``).join('\n');
+        };
+
+        const formatDependencies = (deps: LibraryDependency[], noneMessage: string): string => {
+             if (!deps || deps.length === 0) return noneMessage;
+             return deps.map(dep => `- \`${dep.packageName}\`${dep.reason ? ` - _${dep.reason}_` : ''}`).join('\n');
+        };
+
+        const prBody = `
+Adds the new tool \`${toolDirective}\` generated via the AI Build Tool feature (submitted anonymously).
 
 **AI Generated Description:**
 ${generativeDescription || '_No description provided._'}
@@ -135,11 +199,21 @@ ${generativeDescription || '_No description provided._'}
 ${additionalDescription || '_None provided._'}
 
 **AI Requested Examples During Generation:**
-${requestedDirectivesList}
+${formatList(generativeRequestedDirectives, '_None requested or loaded._')}
 
-**Generated Code:** (\`app/t/${toolDirective}/page.tsx\`)
+**User Selected Example During Generation:**
+${userSelectedExampleDirective ? `\`${userSelectedExampleDirective}\`` : '_None selected._'}
+
+**Identified Dependencies:**
+${formatDependencies(identifiedDependencies, '_None identified._')}
+${identifiedDependencies.length > 0 ? '\n_Note: Please ensure these dependencies are added to package.json if they are not already present._' : ''}
+
+**Files Added/Modified:**
+${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
+
 *Please review the attached code changes.*
 `;
+        // --- End PR Body Creation ---
 
         console.log(`[API create-anonymous-pr] Creating Pull Request: "${prTitle}"...`);
         // Create the Pull Request
@@ -153,6 +227,7 @@ ${requestedDirectivesList}
         return NextResponse.json({ success: true, message: `Successfully created Pull Request for new tool: ${toolDirective}`, url: pullRequest.html_url }, { status: 201 });
 
     } catch (error: unknown) {
+        // --- Error Handling (Keep as is, it's reasonably robust) ---
         console.error("[API create-anonymous-pr] ERROR during GitHub interaction:", error);
         let errorMessage = "An unexpected error occurred during PR creation."; let errorStatus = 500;
         if (isPotentialErrorObject(error)) { const status = typeof error.status === 'number' ? error.status : undefined; const message = typeof error.message === 'string' ? error.message : undefined; const ghMessage = typeof error.response?.data?.message === 'string' ? error.response.data.message : undefined; errorMessage = message || errorMessage; if (ghMessage) errorMessage += ` (GitHub: ${ghMessage})`; errorStatus = status || errorStatus; if (status === 422 && ghMessage?.includes('Reference already exists')) { errorMessage = `Branch '${newBranchName}' might already exist. Try again.`; errorStatus = 409; } else if (status === 404 && ghMessage?.includes('Not Found')) { errorMessage = `Base branch '${GITHUB_DEFAULT_BRANCH}' or repo not found.`; errorStatus = 404; } } else { errorMessage = String(error); }
@@ -163,7 +238,7 @@ ${requestedDirectivesList}
     }
 } // --- End of POST Handler ---
 
-// --- GET Handler ---
+// --- GET Handler (Keep as is) ---
 export async function GET() {
     console.log(`[API create-anonymous-pr] -------- GET (${new Date().toISOString()}) --------`);
     if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_PRIVATE_KEY_BASE64) return NextResponse.json({ message: "API route active, but server config missing credentials." });

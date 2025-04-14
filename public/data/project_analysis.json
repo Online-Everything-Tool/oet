@@ -1,21 +1,20 @@
 {
-  "siteTagline": "Your all-in-one toolbox for client-side data manipulation.",
-  "siteDescription": "The Online Everything Tool offers a vast collection of free, client-side utilities for various data transformation, generation, and exploration tasks.  It's perfect for developers, data analysts, and anyone needing quick, privacy-focused online tools.",
+  "siteTagline": "Your all-in-one toolbox for client-side utilities.",
+  "siteDescription": "The Online Everything Tool offers the largest assortment of free, client-side utilities, empowering users to quickly transform data and generate content directly in their browser.  It's perfect for developers, data scientists, and anyone needing quick, privacy-focused online tools.",
   "siteBenefits": [
     "Access a wide variety of utilities in one place",
     "Transform data quickly using client-side processing",
     "Track your past operations with the History feature",
     "Contribute new tools easily via the AI-assisted build process",
     "Enjoy a consistent experience with Shoelace components",
-    "Works offline for many tools due to PWA setup",
-    "Ensure data privacy with client-side processing"
+    "Works offline for many tools due to PWA setup"
   ],
   "suggestedNewToolDirectives": [
-    "csv-parser-formatter",
-    "qr-code-generator",
-    "unix-timestamp-converter",
-    "markdown-editor",
-    "color-palette-generator"
+    "text-formatter",
+    "csv-parser",
+    "xml-viewer",
+    "base64-to-image",
+    "timestamp-converter"
   ],
   "modelNameUsed": "gemini-1.5-flash-latest"
 }

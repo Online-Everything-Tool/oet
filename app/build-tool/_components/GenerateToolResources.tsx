@@ -1,37 +1,32 @@
 // /app/build-tool/_components/GenerateToolResources.tsx
 'use client';
 
-import React, { useState, useMemo } from 'react'; // Added useMemo
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
-// --- Updated Type Import ---
-// Ensure GenerationResult in ../page.tsx is updated to include:
-// generatedFiles: { [filePath: string]: string } | null;
-// identifiedDependencies: LibraryDependency[] | null;
-// (And define LibraryDependency interface)
+// Ensure these types match the structure defined in the parent page or a shared types file
 import type { ValidationResult, GenerationResult, LibraryDependency } from '../page';
 
-// --- Props expected by this component (Updated) ---
+// --- Props expected by this component ---
 interface GenerateToolResourcesProps {
     toolDirective: string;
-    validationResult: ValidationResult;
+    validationResult: ValidationResult; // Has generativeDescription, generativeRequestedDirectives
     additionalDescription: string;
     setAdditionalDescription: (value: string) => void;
     selectedModel: string;
-    allAvailableToolDirectives: string[]; // NEW: List of all tool names
-    userSelectedDirective: string | null; // NEW: State for user's choice
-    setUserSelectedDirective: (value: string | null) => void; // NEW: Setter for user's choice
-    onGenerationSuccess: (result: GenerationResult) => void;
-    onBack: () => void;
+    allAvailableToolDirectives: string[]; // List of existing tool names
+    userSelectedDirective: string | null; // User's optional choice
+    setUserSelectedDirective: (value: string | null) => void; // Setter for user choice
+    onGenerationSuccess: (result: GenerationResult) => void; // Callback expects the standard structure
+    onBack: () => void; // Callback to go back
 }
 
-// --- Interface matching the expected API response structure (Updated) ---
-interface ApiGenerationResponseData {
-    success: boolean;
-    message: string;
-    // Expecting an object mapping file paths to content
-    generatedFiles: { [filePath: string]: string } | null;
-    // Expecting an array of identified dependencies
-    identifiedDependencies: LibraryDependency[] | null;
+// --- Interface matching the **NEW** API response structure ---
+// (Matches the GenerationResult structure, plus a 'success' flag from the API wrapper)
+interface ApiGenerationResponseData extends GenerationResult {
+    success: boolean; // API includes a success flag
+    // message: string; // Already in GenerationResult
+    // generatedFiles: { [filePath: string]: string } | null; // Already in GenerationResult
+    // identifiedDependencies: LibraryDependency[] | null; // Already in GenerationResult
 }
 
 export default function GenerateToolResources({
@@ -39,9 +34,9 @@ export default function GenerateToolResources({
     validationResult,
     additionalDescription, setAdditionalDescription,
     selectedModel,
-    allAvailableToolDirectives, // Destructure new props
-    userSelectedDirective,      // Destructure new props
-    setUserSelectedDirective,   // Destructure new props
+    allAvailableToolDirectives,
+    userSelectedDirective,
+    setUserSelectedDirective,
     onGenerationSuccess, onBack
 }: GenerateToolResourcesProps) {
 
@@ -49,72 +44,94 @@ export default function GenerateToolResources({
     const [feedback, setFeedback] = useState<string | null>(null);
     const [status, setStatus] = useState<'idle' | 'error'>('idle');
 
-    // Memoize the filtered list of directives for the dropdown
+    // Memoize the list of directives available for the user to select as an additional example
     const availableUserChoices = useMemo(() => {
         const aiDirectives = new Set(validationResult.generativeRequestedDirectives || []);
+        // Filter out directives already suggested by the AI
         return allAvailableToolDirectives.filter(dir => !aiDirectives.has(dir));
     }, [allAvailableToolDirectives, validationResult.generativeRequestedDirectives]);
 
+    // --- Handle Generation API Call ---
     const handleGenerateClick = async () => {
         setStatus('idle');
         setFeedback(null);
         setIsGenerating(true);
-        // Updated feedback text to reflect multi-file potential
-        setFeedback('Generating tool resources (code files & dependencies)...');
+        setFeedback('Generating files via API...'); // User feedback
 
-        if (!selectedModel) { setStatus('error'); setFeedback('Error: AI model selection missing.'); setIsGenerating(false); return; }
-        if (!validationResult.generativeDescription) { setStatus('error'); setFeedback('Error: AI description is missing.'); setIsGenerating(false); return; }
+        // Basic validation before API call
+        if (!selectedModel) {
+            setStatus('error'); setFeedback('Error: AI model selection missing.'); setIsGenerating(false); return;
+        }
+        if (!validationResult.generativeDescription) {
+            setStatus('error'); setFeedback('Error: AI-generated description is missing.'); setIsGenerating(false); return;
+        }
 
         try {
+            // Call the backend API
             const response = await fetch('/api/generate-tool-resources', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    // --- Payload Updated ---
+                    // Send all necessary data
                     toolDirective: toolDirective,
                     generativeDescription: validationResult.generativeDescription,
                     additionalDescription: additionalDescription.trim(),
                     modelName: selectedModel,
                     generativeRequestedDirectives: validationResult.generativeRequestedDirectives,
-                    userSelectedExampleDirective: userSelectedDirective // Add user's choice
+                    userSelectedExampleDirective: userSelectedDirective // Include user's choice
                 }),
             });
 
-            // --- Parsing Updated Response Structure ---
+            // Parse the JSON response from the API
+            // Expecting { success, message, generatedFiles, identifiedDependencies }
             const data: ApiGenerationResponseData = await response.json();
 
-            // Check for success and presence of generatedFiles (core requirement)
-            if (!response.ok || !data.success || !data.generatedFiles) {
-                throw new Error(data.message || `Resource generation failed (${response.status})`);
+            // --- Check API Response ---
+            // Check 1: Did the HTTP request fail OR did the API explicitly report failure?
+            if (!response.ok || !data.success) {
+                 // Use the message from the API response if available
+                 throw new Error(data.message || `API request failed (${response.status})`);
             }
 
-            // --- Generation Successful - Pass Updated Structure ---
-            onGenerationSuccess({
-                // Pass the object of generated files
-                generatedFiles: data.generatedFiles,
-                // Pass identified dependencies (might be null/empty)
-                identifiedDependencies: data.identifiedDependencies || null,
-                // Pass any message from the API
-                message: data.message
-            });
-            setFeedback(null);
-            setStatus('idle');
+            // Check 2: API reported success, but did it return the core generatedFiles?
+            // (identifiedDependencies can be null/empty array, so files are the main check)
+            if (data.generatedFiles && Object.keys(data.generatedFiles).length > 0) {
+                 console.log("API call successful, received generated files and dependencies.");
 
-        } catch (error: unknown) {
-            console.error("Tool Resource Generation Error:", error);
+                 // --- Pass the relevant data directly to the success callback ---
+                 // The 'data' object now closely matches the 'GenerationResult' structure
+                 onGenerationSuccess({
+                     message: data.message, // Pass the API's message
+                     generatedFiles: data.generatedFiles, // Pass the files object
+                     identifiedDependencies: data.identifiedDependencies // Pass the dependencies array/null
+                 });
+
+                 setFeedback(null); // Clear the "Generating..." feedback
+                 setStatus('idle');
+             } else {
+                 // API returned success: true, but the generatedFiles object was null/empty.
+                 console.error("API reported success but returned no generated files.");
+                 // Throw an error to be caught below
+                 throw new Error(data.message || "Generation failed: API reported success but generated files were missing.");
+             }
+
+        } catch (error: unknown) { // Catch errors from fetch, json parsing, or thrown above
+            console.error("Tool Resource Generation Error:", error); // Log the actual error object
             setStatus('error');
             const message = error instanceof Error ? error.message : "Unexpected error during resource generation.";
+            // Display the specific error message caught in the UI
             setFeedback(`Generation Error: ${message}`);
         } finally {
-            setIsGenerating(false);
+            setIsGenerating(false); // Ensure loading state is turned off
         }
     };
 
+    // --- JSX Render Logic (Remains the same) ---
     return (
          <section className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isGenerating ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-indigo-300'}`}>
             <h2 className="text-lg font-semibold mb-3 text-gray-700">Step 2: Refine & Generate Resources</h2>
 
-             {/* AI Generated Description (Review) */}
+             {/* Display AI Generated Description for Review */}
              <div className="mb-4">
                 <label htmlFor="genDescDisplay" className="block text-sm font-medium text-gray-700 mb-1">
                     AI Generated Description (Review):
@@ -124,7 +141,7 @@ export default function GenerateToolResources({
                 />
              </div>
 
-             {/* AI Requested Examples */}
+             {/* Display AI Requested Examples */}
              {validationResult.generativeRequestedDirectives.length > 0 && (
                 <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded">
                     <p className="text-sm font-medium text-indigo-800 mb-1">
@@ -142,7 +159,7 @@ export default function GenerateToolResources({
                 </div>
              )}
 
-             {/* --- NEW: User Selected Additional Example --- */}
+             {/* Input: User Selected Additional Example */}
              <div className="mb-4">
                 <label htmlFor="userExampleSelect" className="block text-sm font-medium text-gray-700 mb-1">
                     Select an Additional Example (Optional):
@@ -150,7 +167,7 @@ export default function GenerateToolResources({
                 <select
                     id="userExampleSelect"
                     value={userSelectedDirective ?? ''} // Use nullish coalescing for controlled component
-                    onChange={(e) => setUserSelectedDirective(e.target.value || null)} // Set null if default option selected
+                    onChange={(e) => setUserSelectedDirective(e.target.value || null)} // Set null if default selected
                     disabled={isGenerating || availableUserChoices.length === 0}
                     className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
@@ -160,14 +177,12 @@ export default function GenerateToolResources({
                     ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
-                    Choose another existing tool if you think its code provides relevant patterns.
+                    Choose another existing tool if its code provides relevant patterns.
                     {availableUserChoices.length === 0 && allAvailableToolDirectives.length > 0 && " (All others already suggested by AI)"}
                 </p>
              </div>
-             {/* --- END NEW SECTION --- */}
 
-
-            {/* Additional Details Input */}
+            {/* Input: Additional Details / Refinements */}
             <div className="mb-4">
                 <label htmlFor="additionalDescription" className="block text-sm font-medium text-gray-700 mb-1">
                     Additional Details / Refinements (Optional):
@@ -180,7 +195,7 @@ export default function GenerateToolResources({
                  <p className="mt-1 text-xs text-gray-500">Provide extra context to help the AI generate the necessary code files.</p>
             </div>
 
-            {/* Buttons: Generate and Back */}
+            {/* Action Buttons */}
             <div className="flex items-center justify-between flex-wrap gap-2">
                  <button
                     type="button" onClick={handleGenerateClick}
@@ -188,7 +203,7 @@ export default function GenerateToolResources({
                     className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {/* Updated button text */}
-                    {isGenerating ? 'Generating Resources...' : 'Generate Code Preview'}
+                    {isGenerating ? 'Generating Files...' : 'Generate Tool Files'}
                 </button>
                 <button
                     type="button" onClick={onBack} disabled={isGenerating}
@@ -198,10 +213,12 @@ export default function GenerateToolResources({
                  </button>
             </div>
 
-
-             {/* Feedback Area */}
+             {/* Feedback Area (Displays Processing/Error Messages) */}
              {feedback && (
-                 <div className={`mt-4 text-sm p-3 rounded ${ status === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200' }`}>
+                 <div className={`mt-4 text-sm p-3 rounded ${
+                    status === 'error' ? 'bg-red-100 text-red-700 border border-red-200'
+                    : 'bg-blue-100 text-blue-700 border border-blue-200' // Default to info style
+                  }`}>
                     {feedback}
                  </div>
              )}
