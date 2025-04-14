@@ -1,6 +1,10 @@
 {
   "title": "Text Reverse",
   "description": "Reverse the order of characters, words, or lines in text.",
+  "urlStateParams": [
+    { "paramName": "text", "stateVariable": "inputValue", "type": "string", "defaultValue": "" },
+    { "paramName": "reverseMode", "stateVariable": "reverseMode", "type": "enum", "defaultValue": "characters" }
+  ],
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

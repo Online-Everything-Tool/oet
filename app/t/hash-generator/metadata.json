@@ -1,7 +1,21 @@
 {
   "title": "Hash Generator",
   "description": "Generates cryptographic hash values (digests) for text input using MD5 or common SHA algorithms.",
-  "tags": [],
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "stateVariable": "inputValue",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "algorithm",
+      "stateVariable": "algorithm",
+      "type": "enum",
+      "defaultValue": "SHA-256"
+    }
+  ],
+  "tags": ["security", "developer", "data"],
   "iconName": null,
   "includeInSitemap": true,
   "status": "stable"

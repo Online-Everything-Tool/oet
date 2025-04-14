@@ -1,5 +1,5 @@
 // /app/context/HistoryContext.tsx
-'use client'; // Essential for hooks and localStorage
+'use client';
 
 import React, {
   createContext,
@@ -10,53 +10,82 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
+import { v4 as uuidv4 } from 'uuid'; // Use UUID for more robust IDs
 
 // --- Configuration ---
-const LOCAL_STORAGE_KEY = 'oetHistory';
-const MAX_HISTORY_ENTRIES = 100; // Limit the number of entries stored
+const LOCAL_STORAGE_KEY = 'oetHistory_v2'; // Increment version for new structure
+const MAX_HISTORY_ENTRIES = 100;
 
 // --- Interfaces ---
 
 /**
- * Defines the structure for a single history log entry.
+ * Represents a unique operation state that might have been executed multiple times.
  */
 export interface HistoryEntry {
-  id: string; // Unique identifier for the entry
-  timestamp: number; // Date.now() when the entry was created
-  toolName: string; // User-friendly name of the tool (e.g., "JSON Formatter")
-  toolRoute: string; // Route path of the tool (e.g., "/t/json-validator-formatter")
-  action?: string; // Optional: Specific action performed (e.g., "format", "validate", "copyEmoji")
-  // *** Use specific types or 'unknown' instead of 'any' ***
-  input?: string | number | boolean | Record<string, unknown> | null | unknown; // Allow common primitives, objects, or unknown for safety
-  output?: string | number | boolean | Record<string, unknown> | null | unknown; // Allow common primitives, objects, or unknown for safety
-  status?: 'success' | 'error'; // Optional: Outcome indicator
-  // Allow options object with unknown value types
-  options?: Record<string, unknown>; // Use unknown for values within options
-  // *** End Type Correction ***
+  id: string; // Unique identifier for this specific state combination (generated once)
+  firstTimestamp: number; // When this state was first encountered
+  lastUsedTimestamp: number; // Timestamp of the most recent execution/reload
+  timestamps: number[]; // Array of all execution timestamps (includes first and last)
+  executionCount: number; // How many times this exact state was executed/reloaded
+  toolName: string;
+  toolRoute: string;
+  action?: string; // Action of the *last* execution
+  input?: unknown; // Input state (could be string, object, etc.)
+  output?: unknown; // Output of the *last* execution
+  status?: 'success' | 'error'; // Status of the *last* execution
+  options?: Record<string, unknown>; // Options used
 }
 
 /**
- * Defines the shape of the value provided by the HistoryContext.
+ * Data passed to addHistoryEntry (doesn't include generated fields like id, timestamps).
  */
+export type NewHistoryData = Omit<
+    HistoryEntry,
+    'id' | 'firstTimestamp' | 'lastUsedTimestamp' | 'timestamps' | 'executionCount'
+>;
+
+
 interface HistoryContextValue {
-  history: HistoryEntry[];
-  addHistoryEntry: (entryData: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
+  history: HistoryEntry[]; // Array of unique history states
+  addHistoryEntry: (entryData: NewHistoryData) => void;
   deleteHistoryEntry: (idToDelete: string) => void;
   clearHistory: () => void;
-  isLoaded: boolean; // Flag to indicate if history has been loaded from localStorage
+  clearHistoryForTool: (toolRoute: string) => void; // Keep per-tool clear
+  // TODO: Add state/functions for global/per-tool enable/disable later
+  isLoaded: boolean;
 }
 
-// --- Context Creation ---
+// --- Helper: Deep Equality Check (Simple version, enhance if needed) ---
+// NOTE: This simple JSON.stringify comparison might fail for complex objects
+// with different key orders or Date objects, Maps, Sets, etc.
+// Consider a library like 'fast-deep-equal' for more robustness if needed.
+function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
+    if (entry1.toolRoute !== entry2.toolRoute) return false;
 
+    // Basic comparison for primitives/simple objects via JSON stringify
+    try {
+        const inputEqual = JSON.stringify(entry1.input) === JSON.stringify(entry2.input);
+        const optionsEqual = JSON.stringify(entry1.options ?? {}) === JSON.stringify(entry2.options ?? {});
+        return inputEqual && optionsEqual;
+    } catch (e) {
+        console.warn("Error comparing history states with JSON.stringify:", e);
+        // Fallback to reference equality or assume not equal on error
+        return entry1.input === entry2.input && entry1.options === entry2.options;
+    }
+}
+// --- End Helper ---
+
+
+// --- Context Creation ---
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
   addHistoryEntry: () => { console.warn('addHistoryEntry called outside of HistoryProvider'); },
   deleteHistoryEntry: () => { console.warn('deleteHistoryEntry called outside of HistoryProvider'); },
   clearHistory: () => { console.warn('clearHistory called outside of HistoryProvider'); },
+  clearHistoryForTool: () => { console.warn('clearHistoryForTool called outside of HistoryProvider'); },
   isLoaded: false,
 });
 
-// --- Custom Hook for easy consumption ---
 export const useHistory = () => {
   const context = useContext(HistoryContext);
   if (context === undefined) {
@@ -66,104 +95,150 @@ export const useHistory = () => {
 };
 
 // --- Provider Component ---
-
 interface HistoryProviderProps {
   children: ReactNode;
 }
 
 export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false); // Track initial load
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Load history from localStorage on initial mount
+  // Load history from localStorage
   useEffect(() => {
-    console.log('HistoryProvider: Attempting to load history from localStorage...');
+    console.log(`[HistoryCtx] Attempting load from ${LOCAL_STORAGE_KEY}...`);
     try {
       const storedHistory = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (storedHistory) {
         const parsedHistory = JSON.parse(storedHistory);
-        if (Array.isArray(parsedHistory)) {
-           console.log(`HistoryProvider: Loaded ${parsedHistory.length} entries.`);
-          // TODO: Add more validation here if needed (check structure of entries)
-          setHistory(parsedHistory);
+        // Basic validation for the new structure
+        if (Array.isArray(parsedHistory) && parsedHistory.every(item => item.id && Array.isArray(item.timestamps) && item.lastUsedTimestamp && item.executionCount >= 1)) {
+           console.log(`[HistoryCtx] Loaded ${parsedHistory.length} entries from v2 storage.`);
+           // Sort loaded history by last used timestamp descending
+           parsedHistory.sort((a, b) => b.lastUsedTimestamp - a.lastUsedTimestamp);
+           setHistory(parsedHistory);
         } else {
-            console.warn('HistoryProvider: Invalid data found in localStorage, resetting.');
+            console.warn('[HistoryCtx] Invalid v2 data found, resetting.');
             localStorage.removeItem(LOCAL_STORAGE_KEY); setHistory([]);
+            // TODO: Add migration logic from old format if needed
         }
       } else {
-        console.log('HistoryProvider: No history found in localStorage.'); setHistory([]);
+        console.log('[HistoryCtx] No v2 history found.'); setHistory([]);
       }
     } catch (error) {
-      console.error('HistoryProvider: Error parsing history from localStorage:', error);
+      console.error('[HistoryCtx] Error parsing history:', error);
       localStorage.removeItem(LOCAL_STORAGE_KEY); setHistory([]);
     } finally {
-        setIsLoaded(true); // Mark loading as complete
+        setIsLoaded(true);
     }
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
-  // Persist history to localStorage whenever it changes *after* initial load
+  // Persist history to localStorage
   useEffect(() => {
     if (isLoaded) {
       try {
-        // Limited logging to avoid spamming console on every history change
-        // console.log(`HistoryProvider: Saving ${history.length} entries...`);
+        // No need to sort here, we sort on load and add
         const historyString = JSON.stringify(history);
         localStorage.setItem(LOCAL_STORAGE_KEY, historyString);
       } catch (error) {
-        console.error('HistoryProvider: Error saving history to localStorage:', error);
-        // Consider notifying user if saving fails repeatedly?
+        console.error('[HistoryCtx] Error saving history:', error);
       }
     }
-  }, [history, isLoaded]); // Re-run whenever history state or loaded status changes
+  }, [history, isLoaded]);
 
   // --- Context Functions ---
 
-  // Add a new entry, ensuring it doesn't exceed the max limit
-  const addHistoryEntry = useCallback(
-    (entryData: Omit<HistoryEntry, 'id' | 'timestamp'>) => {
-      const newEntry: HistoryEntry = {
-        ...entryData,
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, // Reasonably unique ID
-        timestamp: Date.now(),
-      };
+  // ADD HISTORY ENTRY (Refactored Logic)
+  const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
+      // TODO: Add global/per-tool enable check here later
+
+      const now = Date.now();
 
       setHistory((prevHistory) => {
-        const updatedHistory = [newEntry, ...prevHistory];
-        // Enforce size limit by slicing the array if it exceeds the max
-        return updatedHistory.length > MAX_HISTORY_ENTRIES
-               ? updatedHistory.slice(0, MAX_HISTORY_ENTRIES)
-               : updatedHistory;
+          // Find existing entry matching route, input, and options
+          const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
+
+          let updatedHistory = [...prevHistory]; // Create a mutable copy
+
+          if (existingEntryIndex > -1) {
+              // --- Update Existing Entry ---
+              console.log(`[HistoryCtx] Updating existing entry for ${entryData.toolName}`);
+              const existingEntry = updatedHistory[existingEntryIndex];
+              const updatedEntry: HistoryEntry = {
+                  ...existingEntry,
+                  lastUsedTimestamp: now,
+                  timestamps: [...existingEntry.timestamps, now].sort((a,b) => b-a), // Add new timestamp, keep sorted desc
+                  executionCount: existingEntry.executionCount + 1,
+                  // Update fields to reflect the *latest* execution
+                  action: entryData.action,
+                  output: entryData.output,
+                  status: entryData.status,
+                  // Keep original id and firstTimestamp
+              };
+              // Replace the old entry with the updated one
+              updatedHistory[existingEntryIndex] = updatedEntry;
+              // Move the updated entry to the top (most recent)
+              updatedHistory.splice(existingEntryIndex, 1); // Remove from original position
+              updatedHistory.unshift(updatedEntry); // Add to beginning
+
+          } else {
+              // --- Add New Entry ---
+              console.log(`[HistoryCtx] Adding new entry for ${entryData.toolName}`);
+              const newEntry: HistoryEntry = {
+                  ...entryData,
+                  id: uuidv4(), // Generate unique ID for this state
+                  firstTimestamp: now,
+                  lastUsedTimestamp: now,
+                  timestamps: [now],
+                  executionCount: 1,
+              };
+              // Add to the beginning of the array
+              updatedHistory.unshift(newEntry);
+
+              // Enforce size limit *only* when adding new entries
+              if (updatedHistory.length > MAX_HISTORY_ENTRIES) {
+                  updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ENTRIES);
+                  console.log(`[HistoryCtx] History limit reached, oldest entry removed.`);
+              }
+          }
+
+          return updatedHistory; // Return the modified array
       });
-       console.log('HistoryProvider: Added entry for', newEntry.toolName);
-    },
-    [] // No external dependencies needed for this implementation
-  );
+
+  }, []); // Empty dependency array - relies on setHistory's functional update
 
   // Delete a specific entry by its ID
   const deleteHistoryEntry = useCallback((idToDelete: string) => {
     setHistory((prevHistory) =>
       prevHistory.filter((entry) => entry.id !== idToDelete)
     );
-    console.log('HistoryProvider: Deleted entry with ID', idToDelete);
+    console.log('[HistoryCtx] Deleted entry with ID', idToDelete);
   }, []);
 
   // Clear the entire history state and localStorage
   const clearHistory = useCallback(() => {
     setHistory([]);
-    localStorage.removeItem(LOCAL_STORAGE_KEY); // Clear storage immediately
-    console.log('HistoryProvider: Cleared all history.');
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    console.log('[HistoryCtx] Cleared all history.');
   }, []);
 
-  // Memoize the context value to prevent unnecessary re-renders of consumers
+  // Clear history for a specific tool route
+  const clearHistoryForTool = useCallback((toolRoute: string) => {
+    setHistory(prevHistory => prevHistory.filter(entry => entry.toolRoute !== toolRoute));
+     console.log(`[HistoryCtx] Cleared history for tool: ${toolRoute}`);
+  }, []);
+
+
+  // Memoize the context value
   const value = useMemo(
     () => ({
-      history,
+      history, // Already sorted by lastUsedTimestamp on load/add
       addHistoryEntry,
       deleteHistoryEntry,
       clearHistory,
+      clearHistoryForTool,
       isLoaded,
     }),
-    [history, addHistoryEntry, deleteHistoryEntry, clearHistory, isLoaded]
+    [history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded]
   );
 
   return (

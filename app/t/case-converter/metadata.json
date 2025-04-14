@@ -1,7 +1,21 @@
 {
   "title": "Case Converter",
-  "description": "Converts blocks of text between various common casing styles like UPPERCASE, lowercase, Capital Case, snake_case, and kebab-case.",
-  "tags": [],
+  "description": "Converts text between various common casing styles like UPPERCASE, lowercase, Sentence case, Title Case, camelCase, PascalCase, snake_case, and kebab-case.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "stateVariable": "inputValue",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "case",
+      "stateVariable": "caseType",
+      "type": "enum",
+      "defaultValue": "lowercase"
+    }
+  ],
+  "tags": ["text", "format", "developer"],
   "iconName": null,
   "includeInSitemap": true,
   "status": "stable"
