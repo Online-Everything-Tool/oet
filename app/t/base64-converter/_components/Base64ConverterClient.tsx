@@ -1,4 +1,5 @@
 // FILE: app/t/base64-converter/_components/Base64ConverterClient.tsx
+// --- START OF FILE ---
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -57,6 +58,7 @@ export default function Base64ConverterClient({
         }
       }, [text]);
 
+    // --- UPDATED handleEncode ---
     const handleEncode = useCallback((textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
@@ -73,17 +75,24 @@ export default function Base64ConverterClient({
             setError(currentError);
             status = 'error';
         }
+        // --- MODIFIED addHistoryEntry call ---
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: 'encode',
-            input: { text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : '') },
+            // Pass combined input and options
+            input: {
+                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
+                operation: 'encode' // Include the operation used
+            },
             output: status === 'success' ? (currentOutput.substring(0, 500) + (currentOutput.length > 500 ? '...' : '')) : `Error: ${currentError}`,
             status: status,
-            options: { operation: 'encode' }
+            // options field removed
         });
+        // --- END MODIFICATION ---
       }, [addHistoryEntry, text, toolTitle, toolRoute]);
 
+    // --- UPDATED handleDecode ---
     const handleDecode = useCallback((textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
@@ -108,15 +117,21 @@ export default function Base64ConverterClient({
             setError(currentError);
             status = 'error';
         }
+         // --- MODIFIED addHistoryEntry call ---
          addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: 'decode',
-            input: { text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : '') },
+            // Pass combined input and options
+             input: {
+                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
+                operation: 'decode' // Include the operation used
+            },
             output: status === 'success' ? (currentOutput.substring(0, 500) + (currentOutput.length > 500 ? '...' : '')) : `Error: ${currentError}`,
             status: status,
-            options: { operation: 'decode' }
+            // options field removed
         });
+        // --- END MODIFICATION ---
       }, [addHistoryEntry, text, toolTitle, toolRoute]);
 
     useEffect(() => {
@@ -146,14 +161,16 @@ export default function Base64ConverterClient({
         setOperation('encode');
         setBase64Likelihood('unknown');
         if (hadInput) {
+           // --- MODIFIED addHistoryEntry call ---
            addHistoryEntry({
                toolName: toolTitle,
                toolRoute: toolRoute,
                action: 'clear',
-               input: '',
+               input: { text: '', operation: 'encode' }, // Log cleared state
                output: 'Input cleared',
                status: 'success',
            });
+           // --- END MODIFICATION ---
         }
     };
 
@@ -198,3 +215,4 @@ export default function Base64ConverterClient({
         </div>
     );
 }
+// --- END OF FILE ---

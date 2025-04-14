@@ -135,7 +135,7 @@ export default function TextCounterClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'clear-search',
-              input: { previousSearch: oldString, text: text },
+              input: { text: text, search: '' },
               output: 'Search string cleared',
               status: 'success',
           });
@@ -151,7 +151,7 @@ export default function TextCounterClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'clear-text',
-              input: { previousLength: oldText.length, search: search },
+              input: { text: '', search: search },
               output: 'Text cleared',
               status: 'success',
           });

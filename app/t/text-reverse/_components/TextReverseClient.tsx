@@ -65,12 +65,14 @@ export default function TextReverseClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: `reverse-${reverse}${status === 'error' ? '-failed' : ''}`,
-            input: { text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess },
+            input: {
+                text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
+                reverse: reverse
+            },
             output: status === 'success'
                 ? (result.length > 500 ? result.substring(0, 500) + '...' : result)
                 : `Error: ${currentError}`,
             status: status,
-            options: { reverse: reverse },
         });
     }, [reverse, addHistoryEntry, text, toolTitle, toolRoute]);
 
@@ -108,10 +110,9 @@ export default function TextReverseClient({
                toolName: toolTitle,
                toolRoute: toolRoute,
                action: 'clear',
-               input: '',
+               input: { text: '', reverse: 'characters' },
                output: 'Input cleared',
                status: 'success',
-               options: { reverse: 'characters' }
            });
         }
     };

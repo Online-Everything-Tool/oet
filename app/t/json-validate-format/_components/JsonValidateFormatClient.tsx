@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Adjust path
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState'; // Adjust path
+import { useHistory } from '../../../context/HistoryContext';
+import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 interface JsonValidateFormatClientProps {
     urlStateParams: ParamConfig[];
@@ -80,12 +80,14 @@ export default function JsonValidateFormatClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: 'format-validate',
-            input: { json: trimmedInput.length > 1000 ? trimmedInput.substring(0, 1000) + '...' : trimmedInput },
+            input: {
+                json: trimmedInput.length > 1000 ? trimmedInput.substring(0, 1000) + '...' : trimmedInput,
+                indent: indent
+            },
             output: status === 'success'
               ? (currentOutput.length > 1000 ? currentOutput.substring(0, 1000) + '...' : currentOutput)
               : `Error: ${currentError}`,
             status: status,
-            options: { indent: indent },
         });
 
     }, [json, indent, addHistoryEntry, toolTitle, toolRoute]);
@@ -119,7 +121,7 @@ export default function JsonValidateFormatClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'clear',
-              input: '',
+              input: { json: '', indent: 2 },
               output: 'Input/output cleared',
               status: 'success'
            });

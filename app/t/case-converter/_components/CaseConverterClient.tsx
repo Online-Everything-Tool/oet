@@ -81,10 +81,12 @@ export default function CaseConverterClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: `convert-${caseType}`,
-            input: { text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : '') },
+            input: {
+                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
+                case: caseType
+            },
             output: status === 'success' ? (result.substring(0, 500) + (result.length > 500 ? '...' : '')) : `Error: ${currentError}`,
             status: status,
-            options: { case: caseType }
         });
 
     }, [text, caseType, addHistoryEntry, toolTitle, toolRoute]);
@@ -112,7 +114,7 @@ export default function CaseConverterClient({
                toolName: toolTitle,
                toolRoute: toolRoute,
                action: 'clear',
-               input: '',
+               input: { text: '', case: 'lowercase'},
                output: 'Input cleared',
                status: 'success'
            });

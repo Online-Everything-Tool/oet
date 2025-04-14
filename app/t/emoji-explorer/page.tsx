@@ -2,8 +2,8 @@
 import React from 'react';
 
 // Import the client component and the shared type
-import EmojiSearchClient from './_components/EmojiSearchClient';
-import type { RichEmojiData } from './_components/EmojiSearchClient'; // Import type from client
+import EmojiSearchClient from './_components/EmojiExplorerClient';
+import type { RichEmojiData } from './_components/EmojiExplorerClient'; // Import type from client
 
 // Import ToolHeader and Metadata
 import ToolHeader from '../_components/ToolHeader';

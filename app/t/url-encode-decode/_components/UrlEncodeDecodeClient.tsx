@@ -59,12 +59,14 @@ export default function UrlEncodeDecodeClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: 'encode',
-            input: { text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess },
+            input: {
+                text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
+                operation: 'encode'
+            },
             output: status === 'success'
                 ? (currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput)
                 : `Error: ${currentError}`,
             status: status,
-            options: { operation: 'encode' }
         });
 
     }, [text, addHistoryEntry, toolTitle, toolRoute]);
@@ -97,12 +99,14 @@ export default function UrlEncodeDecodeClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: 'decode',
-            input: { text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess },
+            input: {
+                text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
+                operation: 'decode'
+            },
             output: status === 'success'
                 ? (currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput)
                 : `Error: ${currentError}`,
             status: status,
-            options: { operation: 'decode' }
         });
 
     }, [text, addHistoryEntry, toolTitle, toolRoute]);
@@ -138,7 +142,7 @@ export default function UrlEncodeDecodeClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'clear',
-              input: '',
+              input: { text: '', operation: 'encode' },
               output: 'Input cleared',
               status: 'success',
            });

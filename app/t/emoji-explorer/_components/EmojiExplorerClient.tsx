@@ -1,11 +1,9 @@
-// /app/t/emoji-explorer/_components/EmojiSearchClient.tsx
+// FILE: app/t/emoji-explorer/_components/EmojiExplorerClient.tsx
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-// Assuming useHistory context setup exists elsewhere and works
 import { useHistory } from '../../../context/HistoryContext';
 
-// Define the structure for individual emoji data
 export interface RichEmojiData {
   emoji: string;
   name: string;
@@ -16,50 +14,39 @@ export interface RichEmojiData {
   subgroup: string;
 }
 
-// --- Refined Helper Function ---
-// Utility to get unique sorted values from an array of objects, filtering out unwanted ones
 const getUniqueSortedValues = (
-  items: RichEmojiData[], // Use the correct type here
-  key: keyof RichEmojiData, // Key must exist on RichEmojiData
+  items: RichEmojiData[],
+  key: keyof RichEmojiData,
   sort: 'asc' | 'desc' | 'version-desc' = 'asc'
 ): string[] => {
-  // Early exit if no items
   if (!items || items.length === 0) {
     return [];
   }
-
   const values = new Set<string>();
   items.forEach(item => {
-    // Ensure the key exists and the value is a non-empty, non-"Unknown" string
     if (item && typeof item[key] === 'string' && item[key] && (item[key] as string).trim() !== '' && item[key] !== 'Unknown') {
-      values.add(item[key] as string); // Add the valid string value
+      values.add(item[key] as string);
     }
   });
-
-  // Convert Set to Array for sorting
   const sortedValues = Array.from(values);
-
-  // Apply specific sorting logic
   if (sort === 'version-desc') {
-    // Ensure numeric comparison for versions
     sortedValues.sort((a, b) => parseFloat(b) - parseFloat(a));
   } else if (sort === 'desc') {
     sortedValues.sort((a, b) => b.localeCompare(a));
   } else {
-    // Default asc
     sortedValues.sort((a, b) => a.localeCompare(b));
   }
-
   return sortedValues;
 };
 
 
 interface EmojiSearchClientProps {
   initialEmojis: RichEmojiData[];
+  // Removed availableCategories prop
 }
 
+// Removed availableCategories from destructuring
 export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientProps) {
-  // --- State and Context Hooks ---
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
@@ -67,19 +54,15 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const { addHistoryEntry } = useHistory();
 
-  // --- Effect Hook ---
   useEffect(() => {
-      // Optional: Log only if debugging is needed
-      // console.log("EmojiSearchClient received initialEmojis:", initialEmojis?.length);
       if (!initialEmojis || initialEmojis.length === 0) {
           console.warn("EmojiSearchClient received empty or no initialEmojis array.");
       }
   }, [initialEmojis]);
 
-  // --- Memoized Calculations ---
   const availableGroups = useMemo(() => getUniqueSortedValues(initialEmojis, 'group', 'asc'), [initialEmojis]);
   const availableVersions = useMemo(() => getUniqueSortedValues(initialEmojis, 'version', 'version-desc'), [initialEmojis]);
-  const availableSubgroups = useMemo(() => {
+  const derivedAvailableSubgroups = useMemo(() => {
     if (!selectedGroup) return [];
     const filteredByGroup = initialEmojis.filter(e => e.group === selectedGroup);
     return getUniqueSortedValues(filteredByGroup, 'subgroup', 'asc');
@@ -88,70 +71,84 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedGroup) count++;
-    if (selectedSubgroup && selectedGroup) count++; // Only count subgroup if group is also selected
+    if (selectedSubgroup && selectedGroup) count++;
     if (selectedVersion) count++;
     return count;
   }, [selectedGroup, selectedSubgroup, selectedVersion]);
 
   const filteredEmojis = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
-    // Return all if no filters or search term
     if (!lowerCaseSearchTerm && !selectedGroup && !selectedVersion) {
         return initialEmojis;
     }
     return initialEmojis.filter(emoji => {
-      // Apply search term filter first (most selective)
       if (lowerCaseSearchTerm && !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)) return false;
-      // Apply dropdown filters
       if (selectedGroup && emoji.group !== selectedGroup) return false;
-      // Only filter subgroup if a group is selected
       if (selectedGroup && selectedSubgroup && emoji.subgroup !== selectedSubgroup) return false;
       if (selectedVersion && emoji.version !== selectedVersion) return false;
-      // If it passes all applicable filters, include it
       return true;
     });
   }, [searchTerm, initialEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
 
-  // --- Event Handlers ---
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(event.target.value);
   const toggleFilterPanel = () => setIsFilterPanelOpen(prev => !prev);
-  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => { setSelectedGroup(event.target.value); setSelectedSubgroup(''); }; // Reset subgroup when group changes
+  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => { setSelectedGroup(event.target.value); setSelectedSubgroup(''); };
   const handleSubgroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => setSelectedSubgroup(event.target.value);
   const handleVersionChange = (event: React.ChangeEvent<HTMLSelectElement>) => setSelectedVersion(event.target.value);
   const handleClearFilters = useCallback(() => { setSelectedGroup(''); setSelectedSubgroup(''); setSelectedVersion(''); }, []);
 
-  // --- Emoji Click Handler (with History) ---
   const handleEmojiClick = useCallback((emojiData: RichEmojiData) => {
+    const historyInput: Record<string, unknown> = {
+        copiedType: 'emoji', // Changed from type to be more specific
+        copiedValue: emojiData.emoji,
+        entityDescription: emojiData.name,
+    };
+    if (searchTerm) historyInput.searchTerm = searchTerm;
+    if (selectedGroup) historyInput.group = selectedGroup;
+    if (selectedSubgroup) historyInput.subgroup = selectedSubgroup;
+    if (selectedVersion) historyInput.version = selectedVersion;
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(emojiData.emoji)
         .then(() => {
           addHistoryEntry({
-              toolName: 'Emoji Explorer', // Hardcoded or from metadata prop if needed
+              toolName: 'Emoji Explorer',
               toolRoute: '/t/emoji-explorer',
               action: 'copy',
-              input: emojiData.name,
+              input: historyInput,
               output: emojiData.emoji,
               status: 'success',
-              options: { // Log active filters/search at time of copy
-                 ...(selectedGroup && { group: selectedGroup }),
-                 ...(selectedSubgroup && { subgroup: selectedSubgroup }),
-                 ...(selectedVersion && { version: selectedVersion }),
-                 ...(searchTerm && { searchTerm: searchTerm })
-              }
           });
           console.log(`Copied ${emojiData.emoji} to clipboard.`);
-          // TODO: Add visual feedback for copy success
         })
-        .catch(err => console.error('Failed to copy emoji:', err));
+        .catch(err => {
+            console.error('Failed to copy emoji:', err);
+            historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
+            addHistoryEntry({
+                toolName: 'Emoji Explorer',
+                toolRoute: '/t/emoji-explorer',
+                action: 'copy-failed',
+                input: historyInput,
+                output: emojiData.emoji,
+                status: 'error',
+            });
+        });
     } else {
       console.warn('Clipboard API not available.');
+       historyInput.error = 'Clipboard API not available';
+        addHistoryEntry({
+            toolName: 'Emoji Explorer',
+            toolRoute: '/t/emoji-explorer',
+            action: 'copy-failed',
+            input: historyInput,
+            output: emojiData.emoji,
+            status: 'error',
+        });
     }
-  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]); // Dependencies
+  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]); // Dependencies still needed for constructing input
 
-  // --- Render ---
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* Search and Filter Trigger Row */}
       <div className="flex gap-3 items-center">
         <div className="flex-grow">
            <label htmlFor="emoji-search" className="sr-only">Search Emojis</label>
@@ -176,7 +173,6 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
         </div>
       </div>
 
-      {/* Filter Panel */}
        {isFilterPanelOpen && (
          <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex flex-col gap-4">
            <div className="flex justify-between items-center">
@@ -196,9 +192,9 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
              </div>
              <div>
                <label htmlFor="filter-subgroup" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Subgroup</label>
-               <select id="filter-subgroup" value={selectedSubgroup} onChange={handleSubgroupChange} disabled={!selectedGroup || availableSubgroups.length === 0} className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm disabled:bg-[rgb(var(--color-input-disabled-bg))] disabled:text-[rgb(var(--color-text-muted))] disabled:cursor-not-allowed">
+               <select id="filter-subgroup" value={selectedSubgroup} onChange={handleSubgroupChange} disabled={!selectedGroup || derivedAvailableSubgroups.length === 0} className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm disabled:bg-[rgb(var(--color-input-disabled-bg))] disabled:text-[rgb(var(--color-text-muted))] disabled:cursor-not-allowed">
                  <option key="all-subgroups" value="">All Subgroups</option>
-                 {selectedGroup && availableSubgroups && availableSubgroups.map(subgroup => (<option key={subgroup} value={subgroup}>{subgroup}</option>))}
+                 {selectedGroup && derivedAvailableSubgroups && derivedAvailableSubgroups.map(subgroup => (<option key={subgroup} value={subgroup}>{subgroup}</option>))}
                </select>
              </div>
              <div>
@@ -212,18 +208,14 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
          </div>
        )}
 
-      {/* Results Count */}
       <p className="text-sm text-[rgb(var(--color-text-muted))]">
           {initialEmojis.length === 0 ? "Loading emojis..." : `Showing ${filteredEmojis.length} of ${initialEmojis.length} emojis.`}
       </p>
 
-      {/* Feedback Messages */}
-      {/* Simplified - message above covers loading/empty states */}
       {initialEmojis.length > 0 && filteredEmojis.length === 0 && (searchTerm || activeFilterCount > 0) && (
           <p className="text-[rgb(var(--color-text-muted))]">No emojis match your search or filter criteria.</p>
       )}
 
-      {/* Emoji Display Grid */}
       {filteredEmojis.length > 0 && (
          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
            {filteredEmojis.map((emojiData) => (
@@ -239,11 +231,9 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
            ))}
          </div>
        )}
-       {/* Optional: Add Loading state indicator if initialEmojis is empty */}
        {initialEmojis.length === 0 && (
             <div className="text-center p-5 text-[rgb(var(--color-text-muted))]">
                 <p>Loading emoji data...</p>
-                {/* Optional: add a spinner */}
             </div>
        )}
     </div>

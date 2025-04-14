@@ -1,3 +1,5 @@
+// FILE: app/context/HistoryContext.tsx
+// --- START OF FILE ---
 // /app/context/HistoryContext.tsx
 'use client';
 
@@ -13,13 +15,14 @@ import React, {
 import { v4 as uuidv4 } from 'uuid'; // Use UUID for more robust IDs
 
 // --- Configuration ---
-const LOCAL_STORAGE_KEY = 'oetHistory_v2'; // Increment version for new structure
+const LOCAL_STORAGE_KEY = 'oetHistory_v2'; // Keep v2 for now, but structure changes
 const MAX_HISTORY_ENTRIES = 100;
 
-// --- Interfaces ---
+// --- Interfaces (UPDATED) ---
 
 /**
  * Represents a unique operation state that might have been executed multiple times.
+ * Input now contains both primary input and options.
  */
 export interface HistoryEntry {
   id: string; // Unique identifier for this specific state combination (generated once)
@@ -30,14 +33,18 @@ export interface HistoryEntry {
   toolName: string;
   toolRoute: string;
   action?: string; // Action of the *last* execution
-  input?: unknown; // Input state (could be string, object, etc.)
+  // --- MODIFIED: Input now holds primary input AND options ---
+  input?: Record<string, unknown> | string | null; // Can be string for simple tools, or object for complex ones during logging
+  // --- END MODIFICATION ---
   output?: unknown; // Output of the *last* execution
   status?: 'success' | 'error'; // Status of the *last* execution
-  options?: Record<string, unknown>; // Options used
+  // --- REMOVED options field ---
+  // options?: Record<string, unknown>;
 }
 
 /**
  * Data passed to addHistoryEntry (doesn't include generated fields like id, timestamps).
+ * Input should contain merged data.
  */
 export type NewHistoryData = Omit<
     HistoryEntry,
@@ -51,26 +58,22 @@ interface HistoryContextValue {
   deleteHistoryEntry: (idToDelete: string) => void;
   clearHistory: () => void;
   clearHistoryForTool: (toolRoute: string) => void; // Keep per-tool clear
-  // TODO: Add state/functions for global/per-tool enable/disable later
   isLoaded: boolean;
 }
 
-// --- Helper: Deep Equality Check (Simple version, enhance if needed) ---
-// NOTE: This simple JSON.stringify comparison might fail for complex objects
-// with different key orders or Date objects, Maps, Sets, etc.
-// Consider a library like 'fast-deep-equal' for more robustness if needed.
+// --- Helper: Deep Equality Check (UPDATED) ---
+// Now compares only the input object which contains everything.
 function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
     if (entry1.toolRoute !== entry2.toolRoute) return false;
 
-    // Basic comparison for primitives/simple objects via JSON stringify
+    // Basic comparison via JSON stringify (acknowledging limitations)
     try {
-        const inputEqual = JSON.stringify(entry1.input) === JSON.stringify(entry2.input);
-        const optionsEqual = JSON.stringify(entry1.options ?? {}) === JSON.stringify(entry2.options ?? {});
-        return inputEqual && optionsEqual;
+        const inputEqual = JSON.stringify(entry1.input ?? {}) === JSON.stringify(entry2.input ?? {});
+        return inputEqual;
     } catch (e) {
-        console.warn("Error comparing history states with JSON.stringify:", e);
+        console.warn("[HistoryCtx] Error comparing history states with JSON.stringify:", e);
         // Fallback to reference equality or assume not equal on error
-        return entry1.input === entry2.input && entry1.options === entry2.options;
+        return entry1.input === entry2.input;
     }
 }
 // --- End Helper ---
@@ -110,16 +113,19 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       const storedHistory = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (storedHistory) {
         const parsedHistory = JSON.parse(storedHistory);
-        // Basic validation for the new structure
-        if (Array.isArray(parsedHistory) && parsedHistory.every(item => item.id && Array.isArray(item.timestamps) && item.lastUsedTimestamp && item.executionCount >= 1)) {
+        // Basic validation for the new structure (input exists, no options)
+        // Note: This check might pass old entries that *happen* to have an input field.
+        // Reloading those old entries might fail later in history/page.tsx
+        // A more robust migration or version bump (e.g., oetHistory_v3) would be ideal,
+        // but sticking to v2 as per context for now. Existing validation checks fields that remain.
+        if (Array.isArray(parsedHistory) && parsedHistory.every(item => item.id && Array.isArray(item.timestamps) && item.lastUsedTimestamp && item.executionCount >= 1 && 'input' in item)) {
            console.log(`[HistoryCtx] Loaded ${parsedHistory.length} entries from v2 storage.`);
            // Sort loaded history by last used timestamp descending
            parsedHistory.sort((a, b) => b.lastUsedTimestamp - a.lastUsedTimestamp);
            setHistory(parsedHistory);
         } else {
-            console.warn('[HistoryCtx] Invalid v2 data found, resetting.');
+            console.warn('[HistoryCtx] Invalid v2 data found (or missing expected input field), resetting.');
             localStorage.removeItem(LOCAL_STORAGE_KEY); setHistory([]);
-            // TODO: Add migration logic from old format if needed
         }
       } else {
         console.log('[HistoryCtx] No v2 history found.'); setHistory([]);
@@ -147,14 +153,14 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   // --- Context Functions ---
 
-  // ADD HISTORY ENTRY (Refactored Logic)
+  // ADD HISTORY ENTRY (Refactored Logic - relies on input containing options)
   const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
       // TODO: Add global/per-tool enable check here later
 
       const now = Date.now();
 
       setHistory((prevHistory) => {
-          // Find existing entry matching route, input, and options
+          // Find existing entry matching route and input (which now includes options)
           const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
 
           let updatedHistory = [...prevHistory]; // Create a mutable copy
@@ -172,6 +178,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
                   action: entryData.action,
                   output: entryData.output,
                   status: entryData.status,
+                  input: entryData.input, // Update input field as well (in case options changed slightly but primary input didn't)
                   // Keep original id and firstTimestamp
               };
               // Replace the old entry with the updated one
@@ -245,3 +252,4 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
   );
 };
+// --- END OF FILE ---

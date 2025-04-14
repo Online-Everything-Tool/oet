@@ -2,9 +2,9 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Adjust path
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState'; // Adjust path
-import { md5 } from 'js-md5'; // Keep MD5 import here
+import { useHistory } from '../../../context/HistoryContext';
+import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import { md5 } from 'js-md5';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
 
@@ -26,7 +26,7 @@ export default function HashGeneratorClient({
     toolRoute
 }: HashGeneratorClientProps) {
     const [text, setText] = useState<string>('');
-    const [algorithm, setAlgorithm] = useState<HashAlgorithm>('MD5'); // Default from metadata
+    const [algorithm, setAlgorithm] = useState<HashAlgorithm>('MD5');
     const [outputValue, setOutputValue] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -67,7 +67,7 @@ export default function HashGeneratorClient({
             }
             const encoder = new TextEncoder();
             const dataBuffer = encoder.encode(textToProcess);
-            const subtleAlgo = algorithm as AlgorithmIdentifier; // Cast for subtle API
+            const subtleAlgo = algorithm as AlgorithmIdentifier;
             const hashBuffer = await crypto.subtle.digest(subtleAlgo, dataBuffer);
             result = bufferToHex(hashBuffer);
             setOutputValue(result);
@@ -86,10 +86,12 @@ export default function HashGeneratorClient({
             toolName: toolTitle,
             toolRoute: toolRoute,
             action: `${algorithm}${status === 'error' ? '-failed' : ''}`,
-            input: { text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : '') },
+            input: {
+                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
+                algorithm: algorithm
+            },
             output: status === 'success' ? result : `Error: ${errorMessage}`,
             status: status,
-            options: { algorithm: algorithm }
         });
 
     }, [text, algorithm, addHistoryEntry, toolTitle, toolRoute]);
@@ -131,10 +133,9 @@ export default function HashGeneratorClient({
                toolName: toolTitle,
                toolRoute: toolRoute,
                action: 'clear',
-               input: '',
+               input: { text: '', algorithm: 'MD5' },
                output: 'Input cleared',
                status: 'success',
-               options: { algorithm: 'MD5' }
             });
         }
     };

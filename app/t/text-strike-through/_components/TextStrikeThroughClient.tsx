@@ -81,13 +81,13 @@ export default function TextStrikeThroughClient({
                 toolName: toolTitle,
                 toolRoute: toolRoute,
                 action: 'update-text-options',
-                input: { text: currentText.length > 500 ? currentText.substring(0, 500) + '...' : currentText },
-                output: '[Visual formatting updated]',
-                status: 'success',
-                options: {
+                input: {
+                    text: currentText.length > 500 ? currentText.substring(0, 500) + '...' : currentText,
                     skipSpaces: currentSkipSpaces,
                     color: currentColor
-                }
+                },
+                output: '[Visual formatting updated]',
+                status: 'success',
             });
 
             lastLoggedTextRef.current = currentText;
@@ -111,7 +111,7 @@ export default function TextStrikeThroughClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'clear',
-              input: '',
+              input: { text: '', skipSpaces: false, color: '#dc2626' },
               output: 'Input cleared, options reset',
               status: 'success'
            });
@@ -128,10 +128,13 @@ export default function TextStrikeThroughClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'copy-text',
-              input: { text: text.length > 500 ? text.substring(0, 500) + '...' : text },
+              input: {
+                  text: text.length > 500 ? text.substring(0, 500) + '...' : text,
+                  skipSpaces: skipSpaces,
+                  color: color
+              },
               output: `[Original text copied, length: ${text.length}]`,
               status: 'success',
-              options: { skipSpaces: skipSpaces, color: color }
             });
             setTimeout(() => setIsCopied(false), 1500);
           },
@@ -141,10 +144,13 @@ export default function TextStrikeThroughClient({
               toolName: toolTitle,
               toolRoute: toolRoute,
               action: 'copy-text-failed',
-              input: { text: text.length > 500 ? text.substring(0, 500) + '...' : text },
+               input: {
+                  text: text.length > 500 ? text.substring(0, 500) + '...' : text,
+                  skipSpaces: skipSpaces,
+                  color: color
+              },
               output: `Error copying: ${err instanceof Error ? err.message : 'Unknown error'}`,
               status: 'error',
-              options: { skipSpaces: skipSpaces, color: color }
             });
           }
         );
