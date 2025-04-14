@@ -1,112 +1,179 @@
-// /app/api/validate-directive/route.ts
-
-import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+// FILE: app/api/validate-directive/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import {
+    GoogleGenerativeAI,
+    HarmCategory,
+    HarmBlockThreshold,
+    GenerationConfig,
+    SafetySetting,
+} from "@google/generative-ai";
 import fs from 'fs/promises';
 import path from 'path';
 
-// --- Configuration ---
-const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME = process.env.DEFAULT_GEMINI_MODEL_NAME;
-
-// --- Helper Function to Get Context ---
-async function getApplicationContext() {
-    let packageJsonContent = '{}'; let existingDirectives: string[] = [];
-    try {
-        const packageJsonPath = path.resolve(process.cwd(), 'package.json'); packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-        const toolsDirPath = path.resolve(process.cwd(), 'app', 't'); const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
-        existingDirectives = entries.filter(d => d.isDirectory() && !d.name.startsWith('_')).map(d => d.name);
-    } catch (_error) { console.warn('[Context] Warning:', _error); packageJsonContent = '{}'; existingDirectives = []; }
-    return { packageJsonContent, existingDirectives };
+// --- Interfaces ---
+interface RequestBody {
+    toolDirective: string;
+    modelName?: string;
 }
-// --- End Helper Function ---
 
-// Initialize GenAI Client
-if (!API_KEY) console.error("FATAL ERROR (validate-directive): GEMINI_API_KEY missing.");
-const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
+// --- Constants ---
+const DEFAULT_MODEL_NAME = "gemini-1.5-flash-latest";
+const API_KEY = process.env.GEMINI_API_KEY;
 
-// --- Generation Config & Safety Settings ---
-const generationConfig = { temperature: 0.6, topK: 1, topP: 1, maxOutputTokens: 300 };
-const safetySettings = [ { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE }, ];
-// --- END Definitions ---
+// --- Helper: Get available tool directives ---
+async function getAvailableDirectives(): Promise<string[]> {
+    const toolsDirPath = path.join(process.cwd(), 'app', 't');
+    const directives: string[] = [];
+    try {
+        const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
+        for (const entry of entries) {
+            if (entry.isDirectory() && !entry.name.startsWith('_')) {
+                directives.push(entry.name);
+            }
+        }
+    } catch (error) {
+        console.error("[API validate-directive] Error reading tools directory:", error);
+        // Return empty or handle error as appropriate
+    }
+    return directives.sort();
+}
 
-export async function POST(request: Request) {
-  console.log('[API /validate-directive] Received request');
-  if (!genAI) { console.error("[API /validate-directive] AI Service configuration error."); return NextResponse.json({ valid: false, generativeDescription: null, message: "AI service configuration error.", generativeRequestedDirectives: [] }, { status: 500 }); }
-
-  const { packageJsonContent, existingDirectives } = await getApplicationContext();
-
-  try {
-    const body = await request.json();
-    const { toolDirective, modelName: requestedModelName } = body;
-    console.log(`[API /validate-directive] Directive: ${toolDirective}, Model: ${requestedModelName || 'None'}`);
-
-    // --- FIX: Use const ---
-    const finalModelName = requestedModelName?.trim() || DEFAULT_MODEL_NAME?.trim();
-
-    if (!finalModelName) { console.error('[API /validate-directive] No valid AI model name available.'); return NextResponse.json({ valid: false, generativeDescription: null, message: 'AI model configuration error.', generativeRequestedDirectives: [] }, { status: 400 }); }
-    if (!toolDirective || typeof toolDirective !== 'string' || toolDirective.trim() === '') { return NextResponse.json({ valid: false, generativeDescription: null, message: 'Tool directive cannot be empty.', generativeRequestedDirectives: [] }, { status: 400 }); }
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolDirective)) { return NextResponse.json({ valid: false, generativeDescription: null, message: 'Directive format is invalid.', generativeRequestedDirectives: [] }, { status: 400 }); }
-    if (existingDirectives.includes(toolDirective)) { return NextResponse.json({ valid: false, generativeDescription: null, message: `Directive '${toolDirective}' already exists.`, generativeRequestedDirectives: [] }, { status: 400 }); }
-    if (existingDirectives.length < 2) { console.warn('[API /validate-directive] Fewer than 2 existing tools, cannot request examples effectively.'); }
-
-    console.log(`[API /validate-directive] Calling Gemini (${finalModelName}) for directive: ${toolDirective}`);
-    const model = genAI.getGenerativeModel({ model: finalModelName });
-
-    // Prompt remains the same (V7)
-    const prompt = `
-You are an assistant evaluating potential new tool directives (URL slugs) for a web application defined by the following \`package.json\`.
-**Application Context:**
-\`\`\`json
-${packageJsonContent}
-\`\`\`
-- **Intended Character (Derived):** Practical, developer-centric client-side utilities.
-- Existing Tools (Directives): ${existingDirectives.join(', ')}
-**Task:**
-1. Analyze the **New Directive**: "${toolDirective}". 2. Evaluate its suitability (uniqueness, scope, sensibility, clarity, format). 3. **If the directive is VALID:** - Generate a concise, single-sentence description (\`generative_description\`) for the user (max 150 chars). - Select exactly TWO existing directives from the list whose code would be the best examples for implementing the new tool. Add these directive names as an array to \`generative_requested_directives\`. These examples will be provided to the next AI step for code generation. If fewer than two relevant examples exist, provide the best one(s). 4. Respond **ONLY** with a single JSON object matching one of the structures below.
-**Output Structures:** (Use these exact field names)
-*   **If VALID:** \`\`\`json { "evaluation": "VALID", "reason": null, "generative_description": "<Generated user-centric description>", "generative_requested_directives": ["<example_directive_1>", "<example_directive_2>"] } \`\`\`
-*   **If INVALID (any reason):** \`\`\`json { "evaluation": "INVALID", "reason": "<DUPLICATE | VAGUE | OUT_OF_SCOPE_OR_NONSENSICAL | OTHER>", "generative_description": null, "generative_requested_directives": [] } \`\`\`
-`;
-
-    let finalGenerativeDescription: string | null = null; let finalGenerativeRequestedDirectives: string[] = [];
-    let isValid = false; let message = "";
+// --- Main API Handler ---
+export async function POST(req: NextRequest) {
+    if (!API_KEY) {
+        return NextResponse.json({ error: "API key not configured" }, { status: 500 });
+    }
 
     try {
-        const result = await model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig, safetySettings, });
+        const body: RequestBody = await req.json();
+        const toolDirective = body.toolDirective?.trim();
+        const modelName = body.modelName || DEFAULT_MODEL_NAME;
 
-        if (result.response) {
-            // --- FIX: Refactor responseText handling ---
-            const rawResponseText = result.response.text().trim();
-            console.log(`[API /validate-directive] Gemini raw response text: "${rawResponseText}"`);
-            // Clean potential markdown fences in a new const
-            const cleanedResponseText = rawResponseText.replace(/^```json\s*|\s*```$/g, '');
+        if (!toolDirective) {
+            return NextResponse.json({ valid: false, message: "Tool directive is required." }, { status: 400 });
+        }
 
-            try {
-                const parsedJson = JSON.parse(cleanedResponseText); // Parse the cleaned text
+        // Basic Validation (Format: kebab-case, no special chars except hyphen)
+        const directiveRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+        if (!directiveRegex.test(toolDirective)) {
+            return NextResponse.json({
+                valid: false,
+                message: "Invalid format. Directive must be lowercase kebab-case (e.g., 'text-formatter', 'image-resizer')."
+            }, { status: 400 });
+        }
 
-                if (parsedJson.evaluation === "VALID" && typeof parsedJson.generative_description === 'string' && Array.isArray(parsedJson.generative_requested_directives) ) {
-                    isValid = true; finalGenerativeDescription = parsedJson.generative_description.trim();
-                    finalGenerativeRequestedDirectives = parsedJson.generative_requested_directives.filter((ex: unknown) => typeof ex === 'string' && existingDirectives.includes(ex as string)).slice(0, 2);
-                    if (finalGenerativeRequestedDirectives.length < 2 && existingDirectives.length >=2) { console.warn(`[API /validate-directive] AI requested fewer than 2 valid directives.`); }
-                    message = "Directive validated. Review description and requested example directives.";
-                    console.log(`[API /validate-directive] Parsed Valid Response: description="${finalGenerativeDescription}", requestedDirectives=[${finalGenerativeRequestedDirectives.join(', ')}]`);
-                } else if (parsedJson.evaluation === "INVALID" && typeof parsedJson.reason === 'string') {
-                    isValid = false; finalGenerativeDescription = null; finalGenerativeRequestedDirectives = [];
-                    switch (parsedJson.reason) { case "DUPLICATE": message = "Validation Failed: Directive is too similar."; break; case "VAGUE": message = "Validation Failed: Directive is too vague."; break; case "OUT_OF_SCOPE_OR_NONSENSICAL": message = "Validation Failed: Directive is out of scope or nonsensical."; break; default: message = "Validation Failed: Directive deemed unsuitable."; break; }
-                    console.log(`[API /validate-directive] Parsed Invalid Response: reason="${parsedJson.reason}"`);
-                } else { throw new Error("Unexpected JSON structure received from AI."); }
-            } catch (parseError) {
-                console.error('[API /validate-directive] Error parsing JSON response:', parseError, `Raw text: ${cleanedResponseText}`); // Log cleaned text
-                isValid = false; message = "AI response format error.";
-                const blockReason = result.response.promptFeedback?.blockReason; if (blockReason) { message += ` Block reason: ${blockReason}`; }
-            }
-        } else { message = "AI validation failed: No response object."; isValid = false; console.error('[API /validate-directive] Gemini result missing response object.'); }
+        const availableDirectives = await getAvailableDirectives();
+        if (availableDirectives.includes(toolDirective)) {
+            return NextResponse.json({
+                valid: false,
+                message: `Directive "${toolDirective}" already exists.`
+            }, { status: 409 }); // 409 Conflict
+        }
 
-    } catch (geminiError: unknown) { console.error('[API /validate-directive] Error calling Gemini API:', geminiError); isValid = false; message = `AI service error during validation.`; }
+        // --- Gemini Interaction ---
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        const model = genAI.getGenerativeModel({ model: modelName });
 
-    if (isValid && finalGenerativeDescription) { return NextResponse.json({ valid: true, generativeDescription: finalGenerativeDescription, message: message, generativeRequestedDirectives: finalGenerativeRequestedDirectives }, { status: 200 }); }
-    else { message = message || "Directive validation failed."; return NextResponse.json({ valid: false, generativeDescription: null, message: message, generativeRequestedDirectives: [] }, { status: 400 }); }
+        const generationConfig: GenerationConfig = {
+          temperature: 0.6, // Slightly creative but still grounded
+          topK: 40,
+          topP: 0.9,
+          maxOutputTokens: 1024,
+          responseMimeType: "application/json", // Expect JSON response
+        };
 
-  } catch (_error) { console.error('[API /validate-directive] General error:', _error); let errorMessage = 'Unexpected error.'; let status = 500; if (_error instanceof SyntaxError) { errorMessage = 'Invalid JSON payload.'; status = 400; } return NextResponse.json({ valid: false, generativeDescription: null, message: errorMessage, generativeRequestedDirectives: [] }, { status: status }); }
+        const safetySettings: SafetySetting[] = [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+        ];
+
+        // *** UPDATED PROMPT: Requesting 3 examples ***
+        const prompt = `
+Analyze the proposed tool directive "${toolDirective}" for the "Online Everything Tool" project.
+
+The project provides free, client-side browser utilities. Adhere to these strict rules:
+1. Tool logic MUST primarily run client-side (in the browser). No server-side processing for core functionality.
+2. Directives MUST be lowercase kebab-case (e.g., 'text-reverse', 'json-validator-formatter').
+3. Directives should represent a clear 'thing-operation' or 'thing-operation-operation' structure.
+
+Existing tool directives are: ${availableDirectives.join(', ')}.
+
+Based on the proposed directive "${toolDirective}":
+
+1.  **Validate:** Does it seem like a feasible client-side tool? Does it follow the naming rules? Is it unique?
+2.  **Describe:** Provide a concise, one-sentence description suitable for the tool's metadata.json file.
+3.  **Suggest Examples:** Identify EXACTLY THREE existing tool directives from the list above that would be most relevant as implementation examples for building this new tool. Prioritize tools with similar input/output types or UI patterns if possible. If fewer than three truly relevant examples exist, provide as many as make sense, but aim for three.
+
+Return the response ONLY as a valid JSON object with the following structure:
+{
+  "directive": "${toolDirective}",
+  "isValid": boolean, // true if it seems like a valid, unique, client-side tool idea, false otherwise
+  "validationMessage": "string", // Brief reason if invalid, or "Directive appears valid." if valid.
+  "generativeDescription": "string", // One-sentence description for metadata.
+  "generativeRequestedDirectives": ["string"] // Array containing EXACTLY THREE suggested existing directive names, or fewer if not applicable.
+}
+        `;
+
+        const parts = [{ text: prompt }];
+        const result = await model.generateContent({ contents: [{ role: "user", parts }], generationConfig, safetySettings });
+
+        if (!result.response) {
+             throw new Error("Gemini API call failed: No response received.");
+        }
+
+        const responseText = result.response.text();
+        console.log("[API validate-directive] Raw Gemini Response:", responseText);
+
+        // --- Parse Gemini Response ---
+        let parsedResponse: any;
+        try {
+            parsedResponse = JSON.parse(responseText);
+        } catch (e) {
+            console.error("[API validate-directive] Failed to parse Gemini JSON response:", e);
+            console.error("[API validate-directive] Response Text Was:", responseText); // Log the problematic text
+            throw new Error("Failed to parse validation response from AI.");
+        }
+
+        // --- Validate Parsed Structure ---
+         if (typeof parsedResponse !== 'object' || parsedResponse === null ||
+             typeof parsedResponse.isValid !== 'boolean' ||
+             typeof parsedResponse.validationMessage !== 'string' ||
+             typeof parsedResponse.generativeDescription !== 'string' ||
+             !Array.isArray(parsedResponse.generativeRequestedDirectives) ||
+             !parsedResponse.generativeRequestedDirectives.every((item: unknown) => typeof item === 'string') )
+         {
+              console.error("[API validate-directive] Invalid structure in parsed AI response:", parsedResponse);
+              throw new Error("Received malformed validation data structure from AI.");
+         }
+
+        // Return the validated response
+        if (parsedResponse.isValid) {
+             return NextResponse.json({
+                 valid: true,
+                 message: parsedResponse.validationMessage,
+                 generativeDescription: parsedResponse.generativeDescription,
+                 generativeRequestedDirectives: parsedResponse.generativeRequestedDirectives,
+             }, { status: 200 });
+        } else {
+             // Even if AI says invalid, we return 200 but with valid: false
+             // Let the frontend decide how to handle the AI's validation opinion
+             return NextResponse.json({
+                 valid: false,
+                 message: parsedResponse.validationMessage || "AI validation indicated an issue.",
+                 generativeDescription: parsedResponse.generativeDescription, // Still send description back
+                 generativeRequestedDirectives: parsedResponse.generativeRequestedDirectives, // And suggestions
+             }, { status: 200 });
+        }
+
+    } catch (error: unknown) {
+        console.error("[API validate-directive] Error:", error);
+        const message = error instanceof Error ? error.message : "An unexpected error occurred.";
+        // Check for specific Gemini content safety errors
+        if (message.includes("response was blocked due to safety")) {
+             return NextResponse.json({ error: "Validation blocked due to safety settings.", details: message }, { status: 400 });
+        }
+        return NextResponse.json({ error: `Internal Server Error: ${message}` }, { status: 500 });
+    }
 }
