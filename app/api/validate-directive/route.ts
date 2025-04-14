@@ -16,6 +16,17 @@ interface RequestBody {
     modelName?: string;
 }
 
+// --- NEW: Interface for the expected raw Gemini response structure ---
+interface GeminiValidationResponse {
+    isValid: boolean;
+    validationMessage: string;
+    generativeDescription: string;
+    generativeRequestedDirectives: string[];
+    // Optional: Add other potential fields if needed, but keep required ones strict.
+    directive?: string; // The prompt asks for it, good to include
+}
+// --- END NEW INTERFACE ---
+
 // --- Constants ---
 const DEFAULT_MODEL_NAME = "gemini-1.5-flash-latest";
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -89,7 +100,6 @@ export async function POST(req: NextRequest) {
           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         ];
 
-        // *** UPDATED PROMPT: Requesting 3 examples ***
         const prompt = `
 Analyze the proposed tool directive "${toolDirective}" for the "Online Everything Tool" project.
 
@@ -127,9 +137,12 @@ Return the response ONLY as a valid JSON object with the following structure:
         console.log("[API validate-directive] Raw Gemini Response:", responseText);
 
         // --- Parse Gemini Response ---
-        let parsedResponse: any;
+        // *** MODIFIED: Use the specific interface instead of 'any' ***
+        let parsedResponse: GeminiValidationResponse;
         try {
-            parsedResponse = JSON.parse(responseText);
+            // We cast the result of JSON.parse (which is 'any') to our expected interface.
+            // The subsequent checks will validate the actual structure.
+            parsedResponse = JSON.parse(responseText) as GeminiValidationResponse;
         } catch (e) {
             console.error("[API validate-directive] Failed to parse Gemini JSON response:", e);
             console.error("[API validate-directive] Response Text Was:", responseText); // Log the problematic text

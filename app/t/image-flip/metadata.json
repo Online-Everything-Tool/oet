@@ -1,4 +1,8 @@
 {
-  "title": "Image Flipper",
-  "description": "Flips an image horizontally or vertically."
+  "title": "Image Flip",
+  "description": "Flips an image horizontally or vertically.",
+  "tags": ["image", "transform"],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
 }
