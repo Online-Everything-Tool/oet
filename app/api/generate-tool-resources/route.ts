@@ -27,14 +27,6 @@ interface LibraryDependency {
     importUsed?: string; // Example import statement
 }
 
-// Interface for the ParamConfig structure used in metadata.json
-interface ParamConfig {
-    paramName: string;
-    type: 'string' | 'enum' | 'boolean' | 'number' | 'json';
-    defaultValue: unknown; // Matches the type, e.g., string for "string", number for "number"
-}
-
-
 // Interface for the expected raw Gemini response structure
 interface GeminiGenerationResponse {
     message: string; // General feedback message from AI
@@ -153,7 +145,6 @@ export async function POST(req: NextRequest) {
         const serverComponentPath = `app/t/${toolDirective}/page.tsx`;
         const metadataPath = `app/t/${toolDirective}/metadata.json`;
 
-        // --- CORRECTED PROMPT DEFINITION ---
         const prompt = `Generate the necessary code resources for a new client-side utility tool for the "Online Everything Tool" project.
 
 **Target Tool Directive:** ${toolDirective}
@@ -183,9 +174,9 @@ ${exampleFileContext}
 
 **Generation Task:**
 Generate the full source code for the following three files for the new tool "${toolDirective}", adhering to all the rules and patterns demonstrated in the examples:
-1.  ${serverComponentPath} (Server Component Wrapper)
-2.  ${clientComponentPath} (Client Component with logic and UI)
-3.  ${metadataPath} (Metadata JSON, including \`urlStateParams\` only if appropriate)
+ ${serverComponentPath} (Server Component Wrapper)
+ ${clientComponentPath} (Client Component with logic and UI)
+ ${metadataPath} (Metadata JSON, including \`urlStateParams\` only if appropriate)
 
 Also, identify any potential external npm libraries needed (beyond React, Next.js, and Shoelace).
 
@@ -205,9 +196,7 @@ Return ONLY a valid JSON object with the following structure:
 }
 \`\`\`
 Ensure the code within the "generatedFiles" values is complete and valid source code. Ensure the "metadata" value is a valid JSON string.
-`; // <-- The closing backtick was correctly placed, the issue was internal syntax
-
-        // --- End Corrected Prompt ---
+`;
 
         const parts = [{ text: prompt }];
         console.log(`[API generate-tool] Sending prompt to ${modelName} for ${toolDirective}...`);
@@ -252,8 +241,9 @@ Ensure the code within the "generatedFiles" values is complete and valid source 
         // --- Additional validation for metadata string ---
         try {
             JSON.parse(parsedResponse.generatedFiles.metadata); // Try parsing the metadata string
-        } catch (e) {
+        } catch { // Removed the error variable binding completely
              console.error("[API generate-tool] Generated metadata string is not valid JSON:", parsedResponse.generatedFiles.metadata);
+             // No need to log the error object itself if we just care that parsing failed
              throw new Error("AI generated invalid JSON string for metadata.json.");
         }
 
