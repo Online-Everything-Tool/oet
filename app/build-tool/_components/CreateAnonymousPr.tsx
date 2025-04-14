@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+// Keep the import as LibraryDependency is now used
 import type { GenerationResult, ValidationResult, PrSubmissionResult, LibraryDependency } from '../page';
 
 // Props remain the same
@@ -122,65 +123,22 @@ export default function CreateAnonymousPr({
             {/* Generation Feedback */}
             {generationResult.message && ( <p className={`text-sm mb-4 p-2 rounded ${ generationResult.message.toLowerCase().includes('warning') ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : generationResult.message.toLowerCase().includes('error') ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200' }`}> {generationResult.message} </p> )}
 
-            {/* Review Context Section (ORDER CHANGED) */}
+            {/* Review Context Section */}
             <div className="mb-4 space-y-3 p-3 bg-gray-50 border border-gray-200 rounded">
                  <h3 className="text-base font-semibold text-gray-700 mb-2">Generation Context Review</h3>
                  <p className="text-sm"> <span className="font-medium text-gray-600">Target Directive:</span>{' '} <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">{toolDirective}</code> </p>
+                 {validationResult?.generativeDescription && (<div> <p className="text-sm font-medium text-gray-600">AI Description:</p> <blockquote className="text-sm text-gray-800 pl-2 italic border-l-2 border-gray-300 ml-1 my-1"> “{validationResult.generativeDescription}” </blockquote> </div>)}
+                 {validationResult?.generativeRequestedDirectives && validationResult.generativeRequestedDirectives.length > 0 && (<div> <p className="text-sm font-medium text-gray-600 mb-1">AI Requested Examples:</p> <ul className="list-disc list-inside space-y-1 pl-2">{validationResult.generativeRequestedDirectives.map(d => ( <li key={d} className="text-sm text-indigo-700"><Link href={`/t/${d}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900 font-mono text-xs">{d}</Link></li> ))}</ul> </div>)}
+                 <div> <p className="text-sm font-medium text-gray-600">Additional Details:</p> {additionalDescription ? (<p className="text-sm text-gray-800 pl-2 whitespace-pre-wrap bg-gray-100 p-2 rounded border border-gray-200 font-mono text-xs">{additionalDescription}</p>) : (<p className="text-sm text-gray-500 pl-2 italic">(None provided)</p>)} </div>
+                 <div> <p className="text-sm font-medium text-gray-600 mb-1">User Selected Example:</p> {userSelectedDirective ? (<ul className="list-disc list-inside space-y-1 pl-2"><li className="text-sm text-purple-700"><Link href={`/t/${userSelectedDirective}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900 font-mono text-xs">{userSelectedDirective}</Link></li></ul>) : (<p className="text-sm text-gray-500 pl-2 italic">(None selected)</p>)} </div>
 
-                 {/* AI Generated Description */}
-                 {validationResult?.generativeDescription && (
-                    <div>
-                        <p className="text-sm font-medium text-gray-600">AI Description:</p>
-                        <blockquote className="text-sm text-gray-800 pl-2 italic border-l-2 border-gray-300 ml-1 my-1"> “{validationResult.generativeDescription}” </blockquote>
-                    </div>
-                 )}
-
-                 {/* AI Requested Examples */}
-                 {validationResult?.generativeRequestedDirectives && validationResult.generativeRequestedDirectives.length > 0 && (
-                    <div>
-                        <p className="text-sm font-medium text-gray-600 mb-1">AI Requested Examples:</p>
-                        <ul className="list-disc list-inside space-y-1 pl-2">
-                            {validationResult.generativeRequestedDirectives.map(d => (
-                                <li key={d} className="text-sm text-indigo-700">
-                                    <Link href={`/t/${d}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900 font-mono text-xs">{d}</Link>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                 )}
-
-                 {/* Additional Details (MOVED + LABEL CHANGED) */}
-                 <div>
-                     {/* Label text changed here */}
-                     <p className="text-sm font-medium text-gray-600">Additional Details:</p>
-                     {additionalDescription ? (
-                         <p className="text-sm text-gray-800 pl-2 whitespace-pre-wrap bg-gray-100 p-2 rounded border border-gray-200 font-mono text-xs">{additionalDescription}</p>
-                     ) : (
-                         <p className="text-sm text-gray-500 pl-2 italic">(None provided)</p>
-                     )}
-                 </div>
-
-
-                 {/* User Selected Example */}
-                 <div>
-                     <p className="text-sm font-medium text-gray-600 mb-1">User Selected Example:</p>
-                     {userSelectedDirective ? (
-                         <ul className="list-disc list-inside space-y-1 pl-2">
-                             <li className="text-sm text-purple-700">
-                                 <Link href={`/t/${userSelectedDirective}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900 font-mono text-xs">{userSelectedDirective}</Link>
-                             </li>
-                         </ul>
-                      ) : (
-                          <p className="text-sm text-gray-500 pl-2 italic">(None selected)</p>
-                      )}
-                 </div>
-
-                 {/* Dependencies Display */}
+                 {/* Dependencies Display (Always show section header) */}
                  <div className="pt-2 border-t border-gray-200 mt-2">
                      <p className="text-sm font-medium text-gray-600 mb-1">Potentially Required Dependencies:</p>
                      {generationResult.identifiedDependencies && generationResult.identifiedDependencies.length > 0 ? (
                          <ul className="list-disc list-inside space-y-1 pl-2">
-                             {generationResult.identifiedDependencies.map(dep => (
+                             {/* Explicitly type 'dep' here to satisfy ESLint */}
+                             {generationResult.identifiedDependencies.map((dep: LibraryDependency) => (
                                  <li key={dep.packageName} className="text-sm text-gray-700">
                                      <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">{dep.packageName}</code>
                                      {dep.reason && <span className="text-xs italic text-gray-500"> - {dep.reason}</span>}
@@ -204,7 +162,6 @@ export default function CreateAnonymousPr({
                  {sortedFilePaths.length > 0 ? (
                      <div className="space-y-2">
                          {sortedFilePaths.map((filePath) => {
-                             // ... (file expansion logic remains the same)
                              const isExpanded = expandedFilePath === filePath;
                              const fileContent = generationResult.generatedFiles?.[filePath];
                              const isMainFile = filePath === mainFilePath;
