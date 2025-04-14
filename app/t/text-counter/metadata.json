@@ -1,6 +1,18 @@
 {
   "title": "Text Counter",
   "description": "Count words, characters, lines, and occurrences of specific text.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "search",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

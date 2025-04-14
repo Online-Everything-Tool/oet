@@ -1,0 +1,20 @@
+{
+  "title": "Json Validate Format",
+  "description": "Easily validate and format JSON data.",
+  "urlStateParams": [
+    {
+      "paramName": "json",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "indent",
+      "type": "number",
+      "defaultValue": 2
+    }
+  ],  
+  "tags": [],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable"
+}

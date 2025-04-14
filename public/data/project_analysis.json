@@ -1,6 +1,6 @@
 {
   "siteTagline": "Your all-in-one toolbox for client-side utilities.",
-  "siteDescription": "The Online Everything Tool offers the largest assortment of free, client-side utilities, empowering users to quickly transform data and generate content directly in their browser.  It's perfect for developers, data scientists, and anyone needing quick, privacy-focused online tools.",
+  "siteDescription": "The Online Everything Tool offers a vast collection of free, client-side utilities for developers and data enthusiasts.  It provides a single, easy-to-use platform for various text, data, and image manipulation tasks.",
   "siteBenefits": [
     "Access a wide variety of utilities in one place",
     "Transform data quickly using client-side processing",
@@ -11,10 +11,10 @@
   ],
   "suggestedNewToolDirectives": [
     "text-formatter",
+    "json-diff",
+    "image-compressor",
     "csv-parser",
-    "xml-viewer",
-    "base64-to-image",
-    "timestamp-converter"
+    "string-escaper"
   ],
   "modelNameUsed": "gemini-1.5-flash-latest"
 }

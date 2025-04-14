@@ -11,7 +11,7 @@ TOOL_BASE_DIR="app/t"
 OUTPUT_DIR="infra/data"
 OUTPUT_FILE="$OUTPUT_DIR/tool_context.txt"
 # Directories within TOOL_BASE_DIR to exclude (e.g., shared components)
-EXCLUDE_DIRS=("_components") # Add more names if needed
+EXCLUDE_DIRS=("") # Add more names if needed
 # --- End Configuration ---
 
 # Ensure output directory exists

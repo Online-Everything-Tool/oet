@@ -4,13 +4,11 @@
   "urlStateParams": [
     {
       "paramName": "text",
-      "stateVariable": "inputValue",
       "type": "string",
       "defaultValue": ""
     },
     {
       "paramName": "case",
-      "stateVariable": "caseType",
       "type": "enum",
       "defaultValue": "lowercase"
     }

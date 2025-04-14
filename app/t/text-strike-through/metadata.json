@@ -1,6 +1,23 @@
 {
   "title": "Text Strike Through",
   "description": "Enter text below to see it displayed with strikethrough formatting.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "skipSpaces",
+      "type": "boolean",
+      "defaultValue": false
+    },
+    {
+      "paramName": "color",
+      "type": "string",
+      "defaultValue": "#dc2626"
+    }
+  ],  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

@@ -33,6 +33,9 @@ mkdir -p "$OUTPUT_DIR"
 > "$OUTPUT_FILE"
 
 echo "Project Structure:" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+echo "Important Rule Reminder: Please print whole files when making code changes. Ensure all remnant comments, placeholder comments, or inactive commented-out code are completely removed from the final output to avoid confusion." >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
 # Add tree command output (Suggesting L3 for potentially less verbose output)
 tree -L 3 -I 'node_modules|.next|*.log|dist|out|build|assets|public/assets|infra/data|.git|.cache' >> "$OUTPUT_FILE" 2>/dev/null || echo "  (tree command not found or failed)" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"

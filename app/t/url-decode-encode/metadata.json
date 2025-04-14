@@ -1,8 +1,0 @@
-{
-  "title": "Url Decode Encode",
-  "description": "Encode special characters in text for safe use in URLs, or decode URL-encoded strings back to readable text.",
-  "tags": [],
-  "iconName": null,
-  "includeInSitemap": true,
-  "status": "stable"
-}

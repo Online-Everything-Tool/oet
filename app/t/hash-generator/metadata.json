@@ -4,15 +4,13 @@
   "urlStateParams": [
     {
       "paramName": "text",
-      "stateVariable": "inputValue",
       "type": "string",
       "defaultValue": ""
     },
     {
       "paramName": "algorithm",
-      "stateVariable": "algorithm",
       "type": "enum",
-      "defaultValue": "SHA-256"
+      "defaultValue": "MD5"
     }
   ],
   "tags": ["security", "developer", "data"],

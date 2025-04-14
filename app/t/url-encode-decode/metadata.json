@@ -1,6 +1,6 @@
 {
-  "title": "Base64 Converter",
-  "description": "Encodes standard text strings into Base64 format and decodes existing Base64 strings back to text.",
+  "title": "Url Encode Decode",
+  "description": "Encode special characters in text for safe use in URLs, or decode URL-encoded strings back to readable text.",
   "urlStateParams": [
     {
       "paramName": "text",

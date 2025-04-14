@@ -1,16 +1,16 @@
-// FILE: app/t/text-reverse/page.tsx
+// FILE: app/t/json-validate-format/page.tsx
 
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
-import TextReverseClient from './_components/TextReverseClient'; // Import client component
+import JsonValidateFormatClient from './_components/JsonValidateFormatClient'; // Import client component
 import type { ParamConfig } from '../_hooks/useToolUrlState';
 
-export default function TextReversePage() {
+export default function JsonValidateFormatPage() {
   const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
-  const toolTitle = metadata.title || "Text Reverse";
-  const toolRoute = "/t/text-reverse";
+  const toolTitle = metadata.title || "JSON Validate Format";
+  const toolRoute = "/t/json-validate-format";
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,7 +19,7 @@ export default function TextReversePage() {
         description={metadata.description || ""}
       />
       <ToolSuspenseWrapper>
-        <TextReverseClient
+        <JsonValidateFormatClient
             urlStateParams={urlStateParams}
             toolTitle={toolTitle}
             toolRoute={toolRoute}
