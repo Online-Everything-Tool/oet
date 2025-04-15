@@ -3,13 +3,13 @@ import ToolHeader from '../_components/ToolHeader';
 import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
-import HexColorConverterClient from './_components/HexColorConverterClient';
+import ColorConverterClient from './_components/ColorConverterClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
 
-export default function HexColorConverterPage() {
+export default function ColorConverterPage() {
   const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
   const toolTitle = metadata.title || "Hex Color Converter";
-  const toolRoute = "/t/hex-color-converter";
+  const toolRoute = "/t/color-converter";
 
   return (
     // Add relative positioning
@@ -21,7 +21,7 @@ export default function HexColorConverterPage() {
         description={metadata.description || ""}
       />
       <ToolSuspenseWrapper>
-        <HexColorConverterClient
+        <ColorConverterClient
             urlStateParams={urlStateParams}
             toolTitle={toolTitle}
             toolRoute={toolRoute}

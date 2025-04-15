@@ -1,0 +1,18 @@
+{
+    "title": "Color Converter",
+    "description": "Convert color values between Hexadecimal (hex), RGB (Red, Green, Blue), and HSL (Hue, Saturation, Lightness) formats.",
+    "urlStateParams": [
+        { "paramName": "hex", "type": "string", "defaultValue": "" },
+        { "paramName": "r", "type": "string", "defaultValue": "" },
+        { "paramName": "g", "type": "string", "defaultValue": "" },
+        { "paramName": "b", "type": "string", "defaultValue": "" },
+        { "paramName": "h", "type": "string", "defaultValue": "" },
+        { "paramName": "s", "type": "string", "defaultValue": "" },
+        { "paramName": "l", "type": "string", "defaultValue": "" }
+    ],
+    "tags": ["color", "converter", "developer", "css", "design"],
+    "iconName": null,
+    "includeInSitemap": true,
+    "status": "stable",
+    "defaultLogging": "on"
+}

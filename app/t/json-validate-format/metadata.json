@@ -16,5 +16,6 @@
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,
-  "status": "stable"
+  "status": "stable",
+  "defaultLogging": "on"
 }

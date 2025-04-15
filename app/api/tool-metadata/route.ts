@@ -1,86 +1,84 @@
-// /app/api/tool-metadata/route.ts
-
-import { NextResponse, NextRequest } from 'next/server';
+// FILE: app/api/tool-metadata/route.ts
+import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-// Adjust import path if your hook lives elsewhere relative to api routes
-import { ParamConfig } from '@/app/t/_hooks/useToolUrlState';
+import type { LoggingPreference } from '@/app/context/HistoryContext'; // Import the type
 
-// Define expected structure of metadata JSON for validation/typing
-export interface ToolMetadata {
+// --- Interfaces ---
+interface ToolMetadata {
     title?: string;
     description?: string;
-    urlStateParams?: ParamConfig[];
-    tags?: string[];
-    // Add other potential fields from your metadata.json structure
+    urlStateParams?: unknown[]; // Keep existing fields
+    defaultLogging?: LoggingPreference; // Add the new field
     [key: string]: unknown; // Allow other fields
 }
 
-// Define response types
-interface SuccessResponse {
-    success: true;
-    metadata: ToolMetadata;
-}
-interface ErrorResponse {
-    success: false;
-    error: string;
+interface MetadataApiResponse {
+    success: boolean;
+    metadata?: ToolMetadata;
+    error?: string;
 }
 
-export async function GET(request: NextRequest): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
+const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on'; // Define fallback
+
+export async function GET(request: NextRequest): Promise<NextResponse<MetadataApiResponse>> {
     const { searchParams } = new URL(request.url);
-    // --- CHANGE: Expect 'directive' parameter instead of 'route' ---
-    const directiveName = searchParams.get('directive');
+    const directive = searchParams.get('directive');
 
-    console.log(`[API /tool-metadata] Received GET request for directive: ${directiveName}`);
-
-    // --- Input Validation (Updated) ---
-    if (!directiveName) {
-        console.error('[API /tool-metadata] Missing directive parameter.');
-        return NextResponse.json({ success: false, error: "Missing required 'directive' parameter." }, { status: 400 });
-    }
-    // Validate the directive name format directly
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(directiveName) || directiveName.startsWith('_')) {
-         console.error(`[API /tool-metadata] Invalid directive received: '${directiveName}'`);
-        return NextResponse.json({ success: false, error: 'Invalid tool directive format.' }, { status: 400 });
+    if (!directive) {
+        return NextResponse.json({ success: false, error: 'Missing "directive" query parameter' }, { status: 400 });
     }
 
-    // --- File Reading (Path construction uses directiveName directly) ---
-    const metadataPath = path.join(process.cwd(), 'app', 't', directiveName, 'metadata.json');
-    console.log(`[API /tool-metadata] Attempting to read: ${metadataPath}`);
+    // Basic validation to prevent directory traversal
+    if (directive.includes('..') || directive.includes('/')) {
+         return NextResponse.json({ success: false, error: 'Invalid directive format' }, { status: 400 });
+    }
+
+    const metadataPath = path.join(process.cwd(), 'app', 't', directive, 'metadata.json');
 
     try {
-        await fs.access(metadataPath, fs.constants.R_OK);
-        const fileContent = await fs.readFile(metadataPath, 'utf-8');
-        const metadata: ToolMetadata = JSON.parse(fileContent);
+        await fs.access(metadataPath); // Check if file exists
+        const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+        const metadata: ToolMetadata = JSON.parse(metadataContent);
 
-        if (typeof metadata !== 'object' || metadata === null) {
-             throw new Error("Parsed metadata is not a valid object.");
+        // --- Ensure defaultLogging is valid or set a fallback ---
+        const validPrefs: LoggingPreference[] = ['on', 'restrictive', 'off'];
+        if (metadata.defaultLogging && !validPrefs.includes(metadata.defaultLogging)) {
+            console.warn(`[API tool-metadata] Invalid defaultLogging value "${metadata.defaultLogging}" for directive "${directive}". Falling back to "${GLOBAL_DEFAULT_LOGGING}".`);
+            metadata.defaultLogging = GLOBAL_DEFAULT_LOGGING;
+        } else if (!metadata.defaultLogging) {
+             console.log(`[API tool-metadata] No defaultLogging found for directive "${directive}". Falling back to "${GLOBAL_DEFAULT_LOGGING}".`);
+            metadata.defaultLogging = GLOBAL_DEFAULT_LOGGING;
         }
+        // --- End validation ---
 
-        console.log(`[API /tool-metadata] Successfully read and parsed metadata for '${directiveName}'.`);
-        return NextResponse.json({ success: true, metadata: metadata });
+        return NextResponse.json({ success: true, metadata });
 
     } catch (error: unknown) {
-        let errorMessage = `Failed to retrieve metadata for directive: ${directiveName}`; // Updated message
-        let status = 500;
         const isFsError = typeof error === 'object' && error !== null && 'code' in error;
         const errorCode = isFsError ? (error as { code: string }).code : null;
+        const message = error instanceof Error ? error.message : String(error);
 
         if (errorCode === 'ENOENT') {
-            errorMessage = `Metadata file not found for directive: ${directiveName}`;
-            status = 404;
-            console.warn(`[API /tool-metadata] ${errorMessage}`);
+            console.warn(`[API tool-metadata] Metadata file not found for directive: ${directive}`);
+            // Still return success, but provide fallback metadata
+            return NextResponse.json({
+                 success: true,
+                 metadata: {
+                     title: directive.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Generate a basic title
+                     description: 'Tool description not found.',
+                     defaultLogging: GLOBAL_DEFAULT_LOGGING // Provide fallback default
+                 }
+             });
         } else if (error instanceof SyntaxError) {
-             errorMessage = `Invalid JSON format in metadata file for directive: ${directiveName}`;
-             status = 500;
-             console.error(`[API /tool-metadata] JSON Parse Error for ${directiveName}:`, error);
-        } else if (error instanceof Error){
-             errorMessage = error.message;
-             console.error(`[API /tool-metadata] Error processing metadata for ${directiveName}:`, error);
+             console.error(`[API tool-metadata] Error parsing JSON for directive '${directive}':`, message);
+             return NextResponse.json({ success: false, error: `Failed to parse metadata JSON: ${message}` }, { status: 500 });
         } else {
-             console.error(`[API /tool-metadata] Unknown error for ${directiveName}:`, error);
+             console.error(`[API tool-metadata] Error reading metadata for directive '${directive}':`, message);
+             return NextResponse.json({ success: false, error: `Failed to read metadata: ${message}` }, { status: 500 });
         }
-
-        return NextResponse.json({ success: false, error: errorMessage }, { status: status });
     }
 }
+
+// Ensure edge runtime is not enabled if using Node.js fs module
+// export const runtime = 'nodejs'; // or remove if default is okay

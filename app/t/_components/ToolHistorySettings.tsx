@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useHistory, LoggingPreference } from '../../context/HistoryContext';
-// REMOVED Shoelace imports
 
 interface ToolHistorySettingsProps {
     toolRoute: string;
@@ -21,8 +20,25 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
         isLoaded
     } = useHistory();
 
-    const [currentToolPreference, setCurrentToolPreference] = useState<LoggingPreference>('restrictive');
+    // Initialize with a sensible default before loading, like the global default
+    const [currentToolPreference, setCurrentToolPreference] = useState<LoggingPreference>(() => {
+        // Temporarily read from localStorage directly ONLY for initial render
+        // This avoids flicker but duplicates logic slightly. HistoryContext handles the 'real' state.
+        try {
+            const storedSettings = localStorage.getItem('oetSettings_v1');
+            if (storedSettings) {
+                const parsed = JSON.parse(storedSettings);
+                if (parsed?.toolPreferences?.[toolRoute]) {
+                    return parsed.toolPreferences[toolRoute];
+                }
+            }
+        } catch { /* Ignore errors during initial read */ }
+        // If nothing found or error, fallback to global default
+        // NOTE: This does NOT fetch the metadata default on initial render, HistoryContext handles that later.
+        return 'on'; // Assuming global default is 'on'
+    });
 
+    // Effect to sync with the actual preference from HistoryContext once loaded
     useEffect(() => {
         if (isLoaded) {
             setCurrentToolPreference(getToolLoggingPreference(toolRoute));
@@ -32,8 +48,8 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
     const handlePreferenceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const newPref = event.target.value as LoggingPreference;
         if (isLoaded && ['on', 'restrictive', 'off'].includes(newPref)) {
-            setCurrentToolPreference(newPref);
-            setToolLoggingPreference(toolRoute, newPref);
+            setCurrentToolPreference(newPref); // Update local state immediately for responsiveness
+            setToolLoggingPreference(toolRoute, newPref); // Let HistoryContext handle saving/logic
         }
     };
 
@@ -54,12 +70,10 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
                  </span>
             </div>
 
-            {/* Replace sl-radio-group with fieldset */}
             <fieldset className="mt-2" disabled={isDisabled}>
                 <legend className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
                     For This Tool:
                 </legend>
-                {/* Use standard HTML radio inputs */}
                 <div className="flex flex-col gap-2 mt-1">
                     {/* Option: On */}
                     <div className="flex items-center">
@@ -72,10 +86,12 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
                             onChange={handlePreferenceChange}
                             disabled={isDisabled}
                             // Apply Tailwind classes for styling, focus, and accent color
-                            className="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
+                            // CHANGED TO GREEN
+                            className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed accent-green-600"
                         />
                         <label htmlFor={`history-pref-${toolRoute}-on`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
-                            On <span className='text-orange-600 font-semibold'>(Log Input & Output)</span>
+                            {/* CHANGED TO GREEN */}
+                            On <span className='text-green-600 font-semibold'>(Log Input & Output)</span>
                         </label>
                     </div>
 
@@ -89,10 +105,12 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
                             checked={currentToolPreference === 'restrictive'}
                             onChange={handlePreferenceChange}
                             disabled={isDisabled}
-                            className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed accent-indigo-600"
+                            // CHANGED TO ORANGE
+                            className="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
                         />
                         <label htmlFor={`history-pref-${toolRoute}-restrictive`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
-                            Restrictive <span className='text-gray-500'>(Log Input Only - Default)</span>
+                            {/* CHANGED TO ORANGE */}
+                            Restrictive <span className='text-orange-600'>(Log Input, Redact Output)</span>
                         </label>
                     </div>
 
@@ -106,9 +124,11 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
                             checked={currentToolPreference === 'off'}
                             onChange={handlePreferenceChange}
                             disabled={isDisabled}
+                            // KEPT AS RED
                             className="h-4 w-4 border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed accent-red-600"
                         />
                         <label htmlFor={`history-pref-${toolRoute}-off`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
+                            {/* KEPT AS RED */}
                             Off <span className='text-red-600 font-semibold'>(Log Nothing)</span>
                         </label>
                     </div>
