@@ -1,0 +1,9 @@
+{
+  "title": "Time Map",
+  "description": "Visually displays a calendar-like representation of events or tasks based on user-provided time data.",
+  "tags": [ ],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "experimental",
+  "defaultLogging": "on"
+}
