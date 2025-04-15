@@ -32,9 +32,9 @@ interface GeminiGenerationResponse {
     message: string; // General feedback message from AI
     generatedFiles: {
         // Expecting specific keys based on the new structure
-        page: string; // Content for app/t/<directive>/page.tsx
-        clientComponent: string; // Content for app/t/<directive>/_components/<ComponentName>Client.tsx
-        metadata: string; // Content for app/t/<directive>/metadata.json (as a JSON string)
+        page: string; // Content for app/tool/<directive>/page.tsx
+        clientComponent: string; // Content for app/tool/<directive>/_components/<ComponentName>Client.tsx
+        metadata: string; // Content for app/tool/<directive>/metadata.json (as a JSON string)
     } | null;
     identifiedDependencies: LibraryDependency[] | null; // Array or null
 }
@@ -46,9 +46,9 @@ const API_KEY = process.env.GEMINI_API_KEY;
 // --- Helper: Get Content of Example Files ---
 async function getExampleFileContent(directive: string): Promise<{ filePath: string; content: string }[]> {
     const filePathsToTry = [
-        `app/t/${directive}/page.tsx`,
-        `app/t/${directive}/_components/${toPascalCase(directive)}Client.tsx`,
-        `app/t/${directive}/metadata.json`
+        `app/tool/${directive}/page.tsx`,
+        `app/tool/${directive}/_components/${toPascalCase(directive)}Client.tsx`,
+        `app/tool/${directive}/metadata.json`
     ];
     const results: { filePath: string; content: string }[] = [];
 
@@ -141,9 +141,9 @@ export async function POST(req: NextRequest) {
         ];
 
         const componentName = toPascalCase(toolDirective);
-        const clientComponentPath = `app/t/${toolDirective}/_components/${componentName}Client.tsx`;
-        const serverComponentPath = `app/t/${toolDirective}/page.tsx`;
-        const metadataPath = `app/t/${toolDirective}/metadata.json`;
+        const clientComponentPath = `app/tool/${toolDirective}/_components/${componentName}Client.tsx`;
+        const serverComponentPath = `app/tool/${toolDirective}/page.tsx`;
+        const metadataPath = `app/tool/${toolDirective}/metadata.json`;
 
         const prompt = `Generate the necessary code resources for a new client-side utility tool for the "Online Everything Tool" project.
 
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
 **Project Structure & Rules:**
 1.  **Client-Side Focus:** Core tool logic MUST execute entirely in the user's browser. No backend needed for the main functionality.
-2.  **File Structure:** Each tool lives in \`app/t/<directive>/\`. It requires THREE files:
+2.  **File Structure:** Each tool lives in \`app/tool/<directive>/\`. It requires THREE files:
     *   \`page.tsx\`: A standard **React Server Component** that acts as a wrapper. It imports metadata, ToolHeader, ToolSuspenseWrapper, and the client component. It renders these components, passing necessary props (\`toolTitle\`, \`toolRoute\`, and potentially \`urlStateParams\`) to the client component.
     *   \`_components/${componentName}Client.tsx\`: The **React Client Component** containing the \`'use client';\` directive. This file holds all the state (useState), logic (event handlers, effects), and UI elements for the tool. It should accept props like \`toolTitle\`, \`toolRoute\`, and optionally \`urlStateParams\`.
     *   \`metadata.json\`: Contains tool metadata like \`title\`, \`description\`, and potentially \`urlStateParams\`.

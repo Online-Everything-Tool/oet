@@ -38,7 +38,7 @@ export default function CreateAnonymousPr({
     const [status, setStatus] = useState<'idle' | 'error'>('idle');
     const [expandedFilePath, setExpandedFilePath] = useState<string | null>(null);
 
-    const mainFilePath = useMemo(() => `app/t/${toolDirective}/page.tsx`, [toolDirective]);
+    const mainFilePath = useMemo(() => `app/tool/${toolDirective}/page.tsx`, [toolDirective]);
     const mainFileContent = useMemo(() => {
         return generationResult.generatedFiles?.[mainFilePath] ?? null;
     }, [generationResult.generatedFiles, mainFilePath]);
@@ -128,9 +128,9 @@ export default function CreateAnonymousPr({
                  <h3 className="text-base font-semibold text-gray-700 mb-2">Generation Context Review</h3>
                  <p className="text-sm"> <span className="font-medium text-gray-600">Target Directive:</span>{' '} <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">{toolDirective}</code> </p>
                  {validationResult?.generativeDescription && (<div> <p className="text-sm font-medium text-gray-600">AI Description:</p> <blockquote className="text-sm text-gray-800 pl-2 italic border-l-2 border-gray-300 ml-1 my-1"> “{validationResult.generativeDescription}” </blockquote> </div>)}
-                 {validationResult?.generativeRequestedDirectives && validationResult.generativeRequestedDirectives.length > 0 && (<div> <p className="text-sm font-medium text-gray-600 mb-1">AI Requested Examples:</p> <ul className="list-disc list-inside space-y-1 pl-2">{validationResult.generativeRequestedDirectives.map(d => ( <li key={d} className="text-sm text-indigo-700"><Link href={`/t/${d}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900 font-mono text-xs">{d}</Link></li> ))}</ul> </div>)}
+                 {validationResult?.generativeRequestedDirectives && validationResult.generativeRequestedDirectives.length > 0 && (<div> <p className="text-sm font-medium text-gray-600 mb-1">AI Requested Examples:</p> <ul className="list-disc list-inside space-y-1 pl-2">{validationResult.generativeRequestedDirectives.map(d => ( <li key={d} className="text-sm text-indigo-700"><Link href={`/tool/${d}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900 font-mono text-xs">{d}</Link></li> ))}</ul> </div>)}
                  <div> <p className="text-sm font-medium text-gray-600">Additional Details:</p> {additionalDescription ? (<p className="text-sm text-gray-800 pl-2 whitespace-pre-wrap bg-gray-100 p-2 rounded border border-gray-200 font-mono text-xs">{additionalDescription}</p>) : (<p className="text-sm text-gray-500 pl-2 italic">(None provided)</p>)} </div>
-                 <div> <p className="text-sm font-medium text-gray-600 mb-1">User Selected Example:</p> {userSelectedDirective ? (<ul className="list-disc list-inside space-y-1 pl-2"><li className="text-sm text-purple-700"><Link href={`/t/${userSelectedDirective}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900 font-mono text-xs">{userSelectedDirective}</Link></li></ul>) : (<p className="text-sm text-gray-500 pl-2 italic">(None selected)</p>)} </div>
+                 <div> <p className="text-sm font-medium text-gray-600 mb-1">User Selected Example:</p> {userSelectedDirective ? (<ul className="list-disc list-inside space-y-1 pl-2"><li className="text-sm text-purple-700"><Link href={`/tool/${userSelectedDirective}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-900 font-mono text-xs">{userSelectedDirective}</Link></li></ul>) : (<p className="text-sm text-gray-500 pl-2 italic">(None selected)</p>)} </div>
 
                  {/* Dependencies Display (Always show section header) */}
                  <div className="pt-2 border-t border-gray-200 mt-2">

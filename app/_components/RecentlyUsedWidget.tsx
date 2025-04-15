@@ -6,7 +6,7 @@ import { useHistory, HistoryEntry } from '../context/HistoryContext';
 import { formatDistanceToNow } from 'date-fns';
 // Import necessary things for reload (if implementing here)
 import { useRouter } from 'next/navigation';
-import type { ParamConfig } from '@/app/t/_hooks/useToolUrlState'; // Assuming ParamConfig path
+import type { ParamConfig } from '@/app/tool/_hooks/useToolUrlState'; // Assuming ParamConfig path
 
 // Define REDACTED_OUTPUT_PLACEHOLDER if not imported globally
 const REDACTED_OUTPUT_PLACEHOLDER = "[Output Redacted by Setting]";
@@ -109,7 +109,7 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
     // --- Reload Logic (Adapted from history page) ---
     const handleReloadState = async (item: RecentItemDisplay) => {
         setWidgetError(null); // Clear previous errors
-        const directiveName = item.toolRoute.substring(3); // Assumes '/t/' prefix
+        const directiveName = item.toolRoute.substring(3); // Assumes '/tool/' prefix
         if (!directiveName) {
              console.error("[RecentWidget Reload] Could not extract directive name:", item.toolRoute);
              setWidgetError("Cannot reload: Invalid tool route."); return;

@@ -129,7 +129,7 @@ export async function POST(request: Request) {
              if (typeof fileContent !== 'string') {
                  throw new Error(`Invalid content for file '${filePath}': Must be a string.`);
              }
-             if (!filePath.startsWith('app/t/')) {
+             if (!filePath.startsWith('app/tool/')) {
                  console.warn(`[API create-anonymous-pr] Unexpected file path found: ${filePath}`);
              }
               // Relaxed 'use client' check for now, but good to keep in mind

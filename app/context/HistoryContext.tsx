@@ -189,7 +189,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   // --- NEW: Function to fetch and cache default preference ---
   const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
-      if (!toolRoute || !toolRoute.startsWith('/t/')) {
+      if (!toolRoute || !toolRoute.startsWith('/tool/')) {
           console.warn(`[HistoryCtx] Invalid toolRoute for fetching default: ${toolRoute}`);
           return GLOBAL_DEFAULT_LOGGING;
       }
@@ -202,7 +202,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
       fetchingDefaultsRef.current.add(toolRoute); // Mark as fetching
 
-      const directive = toolRoute.substring(3); // Extract 'tool-name' from '/t/tool-name'
+      const directive = toolRoute.substring(3); // Extract 'tool-name' from '/tool/tool-name'
       if (!directive) {
            console.warn(`[HistoryCtx] Could not extract directive from route: ${toolRoute}`);
            fetchingDefaultsRef.current.delete(toolRoute);

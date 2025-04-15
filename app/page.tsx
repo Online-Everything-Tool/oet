@@ -43,7 +43,7 @@ async function getAvailableTools(): Promise<ToolDisplayData[]> {
                     const metadata: ToolMetadata = JSON.parse(metadataContent);
                     if (metadata.title && metadata.description && metadata.includeInSitemap !== false) {
                         dynamicTools.push({
-                        href: `/t/${directive}/`,
+                        href: `/tool/${directive}/`,
                         title: metadata.title,
                         description: metadata.description,
                         });

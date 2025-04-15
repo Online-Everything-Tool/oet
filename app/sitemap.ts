@@ -56,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     // --- Dynamic Tool Pages ---
     const toolEntries: MetadataRoute.Sitemap = [];
-    const toolsDirPath = path.join(process.cwd(), 'app', 't');
+    const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
 
     try {
         const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
@@ -68,7 +68,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
                 if (include) {
                     toolEntries.push({
-                        url: `${baseUrl}/t/${toolDirName}/`, // Ensure trailing slash matches next.config.js
+                        url: `${baseUrl}/tool/${toolDirName}/`, // Ensure trailing slash matches next.config.js
                         lastModified: new Date().toISOString(), // Use current date, or get file mod time if needed
                         changeFrequency: 'monthly', // Tools themselves don't change frequently
                         priority: 0.6, // Slightly higher than history, lower than core pages

@@ -5,7 +5,7 @@ import React from 'react';
 import { useHistory } from '../context/HistoryContext';
 import type { HistoryEntry, TriggerType } from '../context/HistoryContext';
 import { useRouter } from 'next/navigation';
-import type { ParamConfig } from '@/app/t/_hooks/useToolUrlState';
+import type { ParamConfig } from '@/app/tool/_hooks/useToolUrlState';
 
 interface ToolMetadata {
     title?: string;
@@ -65,7 +65,7 @@ export default function HistoryPage() {
     };
 
     const handleReload = async (entry: HistoryEntry) => {
-        if (!entry.toolRoute || !entry.toolRoute.startsWith('/t/')) {
+        if (!entry.toolRoute || !entry.toolRoute.startsWith('/tool/')) {
             console.error("[Reload] Invalid toolRoute in history entry:", entry.toolRoute);
             alert("Cannot reload: Invalid tool route found in history.");
             return;
@@ -162,7 +162,7 @@ export default function HistoryPage() {
                         const executionCount = entry.timestamps.length;
                         const lastUsedTimestamp = entry.timestamps[0];
                         const firstTimestamp = entry.timestamps[entry.timestamps.length - 1];
-                        const isToolPage = entry.toolRoute && entry.toolRoute.startsWith('/t/');
+                        const isToolPage = entry.toolRoute && entry.toolRoute.startsWith('/tool/');
                         const executionCountText = executionCount > 1 ? `(Used ${executionCount} times)` : '';
 
                         return (

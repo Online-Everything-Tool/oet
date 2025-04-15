@@ -116,7 +116,7 @@ export default function GenerateToolResources({
              {validationResult.generativeRequestedDirectives.length > 0 && (
                 <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded">
                     <p className="text-sm font-medium text-indigo-800 mb-1"> AI Requested Implementation Examples: </p>
-                    <ul className="list-disc list-inside space-y-1"> {validationResult.generativeRequestedDirectives.map(directive => ( <li key={directive} className="text-sm text-indigo-700"> <Link href={`/t/${directive}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900"> {directive} </Link> </li> ))} </ul>
+                    <ul className="list-disc list-inside space-y-1"> {validationResult.generativeRequestedDirectives.map(directive => ( <li key={directive} className="text-sm text-indigo-700"> <Link href={`/tool/${directive}`} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-900"> {directive} </Link> </li> ))} </ul>
                 </div>
              )}
              <div className="mb-4">
