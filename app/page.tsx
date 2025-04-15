@@ -1,12 +1,15 @@
-// /app/page.tsx
+// FILE: /app/page.tsx
 import Link from 'next/link';
 import fs from 'fs/promises'; // Filesystem module
 import path from 'path';     // Path module
+import ClientOnly from '@/app/_components/ClientOnly'; // Import ClientOnly
+import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget'; // Import the new widget
 
-// --- Interfaces ---
+// --- Interfaces (Unchanged) ---
 interface ToolMetadata {
   title: string;
   description: string;
+  includeInSitemap?: boolean; // Make optional for safety
 }
 
 interface ToolDisplayData {
@@ -23,7 +26,7 @@ interface ProjectAnalysisData {
   modelNameUsed: string;
 }
 
-// --- Helper function to fetch tool metadata ---
+// --- Helper function to fetch tool metadata (Unchanged) ---
 async function getAvailableTools(): Promise<ToolDisplayData[]> {
   const toolsDirPath = path.join(process.cwd(), 'app', 't');
   const dynamicTools: ToolDisplayData[] = [];
@@ -37,40 +40,38 @@ async function getAvailableTools(): Promise<ToolDisplayData[]> {
           await fs.access(metadataPath);
           const metadataContent = await fs.readFile(metadataPath, 'utf-8');
           const metadata: ToolMetadata = JSON.parse(metadataContent);
-          if (metadata.title && metadata.description) {
+          // Only add if title/description exist and it should be shown (default true)
+          if (metadata.title && metadata.description && metadata.includeInSitemap !== false) {
             dynamicTools.push({
-              href: `/t/${directive}`,
+              href: `/t/${directive}/`, // Add trailing slash
               title: metadata.title,
               description: metadata.description,
             });
-          } else {
+          } else if (!metadata.title || !metadata.description) {
             console.warn(`[Page Load] Metadata missing title or description for tool: ${directive}`);
           }
-        } catch (error: unknown) { // <-- Changed from any to unknown
-            // --- Type checking for inner catch ---
+        } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             const isFsError = typeof error === 'object' && error !== null && 'code' in error;
             const errorCode = isFsError ? (error as { code: string }).code : null;
-
-            if (errorCode !== 'ENOENT') { // Log only if NOT file not found
+            if (errorCode !== 'ENOENT') {
               console.error(`[Page Load] Error processing metadata for tool '${directive}':`, message);
+            } else {
+                 console.warn(`[Page Load] Metadata file not found for tool: ${directive}`);
             }
-            // --- End Type Checking ---
         }
       }
     }
-  } catch (error: unknown) { // <-- Changed from any to unknown
-      // --- Type checking for outer catch ---
+  } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error("[Page Load] Error reading tools directory:", message);
-      // --- End Type Checking ---
       return [];
   }
   dynamicTools.sort((a, b) => a.title.localeCompare(b.title));
   return dynamicTools;
 }
 
-// --- Helper function to fetch project analysis data ---
+// --- Helper function to fetch project analysis data (Unchanged) ---
 async function getProjectAnalysisData(): Promise<ProjectAnalysisData | null> {
   const analysisFilePath = path.join(process.cwd(), 'public', 'data', 'project_analysis.json');
   try {
@@ -83,18 +84,15 @@ async function getProjectAnalysisData(): Promise<ProjectAnalysisData | null> {
         console.warn("[Page Load] project_analysis.json is missing required fields.");
         return null;
     }
-  } catch (error: unknown) { // <-- Changed from any to unknown
-      // --- Type checking ---
+  } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       const isFsError = typeof error === 'object' && error !== null && 'code' in error;
       const errorCode = isFsError ? (error as { code: string }).code : null;
-
       if (errorCode === 'ENOENT') {
           console.log("[Page Load] project_analysis.json not found. Displaying default content.");
       } else {
           console.error("[Page Load] Error reading or parsing project_analysis.json:", message);
       }
-      // --- End Type Checking ---
       return null;
   }
 }
@@ -114,7 +112,7 @@ export default async function Home() {
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-8">
 
-        {/* Updated Welcome Header */}
+        {/* Welcome Header (Unchanged) */}
         <div className="text-center border-b border-[rgb(var(--color-border-base))] pb-6 mb-6">
             <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2">
                 Online Everything Tool
@@ -130,7 +128,14 @@ export default async function Home() {
              )}
         </div>
 
-        {/* Available Tools Section */}
+        {/* --- Recently Used Tools Section (NEW) --- */}
+        <ClientOnly>
+            <RecentlyUsedWidget limit={5} displayMode="homepage" />
+        </ClientOnly>
+        {/* --- End Recently Used Tools Section --- */}
+
+
+        {/* Available Tools Section (Unchanged) */}
         <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm">
             <h2 className="text-xl font-semibold mb-4 text-[rgb(var(--color-text-base))]">
                 Available Tools:
@@ -156,7 +161,7 @@ export default async function Home() {
             )}
         </div>
 
-        {/* Updated Build a New Tool Section */}
+        {/* Build a New Tool Section (Unchanged) */}
         <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm space-y-4">
             <div>
                 <h2 className="text-xl font-semibold mb-3 text-[rgb(var(--color-text-base))]">
@@ -166,7 +171,7 @@ export default async function Home() {
                     Have an idea for another useful client-side utility? Build it with AI assistance!
                 </p>
                 <Link
-                    href="/build-tool"
+                    href="/build-tool/" // Ensure trailing slash
                     className="inline-block px-5 py-2 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors"
                 >
                     Build a Tool

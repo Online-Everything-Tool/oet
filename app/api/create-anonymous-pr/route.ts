@@ -1,5 +1,4 @@
-// /app/api/create-anonymous-pr/route.ts
-
+// FILE: app/api/create-anonymous-pr/route.ts
 import { NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
@@ -70,37 +69,28 @@ async function getInstallationOctokit(): Promise<Octokit> {
             const status = typeof error.status === 'number' ? error.status : undefined;
             const message = typeof error.message === 'string' ? error.message : undefined;
 
-            // --- Refined check for private key error ---
-            // Safely access potential 'cause' property
             const cause = (error as { cause?: unknown }).cause;
-            // Check if 'cause' exists and is an object with a string 'message' property
             const causeMessage = (typeof cause === 'object' && cause !== null && typeof (cause as { message?: unknown }).message === 'string')
                 ? (cause as { message: string }).message
                 : undefined;
 
             if (status === 404) {
                 errorMessage = `GitHub App install not found for ${GITHUB_USER_OR_ORG}/${GITHUB_REPO}.`;
-            } else if (message?.includes('keyData') || causeMessage?.includes('private key')) { // Use safe causeMessage check
+            } else if (message?.includes('keyData') || causeMessage?.includes('private key')) {
                 errorMessage = `Private key parse failed. Check format or env var.`;
             } else {
-                 errorMessage = message || errorMessage; // Use original message if specific checks fail
+                 errorMessage = message || errorMessage;
             }
-             errorStatus = status || errorStatus; // Assign status if available
-            // --- End Refined check ---
+             errorStatus = status || errorStatus;
 
         } else {
-             // Handle cases where error is not an object (e.g., just a string thrown)
              errorMessage = String(error);
         }
 
-        // Wrap and throw the processed error
         const wrappedError = new Error(`Auth Failed: ${errorMessage}`);
-        // Attach status code if we determined one (and it's not default 500 OR it came from error object)
         if (errorStatus !== 500 || (isPotentialErrorObject(error) && error.status)) {
            Object.assign(wrappedError, { status: errorStatus });
         }
-        // Optionally attach the original error as cause if supported/desired by the environment
-        // Object.assign(wrappedError, { cause: error });
         throw wrappedError;
     }
 }
@@ -123,10 +113,9 @@ export async function POST(request: Request) {
     try {
         body = await request.json();
 
-        // Extract and validate required fields
         toolDirective = body.toolDirective?.trim();
-        generatedFiles = body.generatedFiles; // Keep as object
-        identifiedDependencies = Array.isArray(body.identifiedDependencies) ? body.identifiedDependencies : []; // Default to empty array
+        generatedFiles = body.generatedFiles;
+        identifiedDependencies = Array.isArray(body.identifiedDependencies) ? body.identifiedDependencies : [];
 
         if (!toolDirective) throw new Error("Missing required field: toolDirective");
         if (typeof generatedFiles !== 'object' || generatedFiles === null || Object.keys(generatedFiles).length === 0) {
@@ -136,7 +125,6 @@ export async function POST(request: Request) {
             throw new Error('Invalid toolDirective format.');
         }
 
-        // Validate content of generatedFiles (basic check)
         for (const [filePath, fileContent] of Object.entries(generatedFiles)) {
              if (typeof fileContent !== 'string') {
                  throw new Error(`Invalid content for file '${filePath}': Must be a string.`);
@@ -144,12 +132,12 @@ export async function POST(request: Request) {
              if (!filePath.startsWith('app/t/')) {
                  console.warn(`[API create-anonymous-pr] Unexpected file path found: ${filePath}`);
              }
-             if (filePath.endsWith('/page.tsx') && !fileContent.trim().startsWith("'use client';") && !fileContent.trim().startsWith('"use client";')) {
-                console.warn(`[API create-anonymous-pr] Warning: Generated file ${filePath} does not start with 'use client';`)
-             }
+              // Relaxed 'use client' check for now, but good to keep in mind
+             // if (filePath.endsWith('/page.tsx') && !fileContent.trim().startsWith("'use client';") && !fileContent.trim().startsWith('"use client";')) {
+             //    console.warn(`[API create-anonymous-pr] Warning: Generated file ${filePath} does not start with 'use client';`)
+             // }
         }
 
-        // Extract optional fields
         generativeDescription = body.generativeDescription?.trim() || '';
         additionalDescription = body.additionalDescription?.trim() || '';
         generativeRequestedDirectives = Array.isArray(body.generativeRequestedDirectives)
@@ -161,7 +149,7 @@ export async function POST(request: Request) {
 
         console.log(`[API create-anonymous-pr] Processing PR for new tool: ${toolDirective}`);
         console.log(`[API create-anonymous-pr] Files to commit: ${Object.keys(generatedFiles).length}`);
-        console.log(`[API create-anonymous-pr] Identified dependencies: ${identifiedDependencies.length}`);
+        console.log(`[API create-anonymous-pr] Identified dependencies passed from generator: ${identifiedDependencies.length}`); // Log what was received
 
     } catch (error: unknown) {
         const message = hasMessage(error) ? error.message : "Invalid request body format";
@@ -175,12 +163,10 @@ export async function POST(request: Request) {
     try {
         octokit = await getInstallationOctokit();
 
-        // Get latest commit SHA
         const { data: branchData } = await octokit.rest.repos.getBranch({ owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, branch: GITHUB_DEFAULT_BRANCH });
         const latestSha = branchData.commit.sha;
         console.log(`[API create-anonymous-pr] Fetched latest SHA: ${latestSha}`);
 
-        // Create Branch
         const timestamp = Date.now();
         newBranchName = `feat/gen-${toolDirective}-${timestamp}`;
         const newBranchRef = `refs/heads/${newBranchName}`;
@@ -188,7 +174,6 @@ export async function POST(request: Request) {
         await octokit.rest.git.createRef({ owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, ref: newBranchRef, sha: latestSha });
         console.log(`[API create-anonymous-pr] Branch ${newBranchName} created.`);
 
-        // --- Commit ALL Generated Files Sequentially ---
         const commitMessage = `feat: Add AI generated tool - ${toolDirective}`;
         const committer = { name: 'OET Bot', email: 'bot@online-everything-tool.com' };
         const author = { name: 'OET Bot', email: 'bot@online-everything-tool.com' };
@@ -207,7 +192,6 @@ export async function POST(request: Request) {
             console.log(`[API create-anonymous-pr] File "${filePath}" committed.`);
         }
         console.log(`[API create-anonymous-pr] All ${Object.keys(generatedFiles).length} files committed.`);
-        // --- End File Committing ---
 
 
         // --- Create Enhanced PR Body ---
@@ -223,6 +207,7 @@ export async function POST(request: Request) {
              return deps.map(dep => `- \`${dep.packageName}\`${dep.reason ? ` - _${dep.reason}_` : ''}`).join('\n');
         };
 
+        // --- UPDATED PR BODY ---
         const prBody = `
 Adds the new tool \`${toolDirective}\` generated via the AI Build Tool feature (submitted anonymously).
 
@@ -238,9 +223,12 @@ ${formatList(generativeRequestedDirectives, '_None requested or loaded._')}
 **User Selected Example During Generation:**
 ${userSelectedExampleDirective ? `\`${userSelectedExampleDirective}\`` : '_None selected._'}
 
-**Identified Dependencies:**
-${formatDependencies(identifiedDependencies, '_None identified._')}
-${identifiedDependencies.length > 0 ? '\n_Note: Please ensure these dependencies are added to package.json if they are not already present._' : ''}
+**Dependencies Identified by Generator API:**
+${formatDependencies(identifiedDependencies, '_None explicitly identified by the generation API._')}
+${identifiedDependencies.length > 0
+    ? '\n_Note: Please review the generated code for any other implicitly used libraries (like \`three\`, \`@react-three/fiber\`, etc. if applicable) and ensure all necessary dependencies are added to package.json._'
+    : '\n_Note: Please review the generated code for any implicitly used libraries and ensure dependencies are added to package.json if needed._'
+}
 
 **Files Added/Modified:**
 ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
@@ -250,18 +238,15 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
         // --- End PR Body Creation ---
 
         console.log(`[API create-anonymous-pr] Creating Pull Request: "${prTitle}"...`);
-        // Create the Pull Request
         const { data: pullRequest } = await octokit.rest.pulls.create({
             owner: GITHUB_USER_OR_ORG, repo: GITHUB_REPO, title: prTitle, body: prBody,
             head: newBranchName, base: GITHUB_DEFAULT_BRANCH, maintainer_can_modify: true,
         });
         console.log(`[API create-anonymous-pr] SUCCESS: Pull Request created: ${pullRequest.html_url}`);
 
-        // Return success response
         return NextResponse.json({ success: true, message: `Successfully created Pull Request for new tool: ${toolDirective}`, url: pullRequest.html_url }, { status: 201 });
 
     } catch (error: unknown) {
-        // --- Error Handling (Robust) ---
         console.error("[API create-anonymous-pr] ERROR during GitHub interaction:", error);
         let errorMessage = "An unexpected error occurred during PR creation.";
         let errorStatus = 500;
@@ -273,13 +258,12 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
              if (ghMessage) errorMessage += ` (GitHub: ${ghMessage})`;
              errorStatus = status || errorStatus;
              if (status === 422 && ghMessage?.includes('Reference already exists')) {
-                 errorMessage = `Branch '${newBranchName}' might already exist. Please try submitting again.`; // User-friendly message
-                 errorStatus = 409; // Conflict
+                 errorMessage = `Branch '${newBranchName}' might already exist. Please try submitting again.`;
+                 errorStatus = 409;
              } else if (status === 404 && ghMessage?.includes('Not Found')) {
                  errorMessage = `Base branch '${GITHUB_DEFAULT_BRANCH}' or repository not found. Check configuration.`;
                  errorStatus = 404;
              }
-             // Add more specific GitHub error checks if needed
         } else {
             errorMessage = String(error);
         }
@@ -288,11 +272,10 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
     } finally {
          console.log(`[API create-anonymous-pr] -------- POST End (${new Date().toISOString()}) --------`);
     }
-} // --- End of POST Handler ---
+}
 
-// --- GET Handler (Keep as is) ---
 export async function GET() {
     console.log(`[API create-anonymous-pr] -------- GET (${new Date().toISOString()}) --------`);
     if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_PRIVATE_KEY_BASE64) return NextResponse.json({ message: "API route active, but server config missing credentials." });
     return NextResponse.json({ message: "API route for create-anonymous-pr is active. Use POST method." });
-} // --- End of GET Handler ---
+}
