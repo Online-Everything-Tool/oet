@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 interface TextStrikeThroughClientProps {
@@ -18,7 +18,7 @@ export default function TextStrikeThroughClient({
 }: TextStrikeThroughClientProps) {
     const [text, setText] = useState<string>('');
     const [skipSpaces, setSkipSpaces] = useState<boolean>(false);
-    const [color, setColor] = useState<string>('#dc2626');
+    const [color, setColor] = useState<string>('#dc2626'); // Default to red-600
     const [isCopied, setIsCopied] = useState<boolean>(false);
     const lastLoggedTextRef = useRef<string | null>(null);
     const lastLoggedSkipSpacesRef = useRef<boolean | null>(null);
@@ -33,17 +33,20 @@ export default function TextStrikeThroughClient({
         color: setColor,
     }), []);
 
+    // Use URL state hook - Note: Initial load doesn't trigger history here directly
     useToolUrlState(
         urlStateParams,
         stateSetters as StateSetters
     );
 
+    // Effect to initialize refs after potential hydration from URL/defaults
     useEffect(() => {
           if (!initialLoadComplete.current) {
               lastLoggedTextRef.current = text;
               lastLoggedSkipSpacesRef.current = skipSpaces;
               lastLoggedColorRef.current = color;
               initialLoadComplete.current = true;
+               // We don't log the initial state setting from URL/defaults
           }
     }, [text, skipSpaces, color]);
 
@@ -56,16 +59,19 @@ export default function TextStrikeThroughClient({
     const handleSkipSpacesChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         setSkipSpaces(event.target.checked);
         setIsCopied(false);
+        // Log will happen on blur
     }, []);
 
     const handleColorChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         setColor(event.target.value);
         setIsCopied(false);
+        // Log will happen on blur
     }, []);
 
+    // --- handleTextBlur logs significant state changes ---
     const handleTextBlur = useCallback(() => {
         if (!initialLoadComplete.current) {
-            return;
+            return; // Don't log before initial state is set
         }
 
         const currentText = text;
@@ -76,85 +82,60 @@ export default function TextStrikeThroughClient({
         const skipSpacesChanged = currentSkipSpaces !== lastLoggedSkipSpacesRef.current;
         const colorChanged = currentColor !== lastLoggedColorRef.current;
 
+        // Only log if a relevant state affecting the output has changed
         if (textChanged || skipSpacesChanged || colorChanged) {
             addHistoryEntry({
                 toolName: toolTitle,
                 toolRoute: toolRoute,
-                action: 'update-text-options',
+                trigger: 'auto', // Triggered by change + blur
                 input: {
                     text: currentText.length > 500 ? currentText.substring(0, 500) + '...' : currentText,
                     skipSpaces: currentSkipSpaces,
                     color: currentColor
                 },
-                output: '[Visual formatting updated]',
+                output: '[Visual formatting updated]', // Output is visual, not text
                 status: 'success',
             });
 
+            // Update refs to the newly logged state
             lastLoggedTextRef.current = currentText;
             lastLoggedSkipSpacesRef.current = currentSkipSpaces;
             lastLoggedColorRef.current = currentColor;
         }
     }, [text, skipSpaces, color, addHistoryEntry, toolTitle, toolRoute]);
 
+    // --- UPDATED handleClear to REMOVE history logging ---
     const handleClear = useCallback(() => {
-        const hadInput = text !== '';
         setText('');
         setSkipSpaces(false);
         setColor('#dc2626');
         setIsCopied(false);
+        // Reset refs to avoid logging the clear action on next blur
         lastLoggedTextRef.current = '';
         lastLoggedSkipSpacesRef.current = false;
         lastLoggedColorRef.current = '#dc2626';
+        // History logging removed
+    }, []); // Dependencies updated
+    // --- END UPDATE ---
 
-        if (hadInput) {
-           addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'clear',
-              input: { text: '', skipSpaces: false, color: '#dc2626' },
-              output: 'Input cleared, options reset',
-              status: 'success'
-           });
-        }
-    }, [text, addHistoryEntry, toolTitle, toolRoute]);
-
+    // --- UPDATED handleCopy to REMOVE history logging ---
     const handleCopy = useCallback(() => {
         if (!text || !navigator.clipboard) return;
 
         navigator.clipboard.writeText(text).then(
           () => {
             setIsCopied(true);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'copy-text',
-              input: {
-                  text: text.length > 500 ? text.substring(0, 500) + '...' : text,
-                  skipSpaces: skipSpaces,
-                  color: color
-              },
-              output: `[Original text copied, length: ${text.length}]`,
-              status: 'success',
-            });
             setTimeout(() => setIsCopied(false), 1500);
+            // History logging removed
           },
           (err) => {
             console.error('Failed to copy text: ', err);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'copy-text-failed',
-               input: {
-                  text: text.length > 500 ? text.substring(0, 500) + '...' : text,
-                  skipSpaces: skipSpaces,
-                  color: color
-              },
-              output: `Error copying: ${err instanceof Error ? err.message : 'Unknown error'}`,
-              status: 'error',
-            });
+            // History logging removed
           }
         );
-    }, [text, skipSpaces, color, addHistoryEntry, toolTitle, toolRoute]);
+        // History logging removed from finally block
+    }, [text]); // Dependencies updated
+    // --- END UPDATE ---
 
     const renderedOutput = useMemo(() => {
         if (!text) {
@@ -163,25 +144,27 @@ export default function TextStrikeThroughClient({
         const strikeStyle = {
             textDecoration: 'line-through',
             textDecorationColor: color,
+            // Ensure consistent line style (optional, but good practice)
+            textDecorationStyle: 'solid' as React.CSSProperties['textDecorationStyle'],
         };
         if (!skipSpaces) {
           return <span style={strikeStyle}>{text}</span>;
         } else {
-          return [...text].map((char, index) => {
-            if (char.match(/\s/)) {
-              return <React.Fragment key={index}>{char}</React.Fragment>;
-            } else {
-              return (
-                <span key={index} style={strikeStyle}>
-                  {char}
-                </span>
-              );
+          // More robust space handling: preserve multiple spaces
+          const segments = text.split(/(\s+)/); // Split by whitespace, keeping delimiters
+          return segments.map((segment, index) => {
+            if (segment.match(/\s+/)) { // If it's whitespace
+              return <React.Fragment key={index}>{segment}</React.Fragment>;
+            } else if (segment) { // If it's non-empty text
+              return <span key={index} style={strikeStyle}>{segment}</span>;
             }
+            return null; // Handle potential empty strings from split
           });
         }
     }, [text, skipSpaces, color]);
 
     return (
+        // --- JSX Unchanged ---
         <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
                 <div className="space-y-1 h-full flex flex-col">
@@ -223,6 +206,7 @@ export default function TextStrikeThroughClient({
                            name="skipSpaces"
                            checked={skipSpaces}
                            onChange={handleSkipSpacesChange}
+                           onBlur={handleTextBlur}
                            className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
                            style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
                        />
@@ -240,6 +224,7 @@ export default function TextStrikeThroughClient({
                            name="color"
                            value={color}
                            onChange={handleColorChange}
+                           onBlur={handleTextBlur}
                            className="h-7 w-10 border border-[rgb(var(--color-input-border))] rounded cursor-pointer p-0.5 bg-[rgb(var(--color-input-bg))]"
                            aria-label="Strikethrough color picker"
                         />

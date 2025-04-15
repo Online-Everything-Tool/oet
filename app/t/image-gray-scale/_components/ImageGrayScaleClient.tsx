@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+// Import TriggerType
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 
 interface ImageGrayScaleClientProps {
   toolTitle: string;
@@ -15,9 +16,9 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isCopied, setIsCopied] = useState<boolean>(false); // Added state for copy button
+  const [isCopied, setIsCopied] = useState<boolean>(false);
   const originalImageRef = useRef<HTMLImageElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null); // Canvas ref now used for output
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { addHistoryEntry } = useHistory();
 
   const handleImageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -25,7 +26,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
     setError('');
     setGrayScaleImageSrc(null);
     setFileName(null);
-    setIsCopied(false); // Reset copy state on new image
+    setIsCopied(false);
     if (file) {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
@@ -33,15 +34,15 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
           if (e.target?.result && typeof e.target.result === 'string') {
             setOriginalImageSrc(e.target.result);
             setFileName(file.name);
-            // No history log here, wait for processing
+            // History logged in handleGrayScale triggered by useEffect
           } else {
             setError('Failed to read file.');
-            setOriginalImageSrc(null); // Clear original src on read failure
+            setOriginalImageSrc(null);
           }
         };
         reader.onerror = () => {
           setError('Error reading file.');
-          setOriginalImageSrc(null); // Clear original src on read error
+          setOriginalImageSrc(null);
         };
         reader.readAsDataURL(file);
       } else {
@@ -50,52 +51,40 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
         if (event.target) event.target.value = '';
       }
     } else {
-        setOriginalImageSrc(null); // Clear if no file selected
+        setOriginalImageSrc(null);
     }
-  }, []); // Removed history dependencies, log on process start/end
+  }, []);
 
-
-  const handleGrayScale = useCallback(async () => {
+  // --- UPDATED handleGrayScale to accept trigger and log only once ---
+  const handleGrayScale = useCallback(async (trigger: TriggerType) => {
     if (!originalImageSrc || !originalImageRef.current) {
-      // Avoid error spam if called automatically before image ready
       return;
     }
     setIsLoading(true);
     setError('');
-    setGrayScaleImageSrc(null); // Clear previous result before starting
-    setIsCopied(false); // Reset copy state
+    setGrayScaleImageSrc(null);
+    setIsCopied(false);
 
-    // Log start of processing
-     addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        action: 'grayscale-start',
-        input: { fileName: fileName, originalSrcLength: originalImageSrc?.length },
-        output: 'Starting grayscale conversion',
-        status: 'success', // Indicates the start was successful, not the whole process yet
-      });
-
+    // --- REMOVED initial "start" log ---
 
     let generatedDataUrl: string | null = null;
     let status: 'success' | 'error' = 'success';
     let historyOutput: string | Record<string, unknown> = 'Image converted to grayscale successfully';
+    const inputDetails = { fileName: fileName, originalSrcLength: originalImageSrc?.length };
 
     try {
-        // Slight delay to allow the image element to update if src just changed
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 50)); // Short delay
 
         const img = originalImageRef.current;
         if (!img || !img.naturalWidth || !img.naturalHeight) {
-            // Check again after delay
             await new Promise(resolve => setTimeout(resolve, 150)); // Longer delay
             if (!img || !img.naturalWidth || !img.naturalHeight) {
               throw new Error("Image dimensions not available. Please try re-uploading.");
             }
         }
 
-
       const canvas = canvasRef.current ?? document.createElement('canvas');
-      canvasRef.current = canvas; // Ensure ref is set for download/copy
+      canvasRef.current = canvas;
       const ctx = canvas.getContext('2d');
 
       if (!ctx) {
@@ -109,122 +98,99 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
       for (let i = 0; i < data.length; i += 4) {
-        // Using luminosity weights for potentially better grayscale
         const avg = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-        data[i] = avg; // red
-        data[i + 1] = avg; // green
-        data[i + 2] = avg; // blue
-        // Alpha (data[i + 3]) remains unchanged
+        data[i] = avg; data[i + 1] = avg; data[i + 2] = avg;
       }
       ctx.putImageData(imageData, 0, 0);
-      generatedDataUrl = canvas.toDataURL(); // Get base64 data URL
+      generatedDataUrl = canvas.toDataURL();
       setGrayScaleImageSrc(generatedDataUrl);
+      historyOutput = `[Grayscale Image DataURL, length: ${generatedDataUrl?.length}]`; // More specific success output
 
     } catch (err) {
       console.error("GrayScale Error:", err);
       const message = err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(`Error converting to grayscale: ${message}`);
-      setGrayScaleImageSrc(null); // Clear output on error
+      setGrayScaleImageSrc(null);
       status = 'error';
       historyOutput = `Error: ${message}`;
+      (inputDetails as Record<string, unknown>).error = message; // Add error to input details
     } finally {
       setIsLoading(false);
-      // Log completion status
+      // --- UPDATED Log completion status only ---
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        action: `grayscale-${status === 'success' ? 'complete' : 'failed'}`,
-        input: { fileName: fileName, originalSrcLength: originalImageSrc?.length }, // Keep input simple for completion log
-        output: status === 'success' ? `[Grayscale Image DataURL, length: ${generatedDataUrl?.length}]` : historyOutput,
+        trigger: trigger, // Use the trigger passed in ('upload')
+        input: inputDetails,
+        output: historyOutput, // Output is either success dataURL length or error
         status: status,
       });
+      // --- END UPDATE ---
     }
   }, [originalImageSrc, fileName, addHistoryEntry, toolTitle, toolRoute]);
+  // --- END UPDATE ---
 
   useEffect(() => {
     if (originalImageSrc) {
-      // Debounce or use a timeout to avoid rapid calls if originalImageSrc updates quickly
        const timer = setTimeout(() => {
-            handleGrayScale();
-       }, 100); // Adjust delay as needed
+            handleGrayScale('upload'); // Pass 'upload' trigger
+       }, 100);
        return () => clearTimeout(timer);
     } else {
-      // Clear output if original image is removed
       setGrayScaleImageSrc(null);
-      setFileName(null); // Also clear filename
+      setFileName(null);
     }
+    // Updated dependencies to include handleGrayScale
   }, [originalImageSrc, handleGrayScale]);
 
+  // --- UPDATED handleClear to REMOVE history logging ---
   const handleClear = useCallback(() => {
-    const hadImage = !!originalImageSrc;
     setOriginalImageSrc(null);
-    // Output and filename are cleared by the useEffect hook when originalImageSrc becomes null
+    setGrayScaleImageSrc(null);
+    setFileName(null);
     setError('');
     setIsLoading(false);
     setIsCopied(false);
     const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
+    // History logging removed
+  }, []); // Dependencies updated
+  // --- END UPDATE ---
 
-    if (hadImage) { // Only log clear if there was something to clear
-        addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute,
-            action: 'clear',
-            input: { previousFileName: fileName }, // Log the name of the cleared file
-            output: 'Inputs and outputs cleared',
-            status: 'success',
-        });
-    }
-  }, [addHistoryEntry, fileName, originalImageSrc, toolTitle, toolRoute]);
-
-   // --- ADDED: handleDownload Function ---
+   // --- UPDATED handleDownload to REMOVE history logging ---
    const handleDownload = useCallback(() => {
         if (!grayScaleImageSrc || !canvasRef.current || !fileName) {
             setError('No grayscale image available to download.');
             return;
         }
-        setError(''); // Clear previous errors
+        setError('');
 
         const canvas = canvasRef.current;
-        let historyStatus: 'success' | 'error' = 'success';
-        let historyOutput = 'Download initiated';
-
         try {
             const link = document.createElement('a');
-            link.download = `grayscale-${fileName}`; // Add prefix
+            link.download = `grayscale-${fileName}`;
             canvas.toBlob((blob) => {
                 if (blob) {
                     link.href = URL.createObjectURL(blob);
-                    document.body.appendChild(link); // Append link to body
+                    document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link); // Clean up link
-                    URL.revokeObjectURL(link.href); // Clean up blob URL
-                    historyOutput = `Downloaded ${link.download}`;
-                     addHistoryEntry({
-                        toolName: toolTitle, toolRoute: toolRoute,
-                        action: 'download', input: {fileName: fileName},
-                        output: historyOutput, status: historyStatus
-                    });
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
                 } else {
                     throw new Error("Canvas toBlob failed to generate blob.");
                 }
-            }, 'image/png'); // Specify mime type
+            }, 'image/png');
 
         } catch (err) {
             console.error("Download failed:", err);
             const message = err instanceof Error ? err.message : "Unknown download error";
             setError(`Download failed: ${message}`);
-            historyStatus = 'error';
-            historyOutput = `Error: ${message}`;
-             addHistoryEntry({
-                toolName: toolTitle, toolRoute: toolRoute,
-                action: 'download-failed', input: {fileName: fileName, error: message},
-                output: historyOutput, status: historyStatus
-            });
         }
-    }, [grayScaleImageSrc, fileName, addHistoryEntry, toolTitle, toolRoute]);
+        // History logging removed
+    }, [grayScaleImageSrc, fileName]); // Dependencies updated
+    // --- END UPDATE ---
 
-    // --- ADDED: handleCopy Function ---
+    // --- UPDATED handleCopy to REMOVE history logging ---
     const handleCopy = useCallback(async () => {
         if (!canvasRef.current) {
             setError('Cannot copy: Canvas is not ready.');
@@ -232,14 +198,11 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
         }
         setIsCopied(false);
         setError('');
-        let historyStatus: 'success' | 'error' = 'success';
-        let historyOutput = 'Image copied to clipboard';
 
         try {
              if (!navigator.clipboard?.write) { throw new Error("Clipboard API (write) not available or not permitted."); }
 
              const canvas = canvasRef.current;
-             // Use Promise wrapper for toBlob for async/await
              const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
 
              if (!blob) { throw new Error("Failed to create blob from canvas for clipboard."); }
@@ -247,35 +210,27 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
              const clipboardItem = new ClipboardItem({ 'image/png': blob });
              await navigator.clipboard.write([clipboardItem]);
              setIsCopied(true);
-             setTimeout(() => setIsCopied(false), 2000); // Reset after 2s
+             setTimeout(() => setIsCopied(false), 2000);
 
          } catch (err) {
              console.error('Failed to copy image to clipboard:', err);
              const message = err instanceof Error ? err.message : 'Unknown clipboard error';
              setError(`Copy failed: ${message}`);
-             historyStatus = 'error';
-             historyOutput = `Error: ${message}`;
-         } finally {
-             addHistoryEntry({
-                 toolName: toolTitle, toolRoute: toolRoute,
-                 action: `copy${historyStatus === 'error' ? '-failed': ''}`,
-                 input: {fileName: fileName},
-                 output: historyOutput, status: historyStatus
-             });
          }
-     }, [fileName, addHistoryEntry, toolTitle, toolRoute]);
+         // History logging removed
+     }, []); // Dependencies updated
+     // --- END UPDATE ---
 
 
   return (
+    // --- JSX Unchanged ---
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* --- MODIFIED CONTROLS SECTION --- */}
       <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
         <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
           {isLoading ? 'Processing...' : (originalImageSrc ? 'Change Image' : 'Select Image')}
         </label>
         <input id="imageUpload" type="file" accept="image/*" onChange={handleImageChange} className="hidden" disabled={isLoading} />
 
-        {/* Action Buttons Group */}
         <div className="flex flex-wrap gap-3 ml-auto">
              <button type="button" onClick={handleDownload} disabled={!grayScaleImageSrc || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
                  Download
@@ -288,7 +243,6 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
             </button>
         </div>
       </div>
-      {/* --- END MODIFIED CONTROLS --- */}
 
       {error && (
         <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
@@ -303,14 +257,11 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {originalImageSrc ? (
-               // eslint-disable-next-line @next/next/no-img-element
               <img
                 ref={originalImageRef}
                 src={originalImageSrc}
                 alt={fileName || "Original"}
                 className="max-w-full max-h-full object-contain"
-                // Add crossOrigin if loading from external sources and need canvas access
-                // crossOrigin="anonymous"
               />
             ) : (
               <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">Select an image</span>
@@ -324,7 +275,6 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
               <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Converting...</span>
             )}
             {!isLoading && grayScaleImageSrc ? (
-               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={grayScaleImageSrc}
                 alt={fileName ? `Grayscale ${fileName}` : "Grayscale Image"}
@@ -336,7 +286,6 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
           </div>
         </div>
       </div>
-      {/* Hidden canvas for processing */}
       <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
     </div>
   );

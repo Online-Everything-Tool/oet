@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 
 interface ImageFlipClientProps {
   toolTitle: string;
@@ -18,15 +18,16 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
-  const originalImageRef = useRef<HTMLImageElement>(null); // Ref for the original image element
-  const canvasRef = useRef<HTMLCanvasElement>(null); // Ref for the offscreen canvas
+  const originalImageRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const { addHistoryEntry } = useHistory();
 
   const handleImageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     setError('');
-    setFlippedImageSrc(null); // Clear previous result
+    setFlippedImageSrc(null);
     setIsCopied(false);
+    setFileName(null);
 
     if (file) {
       if (file.type.startsWith('image/')) {
@@ -35,44 +36,30 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
           if (e.target?.result && typeof e.target.result === 'string') {
             setOriginalImageSrc(e.target.result);
             setFileName(file.name);
-            addHistoryEntry({
-                toolName: toolTitle,
-                toolRoute: toolRoute,
-                action: 'load-image',
-                input: { fileName: file.name, fileSize: file.size, fileType: file.type },
-                output: 'Image loaded for processing',
-                status: 'success',
-            });
+            // Log will happen in handleFlip
           } else {
             setError('Failed to read file.');
             setOriginalImageSrc(null);
-            setFileName(null);
           }
         };
         reader.onerror = () => {
              setError('Error reading file.');
              setOriginalImageSrc(null);
-             setFileName(null);
         };
         reader.readAsDataURL(file);
       } else {
         setError('Invalid file type. Please select an image.');
         setOriginalImageSrc(null);
-        setFileName(null);
-        if (event.target) event.target.value = ''; // Clear file input
+        if (event.target) event.target.value = '';
       }
     } else {
-      // Handle case where user cancels file selection or input is cleared programmatically
       setOriginalImageSrc(null);
-      setFileName(null);
     }
-  }, [addHistoryEntry, toolTitle, toolRoute]);
+  }, []);
 
 
-  const handleFlip = useCallback(async () => {
+  const handleFlip = useCallback(async (trigger: TriggerType) => {
     if (!originalImageSrc || !originalImageRef.current) {
-      // Don't set an error if called automatically before image is fully ready
-      // setError('No image loaded to flip.');
       return;
     }
 
@@ -84,12 +71,11 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
     let generatedDataUrl: string | null = null;
     let status: 'success' | 'error' = 'success';
     let historyOutput: string | Record<string, unknown> = 'Image flipped successfully';
+    const inputDetails = { fileName: fileName, originalSrcLength: originalImageSrc?.length, flipType: flipType };
 
     try {
       const img = originalImageRef.current;
-      // Ensure the image element has fully loaded its dimensions
       if (!img.naturalWidth || !img.naturalHeight) {
-        // Attempt to wait a short period if dimensions aren't ready
         await new Promise(resolve => setTimeout(resolve, 100));
         if (!img.naturalWidth || !img.naturalHeight) {
           throw new Error("Image dimensions not available. Please try re-uploading.");
@@ -97,7 +83,7 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
       }
 
       const canvas = canvasRef.current ?? document.createElement('canvas');
-      canvasRef.current = canvas; // Ensure ref is set
+      canvasRef.current = canvas;
       const ctx = canvas.getContext('2d');
 
       if (!ctx) {
@@ -107,23 +93,23 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
 
-      // Clear previous drawing
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save(); // Save context state
+      ctx.save();
 
       if (flipType === 'horizontal') {
         ctx.scale(-1, 1);
         ctx.translate(-canvas.width, 0);
-      } else { // vertical
+      } else {
         ctx.scale(1, -1);
         ctx.translate(0, -canvas.height);
       }
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      ctx.restore(); // Restore context state (removes scale/translate)
+      ctx.restore();
 
-      generatedDataUrl = canvas.toDataURL(); // Get base64 data URL
+      generatedDataUrl = canvas.toDataURL();
       setFlippedImageSrc(generatedDataUrl);
+      historyOutput = `[Flipped Image DataURL, length: ${generatedDataUrl?.length}]`;
 
     } catch (err) {
       console.error("Flip Error:", err);
@@ -132,24 +118,22 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
       setFlippedImageSrc(null);
       status = 'error';
       historyOutput = `Error: ${message}`;
+      (inputDetails as Record<string, unknown>).error = message;
     } finally {
       setIsLoading(false);
-      // Only log history if initiated by user action or significant change,
-      // avoid logging automatic flips on load/type change unless needed
-      // For simplicity, we still log here, but could add more complex logic
+      // Log the result of the flip operation
       addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
-          action: `flip-${flipType}${status === 'error' ? '-failed' : ''}`,
-          input: { fileName: fileName, originalSrcLength: originalImageSrc?.length, flipType: flipType },
-          output: status === 'success' ? `[Flipped Image DataURL, length: ${generatedDataUrl?.length}]` : historyOutput,
+          trigger: trigger,
+          input: inputDetails,
+          output: historyOutput,
           status: status,
       });
     }
   }, [originalImageSrc, flipType, fileName, addHistoryEntry, toolTitle, toolRoute]);
 
    const handleClear = useCallback(() => {
-       const hadImage = !!originalImageSrc;
        setOriginalImageSrc(null);
        setFlippedImageSrc(null);
        setFileName(null);
@@ -158,62 +142,46 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
        setIsLoading(false);
        setIsCopied(false);
        const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
-       if (fileInput) fileInput.value = ''; // Reset file input
+       if (fileInput) fileInput.value = '';
+       // No history log for clear
+   }, []);
 
-       if (hadImage) {
-           addHistoryEntry({
-               toolName: toolTitle,
-               toolRoute: toolRoute,
-               action: 'clear',
-               input: { previousFileName: fileName },
-               output: 'Inputs and outputs cleared',
-               status: 'success',
-           });
-       }
-   }, [addHistoryEntry, fileName, originalImageSrc, toolTitle, toolRoute]);
-
+   // --- UPDATED handleDownload to REMOVE history logging ---
    const handleDownload = useCallback(() => {
-        if (!flippedImageSrc || !canvasRef.current || !fileName) return;
+        if (!flippedImageSrc || !canvasRef.current || !fileName) {
+            setError('No flipped image available to download.'); // Inform user
+            return;
+        }
+        setError(''); // Clear previous errors
 
         const canvas = canvasRef.current;
-        let historyStatus: 'success' | 'error' = 'success';
-        let historyOutput = 'Download initiated';
 
         try {
             const link = document.createElement('a');
             link.download = `flipped-${fileName}`;
-            // Use canvas content directly if available and valid
             canvas.toBlob((blob) => {
                 if (blob) {
                     link.href = URL.createObjectURL(blob);
+                    document.body.appendChild(link); // Required for Firefox
                     link.click();
-                    URL.revokeObjectURL(link.href);
-                    historyOutput = `Downloaded ${link.download}`;
-                     addHistoryEntry({
-                        toolName: toolTitle, toolRoute: toolRoute,
-                        action: 'download', input: {fileName: fileName, flipType: flipType},
-                        output: historyOutput, status: historyStatus
-                    });
+                    document.body.removeChild(link); // Clean up
+                    URL.revokeObjectURL(link.href); // Clean up blob URL
                 } else {
                     throw new Error("Canvas toBlob failed.");
                 }
-            });
+            }, 'image/png'); // Specify mime type
 
         } catch (err) {
             console.error("Download failed:", err);
             const message = err instanceof Error ? err.message : "Unknown download error";
             setError(`Download failed: ${message}`);
-            historyStatus = 'error';
-            historyOutput = `Error: ${message}`;
-             addHistoryEntry({
-                toolName: toolTitle, toolRoute: toolRoute,
-                action: 'download-failed', input: {fileName: fileName, flipType: flipType, error: message},
-                output: historyOutput, status: historyStatus
-            });
+            // History logging removed
         }
 
-    }, [flippedImageSrc, fileName, addHistoryEntry, toolTitle, toolRoute, flipType]);
+    }, [flippedImageSrc, fileName]); // Removed history dependencies
+    // --- END UPDATE ---
 
+    // --- UPDATED handleCopy to REMOVE history logging ---
     const handleCopy = useCallback(async () => {
         if (!canvasRef.current) {
             setError('Cannot copy: Canvas not available.');
@@ -221,64 +189,48 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
         }
         setIsCopied(false);
         setError('');
-        let historyStatus: 'success' | 'error' = 'success';
-        let historyOutput = 'Image copied to clipboard';
 
         try {
              if (!navigator.clipboard?.write) { throw new Error("Clipboard API (write) not available or not permitted."); }
 
              const canvas = canvasRef.current;
-             canvas.toBlob(async (blob) => {
-                 if (!blob) { throw new Error("Failed to create blob from canvas for clipboard."); }
-                 try {
-                     const clipboardItem = new ClipboardItem({ 'image/png': blob });
-                     await navigator.clipboard.write([clipboardItem]);
-                     setIsCopied(true);
-                     setTimeout(() => setIsCopied(false), 2000); // Reset after 2s
-                 } catch (clipErr) {
-                     throw clipErr; // Rethrow to be caught by outer catch
-                 }
-             }, 'image/png');
+             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+
+             if (!blob) { throw new Error("Failed to create blob from canvas for clipboard."); }
+
+             const clipboardItem = new ClipboardItem({ 'image/png': blob });
+             await navigator.clipboard.write([clipboardItem]);
+             setIsCopied(true);
+             setTimeout(() => setIsCopied(false), 2000);
          } catch (err) {
              console.error('Failed to copy image to clipboard:', err);
              const message = err instanceof Error ? err.message : 'Unknown clipboard error';
              setError(`Copy failed: ${message}`);
-             historyStatus = 'error';
-             historyOutput = `Error: ${message}`;
-         } finally {
-             addHistoryEntry({
-                 toolName: toolTitle, toolRoute: toolRoute,
-                 action: `copy${historyStatus === 'error' ? '-failed': ''}`,
-                 input: {fileName: fileName, flipType: flipType},
-                 output: historyOutput, status: historyStatus
-             });
+             // History logging removed
          }
-     }, [fileName, addHistoryEntry, toolTitle, toolRoute, flipType]);
+         // History logging removed from finally block too
+     }, []); // Removed history dependencies
+     // --- END UPDATE ---
 
-
-    // Effect to automatically trigger flip when image source changes (after initial load)
     useEffect(() => {
         if (originalImageSrc) {
-            // Use a timeout to ensure the img element has rendered and potentially loaded dimensions
             const timer = setTimeout(() => {
-                 handleFlip();
-            }, 100); // Short delay
+                 handleFlip('upload');
+            }, 100);
             return () => clearTimeout(timer);
         }
-    }, [originalImageSrc, handleFlip]);
+    }, [originalImageSrc]);
 
-     // Effect to re-flip when flipType changes and an image is loaded
+
      useEffect(() => {
-        if (originalImageSrc) {
-            handleFlip();
+        if (originalImageSrc && !isLoading) {
+            handleFlip('click');
         }
-     }, [flipType, handleFlip, originalImageSrc]); // Rerun flip if type changes
-
+     }, [flipType, originalImageSrc, isLoading]);
 
   return (
+    // --- JSX unchanged ---
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-
-        {/* Controls */}
         <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
              <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                  {isLoading ? 'Processing...' : (originalImageSrc ? 'Change Image' : 'Select Image')}
@@ -310,7 +262,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
               </div>
         </div>
 
-        {/* Error Display */}
         {error && (
             <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
@@ -318,18 +269,13 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
             </div>
         )}
 
-        {/* Image Previews */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Original Image */}
             <div className="space-y-1">
-                {/* --- MODIFIED LABEL --- */}
                 <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
                   Original Image {fileName && <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">({fileName})</span>}
                 </label>
-                {/* --- END MODIFICATION --- */}
                 <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
                 {originalImageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                        ref={originalImageRef}
                        src={originalImageSrc}
@@ -342,7 +288,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
                 </div>
             </div>
 
-            {/* Flipped Image */}
             <div className="space-y-1">
                 <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Flipped Image</label>
                 <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
@@ -350,7 +295,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
                     <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Flipping...</span>
                  )}
                 {!isLoading && flippedImageSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={flippedImageSrc}
                       alt={fileName ? `Flipped ${fileName}` : "Flipped Image"}
@@ -362,8 +306,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
                 </div>
             </div>
         </div>
-
-         {/* Hidden canvas for processing */}
          <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
     </div>
   );

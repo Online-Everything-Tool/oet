@@ -2,8 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-// Removed: import Image from 'next/image'; // <-- REMOVE THIS LINE
+import { useHistory, TriggerType } from '../../../context/HistoryContext'; // Import TriggerType
 
 interface MontageImage {
   id: number;
@@ -73,6 +72,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { addHistoryEntry } = useHistory();
 
+  // --- handleFileChange --- Logs history on success/failure
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -88,7 +88,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
           const reader = new FileReader();
           reader.onload = (e) => {
             if (e.target?.result && typeof e.target.result === 'string') {
-              const img = new Image(); // Now correctly refers to HTMLImageElement
+              const img = new Image();
               img.onload = () => {
                 resolve({
                   id: Date.now() + Math.random(),
@@ -111,23 +111,26 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
       .then((newImages) => {
         const updatedImageList = [...montageImages, ...newImages];
         setMontageImages(updatedImageList);
+        // Log success
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
-          action: `add-${newImages.length}-images`,
-          input: { fileNames: addedFileNames.join(', ').substring(0, 500) },
+          trigger: 'upload', // Triggered by file upload action
+          input: { fileNames: addedFileNames.join(', ').substring(0, 500), addedCount: newImages.length },
           output: `Montage updated, total: ${updatedImageList.length} images`,
           status: 'success',
         });
       })
       .catch((error) => {
          console.error("Error loading one or more images:", error);
+         const errorMsg = `Error: ${error instanceof Error ? error.message : 'Failed to process files'}`;
+         // Log failure
          addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: `add-images-failed`,
-            input: { fileNames: addedFileNames.join(', ').substring(0, 500) },
-            output: `Error: ${error instanceof Error ? error.message : 'Failed to process files'}`,
+            trigger: 'upload', // Still triggered by upload attempt
+            input: { fileNames: addedFileNames.join(', ').substring(0, 500), error: errorMsg },
+            output: errorMsg,
             status: 'error',
           });
       })
@@ -137,6 +140,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
       });
   }, [addHistoryEntry, montageImages, toolTitle, toolRoute]);
 
+  // --- Canvas drawing useEffect (no history logging) ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -145,7 +149,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
      if (montageImages.length === 0) {
         ctx.clearRect(0, 0, canvas.width, canvas.height); return;
     }
-    console.log("Redrawing canvas...");
+    // console.log("Redrawing canvas..."); // Keep for debugging if needed
 
     const computedStyle = getComputedStyle(document.documentElement);
     const subtleBgColor = computedStyle.getPropertyValue('--color-bg-subtle').trim();
@@ -197,33 +201,22 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
     });
   }, [montageImages]);
 
+  // --- UPDATED handleClearMontage to REMOVE history logging ---
   const handleClearMontage = useCallback(() => {
-    const imageCount = montageImages.length;
     setMontageImages([]);
-    if (imageCount > 0) {
-        addHistoryEntry({
-             toolName: toolTitle,
-             toolRoute: toolRoute,
-             action: 'clear-montage',
-             input: { imageCount: imageCount },
-             output: 'Montage cleared', status: 'success',
-        });
-    }
-  }, [addHistoryEntry, montageImages.length, toolTitle, toolRoute]);
+    // History logging removed
+  }, []);
+  // --- END UPDATE ---
 
+  // --- UPDATED handleDownload to REMOVE history logging ---
   const handleDownload = useCallback(() => {
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) return;
     const bounds = calculateRenderedBounds(montageImages, mainCanvas.height);
-    const inputDetails = { imageCount: montageImages.length };
 
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
       console.error("Could not calculate valid bounds for download.");
-       addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute, action: 'download-failed',
-          input: inputDetails, output: 'Error calculating bounds', status: 'error',
-      });
+      // History logging removed
       return;
     }
 
@@ -233,11 +226,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
 
     if (!tempCtx) {
       console.error("Failed to get context for temporary canvas.");
-       addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute, action: 'download-failed',
-          input: inputDetails, output: 'Error creating temp canvas context', status: 'error',
-      });
+      // History logging removed
       return;
     }
     const computedStyle = getComputedStyle(document.documentElement);
@@ -254,36 +243,25 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
         link.href = url; link.download = `oet-montage-clipped-${Date.now()}.png`;
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        addHistoryEntry({
-             toolName: toolTitle,
-             toolRoute: toolRoute, action: 'download-montage-clipped',
-             input: inputDetails, output: link.download, status: 'success',
-        });
+        // History logging removed
       } else {
         console.error("Failed to create blob from temporary canvas.");
-        addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute, action: 'download-clipped-failed',
-            input: inputDetails, output: 'Error creating blob from temp canvas', status: 'error',
-        });
+        // History logging removed
       }
     }, 'image/png');
-  }, [montageImages, addHistoryEntry, toolTitle, toolRoute]);
+  }, [montageImages]); // Removed history dependencies
+  // --- END UPDATE ---
 
+   // --- UPDATED handleCopyToClipboard to REMOVE history logging ---
    const handleCopyToClipboard = useCallback(async () => {
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) return;
     setIsClipboardCopied(false);
-    const inputDetails = { imageCount: montageImages.length };
 
     const bounds = calculateRenderedBounds(montageImages, mainCanvas.height);
     if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
       console.error("Could not calculate valid bounds for clipboard.");
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute, action: 'copy-failed',
-        input: inputDetails, output: 'Error calculating bounds', status: 'error',
-      });
+      // History logging removed
       return;
     }
 
@@ -292,11 +270,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
     const tempCtx = tempCanvas.getContext('2d');
     if (!tempCtx) {
          console.error("Failed to get context for temporary canvas (clipboard).");
-         addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute, action: 'copy-failed',
-            input: inputDetails, output: 'Error creating temp canvas context', status: 'error',
-         });
+         // History logging removed
         return;
      }
     const computedStyle = getComputedStyle(document.documentElement);
@@ -311,10 +285,6 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
 
       tempCanvas.toBlob(async (blob) => {
         if (!blob) { throw new Error("Failed to create blob from canvas for clipboard."); }
-        let historyStatus: 'success' | 'error' = 'success';
-        let historyOutput = 'Image copied successfully';
-        let historyError = undefined;
-
         try {
             const clipboardItem = new ClipboardItem({ 'image/png': blob });
             await navigator.clipboard.write([clipboardItem]);
@@ -323,32 +293,18 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
             setTimeout(() => setIsClipboardCopied(false), 2000);
         } catch (err) {
              console.error('Failed to copy image to clipboard:', err);
-             historyStatus = 'error';
-             historyOutput = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown clipboard error'}`;
-             historyError = historyOutput;
-             alert(`Failed to copy image: ${historyOutput}\n\nEnsure permissions are granted and the page is focused.`);
-        } finally {
-             addHistoryEntry({
-                 toolName: toolTitle,
-                 toolRoute: toolRoute, action: `copy-to-clipboard${historyStatus === 'error' ? '-failed': ''}`,
-                 input: { ...inputDetails, ...(historyError && { error: historyError }) },
-                 output: historyOutput, status: historyStatus,
-             });
+             alert(`Failed to copy image: ${err instanceof Error ? err.message : 'Unknown clipboard error'}`);
         }
+        // History logging removed from finally block
       }, 'image/png');
     } catch (err) {
         console.error('Clipboard API access error:', err);
-        const message = err instanceof Error ? err.message : 'Unknown clipboard error';
-        addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute, action: 'copy-failed',
-            input: { ...inputDetails, error: `Clipboard API Error: ${message}`},
-            output: `Clipboard API Error: ${message}`, status: 'error',
-        });
-         alert(`Failed to access clipboard: ${message}`);
+        alert(`Failed to access clipboard: ${err instanceof Error ? err.message : 'Unknown clipboard error'}`);
+        // History logging removed
     }
 
-  }, [montageImages, addHistoryEntry, toolTitle, toolRoute]);
+  }, [montageImages]); // Removed history dependencies
+  // --- END UPDATE ---
 
   const handleTiltChange = useCallback((imageId: number, newTilt: number) => {
     setMontageImages((prevImages) => prevImages.map((img) => img.id === imageId ? { ...img, tilt: newTilt } : img ));
@@ -359,6 +315,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
   }, []);
 
   return (
+      // --- JSX Unchanged ---
       <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
          <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))] space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">

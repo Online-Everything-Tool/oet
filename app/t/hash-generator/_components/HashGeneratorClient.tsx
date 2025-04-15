@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 import { md5 } from 'js-md5';
 
@@ -42,7 +42,7 @@ export default function HashGeneratorClient({
         stateSetters as StateSetters
     );
 
-    const handleGenerateHash = useCallback(async (textToProcess = text) => {
+    const handleGenerateHash = useCallback(async (triggerType: TriggerType, textToProcess = text) => {
         setError('');
         setOutputValue('');
         setIsLoading(true);
@@ -50,12 +50,16 @@ export default function HashGeneratorClient({
         if (!textToProcess) {
           setOutputValue('');
           setIsLoading(false);
-          return;
+          return; // Don't log history for empty input
         }
 
         let result = '';
         let status: 'success' | 'error' = 'success';
         let errorMessage = '';
+        const inputDetails = { // Define input details here
+            text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
+            algorithm: algorithm
+        };
 
         try {
           if (algorithm === 'MD5') {
@@ -78,18 +82,17 @@ export default function HashGeneratorClient({
           setError(`Error generating hash: ${errorMessage}`);
           setOutputValue('');
           status = 'error';
+          (inputDetails as Record<string, unknown>).error = errorMessage; // Add error to input details if failed
         } finally {
           setIsLoading(false);
         }
 
+        // Log the hashing action result
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: `${algorithm}${status === 'error' ? '-failed' : ''}`,
-            input: {
-                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
-                algorithm: algorithm
-            },
+            trigger: triggerType,
+            input: inputDetails,
             output: status === 'success' ? result : `Error: ${errorMessage}`,
             status: status,
         });
@@ -99,7 +102,7 @@ export default function HashGeneratorClient({
     useEffect(() => {
         if (shouldRunOnLoad && text) {
             const runAsync = async () => {
-                await handleGenerateHash(text);
+                await handleGenerateHash('query', text); // Pass 'query' trigger
                 setShouldRunOnLoad(false);
             };
             runAsync();
@@ -116,31 +119,29 @@ export default function HashGeneratorClient({
     };
 
     const handleAlgorithmChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        setAlgorithm(event.target.value as HashAlgorithm);
+        const newAlgorithm = event.target.value as HashAlgorithm;
+        setAlgorithm(newAlgorithm);
         setOutputValue('');
         setError('');
+         // Re-trigger hash generation if text exists
+        if (text) {
+            handleGenerateHash('click', text); // Treat option change as 'click' trigger
+        }
     };
 
-    const handleClear = () => {
-        const hadInput = text !== '';
+    // --- UPDATED handleClear to REMOVE history logging ---
+    const handleClear = useCallback(() => {
         setText('');
         setOutputValue('');
         setError('');
         setAlgorithm('MD5');
         setIsLoading(false);
-        if (hadInput) {
-            addHistoryEntry({
-               toolName: toolTitle,
-               toolRoute: toolRoute,
-               action: 'clear',
-               input: { text: '', algorithm: 'MD5' },
-               output: 'Input cleared',
-               status: 'success',
-            });
-        }
-    };
+        // History logging removed
+    }, []); // Dependencies updated
+    // --- END UPDATE ---
 
     return (
+        // --- JSX Unchanged ---
         <div className="space-y-6 text-[rgb(var(--color-text-base))]">
             <div>
               <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"> Input Text: </label>
@@ -169,7 +170,7 @@ export default function HashGeneratorClient({
                </div>
                <div className="flex gap-3 ml-auto">
                    <button
-                        onClick={() => handleGenerateHash()}
+                        onClick={() => handleGenerateHash('click', text)}
                         disabled={isLoading || !text}
                         className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed" > {isLoading ? 'Generating...' : 'Generate Hash'} </button>
                    <button onClick={handleClear} title="Clear input and output" className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition duration-150 ease-in-out" > Clear </button>

@@ -2,9 +2,10 @@
 
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
+import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
-import TextStrikeThroughClient from './_components/TextStrikeThroughClient'; // Import client component
+import TextStrikeThroughClient from './_components/TextStrikeThroughClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
 
 export default function TextStrikeThroughPage() {
@@ -13,7 +14,10 @@ export default function TextStrikeThroughPage() {
   const toolRoute = "/t/text-strike-through";
 
   return (
-    <div className="flex flex-col gap-6">
+    // Add relative positioning
+    <div className="relative flex flex-col gap-6">
+      {/* Render ToolSettings */}
+      <ToolSettings toolRoute={toolRoute} />
       <ToolHeader
         title={toolTitle}
         description={metadata.description || ""}

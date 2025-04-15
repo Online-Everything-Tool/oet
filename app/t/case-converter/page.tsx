@@ -2,19 +2,22 @@
 
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
+import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
-import CaseConverterClient from './_components/CaseConverterClient'; // Import the new client component
-import type { ParamConfig } from '../_hooks/useToolUrlState'; // Import type needed for props
+import CaseConverterClient from './_components/CaseConverterClient';
+import type { ParamConfig } from '../_hooks/useToolUrlState';
 
 export default function CaseConverterPage() {
-    // Pass the necessary props from metadata to the client component
     const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
     const toolTitle = metadata.title || "Case Converter";
     const toolRoute = "/t/case-converter";
 
     return (
-        <div className="flex flex-col gap-6">
+        // Add relative positioning
+        <div className="relative flex flex-col gap-6">
+            {/* Render ToolSettings */}
+            <ToolSettings toolRoute={toolRoute} />
             <ToolHeader
                 title={toolTitle}
                 description={metadata.description || ""}

@@ -29,10 +29,9 @@ export default function Header() {
               <sl-icon
                 name="journal-text"
                 label="History" // Keep internal label for accessibility tools
-                style={{ fontSize: '1.5rem' }} // Use style prop for size
+                style={{ fontSize: '1.75rem' }} // Use style prop for size
                 aria-hidden="true"
               ></sl-icon>
-
             </Link>
              {/* Badge - positioned relative to the div wrapper */}
              {isLoaded && historyCount > 0 && (

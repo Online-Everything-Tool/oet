@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+// Import TriggerType along with useHistory
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 type Reverse = 'characters' | 'words' | 'lines';
@@ -22,7 +23,7 @@ export default function TextReverseClient({
     const [outputValue, setOutputValue] = useState<string>('');
     const [reverse, setReverse] = useState<Reverse>('characters');
     const [error, setError] = useState<string>('');
-    const { addHistoryEntry } = useHistory();
+    const { addHistoryEntry } = useHistory(); // History hook usage remains the same
 
     const stateSetters = useMemo(() => ({
         text: setText,
@@ -34,15 +35,17 @@ export default function TextReverseClient({
         stateSetters as StateSetters
     );
 
-    const handleReverse = useCallback((textToProcess = text) => {
+    // Updated handleReverse to accept and use triggerType
+    const handleReverse = useCallback((textToProcess = text, triggerType: TriggerType) => {
         let result = '';
         let status: 'success' | 'error' = 'success';
         let currentError = '';
         setError('');
-        setOutputValue('');
+        setOutputValue(''); // Clear previous output
 
         try {
             if (!textToProcess) {
+                // Don't process or log history for empty input
                 return;
             }
             switch (reverse) {
@@ -56,16 +59,17 @@ export default function TextReverseClient({
         } catch (err) {
             console.error("Error during reversing:", err);
             currentError = err instanceof Error ? err.message : "An unknown error occurred.";
-            setOutputValue('');
+            setOutputValue(''); // Ensure output is cleared on error
             setError(currentError);
             status = 'error';
         }
 
+        // --- UPDATED History Entry Call ---
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: `reverse-${reverse}${status === 'error' ? '-failed' : ''}`,
-            input: {
+            trigger: triggerType, // Use the passed trigger type
+            input: { // Combined input object
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 reverse: reverse
             },
@@ -74,47 +78,50 @@ export default function TextReverseClient({
                 : `Error: ${currentError}`,
             status: status,
         });
-    }, [reverse, addHistoryEntry, text, toolTitle, toolRoute]);
+        // --- END UPDATED History Entry Call ---
 
+    }, [reverse, addHistoryEntry, text, toolTitle, toolRoute]); // Added `text` to dependencies as it's used in default value
+
+    // Updated useEffect to pass the correct trigger type
     useEffect(() => {
         if (shouldRunOnLoad && text) {
-            handleReverse(text);
+            handleReverse(text, 'query'); // Pass 'query' trigger for URL load execution
             setShouldRunOnLoad(false);
         } else if (shouldRunOnLoad && !text) {
+            // If triggered by URL but text is empty, don't run, just reset flag
             setShouldRunOnLoad(false);
         }
-    }, [shouldRunOnLoad, setShouldRunOnLoad, text, reverse, handleReverse]);
+    }, [shouldRunOnLoad, setShouldRunOnLoad, text, reverse, handleReverse]); // Dependencies remain the same
 
 
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(event.target.value);
         setOutputValue('');
         setError('');
+        // Note: We are NOT auto-triggering history on input change here.
+        // History is logged only on explicit click or URL load.
     };
 
     const handleReverseChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const newMode = event.target.value as Reverse;
         setReverse(newMode);
-        setOutputValue('');
+        setOutputValue(''); // Clear output when mode changes
         setError('');
+        // Re-run calculation immediately if there's text
+        if (text) {
+            // Triggering handleReverse here implies an 'auto' or implicit 'click' style change.
+            // Let's treat changing the radio *as* the action for now, using 'click'
+            // If we wanted true 'auto' based on input later, this would need refinement.
+            handleReverse(text, 'click');
+        }
     };
 
     const handleClear = () => {
-        const hadInput = text !== '';
         setText('');
         setOutputValue('');
         setError('');
         setReverse('characters');
-        if (hadInput) {
-           addHistoryEntry({
-               toolName: toolTitle,
-               toolRoute: toolRoute,
-               action: 'clear',
-               input: { text: '', reverse: 'characters' },
-               output: 'Input cleared',
-               status: 'success',
-           });
-        }
+        // --- REMOVED addHistoryEntry call for 'clear' action ---
     };
 
     return (
@@ -142,9 +149,9 @@ export default function TextReverseClient({
                 <div className="flex gap-3 ml-auto">
                     <button
                         type="button"
-                        onClick={() => handleReverse()}
+                        onClick={() => handleReverse(text, 'click')} // Explicitly pass 'click' trigger
                         disabled={!text}
-                        className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]">
+                        className="px-5 py-2 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]">
                         Reverse
                     </button>
                     <button type="button" onClick={handleClear} title="Clear input and output" className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out"> Clear </button>

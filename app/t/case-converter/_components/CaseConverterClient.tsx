@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 const SENTENCE_CASE_REGEX = /(^\s*\w|[.!?]\s*\w)/g;
@@ -17,9 +17,23 @@ const CASE_TYPES = [
   { value: 'pascal', label: 'PascalCase' },
   { value: 'snake', label: 'snake_case' },
   { value: 'kebab', label: 'kebab-case' },
-];
+] as const;
 
-type Case = 'uppercase' | 'lowercase' | 'sentence' | 'title' | 'camel' | 'pascal' | 'snake' | 'kebab';
+type Case = typeof CASE_TYPES[number]['value'];
+
+// Button color cycle
+const buttonColorCycle = [
+    { base: '--color-button-primary-bg', hover: '--color-button-primary-hover-bg', text: '--color-button-primary-text'},
+    { base: '--color-button-secondary-bg', hover: '--color-button-secondary-hover-bg', text: '--color-button-secondary-text'},
+    { base: '--color-button-accent2-bg', hover: '--color-button-accent2-hover-bg', text: '--color-button-accent2-text'},
+    { base: '--color-button-accent-bg', hover: '--color-button-accent-hover-bg', text: '--color-button-accent-text'},
+] as const;
+
+// Active button style using Accent Purple
+const activeBgColorVar = '--color-button-accent-bg';
+const activeHoverBgColorVar = '--color-button-accent-hover-bg';
+const activeTextColorVar = '--color-button-accent-text';
+
 
 interface CaseConverterClientProps {
     urlStateParams: ParamConfig[];
@@ -48,17 +62,17 @@ export default function CaseConverterClient({
         stateSetters as StateSetters
     );
 
-    const handleConvertCase = useCallback((textToProcess = text) => {
+    const handleConvertCase = useCallback((triggerType: TriggerType, targetCase: Case, textToProcess = text) => {
         let result = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
         setError('');
         setOutputValue('');
 
-        if (!textToProcess) return;
+        if (!textToProcess) return; // Don't log history for empty input
 
         try {
-            switch (caseType) {
+            switch (targetCase) {
               case 'uppercase': result = textToProcess.toUpperCase(); break;
               case 'lowercase': result = textToProcess.toLowerCase(); break;
               case 'sentence': result = textToProcess.toLowerCase().replace(SENTENCE_CASE_REGEX, (char) => char.toUpperCase()); break;
@@ -67,7 +81,9 @@ export default function CaseConverterClient({
               case 'pascal': result = textToProcess.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase()).replace(/^./, (char) => char.toUpperCase()); break;
               case 'snake': result = textToProcess.replace(/\W+/g, " ").split(/ |\B(?=[A-Z])/).map(word => word.toLowerCase()).filter(Boolean).join('_'); break;
               case 'kebab': result = textToProcess.replace(/\W+/g, " ").split(/ |\B(?=[A-Z])/).map(word => word.toLowerCase()).filter(Boolean).join('-'); break;
-              default: throw new Error(`Unsupported case type: ${caseType}`);
+              default:
+                 const exhaustiveCheck: never = targetCase;
+                 throw new Error(`Unsupported case type: ${exhaustiveCheck}`);
             }
             setOutputValue(result);
         } catch (err) {
@@ -77,23 +93,24 @@ export default function CaseConverterClient({
             status = 'error';
         }
 
+        // Log the conversion action
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: `convert-${caseType}`,
+            trigger: triggerType,
             input: {
-                text: textToProcess.substring(0, 500) + (textToProcess.length > 500 ? '...' : ''),
-                case: caseType
+                text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
+                case: targetCase
             },
-            output: status === 'success' ? (result.substring(0, 500) + (result.length > 500 ? '...' : '')) : `Error: ${currentError}`,
+            output: status === 'success' ? (result.length > 500 ? result.substring(0, 500) + '...' : result) : `Error: ${currentError}`,
             status: status,
         });
 
-    }, [text, caseType, addHistoryEntry, toolTitle, toolRoute]);
+    }, [text, addHistoryEntry, toolTitle, toolRoute]);
 
     useEffect(() => {
         if (shouldRunOnLoad && text) {
-            handleConvertCase(text);
+            handleConvertCase('query', caseType, text); // Logs with 'query' trigger
             setShouldRunOnLoad(false);
         } else if (shouldRunOnLoad && !text) {
             setShouldRunOnLoad(false);
@@ -105,26 +122,27 @@ export default function CaseConverterClient({
         setOutputValue(''); setError('');
     };
 
-    const handleClear = () => {
-        const hadInput = text !== '';
-        setText(''); setOutputValue(''); setError('');
+    // Clear function NO LONGER logs history
+    const handleClear = useCallback(() => {
+        setText('');
+        setOutputValue('');
+        setError('');
         setCaseType('lowercase');
-        if (hadInput) {
-           addHistoryEntry({
-               toolName: toolTitle,
-               toolRoute: toolRoute,
-               action: 'clear',
-               input: { text: '', case: 'lowercase'},
-               output: 'Input cleared',
-               status: 'success'
-           });
+    }, []);
+
+    const handleCaseButtonClick = (newCaseType: Case) => {
+        setCaseType(newCaseType);
+        if (text) {
+           handleConvertCase('click', newCaseType, text); // Logs with 'click' trigger
+        } else {
+           setOutputValue('');
+           setError('');
         }
     };
 
-    const handleCaseTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-        setCaseType(event.target.value as Case);
-        setOutputValue(''); setError('');
-    };
+    const currentCaseLabel = useMemo(() => {
+        return CASE_TYPES.find(ct => ct.value === caseType)?.label || caseType;
+    }, [caseType]);
 
     return (
         <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -140,40 +158,49 @@ export default function CaseConverterClient({
                     spellCheck="false"
                 />
             </div>
-            <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">
-                <div className="flex flex-wrap gap-x-4 gap-y-3 items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <label htmlFor="case-select" className="text-sm font-medium text-[rgb(var(--color-text-muted))] shrink-0">Target Case:</label>
-                        <select
-                            id="case-select"
-                            name="case"
-                            value={caseType}
-                            onChange={handleCaseTypeChange}
-                            className="rounded-md border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm py-1.5 px-2">
-                            {CASE_TYPES.map(ct => (<option key={ct.value} value={ct.value}>{ct.label}</option>))}
-                        </select>
-                    </div>
-                     <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={() => handleConvertCase()}
-                            disabled={!text}
-                            className="px-4 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]">
-                            Convert Case
-                        </button>
-                         <button
-                            type="button"
-                            onClick={handleClear}
-                            title="Clear input and output"
-                            className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out">
-                            Clear
-                        </button>
-                     </div>
+
+            <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
+                <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-3">Convert to:</label>
+                <div className="flex flex-wrap gap-2">
+                    {CASE_TYPES.map((ct, index) => {
+                        const isActive = caseType === ct.value;
+                        const colorIndex = index % buttonColorCycle.length;
+                        const colors = buttonColorCycle[colorIndex];
+
+                        const baseClasses = "px-3 py-1.5 rounded-md text-sm font-medium border-2 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1";
+                        const inactiveClasses = `bg-[rgb(var(${colors.base}))] border-transparent text-[rgb(var(${colors.text}))] hover:bg-[rgb(var(${colors.hover}))] focus:ring-[rgb(var(${colors.base})/0.5)]`;
+                        const activeClasses = `bg-[rgb(var(${activeBgColorVar}))] border-transparent text-[rgb(var(${activeTextColorVar}))] hover:bg-[rgb(var(${activeHoverBgColorVar}))] ring-2 ring-offset-2 ring-[rgb(var(${activeBgColorVar}))]`;
+
+                        return (
+                            <button
+                                key={ct.value}
+                                type="button"
+                                onClick={() => handleCaseButtonClick(ct.value)}
+                                disabled={!text}
+                                className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}
+                                aria-pressed={isActive}
+                            >
+                                {ct.label}
+                            </button>
+                        );
+                    })}
+                     <button
+                        type="button"
+                        onClick={handleClear} // This does NOT log history
+                        disabled={!text && !outputValue && !error}
+                        title="Clear input and output"
+                        className="px-3 py-1.5 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-[rgb(var(--color-border-base))] focus:outline-none transition-colors duration-150 ease-in-out ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Clear
+                    </button>
                 </div>
             </div>
+
             {error && ( <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg> <div><strong className="font-semibold">Error:</strong> {error}</div> </div> )}
             <div>
-                <label htmlFor="text-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Output:</label>
+                <label htmlFor="text-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
+                    Output ({currentCaseLabel}):
+                </label>
                 <textarea
                     id="text-output"
                     rows={8}

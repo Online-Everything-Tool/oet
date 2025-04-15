@@ -2,14 +2,15 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+// Import TriggerType
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 interface TextCounts {
   words: number;
   characters: number;
   lines: number;
-  search: string;
+  search: string; // Keep search term in counts for easy access in output log
   customCount: number;
 }
 
@@ -28,7 +29,7 @@ export default function TextCounterClient({
     const [search, setSearch] = useState<string>('');
     const lastLoggedTextRef = useRef<string | null>(null);
     const lastLoggedSearchRef = useRef<string | null>(null);
-    const initialLoadComplete = useRef(false);
+    const initialLoadComplete = useRef(false); // Track initial load
 
     const { addHistoryEntry } = useHistory();
 
@@ -37,20 +38,25 @@ export default function TextCounterClient({
         search: setSearch,
     }), []);
 
+    // useToolUrlState hook remains the same
     useToolUrlState(
        urlStateParams,
        stateSetters as StateSetters
     );
 
+    // Effect to initialize refs after initial state hydration from URL/defaults
     useEffect(() => {
-          if (!initialLoadComplete.current) {
-              lastLoggedTextRef.current = text;
-              lastLoggedSearchRef.current = search;
-              initialLoadComplete.current = true;
-          }
-    }, [text, search]);
+        // Only run this once after the component mounts and initial state is set
+        if (!initialLoadComplete.current) {
+            lastLoggedTextRef.current = text;
+            lastLoggedSearchRef.current = search;
+            initialLoadComplete.current = true;
+            console.log('[TextCounter] Initial refs set:', { text: text, search: search });
+        }
+    }, [text, search]); // Rerun if state changes before initial flag is set
 
 
+    // Calculate counts whenever text or search changes
     const allCounts = useMemo((): TextCounts => {
       const inputText = text;
       const searchString = search;
@@ -59,8 +65,14 @@ export default function TextCounterClient({
       const characters = inputText.length;
       const lines = inputText === '' ? 0 : inputText.split(/\r\n|\r|\n/).length;
       let customCount = 0;
+      // Perform case-insensitive search for occurrences if needed, or keep case-sensitive
       if (inputText && searchString) {
+         // Simple case-sensitive count:
          customCount = inputText.split(searchString).length - 1;
+         // Example case-insensitive count (adjust if needed):
+         // const regex = new RegExp(searchString.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi');
+         // const matches = inputText.match(regex);
+         // customCount = matches ? matches.length : 0;
       }
       return { words, characters, lines, search: searchString, customCount };
     }, [text, search]);
@@ -74,89 +86,62 @@ export default function TextCounterClient({
       setSearch(event.target.value);
     }, []);
 
-    const handleBlurLogging = useCallback((inputType: 'text' | 'search') => {
+    // Unified blur handler for logging
+    const handleBlurLogging = useCallback(() => {
+      // Don't log until initial state is potentially set from URL
       if (!initialLoadComplete.current) {
           return;
       }
 
       const currentText = text;
       const currentSearch = search;
-      const lastLoggedText = lastLoggedTextRef.current;
-      const lastLoggedSearch = lastLoggedSearchRef.current;
+      const textChanged = currentText !== lastLoggedTextRef.current;
+      const searchChanged = currentSearch !== lastLoggedSearchRef.current;
 
-      let valueChanged = false;
-      if (inputType === 'text' && currentText !== lastLoggedText) {
-          valueChanged = true;
-      } else if (inputType === 'search' && currentSearch !== lastLoggedSearch) {
-          valueChanged = true;
-      }
+      // Only log if text or search string has changed since last log/load
+      if (textChanged || searchChanged) {
+          console.log('[TextCounter] Blur detected with changes, logging history.', { textChanged, searchChanged });
 
-      if (valueChanged) {
-          const trimmedText = currentText.trim();
-          const words = trimmedText.length === 0 ? 0 : trimmedText.split(/\s+/).filter(Boolean).length;
-          const characters = currentText.length;
-          const lines = currentText === '' ? 0 : currentText.split(/\r\n|\r|\n/).length;
-          let customCount = 0;
-          if (currentText && currentSearch) {
-              customCount = currentText.split(currentSearch).length - 1;
-          }
+          // Get the latest counts directly
+          const latestCounts = allCounts;
 
           addHistoryEntry({
               toolName: toolTitle,
               toolRoute: toolRoute,
-              action: `update-${inputType}`,
-              input: {
+              trigger: 'auto', // Triggered automatically after input change + blur
+              input: { // Log current state
                   text: currentText.length > 500 ? currentText.substring(0, 500) + '...' : currentText,
                   search: currentSearch
               },
-              output: {
-                  words: words,
-                  characters: characters,
-                  lines: lines,
-                  customCount: customCount
+              output: { // Log calculated counts
+                  words: latestCounts.words,
+                  characters: latestCounts.characters,
+                  lines: latestCounts.lines,
+                  customCount: latestCounts.customCount
               },
-              status: 'success',
+              status: 'success', // Assume success as it's just counting
           });
 
-          if (inputType === 'text') {
-              lastLoggedTextRef.current = currentText;
-          } else {
-              lastLoggedSearchRef.current = currentSearch;
-          }
+          // Update refs to the newly logged state
+          lastLoggedTextRef.current = currentText;
+          lastLoggedSearchRef.current = currentSearch;
+      } else {
+          console.log('[TextCounter] Blur detected, but no changes to log.');
       }
-    }, [text, search, addHistoryEntry, toolTitle, toolRoute]);
+    }, [text, search, allCounts, addHistoryEntry, toolTitle, toolRoute]); // Add allCounts dependency
+
 
     const handleClearSearch = useCallback(() => {
-      const oldString = search;
       setSearch('');
-      lastLoggedSearchRef.current = '';
-      if (oldString) {
-          addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'clear-search',
-              input: { text: text, search: '' },
-              output: 'Search string cleared',
-              status: 'success',
-          });
-      }
-    }, [addHistoryEntry, search, text, toolTitle, toolRoute]);
+      // No history log here
+    }, []); // Removed dependencies related to logging
 
     const handleClearText = useCallback(() => {
-       const oldText = text;
        setText('');
-       lastLoggedTextRef.current = '';
-       if (oldText) {
-          addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'clear-text',
-              input: { text: '', search: search },
-              output: 'Text cleared',
-              status: 'success',
-          });
-       }
-    }, [addHistoryEntry, text, search, toolTitle, toolRoute]);
+       // Also clear search when clearing text? Optional, but can be helpful.
+       // setSearch('');
+       // No history log here
+    }, []); // Removed dependencies related to logging
 
     return (
         <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -169,7 +154,7 @@ export default function TextCounterClient({
                     rows={10}
                     value={text}
                     onChange={handleInputChange}
-                    onBlur={() => handleBlurLogging('text')}
+                    onBlur={handleBlurLogging} // Use unified blur handler
                     placeholder="Paste or type your text here..."
                     aria-label="Text input area"
                     className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
@@ -195,8 +180,9 @@ export default function TextCounterClient({
                     <button
                         type="button"
                         onClick={handleClearText}
+                        disabled={!text} // Disable if no text to clear
                         title="Clear input text"
-                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out"
+                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Clear Text
                     </button>
@@ -217,7 +203,7 @@ export default function TextCounterClient({
                         name="search"
                         value={search}
                         onChange={handleSearchChange}
-                        onBlur={() => handleBlurLogging('search')}
+                        onBlur={handleBlurLogging} // Use unified blur handler
                         placeholder="Text to Count Occurrences..."
                         aria-label="Text to count occurrences of"
                         className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
