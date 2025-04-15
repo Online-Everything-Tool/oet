@@ -1,0 +1,1 @@
+{"title": "Hex Color Converter","description": "Converts hexadecimal color codes to RGB and HSL values, and vice-versa.","urlStateParams": [{"paramName": "hex", "type": "string", "defaultValue": ""}],"tags": [],"iconName": null,"includeInSitemap": true,"status": "stable"}
