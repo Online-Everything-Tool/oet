@@ -1,10 +1,10 @@
 // FILE: app/t/html-entity-explorer/page.tsx
 import fs from 'fs/promises';
 import path from 'path';
-import EntitySearchClient from './_components/HtmlEntitySearchClient';
+import HtmlEntityExplorerClient from './_components/HtmlEntityExplorerClient';
 import { v4 as uuidv4 } from 'uuid';
 import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
+import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 
 // Interfaces remain the same
@@ -12,7 +12,7 @@ interface RawEntityItem { name?: string; character?: string; unicode?: string; h
 interface CategorizedRawData { [category: string]: RawEntityItem[]; }
 export interface RichEntityData { id: string; name: string; code: string; char: string; description: string; category: string; }
 
-// Server-side data fetching function remains the same
+// Server-side data fetching function corrected
 async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], categories: string[] }> {
   const filePath = path.join(process.cwd(), 'app', 't', 'html-entity-explorer', '_data', 'html-entities-data.json');
   let jsonData: CategorizedRawData;
@@ -36,12 +36,26 @@ async function loadAndProcessEntities(): Promise<{ entities: RichEntityData[], c
     const entityArray = jsonData[categoryName];
     for (const item of entityArray) {
       if (!item || typeof item !== 'object') { totalSkipped++; continue; }
+      // *** FIXED Typo: 'stringSearch' -> 'string' ***
       const code = (typeof item.hex === 'string' && item.hex.trim()) || (typeof item.dec === 'string' && item.dec.trim()) || null;
       let char = (typeof item.character === 'string') ? item.character : null;
+
       if (!code) { totalSkipped++; continue; }
-      if (code === ' ' || code === ' ') { if (char === null || char === '') char = '\u00A0'; }
-      char = (char === null || char.trim() === '') ? '\u00A0' : char;
-      if (char === '\u00A0' && !(code === ' ' || code === ' ')) { totalSkipped++; continue; }
+
+      // Handle NBSP specifically using hex/dec codes
+      const isNBSPCode = code === ' ' || code === ' ' || code === '\u00A0';
+
+      if (isNBSPCode) {
+        if (char === null || char === '') char = '\u00A0'; // Ensure NBSP character if code matches
+      } else {
+         // Ensure char is not empty/whitespace for non-NBSP codes
+         char = (char === null || char.trim() === '') ? null : char;
+      }
+
+      // If char is still null after processing, skip the entity
+      if (char === null) { totalSkipped++; continue; }
+
+
       const entityName = (typeof item.entity === 'string' && item.entity.startsWith('&') && item.entity.endsWith(';')) ? item.entity.trim() : code;
       const description = (typeof item.name === 'string' && item.name.trim()) || 'No description available';
       const processedEntity = { name: entityName, code: code, char: char, description: description, category: categoryName };
@@ -73,7 +87,7 @@ export default async function HtmlEntityPage() {
           title={toolTitle}
           description={metadata.description || ""}
       />
-      <EntitySearchClient initialEntities={entities} availableCategories={categories} />
+      <HtmlEntityExplorerClient initialEntities={entities} availableCategories={categories} />
     </div>
   );
 }

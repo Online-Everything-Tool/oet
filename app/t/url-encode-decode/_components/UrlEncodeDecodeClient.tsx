@@ -58,7 +58,7 @@ export default function UrlEncodeDecodeClient({
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: 'encode',
+            trigger: 'click',
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'encode'
@@ -98,7 +98,7 @@ export default function UrlEncodeDecodeClient({
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            action: 'decode',
+            trigger: 'click',
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'decode'
@@ -132,21 +132,10 @@ export default function UrlEncodeDecodeClient({
     };
 
     const handleClear = () => {
-        const hadInput = text !== '';
         setText('');
         setOutputValue('');
         setError('');
         setOperation('encode');
-         if (hadInput) {
-           addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute: toolRoute,
-              action: 'clear',
-              input: { text: '', operation: 'encode' },
-              output: 'Input cleared',
-              status: 'success',
-           });
-        }
     };
 
     return (

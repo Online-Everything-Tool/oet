@@ -116,12 +116,12 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
                   const validPrefs: Record<string, LoggingPreference> = {};
                   for (const route in parsedSettings.toolPreferences) {
                       const pref = parsedSettings.toolPreferences[route];
-                      if (pref === 'on' || pref === 'restrictive' || pref === 'off' || pref === 'log_all' || pref === 'log_inputs_only' || pref === 'log_nothing') {
+                      if (pref === 'on' || pref === 'restrictive' || pref === 'off' ) {
                           // --- MAP Old values to New values during load ---
                           let mappedPref: LoggingPreference = 'restrictive'; // Default map
-                          if (pref === 'on' || pref === 'log_all') mappedPref = 'on';
-                          else if (pref === 'restrictive' || pref === 'log_inputs_only') mappedPref = 'restrictive';
-                          else if (pref === 'off' || pref === 'log_nothing') mappedPref = 'off';
+                          if (pref === 'on') mappedPref = 'on';
+                          else if (pref === 'restrictive') mappedPref = 'restrictive';
+                          else if (pref === 'off') mappedPref = 'off';
                           validPrefs[route] = mappedPref;
                       }
                   }
@@ -183,7 +183,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
 
   const getToolLoggingPreference = useCallback((toolRoute: string): LoggingPreference => {
-      // --- UPDATED Default ---
+      // --- UPDATED Default ---NewHistoryData
       return toolPreferences[toolRoute] || 'restrictive';
   }, [toolPreferences]);
 

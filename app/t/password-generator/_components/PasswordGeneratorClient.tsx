@@ -1,10 +1,11 @@
 // FILE: app/t/password-generator/_components/PasswordGeneratorClient.tsx
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
-// Import TriggerType and NEW LoggingPreference values
-import { useHistory, TriggerType, LoggingPreference } from '../../../context/HistoryContext';
-// REMOVED Shoelace component imports related to dialog/icon-button
+// Removed unused useEffect, LoggingPreference
+import React, { useState, useCallback } from 'react';
+// Only need TriggerType for generatePassword
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
+// Removed Shoelace imports as they are in ToolSettings now
 
 const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
 const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -28,8 +29,6 @@ export default function PasswordGeneratorClient({
   const [includeSymbols, setIncludeSymbols] = useState<boolean>(true);
   const [copied, setCopied] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  // --- REMOVED State for the settings dialog ---
-  // const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const { addHistoryEntry } = useHistory();
 
@@ -115,10 +114,11 @@ export default function PasswordGeneratorClient({
         return;
      }
     setError('');
-    let status: 'success' | 'error' = 'success';
-    let historyOutput = '[Password copied to clipboard]';
-    const inputDetails = { copiedPasswordLength: password.length };
-    let historyError = undefined;
+    // Removed unused history variables
+    // let status: 'success' | 'error' = 'success';
+    // let historyOutput = '[Password copied to clipboard]';
+    // const inputDetails = { copiedPasswordLength: password.length };
+    // let historyError = undefined;
 
     try {
       await navigator.clipboard.writeText(password);
@@ -128,20 +128,12 @@ export default function PasswordGeneratorClient({
       console.error('Failed to copy password: ', err);
       const message = 'Failed to copy password.';
       setError(message);
-      status = 'error';
-      historyOutput = `Error: ${message}`;
-      historyError = historyOutput;
-    } finally {
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'click',
-          input: { ...inputDetails, ...(historyError && { error: historyError }) },
-          output: historyOutput,
-          status: status,
-        });
+      // status = 'error';
+      // historyOutput = `Error: ${message}`;
+      // historyError = historyOutput;
     }
-  }, [password, addHistoryEntry, toolTitle, toolRoute]);
+    // History logging removed
+  }, [password]); // Dependencies updated
 
   const handleCheckboxChange = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentValue: boolean) => {
     const othersChecked = [includeUppercase, includeLowercase, includeNumbers, includeSymbols].filter(val => val).length > (currentValue ? 1 : 0);
@@ -169,11 +161,10 @@ export default function PasswordGeneratorClient({
 
   const canGenerate = length > 0 && length <= 256 && (includeLowercase || includeUppercase || includeNumbers || includeSymbols);
 
-  // Removed initial generation useEffect
-
+  // --- Render function ---
   return (
-    // Removed Settings Button and Dialog from here
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
+            {/* Settings button DIV removed from here */}
             <div className="space-y-2">
                 <label htmlFor="generated-password-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Generated Password</label>
                 <div className="flex items-stretch gap-2">
@@ -236,7 +227,6 @@ export default function PasswordGeneratorClient({
                 <fieldset className="space-y-3">
                     <legend className="sr-only">Character types to include</legend>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                        {/* Checkbox inputs remain the same */}
                         <div className="flex items-center gap-2">
                             <input type="checkbox" id="include-uppercase" checked={includeUppercase} onChange={() => handleCheckboxChange(setIncludeUppercase, includeUppercase)} className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}/>
                             <label htmlFor="include-uppercase" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">Uppercase (A-Z)</label>
@@ -265,7 +255,7 @@ export default function PasswordGeneratorClient({
             >
                 Generate New Password
             </button>
-            {/* Dialog removed from here */}
+            {/* Dialog removed */}
     </div>
   );
 }

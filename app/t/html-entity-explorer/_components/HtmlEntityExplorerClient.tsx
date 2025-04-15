@@ -1,4 +1,4 @@
-// FILE: app/t/html-entity-explorer/_components/HtmlEntitySearchClient.tsx
+// FILE: app/t/html-entity-explorer/_components/HtmlEntityExplorerClient.tsx
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -10,7 +10,7 @@ interface EntitySearchClientProps {
   availableCategories: string[];
 }
 
-export default function HtmlEntitySearchClient({ initialEntities, availableCategories }: EntitySearchClientProps) {
+export default function HtmlEntityExplorerClient({ initialEntities, availableCategories }: EntitySearchClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const { addHistoryEntry } = useHistory();
@@ -54,7 +54,7 @@ export default function HtmlEntitySearchClient({ initialEntities, availableCateg
       console.error('Clipboard API not available.');
       historyInput.error = 'Clipboard API not available';
       addHistoryEntry({
-          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', action: `copy_${type}-failed`,
+          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', trigger: `click`,
           input: historyInput, output: textToCopy, status: 'error',
       });
       return;
@@ -62,7 +62,7 @@ export default function HtmlEntitySearchClient({ initialEntities, availableCateg
     navigator.clipboard.writeText(textToCopy)
       .then(() => {
         addHistoryEntry({
-          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', action: `copy_${type}`,
+          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', trigger: `click`,
           input: historyInput, output: textToCopy, status: 'success',
         });
       })
@@ -70,7 +70,7 @@ export default function HtmlEntitySearchClient({ initialEntities, availableCateg
         console.error('Failed to copy:', err);
         historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
          addHistoryEntry({
-          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', action: `copy_${type}-failed`,
+          toolName: 'HTML Entity Explorer', toolRoute: '/t/html-entity-explorer', trigger: `click`,
           input: historyInput, output: textToCopy, status: 'error',
         });
       });
@@ -146,7 +146,7 @@ export default function HtmlEntitySearchClient({ initialEntities, availableCateg
                     {entity.char}
                 </div>
                 <div className="text-center text-sm space-y-1 w-full">
-                    <p className="text-[rgb(var(--color-text-muted))] truncate h-5" title={entity.description || 'No description available'}>
+                    <p className="text-[rgb(var(--color-text-mSearchuted))] truncate h-5" title={entity.description || 'No description available'}>
                        {entity.description || <> </>}
                     </p>
                     <div className="flex flex-wrap justify-center items-center gap-x-2 gap-y-1 pt-1 min-h-[30px]">

@@ -4,8 +4,8 @@
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import JSZip from 'jszip';
 import Image from 'next/image';
-// Import TriggerType (still needed for processZipFile log)
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+// Removed unused TriggerType import (it's still used in HistoryContext, just not directly here)
+import { useHistory } from '../../../context/HistoryContext';
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
@@ -37,7 +37,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
-  // --- processZipFile ---
+  // --- processZipFile --- Logs history on completion/failure
   const processZipFile = useCallback(async (file: File) => {
     setIsLoading(true); setError(null); setFileTree([]);
     setExpandedFolders(new Set()); zipRef.current = null;
@@ -61,7 +61,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
 
       const treeData = buildFileTree(rawEntries);
       setFileTree(treeData);
-      historyOutput = `${rawEntriesCount} files found in ${file.name}`; // More descriptive output
+      historyOutput = `${rawEntriesCount} files found in ${file.name}`;
 
     } catch (err: unknown) {
       console.error("Error processing zip file:", err);
@@ -73,46 +73,41 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
       historyInput.error = errorMessage;
     } finally {
       setIsLoading(false);
-      // --- History Entry ONLY in processZipFile ---
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        trigger: 'upload', // Triggered by the file processing action
+        trigger: 'upload',
         input: historyInput,
         output: historyOutput,
         status: historyStatus,
       });
-      // --- End History Entry ---
     }
   }, [addHistoryEntry, toolTitle, toolRoute]);
 
-  // --- handleClear ---
+  // --- handleClear --- No history log
   const handleClear = useCallback(() => {
-    // const hadFile = selectedFile !== null; // Keep track if needed for non-logging logic
     setSelectedFile(null); setFileTree([]); setError(null);
     zipRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = '';
     setFilterName(''); setFilterMinDate(''); setFilterMaxDate('');
     setExpandedFolders(new Set()); setIsPreviewOpen(false);
-    // --- REMOVED addHistoryEntry call ---
-  }, []); // Dependencies updated
+  }, []);
 
-  // --- handleFileChange ---
+  // --- handleFileChange --- Logs failure immediately, success logged by processZipFile
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    handleClear(); // Clear previous state first
+    handleClear();
     if (file) {
       if (file.type === 'application/zip' || file.type === 'application/x-zip-compressed' || file.name.toLowerCase().endsWith('.zip')) {
         setSelectedFile(file);
-        processZipFile(file); // This function logs the history event
+        processZipFile(file); // Success/failure log happens here
       } else {
         const errorMsg = 'Invalid file type. Please select a .zip file.';
         setError(errorMsg);
-        // Log failure to process immediately
          addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            trigger: 'upload', // Triggered by file selection attempt
+            trigger: 'upload',
             input: { fileName: file.name, error: 'Invalid file type' },
             output: errorMsg,
             status: 'error',
@@ -120,9 +115,9 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
         if(fileInputRef.current) fileInputRef.current.value = '';
       }
     }
-  }, [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]); // Added addHistoryEntry back for error case
+  }, [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]);
 
-  // --- handleDownload ---
+  // --- handleDownload --- No history log
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {
      if (!entryData?._zipObject) { setError(`Download error: Zip object missing for ${entryData.name}`); return; }
     setError(null);
@@ -140,12 +135,10 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
         console.error(`Error downloading file ${entryData.id}:`, err);
         const message = err instanceof Error ? err.message : 'Unknown download error';
         setError(`Download failed for ${filenameToSave}: ${message}`);
-        // Failure to download might still be worth logging if needed, but per request, it's removed.
     }
-    // --- REMOVED addHistoryEntry call ---
-  }, []); // Dependencies updated
+  }, []);
 
-  // --- handlePreview ---
+  // --- handlePreview --- No history log
   const handlePreview = useCallback(async (entryData: ActionEntryData) => {
      if (!entryData?._zipObject) {
         setPreviewError(`Preview error: Zip object missing for ${entryData.name}`);
@@ -176,10 +169,8 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
       const message = err instanceof Error ? err.message : 'Unknown preview error';
       setPreviewError(`Failed to load preview: ${message}`);
       setPreviewType('unsupported');
-      // Failure to preview might still be worth logging if needed, but per request, it's removed.
     }
-    // --- REMOVED addHistoryEntry call ---
-  }, []); // Dependencies updated
+  }, []);
 
   useEffect(() => {
     let currentObjectUrl: string | null = null;
@@ -188,7 +179,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }
     return () => {
         if (currentObjectUrl) {
-            // console.log("Revoking Object URL:", currentObjectUrl); // Keep for debugging if needed
+            // console.log("Revoking Object URL:", currentObjectUrl);
             URL.revokeObjectURL(currentObjectUrl);
         }
     };
@@ -210,7 +201,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }, []);
 
   return (
-    // --- JSX remains the same ---
+    // --- JSX Unchanged ---
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
 
             <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">

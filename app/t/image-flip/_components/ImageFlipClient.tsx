@@ -36,7 +36,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
           if (e.target?.result && typeof e.target.result === 'string') {
             setOriginalImageSrc(e.target.result);
             setFileName(file.name);
-            // Log will happen in handleFlip
           } else {
             setError('Failed to read file.');
             setOriginalImageSrc(null);
@@ -121,7 +120,6 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
       (inputDetails as Record<string, unknown>).error = message;
     } finally {
       setIsLoading(false);
-      // Log the result of the flip operation
       addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
@@ -143,45 +141,40 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
        setIsCopied(false);
        const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
        if (fileInput) fileInput.value = '';
-       // No history log for clear
+       // No history log
    }, []);
 
-   // --- UPDATED handleDownload to REMOVE history logging ---
    const handleDownload = useCallback(() => {
         if (!flippedImageSrc || !canvasRef.current || !fileName) {
-            setError('No flipped image available to download.'); // Inform user
+            setError('No flipped image available to download.');
             return;
         }
-        setError(''); // Clear previous errors
+        setError('');
 
         const canvas = canvasRef.current;
-
         try {
             const link = document.createElement('a');
             link.download = `flipped-${fileName}`;
             canvas.toBlob((blob) => {
                 if (blob) {
                     link.href = URL.createObjectURL(blob);
-                    document.body.appendChild(link); // Required for Firefox
+                    document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link); // Clean up
-                    URL.revokeObjectURL(link.href); // Clean up blob URL
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
                 } else {
                     throw new Error("Canvas toBlob failed.");
                 }
-            }, 'image/png'); // Specify mime type
+            }, 'image/png');
 
         } catch (err) {
             console.error("Download failed:", err);
             const message = err instanceof Error ? err.message : "Unknown download error";
             setError(`Download failed: ${message}`);
-            // History logging removed
         }
+        // No history log
+    }, [flippedImageSrc, fileName]);
 
-    }, [flippedImageSrc, fileName]); // Removed history dependencies
-    // --- END UPDATE ---
-
-    // --- UPDATED handleCopy to REMOVE history logging ---
     const handleCopy = useCallback(async () => {
         if (!canvasRef.current) {
             setError('Cannot copy: Canvas not available.');
@@ -206,12 +199,11 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
              console.error('Failed to copy image to clipboard:', err);
              const message = err instanceof Error ? err.message : 'Unknown clipboard error';
              setError(`Copy failed: ${message}`);
-             // History logging removed
          }
-         // History logging removed from finally block too
-     }, []); // Removed history dependencies
-     // --- END UPDATE ---
+         // No history log
+     }, []);
 
+    // --- UPDATED useEffect dependencies ---
     useEffect(() => {
         if (originalImageSrc) {
             const timer = setTimeout(() => {
@@ -219,18 +211,19 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
             }, 100);
             return () => clearTimeout(timer);
         }
-    }, [originalImageSrc]);
-
+    }, [originalImageSrc, handleFlip]); // Added handleFlip
 
      useEffect(() => {
         if (originalImageSrc && !isLoading) {
             handleFlip('click');
         }
-     }, [flipType, originalImageSrc, isLoading]);
+     // Added handleFlip to dependencies
+     }, [flipType, originalImageSrc, isLoading, handleFlip]);
+     // --- END UPDATE ---
 
   return (
-    // --- JSX unchanged ---
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
+        {/* Controls Section */}
         <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
              <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                  {isLoading ? 'Processing...' : (originalImageSrc ? 'Change Image' : 'Select Image')}
@@ -276,6 +269,7 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
                 </label>
                 <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
                 {originalImageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Using data URLs, optimization not applicable/needed
                     <img
                        ref={originalImageRef}
                        src={originalImageSrc}
@@ -295,6 +289,7 @@ export default function ImageFlipClient({ toolTitle, toolRoute }: ImageFlipClien
                     <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Flipping...</span>
                  )}
                 {!isLoading && flippedImageSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Using data URLs, optimization not applicable/needed
                     <img
                       src={flippedImageSrc}
                       alt={fileName ? `Flipped ${fileName}` : "Flipped Image"}

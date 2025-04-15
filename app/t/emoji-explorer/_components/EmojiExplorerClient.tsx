@@ -114,7 +114,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
           addHistoryEntry({
               toolName: 'Emoji Explorer',
               toolRoute: '/t/emoji-explorer',
-              action: 'copy',
+              trigger: 'click',
               input: historyInput,
               output: emojiData.emoji,
               status: 'success',
@@ -127,7 +127,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
             addHistoryEntry({
                 toolName: 'Emoji Explorer',
                 toolRoute: '/t/emoji-explorer',
-                action: 'copy-failed',
+                trigger: 'click',
                 input: historyInput,
                 output: emojiData.emoji,
                 status: 'error',
@@ -139,7 +139,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
         addHistoryEntry({
             toolName: 'Emoji Explorer',
             toolRoute: '/t/emoji-explorer',
-            action: 'copy-failed',
+            trigger: 'click',
             input: historyInput,
             output: emojiData.emoji,
             status: 'error',

@@ -2,10 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useHistory, LoggingPreference } from '../../context/HistoryContext'; // Ensure correct path
-import '@shoelace-style/shoelace/dist/components/radio-group/radio-group.js';
-import '@shoelace-style/shoelace/dist/components/radio/radio.js';
-import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
+import { useHistory, LoggingPreference } from '../../context/HistoryContext';
+// REMOVED Shoelace imports
 
 interface ToolHistorySettingsProps {
     toolRoute: string;
@@ -20,49 +18,35 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
         isHistoryEnabled,
         getToolLoggingPreference,
         setToolLoggingPreference,
-        isLoaded // Use isLoaded to prevent setting preference before context is ready
+        isLoaded
     } = useHistory();
 
-    // Local state to manage the radio button selection reflects the context
-    // Defaults to 'restrictive', matching the context default
     const [currentToolPreference, setCurrentToolPreference] = useState<LoggingPreference>('restrictive');
 
-    // Effect to sync local state with context state when loaded or toolRoute changes
     useEffect(() => {
         if (isLoaded) {
-            const preferenceFromContext = getToolLoggingPreference(toolRoute);
-            // console.log(`[ToolHistorySettings ${toolRoute}] Syncing Effect: Context loaded. Pref from context: ${preferenceFromContext}`);
-            setCurrentToolPreference(preferenceFromContext);
-        } else {
-            // console.log(`[ToolHistorySettings ${toolRoute}] Syncing Effect: Context NOT loaded yet.`);
+            setCurrentToolPreference(getToolLoggingPreference(toolRoute));
         }
-    }, [isLoaded, toolRoute, getToolLoggingPreference]); // Dependency on isLoaded is key
+    }, [isLoaded, toolRoute, getToolLoggingPreference]);
 
-    // Handler for radio button changes
-    const handlePreferenceChange = (event: CustomEvent) => {
-        console.log('fired'); // <-- Your added console log
-        // Shoelace components often emit events with details in `event.target.value`
-        const newPref = (event.target as HTMLInputElement).value as LoggingPreference;
-        // console.log(`[ToolHistorySettings ${toolRoute}] Handle Change: New value selected: ${newPref}, isLoaded: ${isLoaded}`);
-        // Double-check isLoaded before setting context state, though UI should be disabled anyway
+    const handlePreferenceChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const newPref = event.target.value as LoggingPreference;
         if (isLoaded && ['on', 'restrictive', 'off'].includes(newPref)) {
-            setCurrentToolPreference(newPref); // Update local state immediately for UI feedback
-            setToolLoggingPreference(toolRoute, newPref); // Update the context state
-        } else {
-            // console.warn(`[ToolHistorySettings ${toolRoute}] Change ignored. isLoaded: ${isLoaded}, newPref: ${newPref}`);
+            setCurrentToolPreference(newPref);
+            setToolLoggingPreference(toolRoute, newPref);
         }
     };
 
-    // Determine tooltip content based on global history status
-    const fieldsetTooltipContent = !isHistoryEnabled
+    const isDisabled = !isHistoryEnabled || !isLoaded;
+    const disabledReason = !isHistoryEnabled
         ? "History logging is disabled globally. Enable it on the main History page to manage per-tool settings."
+        : !isLoaded
+        ? "Settings loading..."
         : "";
 
-    // console.log(`[ToolHistorySettings ${toolRoute}] Rendering with currentToolPreference: ${currentToolPreference}, isLoaded: ${isLoaded}, isHistoryEnabled: ${isHistoryEnabled}`);
-
     return (
-        // Removed outer div, assuming the parent dialog provides padding/structure
-        <div className={`space-y-4 ${!isHistoryEnabled ? 'opacity-60' : ''}`}>
+        // Add title attribute for tooltip effect when disabled
+        <div className={`space-y-4 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`} title={disabledReason}>
             <div className="flex items-center justify-between">
                 <p className="text-sm font-medium text-gray-700">History Logging:</p>
                  <span className={`text-xs font-semibold px-2 py-0.5 rounded ${isHistoryEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -70,53 +54,69 @@ export default function ToolHistorySettings({ toolRoute }: ToolHistorySettingsPr
                  </span>
             </div>
 
-            <sl-tooltip content={fieldsetTooltipContent} hoist>
-                {/* The value prop is bound to the local state `currentToolPreference` */}
-                <sl-radio-group
-                    label="For This Tool:"
-                    name="tool-log-pref"
-                    value={currentToolPreference}
-                    onSl-change={handlePreferenceChange} // Use Shoelace's change event
-                    className={!isHistoryEnabled ? 'cursor-not-allowed' : ''}
-                    // Styling for the Shoelace label part
-                    style={{ '--sl-label-font-size': 'var(--sl-font-size-small)', '--sl-label-color': 'rgb(var(--color-text-muted))' }}
-                >
-                    <div className="flex flex-col gap-2 mt-1"> {/* Vertical layout for radios */}
-                        {/* Option: On (Log All) */}
-                        <sl-radio
+            {/* Replace sl-radio-group with fieldset */}
+            <fieldset className="mt-2" disabled={isDisabled}>
+                <legend className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
+                    For This Tool:
+                </legend>
+                {/* Use standard HTML radio inputs */}
+                <div className="flex flex-col gap-2 mt-1">
+                    {/* Option: On */}
+                    <div className="flex items-center">
+                        <input
+                            id={`history-pref-${toolRoute}-on`}
+                            name={`history-pref-${toolRoute}`} // Group radios
+                            type="radio"
                             value="on"
-                            disabled={!isHistoryEnabled || !isLoaded}
-                        >
-                             {/* Using span for styling the label text */}
-                             <span className={`ml-1 ${!isHistoryEnabled || !isLoaded ? 'text-gray-400' : 'text-gray-700'} cursor-pointer select-none`}>
-                                On <span className='text-orange-600 font-semibold'>(Log Input & Output)</span>
-                             </span>
-                         </sl-radio>
+                            checked={currentToolPreference === 'on'}
+                            onChange={handlePreferenceChange}
+                            disabled={isDisabled}
+                            // Apply Tailwind classes for styling, focus, and accent color
+                            className="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
+                        />
+                        <label htmlFor={`history-pref-${toolRoute}-on`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
+                            On <span className='text-orange-600 font-semibold'>(Log Input & Output)</span>
+                        </label>
+                    </div>
 
-                        {/* Option: Restrictive (Log Inputs Only - Default) */}
-                        <sl-radio
+                    {/* Option: Restrictive */}
+                    <div className="flex items-center">
+                        <input
+                            id={`history-pref-${toolRoute}-restrictive`}
+                            name={`history-pref-${toolRoute}`}
+                            type="radio"
                             value="restrictive"
-                            disabled={!isHistoryEnabled || !isLoaded}
-                        >
-                            <span className={`ml-1 ${!isHistoryEnabled || !isLoaded ? 'text-gray-400' : 'text-gray-700'} cursor-pointer select-none`}>
-                                Restrictive <span className='text-gray-500'>(Log Input Only - Default)</span>
-                             </span>
-                         </sl-radio>
+                            checked={currentToolPreference === 'restrictive'}
+                            onChange={handlePreferenceChange}
+                            disabled={isDisabled}
+                            className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed accent-indigo-600"
+                        />
+                        <label htmlFor={`history-pref-${toolRoute}-restrictive`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
+                            Restrictive <span className='text-gray-500'>(Log Input Only - Default)</span>
+                        </label>
+                    </div>
 
-                        {/* Option: Off (Log Nothing) */}
-                        <sl-radio
+                    {/* Option: Off */}
+                    <div className="flex items-center">
+                        <input
+                            id={`history-pref-${toolRoute}-off`}
+                            name={`history-pref-${toolRoute}`}
+                            type="radio"
                             value="off"
-                            disabled={!isHistoryEnabled || !isLoaded}
-                        >
-                            <span className={`ml-1 ${!isHistoryEnabled || !isLoaded ? 'text-gray-400' : 'text-gray-700'} cursor-pointer select-none`}>
-                                Off <span className='text-red-600 font-semibold'>(Log Nothing)</span>
-                             </span>
-                         </sl-radio>
-                     </div>
-                </sl-radio-group>
-            </sl-tooltip>
+                            checked={currentToolPreference === 'off'}
+                            onChange={handlePreferenceChange}
+                            disabled={isDisabled}
+                            className="h-4 w-4 border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed accent-red-600"
+                        />
+                        <label htmlFor={`history-pref-${toolRoute}-off`} className={`ml-2 block text-sm ${isDisabled ? 'text-gray-400' : 'text-gray-700'} select-none ${!isDisabled ? 'cursor-pointer' : ''}`}>
+                            Off <span className='text-red-600 font-semibold'>(Log Nothing)</span>
+                        </label>
+                    </div>
+                </div>
+            </fieldset>
+
             <p className="text-xs text-gray-500 pt-1 italic">
-                Choose what gets saved to your browser's local history for this specific tool. Global setting overrides this if disabled.
+                Choose what gets saved to local history for this specific tool. Global setting overrides this if disabled.
             </p>
         </div>
     );

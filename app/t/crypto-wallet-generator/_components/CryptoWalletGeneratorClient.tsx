@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+// Removed unused TriggerType import
+import { useHistory } from '../../../context/HistoryContext';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import ECPairFactory from 'ecpair';
@@ -49,11 +50,9 @@ export default function CryptoWalletGeneratorClient({
           : wallet
       )
     );
-    // No history log for visibility toggle
   };
 
   const handleGenerateWallet = useCallback(async () => {
-    // console.log("Attempting to generate wallet. Type:", walletType);
     setGenerating(true);
     setError(null);
 
@@ -109,7 +108,7 @@ export default function CryptoWalletGeneratorClient({
       // Log ONLY the generation action
       addHistoryEntry({
         toolName: toolTitle, toolRoute: toolRoute,
-        trigger: 'click',
+        trigger: 'click', // Generation is always a click
         input: inputDetails,
         output: status === 'success' ? `Generated ${walletType}: ${generatedPublicKey}` : errorMessage,
         status: status,
@@ -123,25 +122,21 @@ export default function CryptoWalletGeneratorClient({
     setError(null);
   };
 
-  // --- UPDATED copyToClipboard to REMOVE history logging ---
   const copyToClipboard = useCallback(async (textToCopy: string, copyType: 'Address' | 'Private Key', walletId: string) => {
     setLastCopiedId(null);
     if (!textToCopy) return;
 
     try {
       await navigator.clipboard.writeText(textToCopy);
-      // console.log(`${copyType} copied!`); // Keep for debug if needed
       setLastCopiedId(`${walletId}-${copyType}`);
       setTimeout(() => setLastCopiedId(null), 2000);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Clipboard write failed.';
       console.error(`Failed to copy ${copyType}:`, err);
       setError(`Failed to copy ${copyType}: ${message}`);
-      // History logging removed
     }
-    // History logging removed from finally block too
-  }, []); // Removed generatedWallets, history dependencies if only used for logging
-  // --- END UPDATE ---
+    // History logging removed
+  }, []); // Removed dependencies only used for logging
 
   const handleClearAllWallets = useCallback(() => {
     setGeneratedWallets([]);
@@ -149,9 +144,7 @@ export default function CryptoWalletGeneratorClient({
     // No history log for clear
   }, []);
 
-
   return (
-    // --- JSX Unchanged ---
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
         <div role="alert" className="p-4 text-sm rounded-lg bg-[rgb(var(--color-indicator-ambiguous)/0.1)] border border-[rgb(var(--color-indicator-ambiguous)/0.5)] text-[rgb(var(--color-text-muted))]">
            <strong className="font-medium text-[rgb(var(--color-text-base))]">⚠️ Security Warning:</strong> Generating keys in a browser is **NOT** recommended for storing significant value. Use dedicated hardware or software wallets for main funds. These generated keys are best for testing or learning purposes only. Always back up private keys securely offline and never share them.

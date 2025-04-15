@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-// Import TriggerType
 import { useHistory, TriggerType } from '../../../context/HistoryContext';
 
 interface ImageGrayScaleClientProps {
@@ -34,7 +33,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
           if (e.target?.result && typeof e.target.result === 'string') {
             setOriginalImageSrc(e.target.result);
             setFileName(file.name);
-            // History logged in handleGrayScale triggered by useEffect
+            // History logged in handleGrayScale
           } else {
             setError('Failed to read file.');
             setOriginalImageSrc(null);
@@ -55,7 +54,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
     }
   }, []);
 
-  // --- UPDATED handleGrayScale to accept trigger and log only once ---
+
   const handleGrayScale = useCallback(async (trigger: TriggerType) => {
     if (!originalImageSrc || !originalImageRef.current) {
       return;
@@ -65,19 +64,17 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
     setGrayScaleImageSrc(null);
     setIsCopied(false);
 
-    // --- REMOVED initial "start" log ---
-
     let generatedDataUrl: string | null = null;
     let status: 'success' | 'error' = 'success';
     let historyOutput: string | Record<string, unknown> = 'Image converted to grayscale successfully';
     const inputDetails = { fileName: fileName, originalSrcLength: originalImageSrc?.length };
 
     try {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Short delay
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         const img = originalImageRef.current;
         if (!img || !img.naturalWidth || !img.naturalHeight) {
-            await new Promise(resolve => setTimeout(resolve, 150)); // Longer delay
+            await new Promise(resolve => setTimeout(resolve, 150));
             if (!img || !img.naturalWidth || !img.naturalHeight) {
               throw new Error("Image dimensions not available. Please try re-uploading.");
             }
@@ -104,7 +101,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
       ctx.putImageData(imageData, 0, 0);
       generatedDataUrl = canvas.toDataURL();
       setGrayScaleImageSrc(generatedDataUrl);
-      historyOutput = `[Grayscale Image DataURL, length: ${generatedDataUrl?.length}]`; // More specific success output
+      historyOutput = `[Grayscale Image DataURL, length: ${generatedDataUrl?.length}]`;
 
     } catch (err) {
       console.error("GrayScale Error:", err);
@@ -113,37 +110,33 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
       setGrayScaleImageSrc(null);
       status = 'error';
       historyOutput = `Error: ${message}`;
-      (inputDetails as Record<string, unknown>).error = message; // Add error to input details
+      (inputDetails as Record<string, unknown>).error = message;
     } finally {
       setIsLoading(false);
-      // --- UPDATED Log completion status only ---
+      // Log completion status only
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        trigger: trigger, // Use the trigger passed in ('upload')
+        trigger: trigger,
         input: inputDetails,
-        output: historyOutput, // Output is either success dataURL length or error
+        output: historyOutput,
         status: status,
       });
-      // --- END UPDATE ---
     }
   }, [originalImageSrc, fileName, addHistoryEntry, toolTitle, toolRoute]);
-  // --- END UPDATE ---
 
   useEffect(() => {
     if (originalImageSrc) {
        const timer = setTimeout(() => {
-            handleGrayScale('upload'); // Pass 'upload' trigger
+            handleGrayScale('upload');
        }, 100);
        return () => clearTimeout(timer);
     } else {
       setGrayScaleImageSrc(null);
       setFileName(null);
     }
-    // Updated dependencies to include handleGrayScale
   }, [originalImageSrc, handleGrayScale]);
 
-  // --- UPDATED handleClear to REMOVE history logging ---
   const handleClear = useCallback(() => {
     setOriginalImageSrc(null);
     setGrayScaleImageSrc(null);
@@ -153,11 +146,9 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
     setIsCopied(false);
     const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
     if (fileInput) fileInput.value = '';
-    // History logging removed
-  }, []); // Dependencies updated
-  // --- END UPDATE ---
+    // No history log
+  }, []);
 
-   // --- UPDATED handleDownload to REMOVE history logging ---
    const handleDownload = useCallback(() => {
         if (!grayScaleImageSrc || !canvasRef.current || !fileName) {
             setError('No grayscale image available to download.');
@@ -186,11 +177,9 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
             const message = err instanceof Error ? err.message : "Unknown download error";
             setError(`Download failed: ${message}`);
         }
-        // History logging removed
-    }, [grayScaleImageSrc, fileName]); // Dependencies updated
-    // --- END UPDATE ---
+        // No history log
+    }, [grayScaleImageSrc, fileName]);
 
-    // --- UPDATED handleCopy to REMOVE history logging ---
     const handleCopy = useCallback(async () => {
         if (!canvasRef.current) {
             setError('Cannot copy: Canvas is not ready.');
@@ -217,13 +206,11 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
              const message = err instanceof Error ? err.message : 'Unknown clipboard error';
              setError(`Copy failed: ${message}`);
          }
-         // History logging removed
-     }, []); // Dependencies updated
-     // --- END UPDATE ---
+         // No history log
+     }, []);
 
 
   return (
-    // --- JSX Unchanged ---
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
         <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -257,6 +244,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {originalImageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Using data URLs
               <img
                 ref={originalImageRef}
                 src={originalImageSrc}
@@ -275,6 +263,7 @@ export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGray
               <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Converting...</span>
             )}
             {!isLoading && grayScaleImageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Using data URLs
               <img
                 src={grayScaleImageSrc}
                 alt={fileName ? `Grayscale ${fileName}` : "Grayscale Image"}
