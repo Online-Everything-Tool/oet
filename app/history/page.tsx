@@ -1,5 +1,4 @@
 // FILE: app/history/page.tsx
-// --- START OF FILE ---
 'use client';
 
 import React from 'react';
@@ -23,7 +22,16 @@ interface MetadataApiResponse {
 
 
 export default function HistoryPage() {
-    const { history, deleteHistoryEntry, clearHistory, isLoaded } = useHistory();
+    // --- Destructure new context values ---
+    const {
+        history,
+        deleteHistoryEntry,
+        clearHistory,
+        isLoaded,
+        isHistoryEnabled,
+        toggleHistoryEnabled
+    } = useHistory();
+    // --- End Destructure ---
     const router = useRouter();
 
     const formatTimestamp = (timestamp: number): string => {
@@ -78,13 +86,11 @@ export default function HistoryPage() {
         }
 
         const urlParamsConfig = metadata?.urlStateParams ?? [];
-        // --- Check for urlStateParams happens HERE inside the handler ---
         if (urlParamsConfig.length === 0) {
             console.log(`[Reload] No urlStateParams defined in metadata for ${directiveName}. Reload not supported.`);
             alert(`Reloading state is not supported for this tool as it does not define URL parameters.`);
-            return; // Exit handler if no params defined
+            return;
         }
-        // --- End Check ---
 
         const queryParams = new URLSearchParams();
 
@@ -138,20 +144,49 @@ export default function HistoryPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center border-b pb-2 mb-4">
+            {/* --- Modified Header Section --- */}
+            <div className="flex flex-wrap justify-between items-center border-b pb-2 mb-4 gap-4">
                 <h1 className="text-2xl font-bold text-gray-800">Usage History</h1>
-                <button onClick={handleClearAll} disabled={!isLoaded || history.length === 0} className="px-4 py-2 rounded-md text-sm font-medium bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-150 ease-in-out"> Clear All History </button>
+                {/* --- History Toggle Switch --- */}
+                 <div className="flex items-center gap-2 bg-gray-100 border border-gray-300 p-2 rounded-md">
+                    <label htmlFor="history-toggle" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                        History Logging:
+                    </label>
+                    <input
+                        type="checkbox"
+                        id="history-toggle"
+                        role="switch"
+                        checked={isHistoryEnabled}
+                        onChange={toggleHistoryEnabled}
+                        disabled={!isLoaded} // Disable until context is loaded
+                        className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-gray-200 checked:bg-green-600"
+                        aria-checked={isHistoryEnabled}
+                    />
+                     <span className={`text-sm font-semibold ${isHistoryEnabled ? 'text-green-700' : 'text-red-700'}`}>
+                         {isHistoryEnabled ? 'Enabled' : 'Disabled'}
+                     </span>
+                 </div>
+                 {/* --- End History Toggle Switch --- */}
+
+                <button onClick={handleClearAll} disabled={!isLoaded || history.length === 0} className="px-4 py-2 rounded-md text-sm font-medium bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-150 ease-in-out">
+                     Clear All History
+                 </button>
             </div>
+            {/* --- End Modified Header Section --- */}
+
 
             {!isLoaded && <p className="text-gray-500 italic">Loading history...</p>}
             {isLoaded && history.length === 0 && <p className="text-gray-500">No history recorded yet.</p>}
+             {isLoaded && !isHistoryEnabled && history.length > 0 && (
+                <p className="p-3 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md text-sm">
+                    History logging is currently disabled. Existing entries are shown below, but new actions will not be recorded until enabled.
+                </p>
+            )}
 
             {isLoaded && history.length > 0 && (
                 <ul className="space-y-4">
                     {history.map((entry: HistoryEntry) => {
-                        // --- Simplified visual disabling: only check if it's a tool route ---
                         const isToolPage = entry.toolRoute && entry.toolRoute.startsWith('/t/');
-                        // --- End Simplification ---
                         const executionCountText = entry.executionCount > 1 ? `(Used ${entry.executionCount} times)` : '';
 
                         return (
@@ -200,7 +235,6 @@ export default function HistoryPage() {
                                      )}
                                 </div>
                                 <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                    {/* Button disabled only if it's not a tool page */}
                                     <button onClick={() => handleReload(entry)} title={`Reload ${entry.toolName} with this state`} className="px-3 py-1 rounded text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" disabled={!isToolPage} > Reload </button>
                                     <button onClick={() => handleDelete(entry.id)} title="Delete this entry" className="px-3 py-1 rounded text-xs font-medium text-red-600 hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-500"> Delete </button>
                                 </div>
@@ -212,4 +246,3 @@ export default function HistoryPage() {
         </div>
     );
 }
-// --- END OF FILE ---
