@@ -3,6 +3,8 @@ import { MetadataRoute } from 'next';
 import fs from 'fs/promises';
 import path from 'path';
 
+export const dynamic = 'force-static'
+
 // Define your site's base URL
 const baseUrl = 'https://online-everything-tool.com';
 
