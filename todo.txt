@@ -1,0 +1,12 @@
+- Configure CloudFront/API Gateway for dynamic API routes (build-tool, feedback, etc.)
+- Implement Inter-Tool Data Transfer mechanism (requires structured history output)
+- Build foundational "file-storage" tool (using Dexie) to potentially replace/underpin "image-storage"
+- Refine AI prompts for Build Tool (increase tool suggestions, handle complex requests)
+- Explore/Implement AI-generated tests (unit, integration, e2e?)
+- Define documentation strategy (in-app help, README updates, separate docs?)
+- Refine Recently Used/History preview to handle deleted data gracefully (e.g., image placeholders)
+- Centralize constants (history keys, charsets, case types) into src/constants/ [COMPLETED]
+- Centralize shared types/interfaces (ToolMetadata, History, Build, Image) into src/types/ [COMPLETED]
+- Centralize utility functions (formatBytes, color converters, etc.) into app/lib/ [COMPLETED]
+- Generate static JSON metadata files for tools during build [COMPLETED]
+- Refactor useImageProcessing hook and consuming components [COMPLETED]

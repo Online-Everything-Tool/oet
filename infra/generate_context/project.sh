@@ -12,6 +12,7 @@ FILES=(
   "package.json"
   "CONTRIBUTING.md"
   "LICENSE"
+  "todo.txt"
   "eslint.config.mjs"
   "next.config.ts"
   "app/layout.tsx"
