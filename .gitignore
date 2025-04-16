@@ -15,6 +15,7 @@ next-env.d.ts
 
 infra/data
 public/assets
+public/api/tool-metadata
 
 public/sw.js
 public/swe-worker-*.js
