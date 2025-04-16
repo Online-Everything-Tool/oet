@@ -64,7 +64,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     let workerInstance: Worker | null = null;
     if (typeof window !== 'undefined') {
       try {
-          workerInstance = new Worker('/thumbnail.worker.js');
+          workerInstance = new Worker(new URL('../lib/workers/thumbnail.worker.ts', import.meta.url));
           workerRef.current = workerInstance;
           workerInstance.addEventListener('message', handleWorkerMessage);
           workerInstance.addEventListener('error', handleWorkerError);
