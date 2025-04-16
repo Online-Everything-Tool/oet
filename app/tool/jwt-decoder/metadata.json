@@ -1,0 +1,1 @@
+{"title": "JWT Decoder","description": "Decodes JSON Web Tokens (JWTs) to reveal their payload information.","urlStateParams": [{"paramName": "jwt", "type": "string", "defaultValue": ""}]}
