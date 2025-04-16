@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # infra/generate_context/tool.sh
-# Generates a context file containing the source code of all tools under app/t/
+# Generates a context file containing the source code of all tools under app/tool/
 
 # Navigate to the project root directory (assuming the script is run from infra/generate_context)
 cd "$(dirname "$0")/../.." || exit 1 # Go up two levels from infra/generate_context
@@ -20,9 +20,9 @@ mkdir -p "$OUTPUT_DIR"
 # Clear the output file
 > "$OUTPUT_FILE"
 
-echo "Generating context for tools in $TOOL_BASE_DIR..."
-echo "Outputting to $OUTPUT_FILE"
-echo ""
+echo "Generating context for tools in $TOOL_BASE_DIR..." >> "$OUTPUT_FILE"
+echo "Outputting to $OUTPUT_FILE" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
 
 # Check if the base tool directory exists
 if [ ! -d "$TOOL_BASE_DIR" ]; then
@@ -41,7 +41,7 @@ find "$TOOL_BASE_DIR" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r TOOL_
   for EXCL in "${EXCLUDE_DIRS[@]}"; do
     if [[ "$DIRECTIVE_NAME" == "$EXCL" ]]; then
       EXCLUDE=1
-      echo "Skipping excluded directory: $TOOL_DIR"
+      echo "Skipping excluded directory: $TOOL_DIR" >> "$OUTPUT_FILE"
       break # Exit inner loop once excluded
     fi
   done
@@ -79,14 +79,15 @@ find "$TOOL_BASE_DIR" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r TOOL_
       echo "(File not found during processing: $FILE)" >> "$OUTPUT_FILE"
     fi
     echo "" >> "$OUTPUT_FILE"
-    echo "--- END FILE: $DIRECTIVE_NAME/$RE  "app/tool/image-storage/_components/I.tsx"LATIVE_PATH ---" >> "$OUTPUT_FILE"
+    echo "--- END FILE: $DIRECTIVE_NAME/$RELATIVE_PATH ---" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
   done < <(find "$TOOL_DIR" -type f) # Process substitution for inner find
 
   echo "--- END TOOL DIRECTORY: $DIRECTIVE_NAME ---" >> "$OUTPUT_FILE"
   echo "" >> "$OUTPUT_FILE"
-  echo "Processed Tool Directory: $DIRECTIVE_NAME"
+  echo "Processed Tool Directory: $DIRECTIVE_NAME" >> "$OUTPUT_FILE"
 
 done
 
-echo "Tool context generation complete: $OUTPUT_FILE"
+echo "Tool context generation complete: $OUTPUT_FILE" >> "$OUTPUT_FILE"
+echo "Project context generated in $OUTPUT_FILE"
