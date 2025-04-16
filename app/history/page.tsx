@@ -3,23 +3,10 @@
 
 import React from 'react';
 import { useHistory } from '../context/HistoryContext';
-import type { HistoryEntry, TriggerType } from '../context/HistoryContext';
+import type { HistoryEntry, TriggerType } from '@/src/types/history';
 import { useRouter } from 'next/navigation';
-import type { ParamConfig } from '@/app/tool/_hooks/useToolUrlState';
-
-interface ToolMetadata {
-    title?: string;
-    description?: string;
-    urlStateParams?: ParamConfig[];
-    [key: string]: unknown;
-}
-
-interface MetadataApiResponse {
-    success: boolean;
-    metadata?: ToolMetadata;
-    error?: string;
-}
-
+import type { ParamConfig } from '@/src/types/tools';
+import { ToolMetadata } from '@/src/types/tools';
 
 export default function HistoryPage() {
     const {
@@ -64,32 +51,41 @@ export default function HistoryPage() {
         clearHistory();
     };
 
+    // Updated handleReload to fetch static JSON
     const handleReload = async (entry: HistoryEntry) => {
         if (!entry.toolRoute || !entry.toolRoute.startsWith('/tool/')) {
             console.error("[Reload] Invalid toolRoute in history entry:", entry.toolRoute);
             alert("Cannot reload: Invalid tool route found in history.");
             return;
         }
-        const directiveName = entry.toolRoute.substring(3);
+        // Extract directive from route path
+        const directiveName = entry.toolRoute.substring('/tool/'.length).replace(/\/$/, '');
         if (!directiveName) {
              console.error("[Reload] Could not extract directive name from route:", entry.toolRoute);
              alert("Cannot reload: Could not determine tool directive from history.");
             return;
         }
+
         let metadata: ToolMetadata | undefined;
         try {
-            const response = await fetch(`/api/tool-metadata?directive=${encodeURIComponent(directiveName)}`);
-            const data: MetadataApiResponse = await response.json();
-            if (!response.ok || !data.success || !data.metadata) {
-                throw new Error(data.error || `Failed to fetch metadata (${response.status})`);
+            // Fetch static JSON file
+            const response = await fetch(`/api/tool-metadata/${directiveName}.json`);
+            if (!response.ok) {
+                // Handle 404 or other errors
+                if (response.status === 404) {
+                     throw new Error(`Metadata file not found for tool '${directiveName}'.`);
+                }
+                throw new Error(`Failed to fetch metadata (${response.status})`);
             }
-            metadata = data.metadata;
+            metadata = await response.json(); // Expect direct ToolMetadata object
         } catch (error) {
             console.error("[Reload] Error fetching or parsing tool metadata:", error);
             const message = error instanceof Error ? error.message : "Unknown error";
             alert(`Could not load tool configuration: ${message}`);
             return;
         }
+
+        // Rest of the logic for constructing URL remains the same
         const urlParamsConfig = metadata?.urlStateParams ?? [];
         if (urlParamsConfig.length === 0) {
             alert(`Reloading state is not supported for this tool as it does not define URL parameters.`);
@@ -97,28 +93,45 @@ export default function HistoryPage() {
         }
         const queryParams = new URLSearchParams();
         if (typeof entry.input !== 'object' || entry.input === null) {
-             alert(`Cannot reload: History entry has unexpected input format.`);
-             return;
-        }
-        const inputObject = entry.input as Record<string, unknown>;
-        urlParamsConfig.forEach((paramConfig: ParamConfig) => {
-            const paramNameKey = paramConfig.paramName;
-            if (Object.prototype.hasOwnProperty.call(inputObject, paramNameKey)) {
-                const value = inputObject[paramNameKey];
-                if (value !== undefined) {
-                     let valueString: string;
-                     if (value === null) { valueString = 'null'; }
-                     else if (typeof value === 'string') { valueString = value; }
-                     else { try { valueString = JSON.stringify(value); } catch (e) { console.error(`[Reload] Error stringifying value for param '${paramNameKey}':`, value, e); valueString = ''; }}
-                     queryParams.set(paramConfig.paramName, valueString);
+             // If input is not an object or null, maybe it's a simple string tool?
+             // Find the first string param and use that if available.
+             const firstStringParam = urlParamsConfig.find(p => p.type === 'string');
+             if (firstStringParam && typeof entry.input === 'string') {
+                queryParams.set(firstStringParam.paramName, entry.input);
+             } else {
+                alert(`Cannot reload: History entry has unexpected input format for this tool.`);
+                return;
+             }
+        } else {
+            // Input is an object, proceed as before
+            const inputObject = entry.input as Record<string, unknown>;
+            urlParamsConfig.forEach((paramConfig: ParamConfig) => {
+                const paramNameKey = paramConfig.paramName;
+                if (Object.prototype.hasOwnProperty.call(inputObject, paramNameKey)) {
+                    const value = inputObject[paramNameKey];
+                    // Check for undefined explicitely, allow null/falsey values to be set
+                    if (value !== undefined) {
+                         let valueString: string;
+                         if (value === null) { valueString = 'null'; } // Maybe skip null? Or encode it? Decide based on tool need.
+                         else if (typeof value === 'string') { valueString = value; }
+                         else { try { valueString = JSON.stringify(value); } catch (e) { console.error(`[Reload] Error stringifying value for param '${paramNameKey}':`, value, e); valueString = ''; }}
+
+                         // Only set if valueString is not empty after processing
+                         if (valueString) {
+                             queryParams.set(paramConfig.paramName, valueString);
+                         }
+                    }
                 }
-            }
-        });
+            });
+        }
+
         const queryString = queryParams.toString();
         const finalUrl = `${entry.toolRoute}${queryString ? `?${queryString}` : ''}`;
+        console.log("[Reload] Navigating to:", finalUrl);
         router.push(finalUrl);
     };
 
+    // JSX for the page remains the same
     return (
         <div className="space-y-6">
             <div className="flex flex-wrap justify-between items-center border-b pb-2 mb-4 gap-4">
@@ -181,6 +194,7 @@ export default function HistoryPage() {
                                         <span className='font-medium'>Triggers:</span> <code className='text-xs bg-gray-100 px-1 rounded'>{formatTriggers(entry.triggers)}</code> |{' '}
                                         <span className={`font-medium ${entry.status === 'error' ? 'text-red-600' : 'text-green-600'}`}> Last Status: {entry.status || 'N/A'} </span>
                                     </p>
+                                    {/* Input/Output display logic remains the same */}
                                     {entry.input !== undefined && entry.input !== null && (
                                         <div>
                                             <span className="text-xs font-medium text-gray-500">Input / Options:</span>
@@ -191,16 +205,22 @@ export default function HistoryPage() {
                                             </pre>
                                         </div>
                                      )}
-                                    {entry.status !== 'error' && entry.output !== undefined && entry.output !== null && (
+                                    {entry.status !== 'error' && entry.output !== undefined && entry.output !== null && typeof entry.output !== 'string' && 'message' in (entry.output as object) && (
                                         <div>
                                             <span className="text-xs font-medium text-gray-500">Last Output:</span>
-                                            <pre className="mt-1 p-2 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap break-words max-h-24">
-                                                { typeof entry.output === 'string'
-                                                    ? entry.output.substring(0, 300) + (entry.output.length > 300 ? '...' : '')
-                                                    : JSON.stringify(entry.output, null, 2) }
-                                            </pre>
-                                        </div>
-                                    )}
+                                             <pre className="mt-1 p-2 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap break-words max-h-24">
+                                                 {JSON.stringify(entry.output, null, 2)}
+                                             </pre>
+                                         </div>
+                                     )}
+                                     {entry.status !== 'error' && entry.output !== undefined && entry.output !== null && typeof entry.output === 'string' && (
+                                          <div>
+                                            <span className="text-xs font-medium text-gray-500">Last Output:</span>
+                                             <pre className="mt-1 p-2 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap break-words max-h-24">
+                                                 {entry.output.substring(0, 300) + (entry.output.length > 300 ? '...' : '')}
+                                             </pre>
+                                         </div>
+                                      )}
                                     {entry.status === 'error' && entry.output !== undefined && entry.output !== null && (
                                          <div>
                                              <span className="text-xs font-medium text-red-500">Last Error Output:</span>

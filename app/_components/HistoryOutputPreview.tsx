@@ -4,36 +4,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import type { HistoryEntry } from '@/app/context/HistoryContext';
-import type { ToolMetadata } from './RecentlyUsedWidget';
+import type { HistoryEntry } from '@/src/types/history';
+import type { ToolMetadata } from '@/src/types/tools';
+import { safeStringify } from '@/app/lib/utils'
 
 interface HistoryOutputPreviewProps {
   entry: HistoryEntry;
   metadata: ToolMetadata | null;
-}
-
-// safeStringify function remains the same
-function safeStringify(value: unknown, space: number = 2): string {
-    try {
-        if (value === undefined) return 'undefined';
-        if (value === null) return 'null';
-        if (typeof value === 'string' && value.length > 500) return value.substring(0, 500) + '... [truncated]';
-        if (typeof value === 'object') {
-             try {
-                 const str = JSON.stringify(value, null, space);
-                 const limit = space === 0 ? 100 : 500;
-                 return str.length > limit ? str.substring(0, limit) + '... [truncated]' : str;
-             } catch {
-                 return '[Could not stringify object]';
-             }
-        }
-        const stringValue = String(value);
-        const limit = space === 0 ? 100 : 500;
-        return stringValue.length > limit ? stringValue.substring(0, limit) + '... [truncated]' : stringValue;
-    } catch (stringifyError: unknown) {
-        console.error("Error stringifying history output:", stringifyError);
-        return '[Error displaying value]';
-    }
 }
 
 export default function HistoryOutputPreview({ entry, metadata }: HistoryOutputPreviewProps) {

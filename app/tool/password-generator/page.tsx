@@ -5,7 +5,7 @@ import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import PasswordGeneratorClient from './_components/PasswordGeneratorClient';
-import { ToolMetadata } from '@/app/api/tool-metadata/route';
+import type { ToolMetadata } from '@/src/types/tools';
 
 export default function PasswordGeneratorPage() {
   // Cast the metadata to the defined ToolMetadata type

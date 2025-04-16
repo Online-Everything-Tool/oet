@@ -6,8 +6,7 @@ import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import JsonValidateFormatClient from './_components/JsonValidateFormatClient';
-import type { ParamConfig } from '../_hooks/useToolUrlState';
-import { ToolMetadata } from '@/app/api/tool-metadata/route';
+import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 
 export default function JsonValidateFormatPage() {
   const typedMetadata = metadata as ToolMetadata;

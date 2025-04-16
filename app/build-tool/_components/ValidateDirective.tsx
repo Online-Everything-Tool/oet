@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { AiModel, ValidationResult } from '../page'; // Import shared types from parent page
+import type { AiModel, ValidationResult } from '@/src/types/build'; // Import shared types from parent page
 
 // Props expected by this component
 interface ValidateDirectiveProps { // Renamed Props Interface

@@ -2,17 +2,14 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history'
+import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import type { ParamConfig } from '@/src/types/tools'
+import { bufferToHex } from '@/app/lib/utils'
 import { md5 } from 'js-md5';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
-
-function bufferToHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
 
 interface HashGeneratorClientProps {
     urlStateParams: ParamConfig[];

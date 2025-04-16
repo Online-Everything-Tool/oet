@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useHistory, TriggerType } from '../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { LibraryImage } from '@/app/lib/db';
+import { LibraryImage } from '@/src/types/image';
 
 interface UseImageProcessingProps {
     toolTitle: string;

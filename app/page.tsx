@@ -4,13 +4,7 @@ import path from 'path';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget'; // Import the new widget
-
-// --- Interfaces (Unchanged) ---
-interface ToolMetadata {
-  title: string;
-  description: string;
-  includeInSitemap?: boolean;
-}
+import { ToolMetadata } from '@/src/types/tools'
 
 interface ToolDisplayData {
   href: string;

@@ -2,22 +2,15 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history'
+import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import type { ParamConfig } from '@/src/types/tools';
+
+import { CASE_TYPES } from '@/src/constants/text';
 
 const SENTENCE_CASE_REGEX = /(^\s*\w|[.!?]\s*\w)/g;
 const TITLE_CASE_DELIMITERS = /[\s\-_]+/;
-
-const CASE_TYPES = [
-  { value: 'uppercase', label: 'UPPER CASE' },
-  { value: 'lowercase', label: 'lower case' },
-  { value: 'sentence', label: 'Sentence case' },
-  { value: 'title', label: 'Title Case' },
-  { value: 'camel', label: 'camelCase' },
-  { value: 'pascal', label: 'PascalCase' },
-  { value: 'snake', label: 'snake_case' },
-  { value: 'kebab', label: 'kebab-case' },
-] as const;
 
 type Case = typeof CASE_TYPES[number]['value'];
 

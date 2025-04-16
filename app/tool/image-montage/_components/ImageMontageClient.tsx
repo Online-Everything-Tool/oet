@@ -3,8 +3,6 @@
 
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
-// Removed unused useImageLibrary import
-// import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 
 interface MontageImage {
     id: number;

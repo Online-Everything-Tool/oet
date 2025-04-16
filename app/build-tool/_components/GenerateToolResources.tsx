@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 // Removed LibraryDependency as it's not directly used in this component
-import type { ValidationResult, GenerationResult } from '../page';
+import type { ValidationResult, GenerationResult } from '@/src/types/build';
 
 // --- Props expected by this component ---
 interface GenerateToolResourcesProps {

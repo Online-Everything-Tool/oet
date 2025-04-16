@@ -2,12 +2,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import type { ParamConfig } from '@/src/types/tools';
 
-export interface ParamConfig {
-    paramName: string;
-    type: 'string' | 'enum' | 'boolean' | 'number' | 'json';
-    defaultValue: unknown;
-}
 
 export type StateSetters = Record<string, React.Dispatch<React.SetStateAction<unknown>>>;
 

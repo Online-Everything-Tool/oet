@@ -4,7 +4,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image'; // Use Next.js Image component
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { LibraryImage } from '@/app/lib/db';
+import { LibraryImage } from '@/src/types/image';
 import ImageSelectionModal from '@/app/tool/_components/ImageSelectionModal';
 import useImageProcessing from "@/app/tool/_hooks/useImageProcessing"; // Import the updated hook
 

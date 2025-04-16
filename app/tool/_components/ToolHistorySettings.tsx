@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useHistory, LoggingPreference } from '../../context/HistoryContext';
+import { useHistory } from '../../context/HistoryContext';
+import type { LoggingPreference } from '@/src/types/tools'
 
 interface ToolHistorySettingsProps {
     toolRoute: string;

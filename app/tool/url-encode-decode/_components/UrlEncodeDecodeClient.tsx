@@ -2,8 +2,10 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history'
+import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import type { ParamConfig } from '@/src/types/tools';
 
 type Operation = 'encode' | 'decode';
 

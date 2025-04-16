@@ -4,7 +4,8 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 // Removed unused TriggerType import
 import { useHistory } from '../../../context/HistoryContext';
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import type { ParamConfig } from '@/src/types/tools'
 
 interface TextCounts {
   words: number;

@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
+import { getUniqueSortedValues } from '@/app/lib/utils';
 
 export interface RichEmojiData {
   emoji: string;
@@ -13,31 +14,6 @@ export interface RichEmojiData {
   group: string;
   subgroup: string;
 }
-
-const getUniqueSortedValues = (
-  items: RichEmojiData[],
-  key: keyof RichEmojiData,
-  sort: 'asc' | 'desc' | 'version-desc' = 'asc'
-): string[] => {
-  if (!items || items.length === 0) {
-    return [];
-  }
-  const values = new Set<string>();
-  items.forEach(item => {
-    if (item && typeof item[key] === 'string' && item[key] && (item[key] as string).trim() !== '' && item[key] !== 'Unknown') {
-      values.add(item[key] as string);
-    }
-  });
-  const sortedValues = Array.from(values);
-  if (sort === 'version-desc') {
-    sortedValues.sort((a, b) => parseFloat(b) - parseFloat(a));
-  } else if (sort === 'desc') {
-    sortedValues.sort((a, b) => b.localeCompare(a));
-  } else {
-    sortedValues.sort((a, b) => a.localeCompare(b));
-  }
-  return sortedValues;
-};
 
 
 interface EmojiSearchClientProps {

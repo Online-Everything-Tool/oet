@@ -79,16 +79,3 @@ export function buildFileTree(entries: RawZipEntry[]): TreeNodeData[] {
 
   return tree;
 }
-
-// formatBytes utility function (keep as is)
-export const formatBytes = (bytes: number, decimals = 2): string => {
-    if (bytes === 0) return '0 Bytes';
-    if (bytes < 0) return 'Invalid Size';
-    if (bytes < 1) return parseFloat(bytes.toFixed(decimals)) + ' Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k));
-    const index = Math.min(i, sizes.length - 1);
-    return parseFloat((bytes / Math.pow(k, index)).toFixed(dm)) + ' ' + sizes[index];
-};

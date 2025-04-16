@@ -2,8 +2,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNowStrict } from 'date-fns';
-import type { HistoryEntry } from '@/app/context/HistoryContext';
-import type { ToolMetadata } from './RecentlyUsedWidget'; // Reuse type from parent
+import type { HistoryEntry } from '@/src/types/history';
+import type { ToolMetadata } from '@/src/types/tools';
 import HistoryOutputPreview from './HistoryOutputPreview';
 
 interface RecentlyUsedItemProps {

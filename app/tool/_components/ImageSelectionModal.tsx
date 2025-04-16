@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image'; // Use Next Image for potential optimization if needed later
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { LibraryImage } from '@/app/lib/db';
+import { LibraryImage } from '@/src/types/image';
 
 interface ImageSelectionModalProps {
     isOpen: boolean;

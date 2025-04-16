@@ -3,7 +3,8 @@
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useHistory } from '../../../context/HistoryContext'; // Removed TriggerType as it's only 'auto' here
-import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
+import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import type { ParamConfig } from '@/src/types/tools'
 
 interface TextStrikeThroughClientProps {
     urlStateParams: ParamConfig[];

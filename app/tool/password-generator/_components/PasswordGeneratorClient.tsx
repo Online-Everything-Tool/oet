@@ -1,16 +1,10 @@
 // FILE: app/tool/password-generator/_components/PasswordGeneratorClient.tsx
 'use client';
 
-// Removed unused useEffect, LoggingPreference
 import React, { useState, useCallback } from 'react';
-// Only need TriggerType for generatePassword
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
-// Removed Shoelace imports as they are in ToolSettings now
-
-const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
-const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const NUMBERS = '0123456789';
-const SYMBOLS = '!@#$%^&*()_+~=`|}{[]:;?><,./-=';
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history'
+import { LOWERCASE, UPPERCASE, NUMBERS, SYMBOLS } from '@/src/constants/charset';
 
 interface PasswordGeneratorClientProps {
   toolTitle: string;

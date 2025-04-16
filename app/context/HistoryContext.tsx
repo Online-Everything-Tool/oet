@@ -12,42 +12,14 @@ import React, {
   ReactNode,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+// Import shared types
+import type { LoggingPreference, ToolMetadata } from '@/src/types/tools';
+// Import history-specific types
+import type { TriggerType, HistoryEntry, NewHistoryData } from '@/src/types/history'; // Updated import
 
-// --- Config & Types ---
-const HISTORY_LOCAL_STORAGE_KEY = 'oetHistory_v3';
-const SETTINGS_LOCAL_STORAGE_KEY = 'oetSettings_v1';
-const MAX_HISTORY_ENTRIES = 100;
-const REDACTED_OUTPUT_PLACEHOLDER = "[Output Redacted by Setting]";
+import { HISTORY_LOCAL_STORAGE_KEY, SETTINGS_LOCAL_STORAGE_KEY, MAX_HISTORY_ENTRIES, REDACTED_OUTPUT_PLACEHOLDER } from '@/src/constants/history';
+
 const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on';
-
-export type TriggerType = 'click' | 'query' | 'auto' | 'transfer' | 'upload';
-export type LoggingPreference = 'on' | 'restrictive' | 'off';
-
-export interface HistoryEntry {
-  id: string;
-  timestamps: number[];
-  toolName: string;
-  toolRoute: string;
-  triggers: TriggerType[];
-  input?: Record<string, unknown> | string | null;
-  output?: unknown;
-  status?: 'success' | 'error';
-}
-
-export type NewHistoryData = Omit<HistoryEntry, 'id' | 'timestamps' | 'triggers'> & {
-    trigger: TriggerType;
-};
-
-interface ToolMetadataFromApi {
-    defaultLogging?: LoggingPreference;
-    [key: string]: unknown;
-}
-
-interface MetadataApiResponse {
-    success: boolean;
-    metadata?: ToolMetadataFromApi;
-    error?: string;
-}
 
 interface HistorySettings {
     isHistoryEnabled: boolean;
@@ -55,18 +27,19 @@ interface HistorySettings {
 }
 
 interface HistoryContextValue {
-  history: HistoryEntry[];
-  addHistoryEntry: (entryData: NewHistoryData) => void;
+  history: HistoryEntry[]; // Use imported type
+  addHistoryEntry: (entryData: NewHistoryData) => void; // Use imported type
   deleteHistoryEntry: (idToDelete: string) => void;
   clearHistory: () => void;
   clearHistoryForTool: (toolRoute: string) => void;
   isLoaded: boolean;
   isHistoryEnabled: boolean;
   toggleHistoryEnabled: () => void;
-  getToolLoggingPreference: (toolRoute: string) => LoggingPreference;
-  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>;
+  getToolLoggingPreference: (toolRoute: string) => LoggingPreference; // Use imported type
+  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>; // Use imported type
 }
 
+// areStatesEqual uses imported types implicitly via arguments
 function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
     if (entry1.toolRoute !== entry2.toolRoute) return false;
     try {
@@ -78,6 +51,7 @@ function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
     }
 }
 
+// Context creation uses imported types implicitly
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
   addHistoryEntry: () => { console.warn('addHistoryEntry called outside of HistoryProvider'); },
@@ -101,6 +75,7 @@ interface HistoryProviderProps {
   children: ReactNode;
 }
 
+// HistoryProvider uses imported types implicitly via state and callbacks
 export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
@@ -109,6 +84,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   const [toolDefaults, setToolDefaults] = useState<Record<string, LoggingPreference>>({});
   const fetchingDefaultsRef = useRef<Set<string>>(new Set());
 
+  // ... (useEffect for loading/saving remains the same) ...
   useEffect(() => {
     let loadedEnabledState = true;
     let loadedPrefs: Record<string, LoggingPreference> = {};
@@ -173,59 +149,58 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       }
   }, [isHistoryEnabled, toolPreferences, isLoaded]);
 
-  // --- UPDATED fetchToolDefaultPreference ---
-  const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
+  // ... (fetchToolDefaultPreference, getToolLoggingPreference, setToolLoggingPreference remain the same) ...
+   const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
       if (!toolRoute || !toolRoute.startsWith('/tool/')) {
           console.warn(`[HistoryCtx] Invalid toolRoute for fetching default: ${toolRoute}`);
-          fetchingDefaultsRef.current.delete(toolRoute); // Ensure cleanup if invalid route
           return GLOBAL_DEFAULT_LOGGING;
       }
       if (fetchingDefaultsRef.current.has(toolRoute)) {
-          return GLOBAL_DEFAULT_LOGGING;
+           return GLOBAL_DEFAULT_LOGGING;
       }
 
       fetchingDefaultsRef.current.add(toolRoute);
+      const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, '');
 
-      // *** FIXED DIRECTIVE EXTRACTION ***
-      const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, ''); // Corrected extraction
-
-      // *** ADDED DEFENSIVE CHECK FOR INVALID DIRECTIVE FORMAT ***
        if (!directive || directive.includes('/')) {
            console.warn(`[HistoryCtx] Invalid directive extracted ('${directive}') from route: ${toolRoute}. Using global default.`);
            fetchingDefaultsRef.current.delete(toolRoute);
-           // Cache the global default to prevent repeated failed fetches for this bad route
            setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
            return GLOBAL_DEFAULT_LOGGING;
        }
-       // *** END ADDED CHECK ***
 
       try {
-          console.log(`[HistoryCtx] Fetching default preference for: ${directive}`);
-          const response = await fetch(`/api/tool-metadata?directive=${encodeURIComponent(directive)}`);
-          const data: MetadataApiResponse = await response.json();
+          console.log(`[HistoryCtx] Fetching default preference for directive: ${directive}`);
+          const response = await fetch(`/api/tool-metadata/${directive}.json`);
 
-          // Check for !data.metadata?.defaultLogging is now correct
-          if (!response.ok || !data.success || !data.metadata?.defaultLogging) {
-              // Use a slightly more informative default message if API didn't provide one
-              const errorMsgFromServer = data.error || `API Error (${response.status}) or missing defaultLogging`;
-              throw new Error(`Failed to fetch or parse default preference for ${directive}: ${errorMsgFromServer}`);
-          }
+          if (!response.ok) {
+               if (response.status === 404) {
+                   console.warn(`[HistoryCtx] Metadata file not found for ${directive}. Using global default.`);
+               } else {
+                   console.error(`[HistoryCtx] Failed to fetch metadata for ${directive}. Status: ${response.status}. Using global default.`);
+               }
+               setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
+               return GLOBAL_DEFAULT_LOGGING;
+           }
 
-          const fetchedDefault = data.metadata.defaultLogging;
-          console.log(`[HistoryCtx] Fetched default for ${directive}: ${fetchedDefault}`);
-          setToolDefaults(prev => ({ ...prev, [toolRoute]: fetchedDefault }));
-          return fetchedDefault;
+           const data: ToolMetadata = await response.json();
+
+           const fetchedDefault = (['on', 'restrictive', 'off'] as LoggingPreference[]).includes(data?.defaultLogging as LoggingPreference)
+             ? data.defaultLogging as LoggingPreference
+             : GLOBAL_DEFAULT_LOGGING;
+
+           console.log(`[HistoryCtx] Fetched default for ${directive}: ${fetchedDefault}`);
+           setToolDefaults(prev => ({ ...prev, [toolRoute]: fetchedDefault }));
+           return fetchedDefault;
 
       } catch (error) {
-           // Log the specific error encountered
-          console.error(`[HistoryCtx] Error fetching default preference for ${toolRoute} (Directive: ${directive}):`, error);
+          console.error(`[HistoryCtx] Error fetching or parsing default preference for ${toolRoute} (Directive: ${directive}):`, error);
           setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
           return GLOBAL_DEFAULT_LOGGING;
       } finally {
-           fetchingDefaultsRef.current.delete(toolRoute); // Always remove from fetching set
+          fetchingDefaultsRef.current.delete(toolRoute);
       }
-  }, []); // Dependencies remain empty
-
+  }, []);
 
   const getToolLoggingPreference = useCallback((toolRoute: string): LoggingPreference => {
       if (!isLoaded) return GLOBAL_DEFAULT_LOGGING;
@@ -241,10 +216,9 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
            return;
        }
        let defaultPreference = toolDefaults[toolRoute];
-       if (!defaultPreference && !fetchingDefaultsRef.current.has(toolRoute)) { // Avoid fetch if already fetching
+       if (!defaultPreference && !fetchingDefaultsRef.current.has(toolRoute)) {
            defaultPreference = await fetchToolDefaultPreference(toolRoute);
        }
-       // Handle case where fetch is still in progress or failed
        if (!defaultPreference) defaultPreference = GLOBAL_DEFAULT_LOGGING;
 
        setToolPreferences(prev => {
@@ -260,59 +234,60 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
        });
    }, [isLoaded, toolDefaults, fetchToolDefaultPreference]);
 
+  // addHistoryEntry uses imported types implicitly via arguments
+  const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
+      if (!isHistoryEnabled) return;
+      const toolRoute = entryData.toolRoute;
+      const preference = getToolLoggingPreference(toolRoute);
+      if (preference === 'off') { return; }
 
-    const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
-        if (!isHistoryEnabled) return;
-        const toolRoute = entryData.toolRoute;
-        const preference = getToolLoggingPreference(toolRoute);
-        if (preference === 'off') { return; }
+      let outputToStore = entryData.output;
+      if (preference === 'restrictive') {
+          outputToStore = REDACTED_OUTPUT_PLACEHOLDER;
+      }
 
-        let outputToStore = entryData.output;
-        if (preference === 'restrictive') {
-            outputToStore = REDACTED_OUTPUT_PLACEHOLDER;
-        }
+      const now = Date.now();
+      const currentTrigger = entryData.trigger;
 
-        const now = Date.now();
-        const currentTrigger = entryData.trigger;
+      setHistory((prevHistory) => {
+          const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
+          let updatedHistory = [...prevHistory];
+          if (existingEntryIndex > -1) {
+              const existingEntry = updatedHistory[existingEntryIndex];
+              const newTimestamps = [now, ...existingEntry.timestamps].sort((a,b) => b-a);
+              const uniqueTriggers = new Set(existingEntry.triggers);
+              uniqueTriggers.add(currentTrigger);
+              const newTriggers = Array.from(uniqueTriggers);
+              const updatedEntry: HistoryEntry = { // Uses imported type
+                  ...existingEntry,
+                  timestamps: newTimestamps,
+                  triggers: newTriggers,
+                  output: outputToStore,
+                  status: entryData.status,
+              };
+              updatedHistory.splice(existingEntryIndex, 1);
+              updatedHistory.unshift(updatedEntry);
+          } else {
+              const newEntry: HistoryEntry = { // Uses imported type
+                  toolName: entryData.toolName,
+                  toolRoute: entryData.toolRoute,
+                  input: entryData.input,
+                  output: outputToStore,
+                  status: entryData.status,
+                  id: uuidv4(),
+                  timestamps: [now],
+                  triggers: [currentTrigger], // Uses imported type
+              };
+              updatedHistory.unshift(newEntry);
+              if (updatedHistory.length > MAX_HISTORY_ENTRIES) {
+                   updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ENTRIES);
+              }
+          }
+          return updatedHistory;
+      });
+  }, [isHistoryEnabled, getToolLoggingPreference]);
 
-        setHistory((prevHistory) => {
-            const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
-            let updatedHistory = [...prevHistory];
-            if (existingEntryIndex > -1) {
-                const existingEntry = updatedHistory[existingEntryIndex];
-                const newTimestamps = [now, ...existingEntry.timestamps].sort((a,b) => b-a);
-                const uniqueTriggers = new Set(existingEntry.triggers);
-                uniqueTriggers.add(currentTrigger);
-                const newTriggers = Array.from(uniqueTriggers);
-                const updatedEntry: HistoryEntry = {
-                    ...existingEntry,
-                    timestamps: newTimestamps,
-                    triggers: newTriggers,
-                    output: outputToStore,
-                    status: entryData.status,
-                };
-                updatedHistory.splice(existingEntryIndex, 1);
-                updatedHistory.unshift(updatedEntry);
-            } else {
-                const newEntry: HistoryEntry = {
-                    toolName: entryData.toolName,
-                    toolRoute: entryData.toolRoute,
-                    input: entryData.input,
-                    output: outputToStore,
-                    status: entryData.status,
-                    id: uuidv4(),
-                    timestamps: [now],
-                    triggers: [currentTrigger],
-                };
-                updatedHistory.unshift(newEntry);
-                if (updatedHistory.length > MAX_HISTORY_ENTRIES) {
-                     updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ENTRIES);
-                }
-            }
-            return updatedHistory;
-        });
-    }, [isHistoryEnabled, getToolLoggingPreference]);
-
+  // ... (deleteHistoryEntry, clearHistory, clearHistoryForTool, toggleHistoryEnabled remain the same) ...
     const deleteHistoryEntry = useCallback((idToDelete: string) => {
       setHistory((prevHistory) =>
         prevHistory.filter((entry) => entry.id !== idToDelete)
@@ -332,7 +307,8 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
           setIsHistoryEnabled(prev => !prev);
     }, []);
 
-    const value = useMemo(
+  // value memoization remains the same
+  const value = useMemo(
       () => ({
         history,
         addHistoryEntry,
@@ -348,7 +324,11 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       [history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded, isHistoryEnabled, toggleHistoryEnabled, getToolLoggingPreference, setToolLoggingPreference]
     );
 
-    return (
+  return (
       <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
     );
 };
+
+// Export the types from here as well, so consumers don't *have* to import from two places
+// Although importing directly from '@/types/history' is cleaner
+export type { HistoryEntry, NewHistoryData, TriggerType };

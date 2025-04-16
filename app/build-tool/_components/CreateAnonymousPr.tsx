@@ -4,7 +4,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 // Keep the import as LibraryDependency is now used
-import type { GenerationResult, ValidationResult, PrSubmissionResult, LibraryDependency } from '../page';
+import type { GenerationResult, ValidationResult, PrSubmissionResult, LibraryDependency } from '@/src/types/build';
 
 // Props remain the same
 interface CreateAnonymousPrProps {
