@@ -1,281 +1,229 @@
 // FILE: app/tool/image-gray-scale/_components/ImageGrayScaleClient.tsx
 'use client';
 
-import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+import React, { useState, useCallback, useEffect } from 'react';
+import Image from 'next/image'; // Use Next.js Image component
+import { useImageLibrary } from '@/app/context/ImageLibraryContext';
+import { LibraryImage } from '@/app/lib/db';
+import ImageSelectionModal from '@/app/tool/_components/ImageSelectionModal';
+import useImageProcessing from "@/app/tool/_hooks/useImageProcessing"; // Import the updated hook
 
 interface ImageGrayScaleClientProps {
-  toolTitle: string;
-  toolRoute: string;
+    toolTitle: string;
+    toolRoute: string;
 }
 
 export default function ImageGrayScaleClient({ toolTitle, toolRoute }: ImageGrayScaleClientProps) {
-  const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
-  const [grayScaleImageSrc, setGrayScaleImageSrc] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [error, setError] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isCopied, setIsCopied] = useState<boolean>(false);
-  const originalImageRef = useRef<HTMLImageElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { addHistoryEntry } = useHistory();
+    const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
+    const [selectedLibraryImage, setSelectedLibraryImage] = useState<LibraryImage | null>(null);
+    const [isCopied, setIsCopied] = useState<boolean>(false); // Local state for copy feedback
+    const [lastProcessedImageId, setLastProcessedImageId] = useState<string | null>(null); // Store ID of the last *output* image
 
-  const handleImageChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    setError('');
-    setGrayScaleImageSrc(null);
-    setFileName(null);
-    setIsCopied(false);
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result && typeof e.target.result === 'string') {
-            setOriginalImageSrc(e.target.result);
-            setFileName(file.name);
-            // History logged in handleGrayScale
-          } else {
-            setError('Failed to read file.');
-            setOriginalImageSrc(null);
-          }
-        };
-        reader.onerror = () => {
-          setError('Error reading file.');
-          setOriginalImageSrc(null);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setError('Invalid file type. Please select an image.');
-        setOriginalImageSrc(null);
-        if (event.target) event.target.value = '';
-      }
-    } else {
-        setOriginalImageSrc(null);
-    }
-  }, []);
+    const {
+        originalImageSrc,
+        processedImageSrc,
+        fileName, // Original filename from hook
+        isLoading,
+        error,
+        setOriginalImageSrc,
+        setProcessedImageSrc,
+        setFileName,
+        setError, // Need setError for dependency arrays
+        setIsLoading,
+        processImage,
+    } = useImageProcessing({ toolTitle, toolRoute });
 
+    const { getImage } = useImageLibrary(); // Get the function to fetch blobs by ID
 
-  const handleGrayScale = useCallback(async (trigger: TriggerType) => {
-    if (!originalImageSrc || !originalImageRef.current) {
-      return;
-    }
-    setIsLoading(true);
-    setError('');
-    setGrayScaleImageSrc(null);
-    setIsCopied(false);
-
-    let generatedDataUrl: string | null = null;
-    let status: 'success' | 'error' = 'success';
-    let historyOutput: string | Record<string, unknown> = 'Image converted to grayscale successfully';
-    const inputDetails = { fileName: fileName, originalSrcLength: originalImageSrc?.length };
-
-    try {
-        await new Promise(resolve => setTimeout(resolve, 50));
-
-        const img = originalImageRef.current;
-        if (!img || !img.naturalWidth || !img.naturalHeight) {
-            await new Promise(resolve => setTimeout(resolve, 150));
-            if (!img || !img.naturalWidth || !img.naturalHeight) {
-              throw new Error("Image dimensions not available. Please try re-uploading.");
-            }
+    const convertToGrayScale = useCallback((ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const luminance = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+            data[i] = luminance;
+            data[i + 1] = luminance;
+            data[i + 2] = luminance;
         }
+        ctx.putImageData(imageData, 0, 0);
+    }, []);
 
-      const canvas = canvasRef.current ?? document.createElement('canvas');
-      canvasRef.current = canvas;
-      const ctx = canvas.getContext('2d');
+    useEffect(() => {
+        let objectUrl: string | null = null;
+        if (selectedLibraryImage) {
+            objectUrl = URL.createObjectURL(selectedLibraryImage.blob);
+            setOriginalImageSrc(objectUrl);
+            setFileName(selectedLibraryImage.name);
+            setProcessedImageSrc(null);
+            setError('');
+        } else {
+            setOriginalImageSrc(null);
+            setFileName(null);
+        }
+        return () => {
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [selectedLibraryImage, setOriginalImageSrc, setProcessedImageSrc, setFileName, setError]);
 
-      if (!ctx) {
-        throw new Error('Failed to get canvas context.');
-      }
+    useEffect(() => {
+        if (selectedLibraryImage && originalImageSrc) {
+            const triggerProcessing = async () => {
+                const baseName = selectedLibraryImage.name.substring(0, selectedLibraryImage.name.lastIndexOf('.')) || selectedLibraryImage.name;
+                const extension = selectedLibraryImage.name.substring(selectedLibraryImage.name.lastIndexOf('.') + 1) || 'png';
+                const outputFileName = `grayscale-${baseName}.${extension}`;
+                const newImageId = await processImage(
+                    selectedLibraryImage,
+                    convertToGrayScale,
+                    'auto',
+                    outputFileName
+                );
+                setLastProcessedImageId(newImageId);
+            };
+            triggerProcessing();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedLibraryImage, originalImageSrc]);
 
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+    const handleImageSelect = useCallback((image: LibraryImage) => {
+        setIsLibraryModalOpen(false);
+        setSelectedLibraryImage(image);
+    }, []);
 
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const avg = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-        data[i] = avg; data[i + 1] = avg; data[i + 2] = avg;
-      }
-      ctx.putImageData(imageData, 0, 0);
-      generatedDataUrl = canvas.toDataURL();
-      setGrayScaleImageSrc(generatedDataUrl);
-      historyOutput = `[Grayscale Image DataURL, length: ${generatedDataUrl?.length}]`;
+    const handleClear = useCallback(() => {
+        setOriginalImageSrc(null);
+        setProcessedImageSrc(null);
+        setFileName(null);
+        setError('');
+        setIsLoading(false);
+        setSelectedLibraryImage(null);
+        setLastProcessedImageId(null);
+        setIsCopied(false);
+    }, [setOriginalImageSrc, setProcessedImageSrc, setFileName, setError, setIsLoading]);
 
-    } catch (err) {
-      console.error("GrayScale Error:", err);
-      const message = err instanceof Error ? err.message : 'An unknown error occurred.';
-      setError(`Error converting to grayscale: ${message}`);
-      setGrayScaleImageSrc(null);
-      status = 'error';
-      historyOutput = `Error: ${message}`;
-      (inputDetails as Record<string, unknown>).error = message;
-    } finally {
-      setIsLoading(false);
-      // Log completion status only
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: trigger,
-        input: inputDetails,
-        output: historyOutput,
-        status: status,
-      });
-    }
-  }, [originalImageSrc, fileName, addHistoryEntry, toolTitle, toolRoute]);
-
-  useEffect(() => {
-    if (originalImageSrc) {
-       const timer = setTimeout(() => {
-            handleGrayScale('upload');
-       }, 100);
-       return () => clearTimeout(timer);
-    } else {
-      setGrayScaleImageSrc(null);
-      setFileName(null);
-    }
-  }, [originalImageSrc, handleGrayScale]);
-
-  const handleClear = useCallback(() => {
-    setOriginalImageSrc(null);
-    setGrayScaleImageSrc(null);
-    setFileName(null);
-    setError('');
-    setIsLoading(false);
-    setIsCopied(false);
-    const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
-    // No history log
-  }, []);
-
-   const handleDownload = useCallback(() => {
-        if (!grayScaleImageSrc || !canvasRef.current || !fileName) {
-            setError('No grayscale image available to download.');
+    const handleDownload = useCallback(() => {
+        if (!processedImageSrc || !fileName) {
+            setError('No processed image available to download.'); // Use setError
             return;
         }
-        setError('');
+        setError(''); // Use setError
+        const link = document.createElement('a');
+        const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+        const extension = fileName.substring(fileName.lastIndexOf('.') + 1) || 'png';
+        link.download = `grayscale-${baseName}.${extension}`;
+        link.href = processedImageSrc;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, [processedImageSrc, fileName, setError]); // Added setError
 
-        const canvas = canvasRef.current;
-        try {
-            const link = document.createElement('a');
-            link.download = `grayscale-${fileName}`;
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    link.href = URL.createObjectURL(blob);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(link.href);
-                } else {
-                    throw new Error("Canvas toBlob failed to generate blob.");
-                }
-            }, 'image/png');
-
-        } catch (err) {
-            console.error("Download failed:", err);
-            const message = err instanceof Error ? err.message : "Unknown download error";
-            setError(`Download failed: ${message}`);
-        }
-        // No history log
-    }, [grayScaleImageSrc, fileName]);
-
-    const handleCopy = useCallback(async () => {
-        if (!canvasRef.current) {
-            setError('Cannot copy: Canvas is not ready.');
+    const handleCopyToClipboard = useCallback(async () => {
+        if (!lastProcessedImageId) {
+            setError('No processed image ID available to copy.'); // Use setError
             return;
         }
         setIsCopied(false);
-        setError('');
-
+        setError(''); // Use setError
         try {
-             if (!navigator.clipboard?.write) { throw new Error("Clipboard API (write) not available or not permitted."); }
-
-             const canvas = canvasRef.current;
-             const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-
-             if (!blob) { throw new Error("Failed to create blob from canvas for clipboard."); }
-
-             const clipboardItem = new ClipboardItem({ 'image/png': blob });
-             await navigator.clipboard.write([clipboardItem]);
-             setIsCopied(true);
-             setTimeout(() => setIsCopied(false), 2000);
-
-         } catch (err) {
-             console.error('Failed to copy image to clipboard:', err);
-             const message = err instanceof Error ? err.message : 'Unknown clipboard error';
-             setError(`Copy failed: ${message}`);
-         }
-         // No history log
-     }, []);
+            const imageData = await getImage(lastProcessedImageId);
+            if (!imageData || !imageData.blob) {
+                throw new Error("Processed image data not found in library.");
+            }
+            if (!navigator.clipboard?.write) {
+                throw new Error("Clipboard API (write) not available or not permitted.");
+            }
+            const clipboardItem = new ClipboardItem({ [imageData.blob.type]: imageData.blob });
+            await navigator.clipboard.write([clipboardItem]);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy image to clipboard:', err);
+            const message = err instanceof Error ? err.message : 'Unknown clipboard error';
+            setError(`Copy failed: ${message}`); // Use setError
+        }
+    }, [lastProcessedImageId, getImage, setError]); // Added setError
 
 
-  return (
-    <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <label htmlFor="imageUpload" className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-          {isLoading ? 'Processing...' : (originalImageSrc ? 'Change Image' : 'Select Image')}
-        </label>
-        <input id="imageUpload" type="file" accept="image/*" onChange={handleImageChange} className="hidden" disabled={isLoading} />
+    return (
+        <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
+            {/* Controls Section */}
+            <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
+                <button
+                    type="button"
+                    onClick={() => setIsLibraryModalOpen(true)}
+                    className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                    {originalImageSrc ? 'Change Image' : 'Select from Library'}
+                </button>
 
-        <div className="flex flex-wrap gap-3 ml-auto">
-             <button type="button" onClick={handleDownload} disabled={!grayScaleImageSrc || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
-                 Download
-             </button>
-             <button type="button" onClick={handleCopy} disabled={!grayScaleImageSrc || isLoading} className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${ isCopied ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]' : 'bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-[rgb(var(--color-button-accent-text))]' } `}>
-                 {isCopied ? 'Copied!' : 'Copy'}
-             </button>
-            <button type="button" onClick={handleClear} disabled={!originalImageSrc && !grayScaleImageSrc && !error && !isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
-                Clear
-            </button>
-        </div>
-      </div>
+                <div className="flex gap-3 ml-auto">
+                    <button type="button" onClick={handleDownload} disabled={!processedImageSrc || isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                        Download
+                    </button>
+                    <button type="button" onClick={handleCopyToClipboard} disabled={!processedImageSrc || isLoading} className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${isCopied ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]' : 'bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-[rgb(var(--color-button-accent-text))]'}`}>
+                        {isCopied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button type="button" onClick={handleClear} disabled={!originalImageSrc && !processedImageSrc && !error && !isLoading} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                        Clear
+                    </button>
+                </div>
+            </div>
 
-      {error && (
-        <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
-          <div><strong className="font-semibold">Error:</strong> {error}</div>
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            Original Image {fileName && <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">({fileName})</span>}
-          </label>
-          <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {originalImageSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element -- Using data URLs
-              <img
-                ref={originalImageRef}
-                src={originalImageSrc}
-                alt={fileName || "Original"}
-                className="max-w-full max-h-full object-contain"
-              />
-            ) : (
-              <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">Select an image</span>
+            {error && (
+                <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
+                    <div><strong className="font-semibold">Error:</strong> {error}</div>
+                </div>
             )}
-          </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
+                        Original Image {fileName && <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">({fileName})</span>}
+                    </label>
+                    <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
+                        {originalImageSrc ? (
+                            <Image
+                                src={originalImageSrc}
+                                alt={fileName || "Original"}
+                                width={500} height={500}
+                                className="max-w-full max-h-full object-contain"
+                                unoptimized={true}
+                            />
+                        ) : (
+                             <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">Select an image</span>
+                         )}
+                    </div>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Grayscale Image</label>
+                    <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
+                        {isLoading && !processedImageSrc && (
+                             <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Converting...</span>
+                         )}
+                        {!isLoading && processedImageSrc ? (
+                            <Image
+                                src={processedImageSrc}
+                                alt={fileName ? `Grayscale ${fileName}` : "Grayscale Image"}
+                                width={500} height={500}
+                                className="max-w-full max-h-full object-contain"
+                                unoptimized={true}
+                            />
+                        ) : !isLoading && (
+                             <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">Output appears here</span>
+                         )}
+                    </div>
+                </div>
+            </div>
+
+            <ImageSelectionModal
+                isOpen={isLibraryModalOpen}
+                onClose={() => setIsLibraryModalOpen(false)}
+                onImageSelect={handleImageSelect}
+                className="max-w-4xl"
+            />
         </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Grayscale Image</label>
-          <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {isLoading && !grayScaleImageSrc && (
-              <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">Converting...</span>
-            )}
-            {!isLoading && grayScaleImageSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element -- Using data URLs
-              <img
-                src={grayScaleImageSrc}
-                alt={fileName ? `Grayscale ${fileName}` : "Grayscale Image"}
-                className="max-w-full max-h-full object-contain"
-              />
-            ) : !isLoading && (
-              <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">Output appears here</span>
-            )}
-          </div>
-        </div>
-      </div>
-      <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
-    </div>
-  );
+    );
 }
