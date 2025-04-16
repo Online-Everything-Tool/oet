@@ -177,7 +177,7 @@ export default function BuildToolPage() {
                      </p>
                      <p className="text-sm text-gray-600">
                          To contribute a new tool, please follow the manual setup instructions in the{' '}
-                         <Link href="/CONTRIBUTING.md" className="text-blue-600 hover:underline">CONTRIBUTING.md</Link> file.
+                         <Link href="https://github.com/Online-Everything-Tool/oet/CONTRIBUTING.md" className="text-blue-600 hover:underline">CONTRIBUTING.md</Link> file.
                      </p>
                  </div>
              );
