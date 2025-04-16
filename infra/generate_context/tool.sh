@@ -88,4 +88,4 @@ find "$TOOL_BASE_DIR" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r TOOL_
 done
 
 echo "Tool context generation complete: $OUTPUT_FILE" >> "$OUTPUT_FILE"
-echo "Project context generated in $OUTPUT_FILE"And these directories are skipped
+echo "Project context generated in $OUTPUT_FILE"
