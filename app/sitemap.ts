@@ -10,7 +10,7 @@ const baseUrl = 'https://online-everything-tool.com';
 
 // Helper function to read metadata and check sitemap inclusion
 async function shouldIncludeTool(toolDirName: string): Promise<boolean> {
-    const metadataPath = path.join(process.cwd(), 'app', 't', toolDirName, 'metadata.json');
+    const metadataPath = path.join(process.cwd(), 'app', 'tool', toolDirName, 'metadata.json');
     try {
         await fs.access(metadataPath); // Check if file exists
         const metadataContent = await fs.readFile(metadataPath, 'utf-8');

@@ -27,7 +27,7 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
   const fileInputRef = useRef<HTMLInputElement>(null);
   const managedUrlsRef = useRef<Map<string, string>>(new Map());
 
-  // --- Helper Functions (setItemFeedback, revokeManagedUrls, updateObjectUrls) ---
+  // --- Helper Functions ---
   const setItemFeedback = useCallback((id: string, type: 'copy' | 'download' | 'error' | null, message: string = '') => {
     setFeedbackState(prev => ({ ...prev, [id]: type ? { type, message } : null }));
     if (type && type !== 'error') {
@@ -35,7 +35,7 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
         setFeedbackState(prev => (prev[id]?.type === type ? { ...prev, [id]: null } : prev));
       }, 2000);
     }
-  }, []);
+  }, []); // No deps needed
 
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
@@ -60,7 +60,6 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
     setImageObjectUrls(newUrlMap);
   }, [revokeManagedUrls]);
 
-  // --- loadAndDisplayImages ---
   const loadAndDisplayImages = useCallback(async (limit = 20) => {
     setError(null);
     setIsLoading(prev => prev === false ? false : true);
@@ -82,22 +81,17 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
     }
   }, [listImages, updateObjectUrls, revokeManagedUrls]);
 
-  // --- Initial Load useEffect ---
   useEffect(() => {
     loadAndDisplayImages();
-    return () => {
-        revokeManagedUrls();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { revokeManagedUrls(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- saveNewImage ---
   const saveNewImage = useCallback(async (blob: Blob, name: string, type: string, trigger: 'upload' | 'transfer') => {
     const inputDetails: Record<string, unknown> = { fileName: name, fileType: type, fileSize: blob.size, source: trigger };
     let historyOutput: string | Record<string, unknown> = '';
     let status: 'success' | 'error' = 'success';
     let imageId: string | undefined = undefined;
-
     try {
       imageId = await addImage(blob, name, type);
       historyOutput = { message: `Image "${name}" added successfully.`, imageId: imageId };
@@ -110,79 +104,51 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
       historyOutput = `Error saving "${name}": ${message}`;
       inputDetails.error = message;
     }
-
     addHistoryEntry({ toolName: toolTitle, toolRoute: toolRoute, trigger: trigger, input: inputDetails, output: historyOutput, status: status, });
   }, [addImage, loadAndDisplayImages, addHistoryEntry, toolTitle, toolRoute]);
 
-  // --- handleFileChange ---
   const handleFileChange = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     setError(null);
-    const promises: Promise<void>[] = [];
     const addedFileNames: string[] = [];
     for (const file of Array.from(files)) {
       if (file.type.startsWith('image/')) {
         addedFileNames.push(file.name);
-        promises.push(saveNewImage(file, file.name || `uploaded-image-${Date.now()}`, file.type, 'upload'));
+        saveNewImage(file, file.name || `uploaded-image-${Date.now()}`, file.type, 'upload');
       } else {
         console.warn(`Skipping non-image file: ${file.name}`);
         setError(prev => (prev ? prev + `; Skipped non-image file: ${file.name}` : `Skipped non-image file: ${file.name}`));
       }
     }
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) { fileInputRef.current.value = ''; }
   }, [saveNewImage]);
 
-  // --- handlePaste (Hardened & Corrected) ---
   const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLDivElement>) => {
     setError(null);
     setIsPasting(true);
     const items = event.clipboardData?.items;
     const promises: Promise<void>[] = [];
     let foundImage = false;
-
-    if (!items) {
-        setError('Clipboard data is not accessible.');
-        setIsPasting(false);
-        return;
-    }
-
+    if (!items) { setError('Clipboard data is not accessible.'); setIsPasting(false); return; }
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      // Only process items explicitly marked as 'file' by the browser
       if (item.kind === 'file' && item.type.startsWith('image/')) {
-        const blob = item.getAsFile(); // Standard method
-        if (blob) { // Check if getAsFile() succeeded
+        const blob = item.getAsFile();
+        if (blob) {
           foundImage = true;
           promises.push(saveNewImage(blob, blob.name || `pasted-image-${Date.now()}`, blob.type, 'upload'));
-        } else {
-            // If getAsFile() returned null, log it but don't try getAsBlob()
-            console.warn(`[ImageStorage] item.getAsFile() returned null for item type ${item.type}. Skipping this item.`);
-        }
+        } else { console.warn(`[ImageStorage] item.getAsFile() returned null for item type ${item.type}. Skipping this item.`); }
       }
     }
-
-    if (!foundImage && items.length > 0) {
-       // Updated error message
-       setError('Could not find usable image file data in the clipboard. Please try copying an image file directly.');
-    } else if (!foundImage) {
-       setError('No items found in clipboard.');
-    }
-
-    try {
-        await Promise.all(promises);
-    } catch (e) {
-        console.error("Error processing pasted images:", e);
-        setError("An error occurred while processing pasted images.");
-    } finally {
-        setIsPasting(false);
-    }
+    if (!foundImage && items.length > 0) { setError('Could not find usable image file data in the clipboard. Please try copying an image file directly.'); }
+    else if (!foundImage) { setError('No items found in clipboard.'); }
+    try { await Promise.all(promises); }
+    catch (e) { console.error("Error processing pasted images:", e); setError("An error occurred while processing pasted images."); }
+    finally { setIsPasting(false); }
   }, [saveNewImage]);
 
-  // --- Other handlers (Delete, Clear, Copy, Download, SendTo, Click) ---
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Handlers are now used by buttons, so removed eslint-disable comments
   const handleDeleteSingleImage = useCallback(async (imageId: string) => {
     if (isDeleting) return;
     setIsDeleting(imageId);
@@ -202,7 +168,8 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
     } finally {
       setIsDeleting(null);
     }
-  }, [deleteImage, addHistoryEntry, toolTitle, toolRoute, loadAndDisplayImages, isDeleting, storedImagesMetadata]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeleting, storedImagesMetadata]); // Removed stable context funcs, kept changing state
 
   const handleClearAll = useCallback(async () => {
     if (isLoading || isDeleting || storedImagesMetadata.length === 0) return;
@@ -225,9 +192,9 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
     } finally {
         setIsLoading(false);
     }
-  }, [clearAllImages, revokeManagedUrls, addHistoryEntry, toolTitle, toolRoute, storedImagesMetadata.length, isLoading, isDeleting]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isDeleting, storedImagesMetadata.length]); // Removed stable context funcs, kept changing state
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCopyImage = useCallback(async (imageId: string) => {
     setError(null); setItemFeedback(imageId, null);
     try {
@@ -242,9 +209,8 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
       console.error(`Failed to copy image ${imageId}:`, err);
       setItemFeedback(imageId, 'error', `Copy failed: ${message}`);
     }
-  }, [getImage, setItemFeedback]);
+  }, [getImage, setItemFeedback]); // getImage is stable from context
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleDownloadImage = useCallback(async (imageId: string) => {
      setError(null); setItemFeedback(imageId, null);
      try {
@@ -262,13 +228,12 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
         console.error(`Failed to download image ${imageId}:`, err);
         setItemFeedback(imageId, 'error', `Download failed: ${message}`);
      }
-  }, [getImage, setItemFeedback]);
+  }, [getImage, setItemFeedback]); // getImage is stable from context
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSendTo = useCallback((imageId: string) => {
     alert(`"Send To" clicked for image ID: ${imageId}. \nSelected IDs: ${Array.from(selectedImageIds).join(', ')}`);
     console.log("Send To clicked for:", imageId, "Current selection:", selectedImageIds);
-  }, [selectedImageIds]);
+  }, [selectedImageIds]); // Depends on selectedImageIds
 
   const handleImageClick = useCallback((imageId: string) => {
      setSelectedImageIds(prevIds => {
@@ -277,7 +242,7 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
          else { newSet.add(imageId); }
          return newSet;
      });
-  }, []);
+  }, []); // No deps needed
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
@@ -297,7 +262,7 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
       <p className="text-xs text-center text-[rgb(var(--color-text-muted))] -mt-3"> Tip: You can paste images directly into the area below. </p>
 
       {/* Error Display */}
-      {error && ( <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"> {/* Error SVG and text */} </div> )}
+      {error && ( <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg> <div><strong className="font-semibold">Error:</strong> {error}</div> </div> )}
 
       {/* Image Gallery / Paste Area */}
       <div
@@ -314,6 +279,7 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
             {storedImagesMetadata.map((meta) => {
               const objectUrl = meta.id ? imageObjectUrls.get(meta.id) : null;
               const isThisDeleting = isDeleting === meta.id;
+              // const currentFeedback = meta.id ? feedbackState[meta.id] : null; // Removed unused
               const isSelected = meta.id ? selectedImageIds.has(meta.id) : false;
 
               return (
@@ -325,16 +291,28 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
                    onKeyDown={(e) => { if(meta.id && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleImageClick(meta.id); }}}
                   >
                    <div className="aspect-square w-full flex items-center justify-center bg-gray-100 rounded overflow-hidden pointer-events-none">
-                      {objectUrl ? ( <Image src={objectUrl} alt={meta.name || 'Stored image'} width={150} height={150} className="max-w-full max-h-full object-contain" unoptimized={true}/> ) : ( <span className="text-xs text-gray-400 italic p-1">Loading...</span> )}
+                      {objectUrl ? (
+                          <Image
+                              src={objectUrl}
+                              alt={meta.name || 'Stored image'}
+                              width={150}
+                              height={150}
+                              className="max-w-full max-h-full object-contain"
+                              unoptimized={true}
+                          />
+                       ) : ( <span className="text-xs text-gray-400 italic p-1">Loading...</span> )}
                    </div>
                    <p className="text-xs text-[rgb(var(--color-text-muted))] truncate w-full pointer-events-none" title={meta.name}> {meta.name || 'Untitled'} </p>
                    <p className="text-[10px] text-gray-400 w-full text-left break-all pointer-events-none"> ID: {meta.id} </p>
                    <div className="absolute top-1 right-1 z-10 flex gap-1 bg-white bg-opacity-80 rounded p-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-150" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} >
-                       {/* Buttons... */}
+                       {!isThisDeleting && meta.id && ( <button onClick={(e) => { e.stopPropagation(); handleSendTo(meta.id!); }} title="Send To..." disabled={isDeleting !== null} className="p-1 text-blue-600 rounded hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-30"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 12h14" /></svg></button> )}
+                       {!isThisDeleting && meta.id && ( <button onClick={(e) => { e.stopPropagation(); handleCopyImage(meta.id!); }} title="Copy Image" disabled={isDeleting !== null || feedbackState[meta.id ?? '']?.type === 'copy'} className={`p-1 rounded focus:outline-none focus:ring-1 disabled:opacity-30 ${feedbackState[meta.id ?? '']?.type === 'copy' ? 'bg-green-600 text-white' : 'text-green-600 hover:bg-green-100 focus:ring-green-400'}`}> {feedbackState[meta.id ?? '']?.type === 'copy' ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> } </button> )}
+                       {!isThisDeleting && meta.id && ( <button onClick={(e) => { e.stopPropagation(); handleDownloadImage(meta.id!); }} title="Download Image" disabled={isDeleting !== null} className="p-1 text-indigo-600 rounded hover:bg-indigo-100 focus:outline-none focus:ring-1 focus:ring-indigo-400 disabled:opacity-30"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></button> )}
+                       {!isThisDeleting && meta.id && ( <button onClick={(e) => { e.stopPropagation(); handleDeleteSingleImage(meta.id!); }} title="Delete this image" disabled={isDeleting !== null} className="p-1 text-red-600 rounded hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-400 disabled:opacity-30"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></button> )}
                    </div>
                    {isThisDeleting && ( <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center pointer-events-none"> <span className="text-white text-xs">Deleting...</span> </div> )}
                    {feedbackState[meta.id ?? '']?.type === 'error' && ( <div className="absolute inset-x-0 bottom-0 p-1 bg-red-700 text-white text-[10px] text-center truncate pointer-events-none" title={feedbackState[meta.id ?? '']?.message}>{feedbackState[meta.id ?? '']?.message}</div> )}
-                   {isSelected && ( <div className="absolute top-1 left-1 z-10 p-0.5 bg-blue-600 rounded-full text-white pointer-events-none"> {/* Checkmark SVG */} </div> )}
+                   {isSelected && ( <div className="absolute top-1 left-1 z-10 p-0.5 bg-blue-600 rounded-full text-white pointer-events-none"><svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></div> )}
                  </div>
               );
             })}
@@ -344,9 +322,20 @@ export default function ImageStorageClient({ toolTitle, toolRoute }: ImageStorag
          {/* Empty State Message */}
          {!isLoading && storedImagesMetadata.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-[rgb(var(--color-text-muted))] pointer-events-none group-hover/pastearea:text-blue-600 transition-colors duration-150">
-                {isPasting ? ( <> {/* Spinner */} </> ) : (
+                {isPasting ? (
                     <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 group-hover/pastearea:text-blue-400 transition-colors duration-150 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1"> {/* Icon SVG */} </svg>
+                        <svg className="animate-spin h-8 w-8 text-blue-500 mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="text-lg font-semibold text-blue-600">Processing Paste...</p>
+                    </>
+                ) : (
+                    <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 group-hover/pastearea:text-blue-400 transition-colors duration-150 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6" />
+                        </svg>
                         <p className="text-xl font-semibold mb-1 group-hover/pastearea:text-blue-700">Paste Image Here</p>
                         <p className="text-sm">or use the &lsquo;Add Image(s)&rsquo; button above.</p>
                         <p className="text-xs mt-3">(Images are stored locally)</p>

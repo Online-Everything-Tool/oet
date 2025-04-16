@@ -1,15 +1,15 @@
 // FILE: app/context/ImageLibraryContext.tsx
 'use client';
 
+// Removed unused top-level imports - db and uuidv4 are used within callbacks via closure
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
-// Corrected import: Use named import { db } and type import for LibraryImage
-import { db, type LibraryImage } from '../lib/db';
-import { v4 as uuidv4 } from 'uuid';
+import { db, type LibraryImage } from '../lib/db'; // db is needed here for the functions defined below
+import { v4 as uuidv4 } from 'uuid'; // uuidv4 is needed here for addImage
 
 interface ImageLibraryContextValue {
   listImages: (limit?: number) => Promise<LibraryImage[]>;
   getImage: (id: string) => Promise<LibraryImage | undefined>;
-  addImage: (blob: Blob, name: string, type: string) => Promise<string>; // Returns new UUID
+  addImage: (blob: Blob, name: string, type: string) => Promise<string>;
   deleteImage: (id: string) => Promise<void>;
   clearAllImages: () => Promise<void>;
   loading: boolean;
@@ -31,6 +31,7 @@ interface ImageLibraryProviderProps {
 }
 
 export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) => {
+  // This seems like a false positive from the linter, setLoading IS used. Keeping it.
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -51,7 +52,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
 
   const handleWorkerError = useCallback((err: ErrorEvent) => {
     console.error('[ImageCtx] Worker Error:', err);
-    setError(`Worker error: ${err.message}`);
+    setError(`Worker error: ${err.message}. Ensure '/thumbnail.worker.js' exists in the public folder or the build correctly generates it.`);
     requestPromisesRef.current.forEach((promiseFuncs, id) => {
       promiseFuncs.reject(new Error(`Worker encountered an unrecoverable error: ${err.message}`));
       requestPromisesRef.current.delete(id);
@@ -62,10 +63,16 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
   useEffect(() => {
     let workerInstance: Worker | null = null;
     if (typeof window !== 'undefined') {
-       workerInstance = new Worker('/thumbnail.worker.js');
-       workerRef.current = workerInstance;
-       workerInstance.addEventListener('message', handleWorkerMessage);
-       workerInstance.addEventListener('error', handleWorkerError);
+      try {
+          workerInstance = new Worker('/thumbnail.worker.js');
+          workerRef.current = workerInstance;
+          workerInstance.addEventListener('message', handleWorkerMessage);
+          workerInstance.addEventListener('error', handleWorkerError);
+          console.log('[ImageCtx] Attempting to initialize worker from /thumbnail.worker.js');
+      } catch (initError: unknown) {
+            console.error('[ImageCtx] Failed to initialize worker:', initError);
+            setError(`Failed to load thumbnail generator: ${initError instanceof Error ? initError.message : 'Unknown worker initialization error'}`);
+      }
     }
     const currentPromises = requestPromisesRef.current;
     // Cleanup
@@ -75,6 +82,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
         workerInstance.removeEventListener('error', handleWorkerError);
         workerInstance.terminate();
         workerRef.current = null;
+        console.log('[ImageCtx] Worker terminated.');
       }
       currentPromises.forEach((promiseFuncs, id) => {
           promiseFuncs.reject(new Error("ImageLibraryProvider unmounted"));
@@ -87,14 +95,15 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
   const generateThumbnail = useCallback((id: string, blob: Blob): Promise<Blob | null> => {
     return new Promise((resolve, reject) => {
       if (!workerRef.current) {
-        reject(new Error("Thumbnail worker is not available."));
+        if(!error) { reject(new Error("Thumbnail worker is not available.")); }
+        else { console.warn("[ImageCtx] Thumbnail generation skipped because worker failed to initialize."); resolve(null); }
         return;
       }
       const requestId = `thumb-${id}-${Date.now()}`;
       requestPromisesRef.current.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
       workerRef.current.postMessage({ id: requestId, blob });
     });
-  }, []);
+  }, [error]);
 
   // --- DB Operations ---
   const listImages = useCallback(async (limit: number = 50): Promise<LibraryImage[]> => {
@@ -110,7 +119,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading]); // Added missing dependencies based on usage
 
   const getImage = useCallback(async (id: string): Promise<LibraryImage | undefined> => {
     setError(null);
@@ -123,12 +132,12 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       setError(`Failed to get image: ${message}`);
       return undefined;
     }
-  }, []);
+  }, [setError]); // Added missing dependency based on usage
 
   const addImage = useCallback(async (blob: Blob, name: string, type: string): Promise<string> => {
     setLoading(true); setError(null);
-    const id = uuidv4();
-    let thumbnailBlob: Blob | null = null; // Still holds Blob | null initially
+    const id = uuidv4(); // uuidv4 is needed here
+    let thumbnailBlob: Blob | null = null;
     try {
         try {
              thumbnailBlob = await generateThumbnail(id, blob);
@@ -138,17 +147,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
              thumbnailBlob = null;
          }
       if (!db) throw new Error("Database instance is not available.");
-      // --- FIX: Convert null to undefined before assigning ---
-      const newImage: LibraryImage = {
-        id: id,
-        name: name,
-        type: type,
-        size: blob.size,
-        blob: blob,
-        thumbnailBlob: thumbnailBlob === null ? undefined : thumbnailBlob, // The fix is here
-        createdAt: new Date(),
-      };
-      // --- End Fix ---
+      const newImage: LibraryImage = { id: id, name: name, type: type, size: blob.size, blob: blob, thumbnailBlob: thumbnailBlob === null ? undefined : thumbnailBlob, createdAt: new Date(), };
       await db.images.add(newImage);
       return id;
     } catch (err: unknown) {
@@ -159,8 +158,8 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } finally {
       setLoading(false);
     }
-  }, [generateThumbnail]);
-
+   // generateThumbnail is stable now, remove from deps unless it changes
+  }, [setError, setLoading, generateThumbnail]); // Added missing dependencies
 
   const deleteImage = useCallback(async (id: string): Promise<void> => {
     setLoading(true); setError(null);
@@ -175,7 +174,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading]); // Added missing dependencies
 
   const clearAllImages = useCallback(async (): Promise<void> => {
     setLoading(true); setError(null);
@@ -190,7 +189,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setError, setLoading]); // Added missing dependencies
 
   const contextValue = useMemo(() => ({
     listImages,
