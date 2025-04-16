@@ -13,13 +13,19 @@ FILES=(
   "next.config.ts"
   "app/layout.tsx"
   "app/page.tsx"
+  "app/_components/BuildToolWidge.tsx"
+  "app/_components/RecentlyUsedWidget.tsx"
+  "app/_components/HistoryOutputPreview.tsx"
   "app/globals.css"
   "app/context/HistoryContext.tsx"
+  "app/context/ImageLibraryContext.tsx"
+  "app/lib/workers/thumbnail.worker.ts"
   "app/history/page.tsx"
   "app/build-tool/page.tsx"
   "app/build-tool/_components/ValidateDirective.tsx"
   "app/build-tool/_components/GenerateToolResources.tsx"
   "app/build-tool/_components/CreateAnonymousPr.tsx"
+  "app/tool/_hooks/useToolUrlState.ts"
 )
 
 # Output file location

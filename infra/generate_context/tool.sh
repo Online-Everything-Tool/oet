@@ -7,7 +7,7 @@
 cd "$(dirname "$0")/../.." || exit 1 # Go up two levels from infra/generate_context
 
 # --- Configuration ---
-TOOL_BASE_DIR="app/t"
+TOOL_BASE_DIR="app/tool"
 OUTPUT_DIR="infra/data"
 OUTPUT_FILE="$OUTPUT_DIR/tool_context.txt"
 # Directories within TOOL_BASE_DIR to exclude (e.g., shared components)
@@ -79,7 +79,7 @@ find "$TOOL_BASE_DIR" -mindepth 1 -maxdepth 1 -type d | while IFS= read -r TOOL_
       echo "(File not found during processing: $FILE)" >> "$OUTPUT_FILE"
     fi
     echo "" >> "$OUTPUT_FILE"
-    echo "--- END FILE: $DIRECTIVE_NAME/$RELATIVE_PATH ---" >> "$OUTPUT_FILE"
+    echo "--- END FILE: $DIRECTIVE_NAME/$RE  "app/tool/image-storage/_components/I.tsx"LATIVE_PATH ---" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
   done < <(find "$TOOL_DIR" -type f) # Process substitution for inner find
 

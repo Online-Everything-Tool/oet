@@ -3,14 +3,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
 import type { LoggingPreference } from '@/app/context/HistoryContext'; // Import the type
+import type { ParamConfig } from '@/app/tool/_hooks/useToolUrlState'; // Import ParamConfig type
 
-// --- Interfaces ---
+// --- Updated Interface to be more specific ---
 interface ToolMetadata {
     title?: string;
     description?: string;
-    urlStateParams?: unknown[]; // Keep existing fields
-    defaultLogging?: LoggingPreference; // Add the new field
-    [key: string]: unknown; // Allow other fields
+    urlStateParams?: ParamConfig[]; // Use the specific type
+    outputConfig?: { // Add outputConfig definition
+        summaryField?: string;
+        displayField?: string;
+        referenceType?: 'imageLibraryId';
+        referenceField?: string;
+    };
+    defaultLogging?: LoggingPreference;
+    tags?: string[];
+    iconName?: string | null;
+    includeInSitemap?: boolean;
+    status?: string;
+    // Allow other fields, but keep it minimal if possible
+    [key: string]: unknown;
 }
 
 interface MetadataApiResponse {
@@ -29,29 +41,31 @@ export async function GET(request: NextRequest): Promise<NextResponse<MetadataAp
         return NextResponse.json({ success: false, error: 'Missing "directive" query parameter' }, { status: 400 });
     }
 
-    // Basic validation to prevent directory traversal
     if (directive.includes('..') || directive.includes('/')) {
          return NextResponse.json({ success: false, error: 'Invalid directive format' }, { status: 400 });
     }
 
-    const metadataPath = path.join(process.cwd(), 'app', 't', directive, 'metadata.json');
+    // *** CORRECTED PATH ***
+    const metadataPath = path.join(process.cwd(), 'app', 'tool', directive, 'metadata.json');
+    // *********************
 
     try {
-        await fs.access(metadataPath); // Check if file exists
+        await fs.access(metadataPath);
         const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+        // Parse carefully, but trust the structure for now
         const metadata: ToolMetadata = JSON.parse(metadataContent);
 
-        // --- Ensure defaultLogging is valid or set a fallback ---
+        // Validate defaultLogging (unchanged)
         const validPrefs: LoggingPreference[] = ['on', 'restrictive', 'off'];
         if (metadata.defaultLogging && !validPrefs.includes(metadata.defaultLogging)) {
-            console.warn(`[API tool-metadata] Invalid defaultLogging value "${metadata.defaultLogging}" for directive "${directive}". Falling back to "${GLOBAL_DEFAULT_LOGGING}".`);
+            console.warn(`[API tool-metadata] Invalid defaultLogging value "${metadata.defaultLogging}" for "${directive}". Falling back.`);
             metadata.defaultLogging = GLOBAL_DEFAULT_LOGGING;
         } else if (!metadata.defaultLogging) {
-             console.log(`[API tool-metadata] No defaultLogging found for directive "${directive}". Falling back to "${GLOBAL_DEFAULT_LOGGING}".`);
+            // console.log(`[API tool-metadata] No defaultLogging found for "${directive}". Falling back.`); // Less verbose
             metadata.defaultLogging = GLOBAL_DEFAULT_LOGGING;
         }
-        // --- End validation ---
 
+        // Return the *full* metadata object as read from the file
         return NextResponse.json({ success: true, metadata });
 
     } catch (error: unknown) {
@@ -61,24 +75,28 @@ export async function GET(request: NextRequest): Promise<NextResponse<MetadataAp
 
         if (errorCode === 'ENOENT') {
             console.warn(`[API tool-metadata] Metadata file not found for directive: ${directive}`);
-            // Still return success, but provide fallback metadata
+            // Return success:false when not found, so consumers know it's missing
+            return NextResponse.json({ success: false, error: `Metadata not found for directive: ${directive}` }, { status: 404 });
+            // Or return the fallback like before if preferred:
+            /*
             return NextResponse.json({
-                 success: true,
+                 success: true, // Or false? Indicate it's a fallback? Let's keep false.
                  metadata: {
-                     title: directive.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Generate a basic title
+                     title: directive.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
                      description: 'Tool description not found.',
-                     defaultLogging: GLOBAL_DEFAULT_LOGGING // Provide fallback default
+                     defaultLogging: GLOBAL_DEFAULT_LOGGING
                  }
              });
+            */
         } else if (error instanceof SyntaxError) {
-             console.error(`[API tool-metadata] Error parsing JSON for directive '${directive}':`, message);
+             console.error(`[API tool-metadata] Error parsing JSON for '${directive}':`, message);
              return NextResponse.json({ success: false, error: `Failed to parse metadata JSON: ${message}` }, { status: 500 });
         } else {
-             console.error(`[API tool-metadata] Error reading metadata for directive '${directive}':`, message);
+             console.error(`[API tool-metadata] Error reading metadata for '${directive}':`, message);
              return NextResponse.json({ success: false, error: `Failed to read metadata: ${message}` }, { status: 500 });
         }
     }
 }
 
 // Ensure edge runtime is not enabled if using Node.js fs module
-// export const runtime = 'nodejs'; // or remove if default is okay
+// export const runtime = 'nodejs'; // Default runtime should be Node.js unless specified otherwise

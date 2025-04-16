@@ -6,12 +6,13 @@ import path from 'path';
 
 import "./globals.css";
 import { HistoryProvider } from "./context/HistoryContext";
-import { ImageLibraryProvider } from "./context/ImageLibraryContext"; // <-- Import new provider
+import { ImageLibraryProvider } from "./context/ImageLibraryContext";
 import Header from "./_components/Header";
 import ShoelaceSetup from "@/app/_components/ShoelaceSetup";
+import ClientOnly from "./_components/ClientOnly"; // <-- Import ClientOnly
 import '@shoelace-style/shoelace/dist/themes/light.css';
 
-// Font setup (unchanged)
+// Font setup
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
@@ -23,11 +24,10 @@ interface ProjectAnalysisData {
     siteDescription?: string;
 }
 
-// generateMetadata function (unchanged)
+// generateMetadata function (remains unchanged)
 export async function generateMetadata(): Promise<Metadata> {
     const analysisFilePath = path.join(process.cwd(), 'public', 'data', 'project_analysis.json');
     let analysisData: ProjectAnalysisData | null = null;
-
     try {
         await fs.access(analysisFilePath);
         const analysisContent = await fs.readFile(analysisFilePath, 'utf-8');
@@ -36,16 +36,13 @@ export async function generateMetadata(): Promise<Metadata> {
         const message = error instanceof Error ? error.message : String(error);
         const isFsError = typeof error === 'object' && error !== null && 'code' in error;
         const errorCode = isFsError ? (error as { code: string }).code : null;
-
         if (errorCode !== 'ENOENT') {
             console.error("[Layout Metadata] Error reading or parsing project_analysis.json:", message);
         } else {
             console.log("[Layout Metadata] project_analysis.json not found. Using default metadata.");
         }
     }
-
     const description = analysisData?.siteDescription?.trim() || DEFAULT_DESCRIPTION;
-
     return {
         metadataBase: new URL('https://online-everything-tool.com'),
         title: { default: DEFAULT_TITLE, template: `%s | ${DEFAULT_TITLE}` },
@@ -75,15 +72,17 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
             >
                 <ShoelaceSetup />
-                {/* Wrap HistoryProvider with ImageLibraryProvider */}
-                <ImageLibraryProvider>
-                    <HistoryProvider>
-                        <Header />
-                        <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                            {children}
-                        </main>
-                    </HistoryProvider>
-                </ImageLibraryProvider>
+                <Header /> {/* Header can stay outside ClientOnly if it doesn't use client hooks */}
+                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                    {/* Wrap client-dependent providers and children */}
+                    <ClientOnly>
+                        <ImageLibraryProvider>
+                            <HistoryProvider>
+                                {children}
+                            </HistoryProvider>
+                        </ImageLibraryProvider>
+                    </ClientOnly>
+                </main>
             </body>
         </html>
     );

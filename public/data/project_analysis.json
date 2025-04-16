@@ -1,6 +1,6 @@
 {
-  "siteTagline": "Your all-in-one toolbox for client-side utilities.",
-  "siteDescription": "The Online Everything Tool offers a vast collection of free, client-side utilities for developers and data enthusiasts.  It provides a single, easy-to-use platform for various text, data, and image manipulation tasks.",
+  "siteTagline": "Your all-in-one toolbox for online utilities.",
+  "siteDescription": "OET provides a comprehensive suite of free, client-side tools for various data manipulation and generation tasks.  It's perfect for developers, data analysts, and anyone needing quick, privacy-focused online utilities.",
   "siteBenefits": [
     "Access a wide variety of utilities in one place",
     "Transform data quickly using client-side processing",
@@ -10,11 +10,11 @@
     "Works offline for many tools due to PWA setup"
   ],
   "suggestedNewToolDirectives": [
-    "text-formatter",
-    "json-diff",
-    "image-compressor",
-    "csv-parser",
-    "string-escaper"
+    "json-formatter",
+    "regex-tester",
+    "string-manipulator",
+    "markdown-converter",
+    "base64-image-converter"
   ],
   "modelNameUsed": "gemini-1.5-flash-latest"
 }

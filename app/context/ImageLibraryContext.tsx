@@ -1,121 +1,210 @@
 // FILE: app/context/ImageLibraryContext.tsx
 'use client';
 
-import React, { createContext, useContext, useMemo, useCallback, ReactNode } from 'react';
-import { db, type LibraryImage } from '@/app/lib/db'; // Import db instance and type
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
+// Corrected import: Use named import { db } and type import for LibraryImage
+import { db, type LibraryImage } from '../lib/db';
+import { v4 as uuidv4 } from 'uuid';
 
-// --- Define the shape of the context value ---
 interface ImageLibraryContextValue {
-    addImage: (blob: Blob, name: string, type: string) => Promise<number | undefined>; // Returns new ID
-    getImage: (id: number) => Promise<LibraryImage | undefined>;
-    deleteImage: (id: number) => Promise<void>;
-    listImages: (limit?: number, sortBy?: keyof LibraryImage, reverse?: boolean) => Promise<LibraryImage[]>;
-    clearAllImages: () => Promise<void>;
+  listImages: (limit?: number) => Promise<LibraryImage[]>;
+  getImage: (id: string) => Promise<LibraryImage | undefined>;
+  addImage: (blob: Blob, name: string, type: string) => Promise<string>; // Returns new UUID
+  deleteImage: (id: string) => Promise<void>;
+  clearAllImages: () => Promise<void>;
+  loading: boolean;
+  error: string | null;
 }
 
-// --- Create the Context ---
 const ImageLibraryContext = createContext<ImageLibraryContextValue | undefined>(undefined);
 
-// --- Custom Hook for easy consumption ---
 export const useImageLibrary = () => {
-    const context = useContext(ImageLibraryContext);
-    if (!context) {
-        throw new Error('useImageLibrary must be used within an ImageLibraryProvider');
-    }
-    return context;
+  const context = useContext(ImageLibraryContext);
+  if (!context) {
+    throw new Error('useImageLibrary must be used within an ImageLibraryProvider');
+  }
+  return context;
 };
 
-// --- Provider Component ---
 interface ImageLibraryProviderProps {
-    children: ReactNode;
+  children: ReactNode;
 }
 
 export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) => {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const requestPromisesRef = useRef<Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void }>>(new Map());
 
-    // --- API Function Implementations ---
+  // Define handlers outside useEffect
+  const handleWorkerMessage = useCallback((msgEvent: MessageEvent) => {
+    const { id, type, payload, error: workerError } = msgEvent.data;
+    const promiseFuncs = requestPromisesRef.current.get(id);
 
-    const addImage = useCallback(async (blob: Blob, name: string, type: string): Promise<number | undefined> => {
+    if (promiseFuncs) {
+        if (type === 'thumbnailSuccess' && !workerError) { promiseFuncs.resolve(payload); }
+        else if (type === 'thumbnailError' || workerError) { promiseFuncs.reject(new Error(workerError || 'Thumbnail generation failed in worker')); }
+        else { promiseFuncs.reject(new Error(`Unexpected worker message type: ${type}`)); }
+        requestPromisesRef.current.delete(id);
+    } else { console.warn(`[ImageCtx] Received worker message for unknown request ID: ${id}`); }
+  }, []);
+
+  const handleWorkerError = useCallback((err: ErrorEvent) => {
+    console.error('[ImageCtx] Worker Error:', err);
+    setError(`Worker error: ${err.message}`);
+    requestPromisesRef.current.forEach((promiseFuncs, id) => {
+      promiseFuncs.reject(new Error(`Worker encountered an unrecoverable error: ${err.message}`));
+      requestPromisesRef.current.delete(id);
+    });
+  }, [setError]);
+
+  // Initialize Web Worker
+  useEffect(() => {
+    let workerInstance: Worker | null = null;
+    if (typeof window !== 'undefined') {
+       workerInstance = new Worker('/thumbnail.worker.js');
+       workerRef.current = workerInstance;
+       workerInstance.addEventListener('message', handleWorkerMessage);
+       workerInstance.addEventListener('error', handleWorkerError);
+    }
+    const currentPromises = requestPromisesRef.current;
+    // Cleanup
+    return () => {
+      if (workerInstance) {
+        workerInstance.removeEventListener('message', handleWorkerMessage);
+        workerInstance.removeEventListener('error', handleWorkerError);
+        workerInstance.terminate();
+        workerRef.current = null;
+      }
+      currentPromises.forEach((promiseFuncs, id) => {
+          promiseFuncs.reject(new Error("ImageLibraryProvider unmounted"));
+          currentPromises.delete(id);
+      });
+    };
+  }, [handleWorkerMessage, handleWorkerError]);
+
+
+  const generateThumbnail = useCallback((id: string, blob: Blob): Promise<Blob | null> => {
+    return new Promise((resolve, reject) => {
+      if (!workerRef.current) {
+        reject(new Error("Thumbnail worker is not available."));
+        return;
+      }
+      const requestId = `thumb-${id}-${Date.now()}`;
+      requestPromisesRef.current.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
+      workerRef.current.postMessage({ id: requestId, blob });
+    });
+  }, []);
+
+  // --- DB Operations ---
+  const listImages = useCallback(async (limit: number = 50): Promise<LibraryImage[]> => {
+    setLoading(true); setError(null);
+    try {
+      if (!db) throw new Error("Database instance is not available.");
+      return await db.images.orderBy('createdAt').reverse().limit(limit).toArray();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown DB error';
+      console.error("Error listing images:", err);
+      setError(`Failed to list images: ${message}`);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const getImage = useCallback(async (id: string): Promise<LibraryImage | undefined> => {
+    setError(null);
+    try {
+      if (!db) throw new Error("Database instance is not available.");
+      return await db.images.get(id);
+    } catch (err: unknown) {
+       const message = err instanceof Error ? err.message : 'Unknown DB error';
+      console.error(`Error getting image ${id}:`, err);
+      setError(`Failed to get image: ${message}`);
+      return undefined;
+    }
+  }, []);
+
+  const addImage = useCallback(async (blob: Blob, name: string, type: string): Promise<string> => {
+    setLoading(true); setError(null);
+    const id = uuidv4();
+    let thumbnailBlob: Blob | null = null; // Still holds Blob | null initially
+    try {
         try {
-            const newImage: LibraryImage = {
-                name,
-                type,
-                blob,
-                lastUpdated: Date.now(),
-            };
-            // Dexie's add() returns the ID of the added item
-            const id = await db.images.add(newImage);
-            console.log(`[ImageLibraryCtx] Image added with ID: ${id}`);
-            return id;
-        } catch (error) {
-            console.error("[ImageLibraryCtx] Error adding image:", error);
-            // Re-throw or handle as needed, maybe return undefined on failure
-            throw error; // Re-throwing for now, component can catch
-        }
-    }, []);
-
-    const getImage = useCallback(async (id: number): Promise<LibraryImage | undefined> => {
-        try {
-            const image = await db.images.get(id);
-            // console.log(`[ImageLibraryCtx] Fetched image ID ${id}:`, image ? 'Found' : 'Not Found');
-            return image;
-        } catch (error) {
-            console.error(`[ImageLibraryCtx] Error getting image ID ${id}:`, error);
-            throw error;
-        }
-    }, []);
-
-    const deleteImage = useCallback(async (id: number): Promise<void> => {
-        try {
-            await db.images.delete(id);
-            console.log(`[ImageLibraryCtx] Deleted image ID ${id}`);
-        } catch (error) {
-            console.error(`[ImageLibraryCtx] Error deleting image ID ${id}:`, error);
-            throw error;
-        }
-    }, []);
-
-    const listImages = useCallback(async (limit?: number, sortBy: keyof LibraryImage = 'lastUpdated', reverse: boolean = true): Promise<LibraryImage[]> => {
-        try {
-            let query = db.images.orderBy(sortBy);
-            if (reverse) {
-                query = query.reverse();
-            }
-            if (limit && limit > 0) {
-                query = query.limit(limit);
-            }
-            const images = await query.toArray();
-            // console.log(`[ImageLibraryCtx] Listed ${images.length} images (limit: ${limit}, sortBy: ${sortBy}, reverse: ${reverse})`);
-            return images;
-        } catch (error) {
-            console.error("[ImageLibraryCtx] Error listing images:", error);
-            throw error;
-        }
-    }, []);
-
-    const clearAllImages = useCallback(async (): Promise<void> => {
-        try {
-            await db.images.clear();
-            console.log("[ImageLibraryCtx] Cleared all images.");
-        } catch (error) {
-            console.error("[ImageLibraryCtx] Error clearing all images:", error);
-            throw error;
-        }
-    }, []);
+             thumbnailBlob = await generateThumbnail(id, blob);
+             console.log(`[ImageCtx] Thumbnail generated for ${id}:`, thumbnailBlob ? `${thumbnailBlob.size} bytes` : 'null');
+        } catch (thumbError: unknown) {
+             console.error(`[ImageCtx] Thumbnail generation failed for ${id}:`, thumbError);
+             thumbnailBlob = null;
+         }
+      if (!db) throw new Error("Database instance is not available.");
+      // --- FIX: Convert null to undefined before assigning ---
+      const newImage: LibraryImage = {
+        id: id,
+        name: name,
+        type: type,
+        size: blob.size,
+        blob: blob,
+        thumbnailBlob: thumbnailBlob === null ? undefined : thumbnailBlob, // The fix is here
+        createdAt: new Date(),
+      };
+      // --- End Fix ---
+      await db.images.add(newImage);
+      return id;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown DB error';
+      console.error("Error adding image:", err);
+      setError(`Failed to add image: ${message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [generateThumbnail]);
 
 
-    // --- Memoize the context value ---
-    const value = useMemo(() => ({
-        addImage,
-        getImage,
-        deleteImage,
-        listImages,
-        clearAllImages,
-    }), [addImage, getImage, deleteImage, listImages, clearAllImages]);
+  const deleteImage = useCallback(async (id: string): Promise<void> => {
+    setLoading(true); setError(null);
+    try {
+      if (!db) throw new Error("Database instance is not available.");
+      await db.images.delete(id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown DB error';
+      console.error(`Error deleting image ${id}:`, err);
+      setError(`Failed to delete image: ${message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    // --- Render the provider ---
-    return (
-        <ImageLibraryContext.Provider value={value}>
-            {children}
-        </ImageLibraryContext.Provider>
-    );
+  const clearAllImages = useCallback(async (): Promise<void> => {
+    setLoading(true); setError(null);
+    try {
+       if (!db) throw new Error("Database instance is not available.");
+      await db.images.clear();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown DB error';
+      console.error("Error clearing all images:", err);
+      setError(`Failed to clear all images: ${message}`);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const contextValue = useMemo(() => ({
+    listImages,
+    getImage,
+    addImage,
+    deleteImage,
+    clearAllImages,
+    loading,
+    error,
+  }), [listImages, getImage, addImage, deleteImage, clearAllImages, loading, error]);
+
+  return (
+    <ImageLibraryContext.Provider value={contextValue}>
+      {children}
+    </ImageLibraryContext.Provider>
+  );
 };

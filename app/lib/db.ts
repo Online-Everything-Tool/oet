@@ -1,37 +1,66 @@
 // FILE: app/lib/db.ts
-import Dexie, { type Table } from 'dexie';
+import Dexie, { type EntityTable } from 'dexie';
 
-// Define the structure of the data we'll store in the 'images' table
+// Define the interface for the data structure stored in the 'images' table
 export interface LibraryImage {
-  id?: number; // Auto-incrementing primary key (optional on input)
+  id: string; // Primary key (UUID)
   name: string;
-  type: string;
-  blob: Blob; // Store the actual image Blob
-  lastUpdated: number; // Timestamp of when it was added/updated
-  // Add other metadata as needed later (e.g., dimensions, sourceTool)
+  type: string; // MIME type (e.g., 'image/png')
+  size: number; // Size in bytes
+  blob: Blob; // The original image blob
+  thumbnailBlob?: Blob; // Optional thumbnail blob (can be undefined)
+  createdAt: Date;
 }
 
-// Define the Database class using Dexie
-// We extend Dexie and define our tables/stores within the constructor.
-export class ImageLibraryDB extends Dexie {
-  // 'images' is the name of our object store (table).
-  // The Table type generics define the shape of the data and the type of the primary key.
-  images!: Table<LibraryImage, number>; // number is the type of the primary key 'id'
+// Define the Dexie database schema
+class ImageDatabase extends Dexie {
+  // 'images' is the name of the table (Object Store)
+  // EntityTable<Model, PrimaryKeyPropName>
+  images!: EntityTable<LibraryImage, 'id'>; // Use 'id' as the Primary Key property name
 
   constructor() {
-    // Database name: 'ImageLibraryDB'
-    super('ImageLibraryDB');
-    // Define database schema. Version 1 has one table: 'images'.
-    // '++id' means auto-incrementing primary key.
-    // 'name,lastUpdated' are indexed properties for potential querying/sorting.
+    super('ImageDatabase'); // Database name
+
+    // Define the current schema in version 1
     this.version(1).stores({
-      images: '++id, name, lastUpdated', // Schema declaration
+      // 'id' is the primary key (UUID).
+      // Other fields can be indexed for faster lookups if needed.
+      // Blobs (blob, thumbnailBlob) are generally not indexed.
+      images: 'id, name, type, size, createdAt'
     });
+
+    // Remove previous version definitions and upgrade logic
+    // If schema changes are needed later, increment the version number here
+    // and either provide an upgrade function or instruct users to clear storage.
   }
 }
 
-// Create a singleton instance of the database to be used throughout the app.
-export const db = new ImageLibraryDB();
+// Create a singleton instance of the database
+// Add extra checks for server-side rendering if necessary, though Dexie is client-side
+let dbInstance: ImageDatabase | null = null;
 
-// Optional: Helper functions could be added here later if needed,
-// but the context will primarily handle interactions.
+if (typeof window !== 'undefined') {
+    dbInstance = new ImageDatabase();
+}
+
+// Export the instance, ensuring it's non-null for client-side usage
+// Throw an error if accessed server-side where it would be null
+const getDbInstance = (): ImageDatabase => {
+    if (!dbInstance) {
+        // This case should ideally not happen in client components after hydration
+        // but provides a safeguard.
+        if (typeof window === 'undefined') {
+            throw new Error("Dexie database cannot be accessed on the server-side.");
+        }
+        // Potentially initialize here if hydration issues occur, though constructor should handle client side.
+        console.warn("Re-initializing Dexie DB instance unexpectedly.");
+        dbInstance = new ImageDatabase();
+    }
+    return dbInstance;
+};
+
+// Export the initialized instance using a named export
+export const db = getDbInstance();
+
+// Also provide a default export for compatibility if needed elsewhere (though named is clearer)
+export default db;

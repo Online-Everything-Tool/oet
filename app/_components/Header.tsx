@@ -38,7 +38,7 @@ export default function Header() {
                     href="/history"
                     className="px-3 py-1 text-sm font-medium rounded hover:bg-[rgba(255,255,255,0.1)] flex items-center transition-colors duration-200"
                     aria-label="View History"
-                    title="View History" // S             </ClientOnly>tandard HTML title attribute works as a simple tooltip
+                    title="View History"
                  >
                      <span style={{ fontSize: '1.75rem' }} aria-hidden="true">
                         📝

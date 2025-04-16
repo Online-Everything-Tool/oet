@@ -1,7 +1,6 @@
 // FILE: /app/page.tsx
 import fs from 'fs/promises';
 import path from 'path';
-import ClientOnly from '@/app/_components/ClientOnly';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget'; // Import the new widget
@@ -27,9 +26,9 @@ interface ProjectAnalysisData {
   modelNameUsed: string;
 }
 
-// --- Helper function getAvailableTools (Unchanged) ---
+// --- Helper function getAvailableTools (Updated Paths) ---
 async function getAvailableTools(): Promise<ToolDisplayData[]> {
-    const toolsDirPath = path.join(process.cwd(), 'app', 't');
+    const toolsDirPath = path.join(process.cwd(), 'app', 'tool'); // <-- CORRECTED PATH
     const dynamicTools: ToolDisplayData[] = [];
     try {
         const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
@@ -43,7 +42,7 @@ async function getAvailableTools(): Promise<ToolDisplayData[]> {
                     const metadata: ToolMetadata = JSON.parse(metadataContent);
                     if (metadata.title && metadata.description && metadata.includeInSitemap !== false) {
                         dynamicTools.push({
-                        href: `/tool/${directive}/`,
+                        href: `/tool/${directive}/`, // <-- CORRECTED PATH
                         title: metadata.title,
                         description: metadata.description,
                         });
@@ -132,21 +131,16 @@ export default async function Home() {
              )}
         </div>
 
-        {/* Recently Used Tools Section (Unchanged) */}
-        <ClientOnly>
-            <RecentlyUsedWidget limit={5} displayMode="homepage" />
-        </ClientOnly>
+        <RecentlyUsedWidget limit={5} displayMode="homepage" />
 
-        {/* Available Tools Section (Uses Widget) */}
+        {/* Available Tools Section (Uses Widget - Unchanged structure) */}
         <ToolListWidget initialTools={availableTools} />
 
-        {/* --- Build a New Tool Section (NOW USES WIDGET) --- */}
+        {/* Build a New Tool Section (Uses Widget - Unchanged structure) */}
         <BuildToolWidget
             suggestedDirectives={suggestedDirectives}
             modelNameUsed={analysisData?.modelNameUsed}
         />
-        {/* --- End Build a New Tool Section --- */}
-
     </div>
   );
 }
