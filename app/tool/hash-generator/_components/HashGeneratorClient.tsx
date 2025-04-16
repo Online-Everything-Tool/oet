@@ -42,6 +42,7 @@ export default function HashGeneratorClient({
         stateSetters as StateSetters
     );
 
+    // Updated handleGenerateHash
     const handleGenerateHash = useCallback(async (triggerType: TriggerType, textToProcess = text) => {
         setError('');
         setOutputValue('');
@@ -56,7 +57,8 @@ export default function HashGeneratorClient({
         let result = '';
         let status: 'success' | 'error' = 'success';
         let errorMessage = '';
-        const inputDetails = { // Define input details here
+        let historyOutputObj: Record<string, unknown> = {}; // For structured output
+        const inputDetails = {
             text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
             algorithm: algorithm
         };
@@ -71,18 +73,26 @@ export default function HashGeneratorClient({
             }
             const encoder = new TextEncoder();
             const dataBuffer = encoder.encode(textToProcess);
-            const subtleAlgo = algorithm as AlgorithmIdentifier;
+            const subtleAlgo = algorithm as AlgorithmIdentifier; // Assume type compatibility
             const hashBuffer = await crypto.subtle.digest(subtleAlgo, dataBuffer);
             result = bufferToHex(hashBuffer);
             setOutputValue(result);
           }
+           historyOutputObj = { // Structure the success output
+               algorithmUsed: algorithm, // Summary field
+               hashValue: result
+           };
         } catch (err) {
           console.error(`Hashing error (${algorithm}):`, err);
           errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during hashing.';
           setError(`Error generating hash: ${errorMessage}`);
           setOutputValue('');
           status = 'error';
-          (inputDetails as Record<string, unknown>).error = errorMessage; // Add error to input details if failed
+          (inputDetails as Record<string, unknown>).error = errorMessage; // Add error to input details
+           historyOutputObj = { // Structure the error output
+               algorithmUsed: `Error (${algorithm})`, // Summary field for error
+               errorMessage: errorMessage
+           };
         } finally {
           setIsLoading(false);
         }
@@ -93,16 +103,16 @@ export default function HashGeneratorClient({
             toolRoute: toolRoute,
             trigger: triggerType,
             input: inputDetails,
-            output: status === 'success' ? result : `Error: ${errorMessage}`,
+            output: historyOutputObj, // Log the structured object
             status: status,
         });
 
-    }, [text, algorithm, addHistoryEntry, toolTitle, toolRoute]);
+    }, [text, algorithm, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
     useEffect(() => {
         if (shouldRunOnLoad && text) {
             const runAsync = async () => {
-                await handleGenerateHash('query', text); // Pass 'query' trigger
+                await handleGenerateHash('query', text);
                 setShouldRunOnLoad(false);
             };
             runAsync();
@@ -123,25 +133,23 @@ export default function HashGeneratorClient({
         setAlgorithm(newAlgorithm);
         setOutputValue('');
         setError('');
-         // Re-trigger hash generation if text exists
         if (text) {
-            handleGenerateHash('click', text); // Treat option change as 'click' trigger
+            // Use await here if you want processing to finish before UI potentially updates further
+            // Although in this case, it might not be strictly necessary
+            handleGenerateHash('click', text);
         }
     };
 
-    // --- UPDATED handleClear to REMOVE history logging ---
     const handleClear = useCallback(() => {
         setText('');
         setOutputValue('');
         setError('');
         setAlgorithm('MD5');
         setIsLoading(false);
-        // History logging removed
-    }, []); // Dependencies updated
-    // --- END UPDATE ---
+        // No history log
+    }, []);
 
     return (
-        // --- JSX Unchanged ---
         <div className="space-y-6 text-[rgb(var(--color-text-base))]">
             <div>
               <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"> Input Text: </label>

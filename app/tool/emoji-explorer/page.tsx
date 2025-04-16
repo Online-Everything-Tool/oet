@@ -5,9 +5,7 @@ import type { RichEmojiData } from './_components/EmojiExplorerClient';
 import ToolHeader from '../_components/ToolHeader';
 import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
 import metadata from './metadata.json';
-// Removed fs/path/uuid imports as they are not needed here anymore
 
-// Server-side data fetching function remains the same
 async function fetchAndParseEmojis(): Promise<RichEmojiData[]> {
   const EMOJI_DATA_URL = 'https://unicode.org/Public/emoji/latest/emoji-test.txt';
   console.log(`Server: Fetching emoji data from: ${EMOJI_DATA_URL}`);
@@ -66,7 +64,7 @@ export default async function EmojiExplorerPage() {
             title={toolTitle}
             description={metadata.description || ""}
         />
-      <EmojiSearchClient initialEmojis={allEmojis ?? []} />
+      <EmojiSearchClient initialEmojis={allEmojis ?? []}/>
     </div>
   );
 }

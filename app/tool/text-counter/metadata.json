@@ -13,6 +13,9 @@
       "defaultValue": ""
     }
   ],  
+  "outputConfig": {
+    "summaryField": "words"
+  },  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

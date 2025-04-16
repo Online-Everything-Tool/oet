@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
 type Operation = 'encode' | 'decode';
@@ -35,55 +35,68 @@ export default function UrlEncodeDecodeClient({
         stateSetters as StateSetters
     );
 
-    const handleEncode = useCallback((textToProcess = text) => {
+    // Updated handleEncode
+    const handleEncode = useCallback((triggerType: TriggerType, textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
+        let historyOutputObj: Record<string, unknown> = {}; // For structured output
 
         setError('');
         setOutputValue('');
-
         if (!textToProcess) return;
 
         try {
           currentOutput = encodeURIComponent(textToProcess);
           setOutputValue(currentOutput);
+          historyOutputObj = { // Structure success output
+              operationResult: "Encoded URL", // Summary field
+              resultValue: currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput
+          };
         } catch (err) {
           console.error("Encoding Error:", err);
           currentError = "An unexpected error occurred during encoding.";
           setError(currentError);
           status = 'error';
+           historyOutputObj = { // Structure error output
+               operationResult: "Encoding Error",
+               errorMessage: currentError
+           };
         }
 
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            trigger: 'click',
+            trigger: triggerType,
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'encode'
             },
-            output: status === 'success'
-                ? (currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput)
-                : `Error: ${currentError}`,
+            output: historyOutputObj, // Log structured object
             status: status,
         });
 
-    }, [text, addHistoryEntry, toolTitle, toolRoute]);
+    }, [text, addHistoryEntry, toolTitle, toolRoute]); // Added text dependency
 
-    const handleDecode = useCallback((textToProcess = text) => {
+    // Updated handleDecode
+    const handleDecode = useCallback((triggerType: TriggerType, textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
+        let historyOutputObj: Record<string, unknown> = {}; // For structured output
 
         setError('');
         setOutputValue('');
-
         if (!textToProcess) return;
 
         try {
+          // Replace '+' with space *before* decoding for form-encoded compatibility
           currentOutput = decodeURIComponent(textToProcess.replace(/\+/g, ' '));
           setOutputValue(currentOutput);
+           historyOutputObj = { // Structure success output
+               operationResult: "Decoded Text", // Summary field
+               resultValue: currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput
+           };
         } catch (err) {
           console.error("Decoding Error:", err);
           if (err instanceof URIError) {
@@ -93,36 +106,37 @@ export default function UrlEncodeDecodeClient({
           }
           setError(currentError);
           status = 'error';
+           historyOutputObj = { // Structure error output
+               operationResult: "Decoding Error",
+               errorMessage: currentError
+           };
         }
 
-        addHistoryEntry({
+         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            trigger: 'click',
+            trigger: triggerType,
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'decode'
             },
-            output: status === 'success'
-                ? (currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput)
-                : `Error: ${currentError}`,
+            output: historyOutputObj, // Log structured object
             status: status,
         });
-
-    }, [text, addHistoryEntry, toolTitle, toolRoute]);
+      }, [text, addHistoryEntry, toolTitle, toolRoute]); // Added text dependency
 
     useEffect(() => {
           if (shouldRunOnLoad && text) {
               if (operation === 'encode') {
-                  handleEncode(text);
+                  handleEncode('query', text); // Pass trigger type
               } else if (operation === 'decode') {
-                  handleDecode(text);
+                  handleDecode('query', text); // Pass trigger type
               }
               setShouldRunOnLoad(false);
           } else if (shouldRunOnLoad && !text) {
               setShouldRunOnLoad(false);
           }
-    }, [shouldRunOnLoad, setShouldRunOnLoad, text, operation, handleEncode, handleDecode]);
+    }, [shouldRunOnLoad, setShouldRunOnLoad, text, operation, handleEncode, handleDecode]); // Dependencies remain same
 
 
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -136,6 +150,7 @@ export default function UrlEncodeDecodeClient({
         setOutputValue('');
         setError('');
         setOperation('encode');
+        // No history log
     };
 
     return (
@@ -158,7 +173,7 @@ export default function UrlEncodeDecodeClient({
             <div className="flex flex-wrap gap-3 items-center">
                  <button
                     type="button"
-                    onClick={() => handleEncode()}
+                    onClick={() => handleEncode('click', text)} // Pass trigger type
                     disabled={!text}
                     className="px-5 py-2 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
                  >
@@ -166,7 +181,7 @@ export default function UrlEncodeDecodeClient({
                  </button>
                  <button
                     type="button"
-                    onClick={() => handleDecode()}
+                    onClick={() => handleDecode('click', text)} // Pass trigger type
                     disabled={!text}
                     className="px-5 py-2 rounded-md text-[rgb(var(--color-button-secondary-text))] font-medium bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
                  >

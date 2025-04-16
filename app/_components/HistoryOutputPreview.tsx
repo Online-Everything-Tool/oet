@@ -1,39 +1,36 @@
 // FILE: app/_components/HistoryOutputPreview.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import Image from 'next/image'; // Import next/image
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { HistoryEntry } from '@/app/context/HistoryContext';
-import type { ToolMetadata } from './RecentlyUsedWidget'; // Reuse type
+import type { ToolMetadata } from './RecentlyUsedWidget';
 
 interface HistoryOutputPreviewProps {
   entry: HistoryEntry;
   metadata: ToolMetadata | null;
 }
 
-// Helper to safely stringify, handling potential circular references (though less likely here)
+// safeStringify function remains the same
 function safeStringify(value: unknown, space: number = 2): string {
     try {
         if (value === undefined) return 'undefined';
         if (value === null) return 'null';
-        // Basic check for large data before attempting stringify
         if (typeof value === 'string' && value.length > 500) return value.substring(0, 500) + '... [truncated]';
         if (typeof value === 'object') {
-             // A more robust check might involve trying to stringify and catching errors,
-             // or using a library that handles circular refs if those are expected.
-             // For now, assume simple objects or provide a placeholder.
              try {
                  const str = JSON.stringify(value, null, space);
-                 return str.length > 500 ? str.substring(0, 500) + '... [truncated]' : str;
-             } catch /* istanbul ignore next */ {
+                 const limit = space === 0 ? 100 : 500;
+                 return str.length > limit ? str.substring(0, limit) + '... [truncated]' : str;
+             } catch {
                  return '[Could not stringify object]';
              }
         }
-        // Handle primitives directly
         const stringValue = String(value);
-        return stringValue.length > 500 ? stringValue.substring(0, 500) + '... [truncated]' : stringValue;
-    } catch /* istanbul ignore next */ (stringifyError: unknown) {
+        const limit = space === 0 ? 100 : 500;
+        return stringValue.length > limit ? stringValue.substring(0, limit) + '... [truncated]' : stringValue;
+    } catch (stringifyError: unknown) {
         console.error("Error stringifying history output:", stringifyError);
         return '[Error displaying value]';
     }
@@ -41,103 +38,126 @@ function safeStringify(value: unknown, space: number = 2): string {
 
 export default function HistoryOutputPreview({ entry, metadata }: HistoryOutputPreviewProps) {
   const outputConfig = metadata?.outputConfig;
-  const { getImage } = useImageLibrary();
+  const { getImage } = useImageLibrary(); // getImage from context should be stable
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
 
   const output = entry.output;
 
-  // Safely determine if we have a valid imageId based on outputConfig
-  const imageId = outputConfig && // 1. Check if outputConfig exists
-                  outputConfig.referenceType === 'imageLibraryId' && // 2. Check type
-                  typeof outputConfig.referenceField === 'string' && // 3. Check field name exists and is string
-                  typeof output === 'object' && output !== null && // 4. Check output is an object
-                  outputConfig.referenceField in output // 5. Check if the field exists in the output object
-      ? (output as Record<string, unknown>)[outputConfig.referenceField] // Access the field value
-      : null;
+  // Memoize derived values from props
+  const imageId = useMemo(() => {
+    const id = outputConfig?.referenceType === 'imageLibraryId' &&
+               typeof outputConfig.referenceField === 'string' &&
+               typeof output === 'object' && output !== null &&
+               outputConfig.referenceField in output
+        ? (output as Record<string, unknown>)[outputConfig.referenceField]
+        : null;
+     return typeof id === 'string' ? id : null; // Ensure it's string or null
+  }, [outputConfig, output]);
 
-  // Safely get summary text
-  const summaryText = outputConfig?.summaryField && typeof output === 'object' && output !== null && outputConfig.summaryField in output
-      ? String((output as Record<string, unknown>)[outputConfig.summaryField])
-      : null;
+  const summaryText = useMemo(() => {
+       const text = outputConfig?.summaryField &&
+                    typeof output === 'object' && output !== null &&
+                    outputConfig.summaryField in output
+            ? String((output as Record<string, unknown>)[outputConfig.summaryField])
+            : null;
+       return text;
+   }, [outputConfig, output]);
 
-
-  const loadImage = useCallback(async () => {
-    if (typeof imageId !== 'string' || !imageId) return;
-
-    setIsLoading(true);
-    setImageError(null);
-    setImageUrl(null); // Clear previous image URL
-
-    try {
-      const imageData = await getImage(imageId);
-      if (imageData?.thumbnailBlob) {
-        const url = URL.createObjectURL(imageData.thumbnailBlob);
-        setImageUrl(url);
-      } else if (imageData?.blob) {
-        // Fallback to original if thumbnail missing
-        console.warn(`[HistoryPreview] Thumbnail missing for ${imageId}, using original.`);
-        const url = URL.createObjectURL(imageData.blob);
-        setImageUrl(url);
-      } else {
-        throw new Error('Image data or blob not found.');
-      }
-    } catch (loadErr: unknown) {
-      console.error(`[HistoryPreview] Error loading image ${imageId}:`, loadErr);
-      setImageError('Preview unavailable');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [imageId, getImage]);
-
+  // --- Revised useEffect for Image Loading and Cleanup ---
   useEffect(() => {
-    if (imageId) {
-      loadImage();
-    }
-    // Cleanup function to revoke the object URL when the component unmounts or imageId changes
-    return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
+    let isActive = true; // Flag to track if the component is still mounted during async ops
+    let objectUrlToRevoke: string | null = null; // Store the URL created in *this* effect run
+
+    const loadAndSetImage = async () => {
+      if (!imageId) {
+        // No image ID, reset state if mounted
+        if (isActive) {
+            setImageUrl(null);
+            setImageError(null);
+            setIsLoading(false);
+        }
+        return;
+      }
+
+      // Start loading: Reset previous state, set loading true
+      setIsLoading(true);
+      setImageError(null);
+      setImageUrl(null); // Clear previous URL immediately
+
+      try {
+        const imageData = await getImage(imageId);
+        if (!isActive) return; // Check after await
+
+        if (imageData?.thumbnailBlob) {
+          objectUrlToRevoke = URL.createObjectURL(imageData.thumbnailBlob);
+        } else if (imageData?.blob) {
+          objectUrlToRevoke = URL.createObjectURL(imageData.blob);
+        } else {
+          throw new Error('Image data or blob not found in library.');
+        }
+
+        if (isActive) {
+           setImageUrl(objectUrlToRevoke); // Set the new URL
+           setImageError(null); // Clear any previous error
+        }
+      } catch (err) {
+        console.error(`[HistoryPreview] Error loading image ${imageId}:`, err);
+        if (isActive) {
+           setImageError('Preview unavailable');
+           setImageUrl(null); // Ensure URL is null on error
+        }
+      } finally {
+        if (isActive) {
+           setIsLoading(false); // Set loading false once done
+        }
       }
     };
-  }, [imageId, loadImage, imageUrl]); // imageUrl dependency ensures cleanup runs if URL changes
 
-  // Fallback display logic
+    loadAndSetImage();
+
+    // Cleanup function
+    return () => {
+      isActive = false; // Mark as unmounted
+      if (objectUrlToRevoke) {
+        // console.log(`[Effect Cleanup] ID: ${entry.id} - Revoking URL: ${objectUrlToRevoke.substring(0,50)}...`);
+        URL.revokeObjectURL(objectUrlToRevoke);
+      }
+    };
+  // Only dependency is imageId. getImage from context is stable.
+  }, [imageId, getImage, entry.id]); // entry.id added for potential debug logging clarity
+
+  // Fallback display logic (unchanged)
   const renderFallbackOutput = useCallback(() => {
     if (entry.status === 'error') {
-        return <span className="text-red-600 text-xs italic">Error occurred</span>;
+      return <span className="text-red-600 text-xs italic">Error</span>;
     }
     if (summaryText !== null) {
-      // Use summary text if available and no image is expected/loaded
-      return <span className="text-xs italic">{summaryText.length > 100 ? summaryText.substring(0, 97) + '...' : summaryText}</span>;
+        return <span className="text-xl" title={typeof output === 'object' && output !== null && 'name' in output ? String((output as Record<string, unknown>).name) : undefined}>{summaryText}</span>;
     }
-    // Generic fallback if no specific config matches
     return <span className="text-xs italic">{safeStringify(output, 0)}</span>;
   }, [entry.status, output, summaryText]);
 
 
+  // Render logic: Prioritize image if imageId exists
   if (imageId) {
     if (isLoading) {
-      return <div className="w-10 h-10 bg-gray-200 rounded animate-pulse"></div>;
+        // Loading placeholder - ensure consistent size
+        return <div className="w-full h-full bg-gray-200 rounded animate-pulse min-h-[40px]"></div>;
     }
     if (imageError) {
-      return <span className="text-xs text-red-500 italic" title={imageError}>Err</span>;
+        // Error placeholder
+        return <span className="text-xs text-red-500 italic flex items-center justify-center h-full" title={imageError}>Err</span>;
     }
     if (imageUrl) {
-      return (
-        <Image // Use Next.js Image
-          src={imageUrl}
-          alt={`Preview for ${entry.toolName}`}
-          width={40} // Provide required width
-          height={40} // Provide required height
-          className="w-10 h-10 object-cover rounded border border-gray-300"
-          unoptimized={true} // Necessary for blob URLs
-        />
-      );
+        // Render the image
+        return ( <Image src={imageUrl} alt={`Preview for ${entry.toolName}`} width={64} height={64} className="w-full h-full object-cover rounded" unoptimized={true} priority={false} /> );
     }
+    // If imageId exists but URL is null (and not loading/error), show a temp state
+     return <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center"><span className="text-xs text-gray-400">...</span></div>;
   }
 
-  // If not an image or image loading failed, render fallback
+  // If no imageId, render the fallback (summary text or stringified output)
   return renderFallbackOutput();
 }

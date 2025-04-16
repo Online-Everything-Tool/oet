@@ -7,6 +7,7 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import CryptoWalletGeneratorClient from './_components/CryptoWalletGeneratorClient';
 
 export default function CryptoWalletGeneratorPage() {
+
   const toolTitle = metadata.title || "Crypto Wallet Generator";
   const toolRoute = "/tool/crypto-wallet-generator";
 

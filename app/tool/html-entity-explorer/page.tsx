@@ -87,7 +87,7 @@ export default async function HtmlEntityPage() {
           title={toolTitle}
           description={metadata.description || ""}
       />
-      <HtmlEntityExplorerClient initialEntities={entities} availableCategories={categories} />
+      <HtmlEntityExplorerClient initialEntities={entities} availableCategories={categories}/>
     </div>
   );
 }

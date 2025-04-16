@@ -1,6 +1,9 @@
 {
   "title": "Html Entity Explorer",
   "description": "Easily find and copy HTML character entities.",
+  "outputConfig": {
+    "summaryField": "char"
+  },  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

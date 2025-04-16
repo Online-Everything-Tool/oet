@@ -1,6 +1,9 @@
 {
   "title": "Password Generator",
   "description": "Generate strong, random passwords with customizable options.",
+  "outputConfig": {
+    "summaryField": "generatedLength"
+  },
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

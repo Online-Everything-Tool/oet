@@ -1,6 +1,9 @@
 {
   "title": "Emoji Explorer",
   "description": "Search, filter, and copy emojis from the latest official Unicode emoji dataset.",
+  "outputConfig": {
+    "summaryField": "emoji"
+  },
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

@@ -21,7 +21,7 @@ const CASE_TYPES = [
 
 type Case = typeof CASE_TYPES[number]['value'];
 
-// Button color cycle
+// Button color cycle remains the same
 const buttonColorCycle = [
     { base: '--color-button-primary-bg', hover: '--color-button-primary-hover-bg', text: '--color-button-primary-text'},
     { base: '--color-button-secondary-bg', hover: '--color-button-secondary-hover-bg', text: '--color-button-secondary-text'},
@@ -29,7 +29,6 @@ const buttonColorCycle = [
     { base: '--color-button-accent-bg', hover: '--color-button-accent-hover-bg', text: '--color-button-accent-text'},
 ] as const;
 
-// Active button style using Accent Purple
 const activeBgColorVar = '--color-button-accent-bg';
 const activeHoverBgColorVar = '--color-button-accent-hover-bg';
 const activeTextColorVar = '--color-button-accent-text';
@@ -62,14 +61,18 @@ export default function CaseConverterClient({
         stateSetters as StateSetters
     );
 
+    // Updated handleConvertCase
     const handleConvertCase = useCallback((triggerType: TriggerType, targetCase: Case, textToProcess = text) => {
         let result = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
+        let historyOutputObj: Record<string, unknown> = {}; // For structured output
+        const targetCaseLabel = CASE_TYPES.find(ct => ct.value === targetCase)?.label || targetCase; // Get label
+
         setError('');
         setOutputValue('');
 
-        if (!textToProcess) return; // Don't log history for empty input
+        if (!textToProcess) return;
 
         try {
             switch (targetCase) {
@@ -86,11 +89,19 @@ export default function CaseConverterClient({
                  throw new Error(`Unsupported case type: ${exhaustiveCheck}`);
             }
             setOutputValue(result);
+            historyOutputObj = { // Structure the success output
+                resultCaseTypeLabel: targetCaseLabel,
+                outputValue: result.length > 500 ? result.substring(0, 500) + '...' : result
+            };
         } catch (err) {
             console.error("Case conversion error:", err);
             currentError = err instanceof Error ? err.message : "Failed to convert case.";
             setError(currentError);
             status = 'error';
+            historyOutputObj = { // Structure the error output
+                resultCaseTypeLabel: `Error converting to ${targetCaseLabel}`,
+                errorMessage: currentError
+            };
         }
 
         // Log the conversion action
@@ -100,17 +111,17 @@ export default function CaseConverterClient({
             trigger: triggerType,
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
-                case: targetCase
+                case: targetCase // Log the internal value ('lowercase')
             },
-            output: status === 'success' ? (result.length > 500 ? result.substring(0, 500) + '...' : result) : `Error: ${currentError}`,
+            output: historyOutputObj, // Log the structured object
             status: status,
         });
 
-    }, [text, addHistoryEntry, toolTitle, toolRoute]);
+    }, [text, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
     useEffect(() => {
         if (shouldRunOnLoad && text) {
-            handleConvertCase('query', caseType, text); // Logs with 'query' trigger
+            handleConvertCase('query', caseType, text);
             setShouldRunOnLoad(false);
         } else if (shouldRunOnLoad && !text) {
             setShouldRunOnLoad(false);
@@ -122,18 +133,18 @@ export default function CaseConverterClient({
         setOutputValue(''); setError('');
     };
 
-    // Clear function NO LONGER logs history
     const handleClear = useCallback(() => {
         setText('');
         setOutputValue('');
         setError('');
         setCaseType('lowercase');
+        // No history log
     }, []);
 
     const handleCaseButtonClick = (newCaseType: Case) => {
         setCaseType(newCaseType);
         if (text) {
-           handleConvertCase('click', newCaseType, text); // Logs with 'click' trigger
+           handleConvertCase('click', newCaseType, text);
         } else {
            setOutputValue('');
            setError('');
@@ -186,7 +197,7 @@ export default function CaseConverterClient({
                     })}
                      <button
                         type="button"
-                        onClick={handleClear} // This does NOT log history
+                        onClick={handleClear}
                         disabled={!text && !outputValue && !error}
                         title="Clear input and output"
                         className="px-3 py-1.5 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-[rgb(var(--color-border-base))] focus:outline-none transition-colors duration-150 ease-in-out ml-auto disabled:opacity-50 disabled:cursor-not-allowed"

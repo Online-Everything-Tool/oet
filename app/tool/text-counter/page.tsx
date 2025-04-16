@@ -7,9 +7,11 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import TextCounterClient from './_components/TextCounterClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
+import { ToolMetadata } from '@/app/api/tool-metadata/route';
 
 export default function TextCounterPage() {
-  const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
+  const typedMetadata = metadata as ToolMetadata;
+  const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
   const toolTitle = metadata.title || "Text Counter";
   const toolRoute = "/tool/text-counter";
 

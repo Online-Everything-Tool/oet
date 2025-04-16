@@ -7,8 +7,9 @@ import { useHistory } from '@/app/context/HistoryContext';
 
 
 export default function Header() {
-  const { history, isLoaded } = useHistory(); // Re-added isLoaded
-  const historyCount = history.length;  
+  const { history, isLoaded } = useHistory();
+  // Calculate count only when history is loaded to avoid showing 0 briefly
+  const historyCount = isLoaded ? history.length : 0;
   const pathname = usePathname();
   const isHome = pathname === '/';
 
@@ -32,28 +33,29 @@ export default function Header() {
                  </a>
              </Link>
             )}
-          {/* History Link with Icon */}
+          {/* History Link Wrapper (Needed for relative positioning of badge) */}
           <div className="relative inline-block">
-                 <Link
-                    href="/history"
-                    className="px-3 py-1 text-sm font-medium rounded hover:bg-[rgba(255,255,255,0.1)] flex items-center transition-colors duration-200"
-                    aria-label="View History"
-                    title="View History"
-                 >
-                     <span style={{ fontSize: '1.75rem' }} aria-hidden="true">
-                        📝
-                     </span>
-                     {isLoaded && historyCount > 0 && (
-                        <span
-                          className="absolute top-0 right-0 flex h-4 min-w-[1rem] px-1 items-center justify-center rounded-full bg-yellow-400 text-gray-800 text-[10px] font-bold pointer-events-none" // Adjusted badge position & size
-                          title={`${historyCount} history entries`}
-                          aria-hidden="true"
-                        >
-                        {historyCount}
-                      </span>
-                     )}                     
-                     <span className="sr-only">History</span>                     
-                 </Link>
+             <Link
+                href="/history"
+                className="px-2 py-1 text-sm font-medium rounded hover:bg-[rgba(255,255,255,0.1)] flex items-center transition-colors duration-200" // Adjusted padding slightly
+                aria-label="View History"
+                title="View History"
+             >
+                 <span style={{ fontSize: '1.75rem' }} aria-hidden="true">
+                    📝
+                 </span>
+                 {/* History Counter Badge */}
+                 {isLoaded && historyCount > 0 && (
+                    <span
+                      className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-yellow-400 text-gray-900 text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4" // Fine-tuned position & padding
+                      title={`${historyCount} history entries`}
+                      aria-hidden="true"
+                    >
+                    {historyCount > 99 ? '99+' : historyCount} {/* Limit displayed count */}
+                  </span>
+                 )}
+                 <span className="sr-only">History ({historyCount} items)</span>
+             </Link>
           </div>
         </div>
       </nav>

@@ -5,9 +5,13 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ColorConverterClient from './_components/ColorConverterClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
+import { ToolMetadata } from '@/app/api/tool-metadata/route';
+
 
 export default function ColorConverterPage() {
-  const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
+  const typedMetadata = metadata as ToolMetadata;
+  const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
+
   const toolTitle = metadata.title || "Hex Color Converter";
   const toolRoute = "/tool/color-converter";
 

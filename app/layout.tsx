@@ -9,7 +9,7 @@ import { HistoryProvider } from "./context/HistoryContext";
 import { ImageLibraryProvider } from "./context/ImageLibraryContext";
 import Header from "./_components/Header";
 import ShoelaceSetup from "@/app/_components/ShoelaceSetup";
-import ClientOnly from "./_components/ClientOnly"; // <-- Import ClientOnly
+import ClientOnly from "./_components/ClientOnly"; // Keep the import
 import '@shoelace-style/shoelace/dist/themes/light.css';
 
 // Font setup
@@ -69,20 +69,20 @@ export default function RootLayout({
                 <meta name="mobile-web-app-capable" content="yes" />
             </head>
             <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+                className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`} // Added flex classes for layout
             >
                 <ShoelaceSetup />
-                <Header /> {/* Header can stay outside ClientOnly if it doesn't use client hooks */}
-                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                    {/* Wrap client-dependent providers and children */}
-                    <ClientOnly>
-                        <ImageLibraryProvider>
-                            <HistoryProvider>
-                                {children}
-                            </HistoryProvider>
-                        </ImageLibraryProvider>
-                    </ClientOnly>
-                </main>
+                {/* Wrap all client-side dependent parts */}
+                <ClientOnly>
+                    <ImageLibraryProvider> {/* Image Library is likely independent */}
+                        <HistoryProvider> {/* HistoryProvider wraps both Header and main content */}
+                            <Header /> {/* Header is now inside HistoryProvider */}
+                            <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                                {children} {/* Children (page content) are also inside HistoryProvider */}
+                            </main>
+                        </HistoryProvider>
+                    </ImageLibraryProvider>
+                </ClientOnly>
             </body>
         </html>
     );

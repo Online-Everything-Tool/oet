@@ -42,10 +42,8 @@ const getUniqueSortedValues = (
 
 interface EmojiSearchClientProps {
   initialEmojis: RichEmojiData[];
-  // Removed availableCategories prop
 }
 
-// Removed availableCategories from destructuring
 export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -99,7 +97,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
 
   const handleEmojiClick = useCallback((emojiData: RichEmojiData) => {
     const historyInput: Record<string, unknown> = {
-        copiedType: 'emoji', // Changed from type to be more specific
+        copiedType: 'emoji',
         copiedValue: emojiData.emoji,
         entityDescription: emojiData.name,
     };
@@ -107,6 +105,13 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
     if (selectedGroup) historyInput.group = selectedGroup;
     if (selectedSubgroup) historyInput.subgroup = selectedSubgroup;
     if (selectedVersion) historyInput.version = selectedVersion;
+
+    // --- Define the structured output ---
+    const historyOutput = {
+        emoji: emojiData.emoji,
+        name: emojiData.name
+    };
+    // --- End structured output ---
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(emojiData.emoji)
@@ -116,7 +121,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
               toolRoute: '/tool/emoji-explorer',
               trigger: 'click',
               input: historyInput,
-              output: emojiData.emoji,
+              output: historyOutput, // <-- Use structured output
               status: 'success',
           });
           console.log(`Copied ${emojiData.emoji} to clipboard.`);
@@ -129,7 +134,7 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
                 toolRoute: '/tool/emoji-explorer',
                 trigger: 'click',
                 input: historyInput,
-                output: emojiData.emoji,
+                output: historyOutput, // <-- Still log structured output on error
                 status: 'error',
             });
         });
@@ -141,11 +146,11 @@ export default function EmojiSearchClient({ initialEmojis }: EmojiSearchClientPr
             toolRoute: '/tool/emoji-explorer',
             trigger: 'click',
             input: historyInput,
-            output: emojiData.emoji,
+            output: historyOutput, // <-- Use structured output
             status: 'error',
         });
     }
-  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]); // Dependencies still needed for constructing input
+  }, [addHistoryEntry, searchTerm, selectedGroup, selectedSubgroup, selectedVersion]); // Dependencies unchanged
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">

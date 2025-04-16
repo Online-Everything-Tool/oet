@@ -7,9 +7,11 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import TextReverseClient from './_components/TextReverseClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
+import { ToolMetadata } from '@/app/api/tool-metadata/route';
 
 export default function TextReversePage() {
-  const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
+  const typedMetadata = metadata as ToolMetadata;
+  const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
   const toolTitle = metadata.title || "Text Reverse";
   const toolRoute = "/tool/text-reverse";
 

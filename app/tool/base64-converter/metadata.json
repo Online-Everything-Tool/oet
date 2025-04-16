@@ -13,6 +13,9 @@
       "defaultValue": "encode"
     }
   ],  
+  "outputConfig": {
+    "summaryField": "operationResult"
+  },  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

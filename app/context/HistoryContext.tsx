@@ -8,7 +8,7 @@ import React, {
   useContext,
   useCallback,
   useMemo,
-  useRef, // <-- Import useRef here
+  useRef,
   ReactNode,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,7 +18,7 @@ const HISTORY_LOCAL_STORAGE_KEY = 'oetHistory_v3';
 const SETTINGS_LOCAL_STORAGE_KEY = 'oetSettings_v1';
 const MAX_HISTORY_ENTRIES = 100;
 const REDACTED_OUTPUT_PLACEHOLDER = "[Output Redacted by Setting]";
-const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on'; // Global fallback (Updated default)
+const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on';
 
 export type TriggerType = 'click' | 'query' | 'auto' | 'transfer' | 'upload';
 export type LoggingPreference = 'on' | 'restrictive' | 'off';
@@ -38,10 +38,9 @@ export type NewHistoryData = Omit<HistoryEntry, 'id' | 'timestamps' | 'triggers'
     trigger: TriggerType;
 };
 
-// --- NEW: Metadata type from API ---
 interface ToolMetadataFromApi {
     defaultLogging?: LoggingPreference;
-    [key: string]: unknown; // Allow other fields like title etc.
+    [key: string]: unknown;
 }
 
 interface MetadataApiResponse {
@@ -49,11 +48,10 @@ interface MetadataApiResponse {
     metadata?: ToolMetadataFromApi;
     error?: string;
 }
-// --- END NEW ---
 
 interface HistorySettings {
     isHistoryEnabled: boolean;
-    toolPreferences?: Record<string, LoggingPreference>; // User overrides only
+    toolPreferences?: Record<string, LoggingPreference>;
 }
 
 interface HistoryContextValue {
@@ -66,10 +64,9 @@ interface HistoryContextValue {
   isHistoryEnabled: boolean;
   toggleHistoryEnabled: () => void;
   getToolLoggingPreference: (toolRoute: string) => LoggingPreference;
-  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>; // Now async
+  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>;
 }
 
-// --- Helper: areStatesEqual (unchanged) ---
 function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
     if (entry1.toolRoute !== entry2.toolRoute) return false;
     try {
@@ -80,7 +77,6 @@ function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
         return entry1.input === entry2.input;
     }
 }
-// --- End Helper ---
 
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
@@ -91,8 +87,8 @@ const HistoryContext = createContext<HistoryContextValue>({
   isLoaded: false,
   isHistoryEnabled: true,
   toggleHistoryEnabled: () => { console.warn('toggleHistoryEnabled called outside of HistoryProvider'); },
-  getToolLoggingPreference: () => GLOBAL_DEFAULT_LOGGING, // Use global default initially
-  setToolLoggingPreference: async () => { console.warn('setToolLoggingPreference called outside of HistoryProvider'); }, // Mark as async
+  getToolLoggingPreference: () => GLOBAL_DEFAULT_LOGGING,
+  setToolLoggingPreference: async () => { console.warn('setToolLoggingPreference called outside of HistoryProvider'); },
 });
 
 export const useHistory = () => {
@@ -110,16 +106,12 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [isHistoryEnabled, setIsHistoryEnabled] = useState<boolean>(true);
   const [toolPreferences, setToolPreferences] = useState<Record<string, LoggingPreference>>({});
-  // --- NEW State for cached defaults ---
   const [toolDefaults, setToolDefaults] = useState<Record<string, LoggingPreference>>({});
-  const fetchingDefaultsRef = useRef<Set<string>>(new Set()); // To prevent concurrent fetches
-  // --- END NEW State ---
+  const fetchingDefaultsRef = useRef<Set<string>>(new Set());
 
-  // --- Load Settings from Local Storage (useEffect - minor validation change) ---
   useEffect(() => {
     let loadedEnabledState = true;
     let loadedPrefs: Record<string, LoggingPreference> = {};
-
     try {
         const storedSettings = localStorage.getItem(SETTINGS_LOCAL_STORAGE_KEY);
         if (storedSettings) {
@@ -127,25 +119,21 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
              if (typeof parsedSettings.isHistoryEnabled === 'boolean') {
                  loadedEnabledState = parsedSettings.isHistoryEnabled;
              }
-             // Validate ONLY the structure, not against defaults yet
              if (typeof parsedSettings.toolPreferences === 'object' && parsedSettings.toolPreferences !== null) {
                   const validPrefs: Record<string, LoggingPreference> = {};
                   const validPrefValues: LoggingPreference[] = ['on', 'restrictive', 'off'];
                   for (const route in parsedSettings.toolPreferences) {
                       const pref = parsedSettings.toolPreferences[route];
-                      if (validPrefValues.includes(pref)) { // Basic validation of stored value
+                      if (validPrefValues.includes(pref)) {
                           validPrefs[route] = pref;
                       }
                   }
-                  loadedPrefs = validPrefs; // Store only user overrides
+                  loadedPrefs = validPrefs;
              }
         }
     } catch (error) { console.error('[HistoryCtx] Error parsing settings:', error); }
-
     setIsHistoryEnabled(loadedEnabledState);
-    setToolPreferences(loadedPrefs); // Load user preferences
-
-    // History loading remains the same
+    setToolPreferences(loadedPrefs);
     try {
       const storedHistory = localStorage.getItem(HISTORY_LOCAL_STORAGE_KEY);
       if (storedHistory) {
@@ -167,7 +155,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     } finally { setIsLoaded(true); }
   }, []);
 
-  // Save History (useEffect - unchanged)
   useEffect(() => {
     if (isLoaded) {
       try {
@@ -177,7 +164,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     }
   }, [history, isLoaded]);
 
-  // Save Settings (useEffect - unchanged)
   useEffect(() => {
       if (isLoaded) {
           try {
@@ -187,129 +173,104 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       }
   }, [isHistoryEnabled, toolPreferences, isLoaded]);
 
-  // --- NEW: Function to fetch and cache default preference ---
+  // --- UPDATED fetchToolDefaultPreference ---
   const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
       if (!toolRoute || !toolRoute.startsWith('/tool/')) {
           console.warn(`[HistoryCtx] Invalid toolRoute for fetching default: ${toolRoute}`);
+          fetchingDefaultsRef.current.delete(toolRoute); // Ensure cleanup if invalid route
           return GLOBAL_DEFAULT_LOGGING;
       }
-      // Prevent concurrent fetches for the same route
       if (fetchingDefaultsRef.current.has(toolRoute)) {
-          // console.log(`[HistoryCtx] Fetch already in progress for ${toolRoute}`);
-          // Another process is fetching, rely on the cache update later, return global default now
           return GLOBAL_DEFAULT_LOGGING;
       }
 
-      fetchingDefaultsRef.current.add(toolRoute); // Mark as fetching
+      fetchingDefaultsRef.current.add(toolRoute);
 
-      const directive = toolRoute.substring(3); // Extract 'tool-name' from '/tool/tool-name'
-      if (!directive) {
-           console.warn(`[HistoryCtx] Could not extract directive from route: ${toolRoute}`);
+      // *** FIXED DIRECTIVE EXTRACTION ***
+      const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, ''); // Corrected extraction
+
+      // *** ADDED DEFENSIVE CHECK FOR INVALID DIRECTIVE FORMAT ***
+       if (!directive || directive.includes('/')) {
+           console.warn(`[HistoryCtx] Invalid directive extracted ('${directive}') from route: ${toolRoute}. Using global default.`);
            fetchingDefaultsRef.current.delete(toolRoute);
+           // Cache the global default to prevent repeated failed fetches for this bad route
+           setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
            return GLOBAL_DEFAULT_LOGGING;
-      }
+       }
+       // *** END ADDED CHECK ***
 
       try {
           console.log(`[HistoryCtx] Fetching default preference for: ${directive}`);
           const response = await fetch(`/api/tool-metadata?directive=${encodeURIComponent(directive)}`);
           const data: MetadataApiResponse = await response.json();
 
+          // Check for !data.metadata?.defaultLogging is now correct
           if (!response.ok || !data.success || !data.metadata?.defaultLogging) {
-              throw new Error(data.error || `Failed to fetch or parse default preference for ${directive} (${response.status})`);
+              // Use a slightly more informative default message if API didn't provide one
+              const errorMsgFromServer = data.error || `API Error (${response.status}) or missing defaultLogging`;
+              throw new Error(`Failed to fetch or parse default preference for ${directive}: ${errorMsgFromServer}`);
           }
 
           const fetchedDefault = data.metadata.defaultLogging;
           console.log(`[HistoryCtx] Fetched default for ${directive}: ${fetchedDefault}`);
-
-          // Update the cache
           setToolDefaults(prev => ({ ...prev, [toolRoute]: fetchedDefault }));
-          fetchingDefaultsRef.current.delete(toolRoute); // Unmark fetching
           return fetchedDefault;
 
       } catch (error) {
-          console.error(`[HistoryCtx] Error fetching default preference for ${toolRoute}:`, error);
-          // Optionally cache the global default on error to prevent refetching constantly
+           // Log the specific error encountered
+          console.error(`[HistoryCtx] Error fetching default preference for ${toolRoute} (Directive: ${directive}):`, error);
           setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
-          fetchingDefaultsRef.current.delete(toolRoute); // Unmark fetching
           return GLOBAL_DEFAULT_LOGGING;
+      } finally {
+           fetchingDefaultsRef.current.delete(toolRoute); // Always remove from fetching set
       }
-  }, []); // useCallback dependencies are empty as it captures state setters implicitly
+  }, []); // Dependencies remain empty
 
-  // --- UPDATED getToolLoggingPreference ---
+
   const getToolLoggingPreference = useCallback((toolRoute: string): LoggingPreference => {
-      if (!isLoaded) return GLOBAL_DEFAULT_LOGGING; // Return global default if not loaded
-
-      // 1. Check user-set preferences
-      if (toolPreferences[toolRoute]) {
-          return toolPreferences[toolRoute];
-      }
-
-      // 2. Check cached defaults
-      if (toolDefaults[toolRoute]) {
-          return toolDefaults[toolRoute];
-      }
-
-      // 3. Trigger fetch if not cached and not already fetching
-      if (!fetchingDefaultsRef.current.has(toolRoute)) {
-          fetchToolDefaultPreference(toolRoute); // Fetch in background
-      }
-
-      // 4. Return global default while fetch is in progress or if fetch failed previously
+      if (!isLoaded) return GLOBAL_DEFAULT_LOGGING;
+      if (toolPreferences[toolRoute]) { return toolPreferences[toolRoute]; }
+      if (toolDefaults[toolRoute]) { return toolDefaults[toolRoute]; }
+      if (!fetchingDefaultsRef.current.has(toolRoute)) { fetchToolDefaultPreference(toolRoute); }
       return GLOBAL_DEFAULT_LOGGING;
-
   }, [isLoaded, toolPreferences, toolDefaults, fetchToolDefaultPreference]);
 
-  // --- UPDATED setToolLoggingPreference ---
   const setToolLoggingPreference = useCallback(async (toolRoute: string, preference: LoggingPreference) => {
        if (!isLoaded) {
            console.warn("[HistoryCtx] Attempted to set preference before settings loaded.");
            return;
        }
-
-       // 1. Ensure we have the default preference (fetch if needed)
        let defaultPreference = toolDefaults[toolRoute];
-       if (!defaultPreference) {
+       if (!defaultPreference && !fetchingDefaultsRef.current.has(toolRoute)) { // Avoid fetch if already fetching
            defaultPreference = await fetchToolDefaultPreference(toolRoute);
-           // If fetch failed, defaultPreference will be GLOBAL_DEFAULT_LOGGING
        }
+       // Handle case where fetch is still in progress or failed
+       if (!defaultPreference) defaultPreference = GLOBAL_DEFAULT_LOGGING;
 
-       // 2. Compare and update user preferences
        setToolPreferences(prev => {
            const newPrefs = { ...prev };
            if (preference === defaultPreference) {
-               // If setting to default, remove the override
                delete newPrefs[toolRoute];
                console.log(`[HistoryCtx] Preference for ${toolRoute} matches default (${defaultPreference}). Removing override.`);
            } else {
-               // If setting to non-default, save the override
                newPrefs[toolRoute] = preference;
                 console.log(`[HistoryCtx] Setting preference for ${toolRoute} to ${preference} (default: ${defaultPreference}).`);
            }
            return newPrefs;
        });
-       // The useEffect for saving settings will persist this change.
-
-   }, [isLoaded, toolDefaults, fetchToolDefaultPreference]); // Dependencies updated
+   }, [isLoaded, toolDefaults, fetchToolDefaultPreference]);
 
 
-    // --- addHistoryEntry (Logic to check preference moved inside) ---
     const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
-        if (!isHistoryEnabled) return; // Global check
-
+        if (!isHistoryEnabled) return;
         const toolRoute = entryData.toolRoute;
-        // --- Get preference at the time of adding ---
         const preference = getToolLoggingPreference(toolRoute);
-
-        if (preference === 'off') {
-            // console.log(`[HistoryCtx] Logging OFF for ${toolRoute}. Skipping entry.`);
-            return; // Skip logging if preference is 'off'
-        }
+        if (preference === 'off') { return; }
 
         let outputToStore = entryData.output;
         if (preference === 'restrictive') {
             outputToStore = REDACTED_OUTPUT_PLACEHOLDER;
         }
-        // console.log(`[HistoryCtx] Logging ${preference} for ${toolRoute}. Output stored: ${outputToStore === REDACTED_OUTPUT_PLACEHOLDER ? 'Redacted' : 'Full'}`);
 
         const now = Date.now();
         const currentTrigger = entryData.trigger;
@@ -317,7 +278,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
         setHistory((prevHistory) => {
             const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
             let updatedHistory = [...prevHistory];
-
             if (existingEntryIndex > -1) {
                 const existingEntry = updatedHistory[existingEntryIndex];
                 const newTimestamps = [now, ...existingEntry.timestamps].sort((a,b) => b-a);
@@ -328,10 +288,9 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
                     ...existingEntry,
                     timestamps: newTimestamps,
                     triggers: newTriggers,
-                    output: outputToStore, // Use potentially redacted output
+                    output: outputToStore,
                     status: entryData.status,
                 };
-                // Move updated entry to the top
                 updatedHistory.splice(existingEntryIndex, 1);
                 updatedHistory.unshift(updatedEntry);
             } else {
@@ -339,7 +298,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
                     toolName: entryData.toolName,
                     toolRoute: entryData.toolRoute,
                     input: entryData.input,
-                    output: outputToStore, // Use potentially redacted output
+                    output: outputToStore,
                     status: entryData.status,
                     id: uuidv4(),
                     timestamps: [now],
@@ -352,10 +311,8 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
             }
             return updatedHistory;
         });
+    }, [isHistoryEnabled, getToolLoggingPreference]);
 
-    }, [isHistoryEnabled, getToolLoggingPreference]); // Now depends on getToolLoggingPreference
-
-    // --- Other functions (delete, clear, toggle) remain largely unchanged ---
     const deleteHistoryEntry = useCallback((idToDelete: string) => {
       setHistory((prevHistory) =>
         prevHistory.filter((entry) => entry.id !== idToDelete)
@@ -375,7 +332,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
           setIsHistoryEnabled(prev => !prev);
     }, []);
 
-    // --- Context Value Memo ---
     const value = useMemo(
       () => ({
         history,
@@ -387,9 +343,8 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
         isHistoryEnabled,
         toggleHistoryEnabled,
         getToolLoggingPreference,
-        setToolLoggingPreference, // Now async
+        setToolLoggingPreference,
       }),
-      // Add fetchToolDefaultPreference temporarily if needed, but it's internal
       [history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded, isHistoryEnabled, toggleHistoryEnabled, getToolLoggingPreference, setToolLoggingPreference]
     );
 

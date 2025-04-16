@@ -13,6 +13,9 @@
       "defaultValue": "lowercase"
     }
   ],
+  "outputConfig": {
+    "summaryField": "resultCaseTypeLabel"
+  },  
   "tags": ["text", "format", "developer"],
   "iconName": null,
   "includeInSitemap": true,

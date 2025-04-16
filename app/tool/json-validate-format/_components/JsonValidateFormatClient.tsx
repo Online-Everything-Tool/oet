@@ -33,12 +33,13 @@ export default function JsonValidateFormatClient({
        stateSetters as StateSetters
     );
 
-    // --- handleFormatValidate --- Logs history on action
+    // Updated handleFormatValidate
     const handleFormatValidate = useCallback((triggerType: TriggerType, textToProcess = json) => {
         let currentIsValid: boolean | null = null;
         let currentError = '';
         let currentOutput = '';
         let status: 'success' | 'error' = 'success';
+        let historyOutputObj: Record<string, unknown> = {}; // For structured output
 
         const trimmedInput = textToProcess.trim();
 
@@ -60,12 +61,18 @@ export default function JsonValidateFormatClient({
           if (typeof parsedJson === 'object' && parsedJson !== null) {
                currentOutput = JSON.stringify(parsedJson, null, indent);
           } else {
+               // Handle valid non-object JSON (e.g., "true", 123, "\"string\"")
+               // We still consider it valid, but formatting doesn't change much
                currentOutput = JSON.stringify(parsedJson);
           }
           currentIsValid = true;
           setOutputValue(currentOutput);
           setIsValid(currentIsValid);
           status = 'success';
+          historyOutputObj = { // Structure the success output
+              validationStatus: "Valid JSON",
+              formattedJson: currentOutput.length > 1000 ? currentOutput.substring(0, 1000) + '...' : currentOutput
+          };
 
         } catch (err) {
           console.error("JSON Processing Error:", err);
@@ -80,6 +87,10 @@ export default function JsonValidateFormatClient({
           setIsValid(currentIsValid);
           status = 'error';
           (inputDetails as Record<string, unknown>).error = currentError; // Add error details
+           historyOutputObj = { // Structure the error output
+               validationStatus: "Invalid JSON",
+               errorMessage: currentError
+           };
         }
 
         addHistoryEntry({
@@ -87,17 +98,15 @@ export default function JsonValidateFormatClient({
             toolRoute: toolRoute,
             trigger: triggerType,
             input: inputDetails,
-            output: status === 'success'
-              ? (currentOutput.length > 1000 ? currentOutput.substring(0, 1000) + '...' : currentOutput)
-              : `Error: ${currentError}`,
+            output: historyOutputObj, // Log the structured object
             status: status,
         });
 
-    }, [json, indent, addHistoryEntry, toolTitle, toolRoute]);
+    }, [json, indent, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
     useEffect(() => {
           if (shouldRunOnLoad && json) {
-              handleFormatValidate('query', json); // Logs with 'query' trigger
+              handleFormatValidate('query', json);
               setShouldRunOnLoad(false);
           } else if (shouldRunOnLoad && !json) {
               setShouldRunOnLoad(false);
@@ -107,31 +116,29 @@ export default function JsonValidateFormatClient({
 
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setJson(event.target.value);
-        setIsValid(null); // Reset validation status on input change
+        setIsValid(null);
         setError('');
         setOutputValue('');
     };
 
-    // --- UPDATED handleClear to REMOVE history logging ---
     const handleClear = useCallback(() => {
         setJson('');
         setOutputValue('');
         setIsValid(null);
         setError('');
         setIndent(2);
-        // History logging removed
-    }, []); // Dependencies updated
-    // --- END UPDATE ---
+        // No history log
+    }, []);
 
-    // --- handleIndentationChange --- Logs history on reformat action
+    // Updated handleIndentationChange
     const handleIndentationChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newIndentation = parseInt(event.target.value, 10);
         setIndent(newIndentation);
 
-        // Only reformat and log if the current JSON is valid
         if (isValid && json.trim()) {
            let status: 'success' | 'error' = 'success';
            let output = '';
+           let historyOutputObj: Record<string, unknown> = {};
            let inputError = undefined;
 
            try {
@@ -141,36 +148,43 @@ export default function JsonValidateFormatClient({
              } else {
                 output = JSON.stringify(parsed);
              }
-             setOutputValue(output); // Update UI
-             setError(''); // Clear any previous error
+             setOutputValue(output);
+             setError('');
+             historyOutputObj = { // Structure the success output
+                validationStatus: "Reformatted JSON", // Indicate action
+                formattedJson: output.length > 1000 ? output.substring(0, 1000) + '...' : output
+             };
            } catch (err) {
-              // This catch might be redundant if isValid is true, but good safety check
               console.error("Error reformatting on indent change:", err);
               const message = "Error reformatting with new indentation.";
               setError(message);
               setIsValid(false);
               status = 'error';
-              output = message;
-              inputError = message;
+              inputError = message; // Capture error for input log
+               historyOutputObj = { // Structure the error output
+                   validationStatus: "Reformatting Error",
+                   errorMessage: message
+               };
            } finally {
-                // Log this specific change action
                 addHistoryEntry({
                     toolName: toolTitle,
                     toolRoute: toolRoute,
-                    trigger: 'click', // Treat option change as click
-                    input: { json: '[Current Valid JSON]', indent: newIndentation, ...(inputError && {error: inputError}) },
-                    output: status === 'success' ? '[Reformatted with new indentation]' : output,
+                    trigger: 'click',
+                    input: {
+                        json: '[Current Valid JSON]', // Keep input short
+                        indent: newIndentation,
+                        ...(inputError && {error: inputError}) // Add error if it occurred
+                    },
+                    output: historyOutputObj, // Log structured output
                     status: status,
                 });
            }
         } else {
-            // If input wasn't valid or was empty, just clear output (no history log needed)
             setOutputValue('');
         }
     };
 
     return (
-        // --- JSX Unchanged ---
         <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
             <div>
                 <label htmlFor="json-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Input JSON:</label>

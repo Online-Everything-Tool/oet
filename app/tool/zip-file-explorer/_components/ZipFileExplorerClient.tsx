@@ -4,8 +4,7 @@
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import JSZip from 'jszip';
 import Image from 'next/image';
-// Removed unused TriggerType import (it's still used in HistoryContext, just not directly here)
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory } from '../../../context/HistoryContext'; // Keep import
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
@@ -37,7 +36,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
 
-  // --- processZipFile --- Logs history on completion/failure
+  // --- UPDATED processZipFile ---
   const processZipFile = useCallback(async (file: File) => {
     setIsLoading(true); setError(null); setFileTree([]);
     setExpandedFolders(new Set()); zipRef.current = null;
@@ -45,7 +44,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
 
     let rawEntriesCount = 0;
     let historyStatus: 'success' | 'error' = 'success';
-    let historyOutput = '';
+    let historyOutputObj: Record<string, unknown> = {}; // For structured output
     const historyInput: Record<string, unknown> = { fileName: file.name, fileSize: file.size };
 
     try {
@@ -57,11 +56,14 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
             rawEntries.push({ name: zipEntry.name, isDirectory: zipEntry.dir, date: zipEntry.date, _zipObject: zipEntry });
         }
       });
-      rawEntriesCount = rawEntries.filter(e => !e.isDirectory).length;
+      rawEntriesCount = rawEntries.filter(e => !e.isDirectory).length; // Count only files
 
       const treeData = buildFileTree(rawEntries);
       setFileTree(treeData);
-      historyOutput = `${rawEntriesCount} files found in ${file.name}`;
+       historyOutputObj = { // Structure success output
+           fileCount: rawEntriesCount, // Summary field
+           message: `${rawEntriesCount} files found in ${file.name}`
+       };
 
     } catch (err: unknown) {
       console.error("Error processing zip file:", err);
@@ -69,7 +71,10 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
       setError(errorMessage);
       zipRef.current = null;
       historyStatus = 'error';
-      historyOutput = `Error processing ${file.name}: ${errorMessage}`;
+      historyOutputObj = { // Structure error output
+           fileCount: "Error", // Summary field for error
+           errorMessage: errorMessage
+       };
       historyInput.error = errorMessage;
     } finally {
       setIsLoading(false);
@@ -78,13 +83,13 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
         toolRoute: toolRoute,
         trigger: 'upload',
         input: historyInput,
-        output: historyOutput,
+        output: historyOutputObj, // Log structured object
         status: historyStatus,
       });
     }
-  }, [addHistoryEntry, toolTitle, toolRoute]);
+  }, [addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
-  // --- handleClear --- No history log
+  // --- handleClear --- No history log (Unchanged)
   const handleClear = useCallback(() => {
     setSelectedFile(null); setFileTree([]); setError(null);
     zipRef.current = null;
@@ -93,31 +98,31 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     setExpandedFolders(new Set()); setIsPreviewOpen(false);
   }, []);
 
-  // --- handleFileChange --- Logs failure immediately, success logged by processZipFile
+  // --- handleFileChange --- Only logs failure immediately (Unchanged)
   const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    handleClear();
+    handleClear(); // Clear previous state first
     if (file) {
       if (file.type === 'application/zip' || file.type === 'application/x-zip-compressed' || file.name.toLowerCase().endsWith('.zip')) {
         setSelectedFile(file);
-        processZipFile(file); // Success/failure log happens here
+        processZipFile(file); // processZipFile handles success/failure logging
       } else {
         const errorMsg = 'Invalid file type. Please select a .zip file.';
         setError(errorMsg);
-         addHistoryEntry({
+         addHistoryEntry({ // Log only the invalid file type error here
             toolName: toolTitle,
             toolRoute: toolRoute,
             trigger: 'upload',
             input: { fileName: file.name, error: 'Invalid file type' },
-            output: errorMsg,
+            output: { fileCount: "Error", errorMessage: errorMsg }, // Use structured output
             status: 'error',
          });
         if(fileInputRef.current) fileInputRef.current.value = '';
       }
     }
-  }, [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]);
+  }, [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]); // Dependencies updated
 
-  // --- handleDownload --- No history log
+  // --- handleDownload --- No history log (Unchanged)
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {
      if (!entryData?._zipObject) { setError(`Download error: Zip object missing for ${entryData.name}`); return; }
     setError(null);
@@ -138,7 +143,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }
   }, []);
 
-  // --- handlePreview --- No history log
+  // --- handlePreview --- No history log (Unchanged)
   const handlePreview = useCallback(async (entryData: ActionEntryData) => {
      if (!entryData?._zipObject) {
         setPreviewError(`Preview error: Zip object missing for ${entryData.name}`);
@@ -172,6 +177,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }
   }, []);
 
+  // useEffect for preview URL cleanup (Unchanged)
   useEffect(() => {
     let currentObjectUrl: string | null = null;
     if (previewType === 'image' && previewContent?.startsWith('blob:')) {
@@ -179,18 +185,19 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }
     return () => {
         if (currentObjectUrl) {
-            // console.log("Revoking Object URL:", currentObjectUrl);
             URL.revokeObjectURL(currentObjectUrl);
         }
     };
   }, [previewType, previewContent]);
 
-    const closePreview = useCallback(() => {
+  // closePreview (Unchanged)
+  const closePreview = useCallback(() => {
       setIsPreviewOpen(false);
       setPreviewContent(null); setPreviewType(null);
       setPreviewFilename(null); setPreviewError(null);
     }, []);
 
+  // toggleFolder (Unchanged)
    const toggleFolder = useCallback((folderPath: string) => {
         setExpandedFolders(prev => {
             const newSet = new Set(prev);
@@ -201,9 +208,8 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
     }, []);
 
   return (
-    // --- JSX Unchanged ---
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
-
+            {/* Input Section (Unchanged) */}
             <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">
                  <div>
                   <label htmlFor="zipInput" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Select Zip File:</label>
@@ -219,7 +225,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
                    <div className="mt-2 text-sm text-[rgb(var(--color-text-muted))] h-5">
                      {isLoading && selectedFile && <span>Processing: <em>{selectedFile.name}</em>...</span>}
                      {!isLoading && selectedFile && fileTree.length > 0 && <span>Loaded: <strong>{selectedFile.name}</strong>.</span>}
-                     {!isLoading && selectedFile && fileTree.length === 0 && !error && <span>Loaded <strong>{selectedFile.name}</strong>, appears empty.</span>}
+                     {!isLoading && selectedFile && fileTree.length === 0 && !error && <span>Loaded <strong>{selectedFile.name}</strong>, appears empty or contained only unsupported files.</span>}
                      {!isLoading && !selectedFile && !error && <span>Ready for file selection.</span>}
                    </div>
                 </div>
@@ -235,6 +241,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
                  )}
             </div>
 
+            {/* Filter Section (Unchanged) */}
             {!isLoading && fileTree.length > 0 && (
                 <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-4 opacity-60 cursor-not-allowed" title="Filtering/Sorting not implemented yet">
                      <h3 className="text-lg font-semibold text-[rgb(var(--color-text-muted))]">Filter Results <span className="text-xs font-normal">(Inactive)</span></h3>
@@ -257,6 +264,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
                 </div>
             )}
 
+            {/* Loading / Error / Tree Display (Unchanged) */}
             {isLoading && <p className="text-center text-[rgb(var(--color-text-link))] p-4">Processing zip file...</p>}
             {error && (
                 <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2">
@@ -282,9 +290,10 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
                 </div>
             )}
              {!isLoading && !error && selectedFile && fileTree.length === 0 && (
-                 <p className="p-4 text-[rgb(var(--color-text-muted))] italic">No entries found in “{selectedFile.name}”.</p>
+                 <p className="p-4 text-[rgb(var(--color-text-muted))] italic">No processable entries found in “{selectedFile.name}”.</p>
              )}
 
+            {/* Preview Modal (Unchanged) */}
             {isPreviewOpen && (
                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" onClick={closePreview} aria-modal="true" role="dialog" aria-labelledby="preview-modal-title">
                     <div className="bg-[rgb(var(--color-bg-component))] rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col text-[rgb(var(--color-text-base))]" onClick={(e) => e.stopPropagation()} >

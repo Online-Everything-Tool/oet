@@ -1,261 +1,225 @@
-// FILE: app/tool/password-generator/_components/PasswordGeneratorClient.tsx
+// FILE: app/tool/text-counter/_components/TextCounterClient.tsx
 'use client';
 
-// Removed unused useEffect, LoggingPreference
-import React, { useState, useCallback } from 'react';
-// Only need TriggerType for generatePassword
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
-// Removed Shoelace imports as they are in ToolSettings now
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useHistory } from '../../../context/HistoryContext'; // Removed unused TriggerType
+import useToolUrlState, { ParamConfig, StateSetters } from '../../_hooks/useToolUrlState';
 
-const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';
-const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-const NUMBERS = '0123456789';
-const SYMBOLS = '!@#$%^&*()_+~=`|}{[]:;?><,./-=';
-
-interface PasswordGeneratorClientProps {
-  toolTitle: string;
-  toolRoute: string;
+interface TextCounts {
+  words: number;
+  characters: number;
+  lines: number;
+  search: string; // Keep search term here for reference in history object if needed
+  customCount: number;
 }
 
-export default function PasswordGeneratorClient({
-  toolTitle,
-  toolRoute
-}: PasswordGeneratorClientProps) {
-  const [password, setPassword] = useState<string>('');
-  const [length, setLength] = useState<number>(16);
-  const [includeUppercase, setIncludeUppercase] = useState<boolean>(true);
-  const [includeLowercase, setIncludeLowercase] = useState<boolean>(true);
-  const [includeNumbers, setIncludeNumbers] = useState<boolean>(true);
-  const [includeSymbols, setIncludeSymbols] = useState<boolean>(true);
-  const [copied, setCopied] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+interface TextCounterClientProps {
+    urlStateParams: ParamConfig[];
+    toolTitle: string;
+    toolRoute: string;
+}
 
-  const { addHistoryEntry } = useHistory();
+export default function TextCounterClient({
+    urlStateParams,
+    toolTitle,
+    toolRoute
+}: TextCounterClientProps) {
+    const [text, setText] = useState<string>('');
+    const [search, setSearch] = useState<string>('');
+    const lastLoggedTextRef = useRef<string | null>(null);
+    const lastLoggedSearchRef = useRef<string | null>(null);
+    const initialLoadComplete = useRef(false);
 
-  const generatePassword = useCallback((trigger: TriggerType = 'click') => {
-    let currentError = '';
-    let generatedPassword = '';
-    let status: 'success' | 'error' = 'success';
+    const { addHistoryEntry } = useHistory();
 
-    setError('');
-    setCopied(false);
-    setPassword('');
+    const stateSetters = useMemo(() => ({
+        text: setText,
+        search: setSearch,
+    }), []);
 
-    let charset = '';
-    if (includeLowercase) charset += LOWERCASE;
-    if (includeUppercase) charset += UPPERCASE;
-    if (includeNumbers) charset += NUMBERS;
-    if (includeSymbols) charset += SYMBOLS;
+    // This hook sets initial state based on URL if params are present
+    useToolUrlState(
+       urlStateParams,
+       stateSetters as StateSetters
+    );
 
-    if (charset.length === 0) {
-      currentError = 'Please select at least one character type.';
-      status = 'error';
-    } else if (length <= 0 || !Number.isInteger(length)) {
-        currentError = 'Password length must be a positive whole number.';
-        status = 'error';
-    } else if (length > 256) {
-        setError('Warning: Password length is very long (> 256). Generation might be slow or browser may struggle.');
-    }
-
-    if (status === 'success') {
-        try {
-            if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-                const randomValues = new Uint32Array(length);
-                window.crypto.getRandomValues(randomValues);
-                for (let i = 0; i < length; i++) {
-                    generatedPassword += charset[randomValues[i] % charset.length];
-                }
-            } else {
-                console.warn("Using Math.random for password generation as window.crypto is not available.");
-                for (let i = 0; i < length; i++) {
-                    const randomIndex = Math.floor(Math.random() * charset.length);
-                    generatedPassword += charset[randomIndex];
-                }
-            }
-            setPassword(generatedPassword);
-        } catch (err) {
-             console.error("Password Generation Error:", err);
-             currentError = "An unexpected error occurred during password generation.";
-             status = 'error';
-             generatedPassword = '';
-             setPassword('');
+    useEffect(() => {
+        // Set initial refs *after* useToolUrlState has potentially set initial values
+        if (!initialLoadComplete.current) {
+            lastLoggedTextRef.current = text;
+            lastLoggedSearchRef.current = search;
+            initialLoadComplete.current = true;
         }
-    }
+    }, [text, search]); // Run when text/search changes, but only sets refs once
 
-    if (status === 'error') {
-         setError(currentError);
-    }
+    // Calculate counts whenever text or search term changes
+    const allCounts = useMemo((): TextCounts => {
+      const inputText = text;
+      const searchString = search;
+      const trimmedText = inputText.trim();
+      const words = trimmedText.length === 0 ? 0 : trimmedText.split(/\s+/).filter(Boolean).length;
+      const characters = inputText.length;
+      const lines = inputText === '' ? 0 : inputText.split(/\r\n|\r|\n/).length;
+      let customCount = 0;
+      if (inputText && searchString) {
+         try {
+            // Use regex for more robust counting (handles special chars)
+             const regex = new RegExp(searchString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+             customCount = (inputText.match(regex) || []).length;
+         } catch (e) {
+             console.warn("Invalid regex from search term:", searchString, e);
+             customCount = 0; // Fallback if regex is invalid
+         }
+      }
+      return { words, characters, lines, search: searchString, customCount };
+    }, [text, search]);
 
-    const historyInput: Record<string, unknown> = {
-      length: length,
-      uppercase: includeUppercase,
-      lowercase: includeLowercase,
-      numbers: includeNumbers,
-      symbols: includeSymbols,
-    };
-    if (status === 'error') {
-        historyInput.error = currentError;
-    }
 
-    addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: trigger,
-        input: historyInput,
-        output: generatedPassword || `Error: ${currentError}`,
-        status: status,
-    });
+    const handleInputChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setText(event.target.value);
+    }, []);
 
-  }, [length, includeUppercase, includeLowercase, includeNumbers, includeSymbols, addHistoryEntry, toolTitle, toolRoute]);
+    const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(event.target.value);
+    }, []);
 
-  const handleCopy = useCallback(async () => {
-    if (!password || !navigator.clipboard) {
-        setError(!navigator.clipboard ? 'Clipboard API not available.' : 'No password to copy.');
-        return;
-     }
-    setError('');
-    // Removed unused history variables
-    // let status: 'success' | 'error' = 'success';
-    // let historyOutput = '[Password copied to clipboard]';
-    // const inputDetails = { copiedPasswordLength: password.length };
-    // let historyError = undefined;
+    // Updated handleBlurLogging
+    const handleBlurLogging = useCallback(() => {
+      // Only log if initial state has been established
+      if (!initialLoadComplete.current) {
+          return;
+      }
 
-    try {
-      await navigator.clipboard.writeText(password);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err: unknown) {
-      console.error('Failed to copy password: ', err);
-      const message = 'Failed to copy password.';
-      setError(message);
-      // status = 'error';
-      // historyOutput = `Error: ${message}`;
-      // historyError = historyOutput;
-    }
-    // History logging removed
-  }, [password]); // Dependencies updated
+      const currentText = text;
+      const currentSearch = search;
+      const textChanged = currentText !== lastLoggedTextRef.current;
+      const searchChanged = currentSearch !== lastLoggedSearchRef.current;
 
-  const handleCheckboxChange = (setter: React.Dispatch<React.SetStateAction<boolean>>, currentValue: boolean) => {
-    const othersChecked = [includeUppercase, includeLowercase, includeNumbers, includeSymbols].filter(val => val).length > (currentValue ? 1 : 0);
-    if (currentValue && !othersChecked) {
-        setError('At least one character type must be selected.');
-        return;
-    }
-    setter(!currentValue);
-    if (error === 'Please select at least one character type.' || error === 'At least one character type must be selected.') {
-        setError('');
-    }
-     setPassword('');
-     setCopied(false);
-  };
+      // Log if either text or search term changed since last log
+      if (textChanged || searchChanged) {
+          const latestCounts = allCounts; // Use the already calculated memoized counts
 
-  const handleLengthChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-     const val = parseInt(event.target.value, 10);
-     setLength(isNaN(val) ? 0 : Math.max(1, Math.min(256, val)));
-     if (error === 'Password length must be a positive whole number.' || error.includes('length is very long')) {
-         setError('');
-     }
-      setPassword('');
-      setCopied(false);
-  };
+          addHistoryEntry({
+              toolName: toolTitle,
+              toolRoute: toolRoute,
+              trigger: 'auto', // Triggered by losing focus after potential change
+              input: { // Input remains the same structure
+                  text: currentText.length > 500 ? currentText.substring(0, 500) + '...' : currentText,
+                  search: currentSearch
+              },
+              // *** Use the counts object directly as output ***
+              output: {
+                  words: latestCounts.words, // This matches the summaryField in metadata
+                  characters: latestCounts.characters,
+                  lines: latestCounts.lines,
+                  customCount: latestCounts.customCount
+              },
+              status: 'success', // Assume success as counting itself doesn't fail here
+          });
 
-  const canGenerate = length > 0 && length <= 256 && (includeLowercase || includeUppercase || includeNumbers || includeSymbols);
+          // Update refs to current state after logging
+          lastLoggedTextRef.current = currentText;
+          lastLoggedSearchRef.current = currentSearch;
+      }
+    }, [text, search, allCounts, addHistoryEntry, toolTitle, toolRoute]);
 
-  // --- Render function ---
-  return (
-    <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
-            {/* Settings button DIV removed from here */}
-            <div className="space-y-2">
-                <label htmlFor="generated-password-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">Generated Password</label>
-                <div className="flex items-stretch gap-2">
-                   <input
-                      id="generated-password-output"
-                      type="text"
-                      value={password}
-                      readOnly
-                      className="flex-grow p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
-                      placeholder="Click 'Generate New Password' below"
-                      aria-live="polite"
-                    />
-                   <button
-                     type="button"
-                     onClick={handleCopy}
-                     disabled={!password}
-                     title={copied ? "Copied!" : "Copy to clipboard"}
-                     aria-label="Copy password to clipboard"
-                     className={`px-4 py-2 rounded-md font-medium focus:outline-none transition-colors duration-150 ease-in-out
-                        ${copied
-                         ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]'
-                         : 'bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] text-[rgb(var(--color-button-neutral-text))]'
-                        }
-                        disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]`}
-                   >
-                     {copied ? 'Copied!' : 'Copy'}
-                   </button>
-                </div>
-                {error && !error.startsWith('Warning:') && (
-                    <div role="alert" className="mt-2 p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                         </svg>
-                        <strong>Error:</strong> {error}
-                    </div>
-                )}
-                 {error && error.startsWith('Warning:') && (
-                    <div role="alert" className="mt-2 p-3 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md text-sm flex items-center gap-2">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.6-.63 1.703-.184 1.703.702V12a1 1 0 102 0V3.801c0-.886 1.104-1.332 1.703-.702l1.09 1.144A9.98 9.98 0 0118 10c0 5.523-4.477 10-10 10S-2 15.523-2 10a9.98 9.98 0 014.247-8.057l1.09-1.144zM10 14a1 1 0 100 2 1 1 0 000-2z" clipRule="evenodd" /></svg>
-                        {error}
-                    </div>
-                )}
+
+    const handleClearSearch = useCallback(() => {
+      const changed = search !== ''; // Check if search was actually cleared
+      setSearch('');
+      // Log only if the search term was actually cleared
+      if (changed && initialLoadComplete.current) {
+           handleBlurLogging(); // Trigger logging after state update
+      }
+    }, [search, handleBlurLogging]); // Include handleBlurLogging dependency
+
+    const handleClearText = useCallback(() => {
+       const changed = text !== ''; // Check if text was actually cleared
+       setText('');
+       // Log only if the text was actually cleared
+       if (changed && initialLoadComplete.current) {
+            handleBlurLogging(); // Trigger logging after state update
+       }
+    }, [text, handleBlurLogging]); // Include handleBlurLogging dependency
+
+    return (
+        <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
+            <div>
+                <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
+                    Your Text:
+                </label>
+                <textarea
+                    id="text-input"
+                    rows={10}
+                    value={text}
+                    onChange={handleInputChange}
+                    onBlur={handleBlurLogging} // Log when focus leaves the text area
+                    placeholder="Paste or type your text here..."
+                    aria-label="Text input area"
+                    className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
+                    spellCheck="false"
+                />
             </div>
-
-            <div className="space-y-4 border-t border-[rgb(var(--color-border-base))] pt-4">
-                <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">Options</h2>
-                <div>
-                    <label htmlFor="password-length" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">Password Length: {length}</label>
+            <div className='flex flex-wrap items-center gap-4 p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]'>
+                <div className="flex-grow grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.words.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Words</p>
+                    </div>
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.characters.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Characters</p>
+                    </div>
+                    <div>
+                        <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">{allCounts.lines.toLocaleString()}</p>
+                        <p className="text-xs text-[rgb(var(--color-text-muted))]">Lines</p>
+                    </div>
+                </div>
+                <div className='flex-shrink-0'>
+                    <button
+                        type="button"
+                        onClick={handleClearText}
+                        disabled={!text}
+                        title="Clear input text"
+                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Clear Text
+                    </button>
+                </div>
+            </div>
+            <div className="flex flex-wrap gap-4 items-center justify-between border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))]">
+                 <div className="text-center px-4 shrink-0 order-1 sm:order-none">
+                    <p className="text-2xl font-bold text-[rgb(var(--color-button-secondary-bg))]">{allCounts.customCount.toLocaleString()}</p>
+                    <p className="text-xs text-[rgb(var(--color-button-secondary-bg))] opacity-90" title={allCounts.search ? `Occurrences of "${allCounts.search}"` : 'Occurrences'}>
+                        Occurrences
+                    </p>
+                </div>
+                <div className="flex-grow min-w-[200px] order-3 sm:order-none w-full sm:w-auto">
+                    <label htmlFor="search-input" className="sr-only">Text to count occurrences of</label>
                     <input
-                        id="password-length"
-                        type="number"
-                        min="1"
-                        max="256"
-                        step="1"
-                        value={length}
-                        onChange={handleLengthChange}
-                        className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
+                        type="text"
+                        id="search-input"
+                        name="search"
+                        value={search}
+                        onChange={handleSearchChange}
+                        onBlur={handleBlurLogging} // Log when focus leaves the search input
+                        placeholder="Text to Count Occurrences..."
+                        aria-label="Text to count occurrences of"
+                        className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
                     />
                 </div>
-                <fieldset className="space-y-3">
-                    <legend className="sr-only">Character types to include</legend>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="include-uppercase" checked={includeUppercase} onChange={() => handleCheckboxChange(setIncludeUppercase, includeUppercase)} className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}/>
-                            <label htmlFor="include-uppercase" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">Uppercase (A-Z)</label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="include-lowercase" checked={includeLowercase} onChange={() => handleCheckboxChange(setIncludeLowercase, includeLowercase)} className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}/>
-                            <label htmlFor="include-lowercase" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">Lowercase (a-z)</label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="include-numbers" checked={includeNumbers} onChange={() => handleCheckboxChange(setIncludeNumbers, includeNumbers)} className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}/>
-                            <label htmlFor="include-numbers" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">Numbers (0-9)</label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" id="include-symbols" checked={includeSymbols} onChange={() => handleCheckboxChange(setIncludeSymbols, includeSymbols)} className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]" style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}/>
-                            <label htmlFor="include-symbols" className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer">Symbols (!@#...)</label>
-                        </div>
-                    </div>
-                </fieldset>
+                <div className="flex items-center shrink-0 order-2 sm:order-none">
+                    <button
+                        type="button"
+                        onClick={handleClearSearch}
+                        title="Clear occurrence search text"
+                        disabled={!search}
+                        className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Clear Search
+                    </button>
+                </div>
             </div>
-
-            <button
-                type="button"
-                onClick={() => generatePassword('click')}
-                disabled={!canGenerate}
-                className="w-full sm:w-auto px-6 py-3 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
-            >
-                Generate New Password
-            </button>
-            {/* Dialog removed */}
-    </div>
-  );
+        </div>
+    );
 }

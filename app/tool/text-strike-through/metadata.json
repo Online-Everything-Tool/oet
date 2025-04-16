@@ -17,7 +17,10 @@
       "type": "string",
       "defaultValue": "#dc2626"
     }
-  ],  
+  ],
+  "outputConfig": {
+    "summaryField": "formattingStatus"
+  },  
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

@@ -42,6 +42,7 @@ export default function HtmlEntityExplorerClient({ initialEntities, availableCat
   }, []);
 
   const handleCopy = useCallback((textToCopy: string, type: 'name' | 'code' | 'char', entity: RichEntityData) => {
+    // --- Construct Input Object ---
     const historyInput: Record<string, unknown> = {
         copiedType: type,
         copiedValue: textToCopy,
@@ -50,20 +51,34 @@ export default function HtmlEntityExplorerClient({ initialEntities, availableCat
     if (searchTerm) historyInput.searchTerm = searchTerm;
     if (selectedCategory) historyInput.category = selectedCategory;
 
+    // --- Construct Structured Output Object ---
+    const historyOutput = {
+        char: entity.char,
+        name: entity.name, // Entity name (e.g.,  ) or code
+        code: entity.code, // Hex/Dec code
+        description: entity.description // Description text
+    };
+    // --- End Structured Output Object ---
+
     if (!navigator.clipboard) {
       console.error('Clipboard API not available.');
       historyInput.error = 'Clipboard API not available';
       addHistoryEntry({
           toolName: 'HTML Entity Explorer', toolRoute: '/tool/html-entity-explorer', trigger: `click`,
-          input: historyInput, output: textToCopy, status: 'error',
+          input: historyInput,
+          output: historyOutput, // Log structured output even on error
+          status: 'error',
       });
       return;
     }
+
     navigator.clipboard.writeText(textToCopy)
       .then(() => {
         addHistoryEntry({
           toolName: 'HTML Entity Explorer', toolRoute: '/tool/html-entity-explorer', trigger: `click`,
-          input: historyInput, output: textToCopy, status: 'success',
+          input: historyInput,
+          output: historyOutput, // Log structured output on success
+          status: 'success',
         });
       })
       .catch(err => {
@@ -71,7 +86,9 @@ export default function HtmlEntityExplorerClient({ initialEntities, availableCat
         historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
          addHistoryEntry({
           toolName: 'HTML Entity Explorer', toolRoute: '/tool/html-entity-explorer', trigger: `click`,
-          input: historyInput, output: textToCopy, status: 'error',
+          input: historyInput,
+          output: historyOutput, // Log structured output even on error
+          status: 'error',
         });
       });
   }, [addHistoryEntry, searchTerm, selectedCategory]);
@@ -146,8 +163,8 @@ export default function HtmlEntityExplorerClient({ initialEntities, availableCat
                     {entity.char}
                 </div>
                 <div className="text-center text-sm space-y-1 w-full">
-                    <p className="text-[rgb(var(--color-text-mSearchuted))] truncate h-5" title={entity.description || 'No description available'}>
-                       {entity.description || <> </>}
+                    <p className="text-[rgb(var(--color-text-muted))] truncate h-5" title={entity.description || 'No description available'}>
+                       {entity.description || <> </>} {/* Use non-breaking space for empty description */}
                     </p>
                     <div className="flex flex-wrap justify-center items-center gap-x-2 gap-y-1 pt-1 min-h-[30px]">
                         {entity.name && entity.name !== entity.code && entity.name.startsWith('&') && (

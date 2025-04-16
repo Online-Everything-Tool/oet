@@ -7,9 +7,11 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import UrlEncodeDecodeClient from './_components/UrlEncodeDecodeClient';
 import type { ParamConfig } from '../_hooks/useToolUrlState';
+import { ToolMetadata } from '@/app/api/tool-metadata/route';
 
 export default function UrlEncodeDecodePage() {
-  const urlStateParams = (metadata.urlStateParams || []) as ParamConfig[];
+  const typedMetadata = metadata as ToolMetadata;
+  const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
   const toolTitle = metadata.title || "URL Encode Decode";
   const toolRoute = "/tool/url-encode-decode"; // Corrected route
 
