@@ -1,0 +1,1 @@
+{"title": "JWT Decoder","description": "Decodes JSON Web Tokens (JWTs) to reveal their payload.","tags": [],"iconName": null,"includeInSitemap": true,"status": "stable","defaultLogging": "on"}
