@@ -35,5 +35,5 @@ export default function ToolHeader({ title, description }: ToolHeaderProps) {
 }
 
 // Note: This component is intentionally simple and presentational.
-// The parent page (e.g., /app/tool/base64-converter/page.tsx) is responsible
+// The parent page (e.g., /app/tool/base64-encode-decode/page.tsx) is responsible
 // for importing its own ./metadata.json and passing the values as props.

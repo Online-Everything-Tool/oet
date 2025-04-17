@@ -1,5 +1,5 @@
 {
-  "title": "Base64 Converter",
+  "title": "Base64 Encode Decode",
   "description": "Encodes standard text strings into Base64 format and decodes existing Base64 strings back to text.",
   "urlStateParams": [
     {

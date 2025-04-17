@@ -15,7 +15,7 @@ const FAVORITES_LOCAL_STORAGE_KEY = 'oetFavorites_v1';
 const MAX_FAVORITES = 50; // Optional limit
 
 interface FavoritesContextValue {
-  favorites: string[]; // Array of tool directives (e.g., 'base64-converter')
+  favorites: string[]; // Array of tool directives (e.g., 'base64-encode-decode')
   isFavorite: (directive: string) => boolean;
   addFavorite: (directive: string) => void;
   removeFavorite: (directive: string) => void;

@@ -1,4 +1,4 @@
-// FILE: app/tool/base64-converter/_components/Base64ConverterClient.tsx
+// FILE: app/tool/base64-encode-decode/_components/Base64EncodeDecodeClient.tsx
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
@@ -10,17 +10,17 @@ import type { ParamConfig } from '@/src/types/tools'
 type Operation = 'encode' | 'decode';
 type Base64Likelihood = 'unknown' | 'possibly_base64_or_text' | 'likely_text';
 
-interface Base64ConverterClientProps {
+interface Base64EncodeDecodeClientProps {
     urlStateParams: ParamConfig[];
     toolTitle: string;
     toolRoute: string;
 }
 
-export default function Base64ConverterClient({
+export default function Base64EncodeDecodeClient({
     urlStateParams,
     toolTitle,
     toolRoute
-}: Base64ConverterClientProps) {
+}: Base64EncodeDecodeClientProps) {
     const [text, setText] = useState<string>('');
     const [operation, setOperation] = useState<Operation>('encode');
     const [outputValue, setOutputValue] = useState<string>('');
