@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -rf public/api/tool-metadata && node scripts/generate-metadata-files.mjs && next build",
+    "build": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && node scripts/generate-metadata-files.mjs && next build",
     "start": "next start",
     "lint": "next lint",
     "postinstall": "mkdir -p public/assets && cp -r node_modules/@shoelace-style/shoelace/dist/assets/. public/assets/"
