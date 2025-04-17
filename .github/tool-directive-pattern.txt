@@ -8,6 +8,7 @@
 ^json-
 ^yaml-
 ^url-
+^file-
 
 # Patterns based on suffix
 -converter$
@@ -15,6 +16,8 @@
 -generator$
 -validator$
 -explorer$
+-decoder$
+-storage$
 
 # More complex regex example (e.g., json-to-something or something-to-json)
 # ^json-to-[a-z0-9-]+$|^[a-z0-9-]+-to-json$

@@ -17,7 +17,7 @@ SPECIFIC_FILES=(
   "package.json"
   "CONTRIBUTING.md"
   "LICENSE"
-  "todo.txt"
+  "TODO.md"
   "eslint.config.mjs"
   "next.config.ts"
   "app/layout.tsx"
@@ -34,6 +34,7 @@ SCAN_DIRS=(
   "app/context"
   "app/lib"
   "app/history"
+  "infra"
 )
 
 # Define directories/patterns to exclude from the 'tree' command
@@ -64,7 +65,7 @@ for dir in "${SCAN_DIRS[@]}"; do
       FOUND_FILES+=("$file")
     done < <(find "$dir" -type f -print0)
   else
-    echo "Warning: Scan directory not found: $dir"
+    echo "Warning: Scatxtn directory not found: $dir"
   fi
 done
 echo "Found ${#FOUND_FILES[@]} files in scanned directories."
