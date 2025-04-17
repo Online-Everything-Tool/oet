@@ -108,8 +108,9 @@ export default async function Home() {
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-8">
 
         <div className="text-center border-b border-[rgb(var(--color-border-base))] pb-6 mb-6">
+      
             <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2">
-                Online Everything Tool
+                <span className="line-through decoration-red-600 decoration-3">Online</span> Everything Tool
             </h1>
             <p className="text-lg text-[rgb(var(--color-text-muted))]">
                 {pageDescription}
