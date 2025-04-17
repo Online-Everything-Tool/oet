@@ -2,16 +2,20 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link'; // Import Link for potential use in error message
+import Link from 'next/link';
 import ValidateDirective from './_components/ValidateDirective';
 import GenerateToolResources from './_components/GenerateToolResources';
 import CreateAnonymousPr from './_components/CreateAnonymousPr';
-import type { AiModel, ValidationResult, GenerationResult, PrSubmissionResult, ApiListModelsResponse, ApiListDirectivesResponse } from '@/src/types/build';
+import type { AiModel, ValidationResult, GenerationResult, PrSubmissionResult, ApiListModelsResponse } from '@/src/types/build';
+
+interface DirectivesListData {
+    directives: string[];
+}
 
 type BuildStep = 'validation' | 'generation' | 'submission' | 'complete';
 
 export default function BuildToolPage() {
-    // Existing State
+    // State definitions
     const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
     const [toolDirective, setToolDirective] = useState('');
     const [selectedModel, setSelectedModel] = useState<string>('');
@@ -23,26 +27,21 @@ export default function BuildToolPage() {
     const [directivesError, setDirectivesError] = useState<string | null>(null);
     const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
     const [additionalDescription, setAdditionalDescription] = useState('');
-    const [userSelectedDirective, setUserSelectedDirective] = useState<string | null>(null);
+    const [userSelectedDirectives, setUserSelectedDirectives] = useState<string[]>([]); // Array state
     const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
     const [prSubmissionResult, setPrSubmissionResult] = useState<PrSubmissionResult | null>(null);
-
-    // --- NEW State for API Availability ---
     const [isApiUnavailable, setIsApiUnavailable] = useState<boolean>(false);
     const [apiUnavailableMessage, setApiUnavailableMessage] = useState<string>('');
-    // --- End NEW State ---
 
-    // Fetch AI Models - Modified Error Handling
-    useEffect(() => {
+    // useEffect for fetching models
+     useEffect(() => {
         const fetchModels = async () => {
             setModelsLoading(true);
             setModelsError(null);
             setIsApiUnavailable(false);
             setApiUnavailableMessage('');
-
             try {
                 const response = await fetch('/api/list-models');
-
                 if (!response.ok) {
                     if (response.status === 404) {
                         setIsApiUnavailable(true);
@@ -55,14 +54,10 @@ export default function BuildToolPage() {
                     const e = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
                     throw new Error(e.error || `HTTP error ${response.status}`);
                 }
-
                 const data: ApiListModelsResponse = await response.json();
                 const models: AiModel[] = data.models || [];
-                if (models.length === 0) {
-                    console.warn("API returned an empty list of models.");
-                }
+                if (models.length === 0) console.warn("API returned an empty list of models.");
                 setAvailableModels(models);
-
                 const defaultEnv = process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
                 const defaultModel = models.find(m => m.name === defaultEnv)
                                   ?? models.find(m => m.name.includes('flash'))
@@ -78,7 +73,6 @@ export default function BuildToolPage() {
                 }
             } catch (error) {
                 console.error("Error fetching AI models:", error);
-                // const message = error instanceof Error ? error.message : "Could not load AI models."; // Removed unused message variable
                  setIsApiUnavailable(true);
                  const specificMsg = "Failed to connect to the AI model API. This feature may require server functionality.";
                  setApiUnavailableMessage(specificMsg);
@@ -91,52 +85,47 @@ export default function BuildToolPage() {
           fetchModels();
     }, []);
 
-    // Fetch Tool Directives - Modified Error Handling (Similar pattern)
+    // useEffect for fetching directives
     useEffect(() => {
         if (isApiUnavailable) {
             setDirectivesLoading(false);
-            setDirectivesError("Skipped fetching directives as required APIs are unavailable.");
+            setDirectivesError("Skipped fetching directives.");
             return;
         };
 
         const fetchDirectives = async () => {
-            setDirectivesLoading(true); setDirectivesError(null);
+            setDirectivesLoading(true);
+            setDirectivesError(null);
             try {
-                const response = await fetch('/api/list-directives');
+                const response = await fetch('/api/directives.json');
                 if (!response.ok) {
-                     if (response.status === 404) {
-                        setIsApiUnavailable(true);
-                        const specificMsg = "The tool directive listing API (/api/list-directives) was not found. This feature requires server functionality.";
-                        setApiUnavailableMessage(specificMsg);
-                        setDirectivesError(specificMsg);
-                        console.error(specificMsg);
-                        return;
+                    if (response.status === 404) {
+                         throw new Error("Directives list file (/api/directives.json) not found. Run the build script.");
                     }
-                    const e = await response.json().catch(() => ({ error: `HTTP error ${response.status}` }));
-                    throw new Error(e.error || `HTTP ${response.status}`);
+                    throw new Error(`Failed to fetch directives list (${response.status})`);
                 }
-                const data: ApiListDirectivesResponse = await response.json();
-                setAllAvailableToolDirectives(data.directives || []);
+                const data: DirectivesListData = await response.json();
+                if (!Array.isArray(data?.directives)) {
+                    throw new Error("Invalid format in directives.json file.");
+                }
+                setAllAvailableToolDirectives(data.directives);
             } catch (error) {
                 console.error("Error fetching tool directives:", error);
-                // const message = error instanceof Error ? error.message : "Could not load existing tools."; // Removed unused message variable
-                 setIsApiUnavailable(true);
-                 const specificMsg = "Failed to connect to the tool directive API. This feature may require server functionality.";
-                 if (!apiUnavailableMessage) setApiUnavailableMessage(specificMsg);
-                 setDirectivesError(specificMsg);
-                 setAllAvailableToolDirectives([]);
+                const message = error instanceof Error ? error.message : "Could not load existing tools.";
+                setDirectivesError(message);
+                setAllAvailableToolDirectives([]);
             } finally {
                 setDirectivesLoading(false);
             }
         };
         fetchDirectives();
-    }, [isApiUnavailable, apiUnavailableMessage]);
+    }, [isApiUnavailable]);
 
-    // Callbacks remain the same
-    const handleValidationSuccess = useCallback((result: ValidationResult) => {
+    // Callbacks
+     const handleValidationSuccess = useCallback((result: ValidationResult) => {
         console.log("Validation Success:", result);
         setValidationResult(result);
-        setUserSelectedDirective(null);
+        setUserSelectedDirectives([]);
         setCurrentStep('generation');
     }, []);
 
@@ -158,15 +147,17 @@ export default function BuildToolPage() {
         setToolDirective('');
         setValidationResult(null);
         setAdditionalDescription('');
-        setUserSelectedDirective(null);
+        setUserSelectedDirectives([]);
         setGenerationResult(null);
         setPrSubmissionResult(null);
+        // Optionally reset model selection if needed, or keep the last used one
+        // if (availableModels.length > 0) setSelectedModel(availableModels[0].name);
     }, []);
 
-    // Render Logic: Check for API unavailability first
+    // Render Logic
     const renderCurrentStep = () => {
-        if (isApiUnavailable) {
-             return (
+         if (isApiUnavailable) {
+            return (
                  <div className="p-6 border rounded-lg bg-orange-50 border-orange-300 shadow-sm text-center">
                      <h2 className="text-xl font-semibold mb-3 text-orange-800">Feature Unavailable</h2>
                      <p className="text-orange-700 mb-4">
@@ -177,7 +168,7 @@ export default function BuildToolPage() {
                      </p>
                      <p className="text-sm text-gray-600">
                          To contribute a new tool, please follow the manual setup instructions in the{' '}
-                         <Link href="https://github.com/Online-Everything-Tool/oet/CONTRIBUTING.md" className="text-blue-600 hover:underline">CONTRIBUTING.md</Link> file.
+                         <Link href="https://github.com/Online-Everything-Tool/oet/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">CONTRIBUTING.md</Link> file.
                      </p>
                  </div>
              );
@@ -193,14 +184,16 @@ export default function BuildToolPage() {
              return <p className="text-center text-red-500 p-4">Error loading existing tools: {directivesError}</p>;
          }
 
+
         switch (currentStep) {
             case 'validation':
-                // const validationDisabled = availableModels.length === 0 || !selectedModel; // Removed unused variable
-                return (
+                 return (
                     <ValidateDirective
-                        {...{ toolDirective, selectedModel, availableModels, modelsLoading, modelsError: modelsError, setToolDirective, setSelectedModel }}
+                        {...{ toolDirective, selectedModel, availableModels, modelsLoading, modelsError }} // Pass needed props
+                        setToolDirective={setToolDirective}
+                        setSelectedModel={setSelectedModel}
                         onValidationSuccess={handleValidationSuccess}
-                        onReset={handleReset}
+                        onReset={handleReset} // Pass reset if needed inside ValidateDirective
                     />
                 );
             case 'generation':
@@ -213,17 +206,20 @@ export default function BuildToolPage() {
                              additionalDescription,
                              selectedModel,
                              allAvailableToolDirectives,
-                             userSelectedDirective,
+                             userSelectedDirectives,
                              setAdditionalDescription,
-                             setUserSelectedDirective
+                             setUserSelectedDirectives
                         }}
                         onGenerationSuccess={handleGenerationSuccess}
                         onBack={handleReset}
                     />
                 );
              case 'submission':
-                 if (!generationResult?.generatedFiles || !toolDirective || !validationResult) {
-                     handleReset(); return null;
+                 // Ensure all necessary data exists before rendering submission step
+                 if (!generationResult?.generatedFiles || !toolDirective || !validationResult || !selectedModel) {
+                     console.error("Missing data required for submission step, resetting.");
+                     handleReset();
+                     return null;
                  }
                  return (
                      <CreateAnonymousPr
@@ -232,7 +228,8 @@ export default function BuildToolPage() {
                              generationResult,
                              validationResult,
                              additionalDescription,
-                             userSelectedDirective
+                             userSelectedDirectives,
+                             selectedModel // <-- PASS selectedModel HERE
                          }}
                          onPrSubmissionSuccess={handlePrSubmissionSuccess}
                          onBack={() => setCurrentStep('generation')}
@@ -240,7 +237,7 @@ export default function BuildToolPage() {
                  );
             case 'complete':
                  if (!prSubmissionResult) { handleReset(); return null; }
-                 return (
+                  return (
                     <div className="p-6 border rounded-lg bg-green-50 border-green-300 shadow-sm text-center">
                         <h2 className="text-xl font-semibold mb-3 text-green-800">Pull Request Submitted!</h2>
                         <p className="text-green-700 mb-4">{prSubmissionResult.message}</p>
@@ -264,7 +261,7 @@ export default function BuildToolPage() {
     };
 
     // Main Return
-    return (
+     return (
         <div className="max-w-3xl mx-auto p-4 space-y-6">
             <h1 className="text-2xl font-bold text-gray-800">Build a New Tool (AI Assisted)</h1>
             {renderCurrentStep()}

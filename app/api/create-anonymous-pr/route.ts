@@ -19,13 +19,14 @@ if (!appId || !privateKeyBase64) {
 }
 // --- End Load Environment Variables ---
 
-// --- Interfaces (matching frontend/API expectations) ---
+// --- Interfaces ---
 interface LibraryDependency {
     packageName: string;
     reason?: string;
     importUsed?: string;
 }
 
+// --- UPDATED RequestBody Interface ---
 interface RequestBody {
     toolDirective: string;
     generatedFiles: { [filePath: string]: string }; // Expecting an object map
@@ -33,15 +34,18 @@ interface RequestBody {
     generativeDescription?: string;
     additionalDescription?: string;
     generativeRequestedDirectives?: string[];
-    userSelectedExampleDirective?: string | null;
+    userSelectedExampleDirectives?: string[] | null; // Array type for user examples
+    selectedModel?: string; // <-- ADD selectedModel field
 }
+// --- END UPDATED Interface ---
+
 
 // --- Type Guards ---
 const hasMessage = (e: unknown): e is { message: string } => typeof e === 'object' && e !== null && 'message' in e && typeof (e as { message: unknown }).message === 'string';
 const isPotentialErrorObject = (e: unknown): e is { status?: unknown; message?: unknown; response?: { data?: { message?: string } } } => typeof e === 'object' && e !== null;
 // --- End Type Guards ---
 
-// --- Helper: Get Authenticated Octokit Instance (Error handling refined) ---
+// --- Helper: Get Authenticated Octokit Instance ---
 async function getInstallationOctokit(): Promise<Octokit> {
     console.log("[API create-anonymous-pr] Attempting GitHub App auth...");
     if (!appId || !privateKeyBase64) throw new Error("Server config error: GitHub App credentials missing.");
@@ -107,7 +111,8 @@ export async function POST(request: Request) {
     let generativeDescription: string;
     let additionalDescription: string;
     let generativeRequestedDirectives: string[];
-    let userSelectedExampleDirective: string | null;
+    let userSelectedExampleDirectives: string[];
+    let selectedModelName: string; // <-- ADD variable for model name
 
     // 1. Parse and Validate Request Body
     try {
@@ -124,7 +129,6 @@ export async function POST(request: Request) {
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolDirective)) {
             throw new Error('Invalid toolDirective format.');
         }
-
         for (const [filePath, fileContent] of Object.entries(generatedFiles)) {
              if (typeof fileContent !== 'string') {
                  throw new Error(`Invalid content for file '${filePath}': Must be a string.`);
@@ -132,10 +136,6 @@ export async function POST(request: Request) {
              if (!filePath.startsWith('app/tool/')) {
                  console.warn(`[API create-anonymous-pr] Unexpected file path found: ${filePath}`);
              }
-              // Relaxed 'use client' check for now, but good to keep in mind
-             // if (filePath.endsWith('/page.tsx') && !fileContent.trim().startsWith("'use client';") && !fileContent.trim().startsWith('"use client";')) {
-             //    console.warn(`[API create-anonymous-pr] Warning: Generated file ${filePath} does not start with 'use client';`)
-             // }
         }
 
         generativeDescription = body.generativeDescription?.trim() || '';
@@ -143,13 +143,22 @@ export async function POST(request: Request) {
         generativeRequestedDirectives = Array.isArray(body.generativeRequestedDirectives)
             ? body.generativeRequestedDirectives.filter((d: unknown): d is string => typeof d === 'string')
             : [];
-        userSelectedExampleDirective = (typeof body.userSelectedExampleDirective === 'string' && body.userSelectedExampleDirective.trim())
-            ? body.userSelectedExampleDirective.trim()
-            : null;
+        userSelectedExampleDirectives = (Array.isArray(body.userSelectedExampleDirectives)
+            ? body.userSelectedExampleDirectives.filter((d): d is string => typeof d === 'string' && d.trim() !== '') // Filter out non-strings/empty
+            : []) // Default to empty array if missing or not an array
+            .slice(0, 5); // Optional: Limit to 5
+
+        // --- PARSE selectedModel ---
+        selectedModelName = body.selectedModel?.trim() || 'Unknown/Not Provided'; // Default if missing
+        // --- END PARSE ---
+
 
         console.log(`[API create-anonymous-pr] Processing PR for new tool: ${toolDirective}`);
+        console.log(`[API create-anonymous-pr] Model used: ${selectedModelName}`); // <-- LOG MODEL
         console.log(`[API create-anonymous-pr] Files to commit: ${Object.keys(generatedFiles).length}`);
-        console.log(`[API create-anonymous-pr] Identified dependencies passed from generator: ${identifiedDependencies.length}`); // Log what was received
+        console.log(`[API create-anonymous-pr] Identified dependencies passed from generator: ${identifiedDependencies.length}`);
+        console.log(`[API create-anonymous-pr] User selected examples: ${userSelectedExampleDirectives.join(', ') || 'None'}`);
+
 
     } catch (error: unknown) {
         const message = hasMessage(error) ? error.message : "Invalid request body format";
@@ -197,17 +206,17 @@ export async function POST(request: Request) {
         // --- Create Enhanced PR Body ---
         const prTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
 
+        // Helper functions
         const formatList = (items: string[], noneMessage: string, prefix = '- '): string => {
             if (!items || items.length === 0) return noneMessage;
             return items.map(item => `${prefix}\`${item}\``).join('\n');
         };
-
         const formatDependencies = (deps: LibraryDependency[], noneMessage: string): string => {
              if (!deps || deps.length === 0) return noneMessage;
              return deps.map(dep => `- \`${dep.packageName}\`${dep.reason ? ` - _${dep.reason}_` : ''}`).join('\n');
         };
 
-        // --- UPDATED PR BODY ---
+        // --- UPDATED PR BODY TEMPLATE ---
         const prBody = `
 Adds the new tool \`${toolDirective}\` generated via the AI Build Tool feature (submitted anonymously).
 
@@ -220,13 +229,16 @@ ${additionalDescription || '_None provided._'}
 **AI Requested Examples During Generation:**
 ${formatList(generativeRequestedDirectives, '_None requested or loaded._')}
 
-**User Selected Example During Generation:**
-${userSelectedExampleDirective ? `\`${userSelectedExampleDirective}\`` : '_None selected._'}
+**User Selected Examples During Generation:**
+${formatList(userSelectedExampleDirectives, '_None selected._')}
+
+**AI Model Used for Generation:**
+${selectedModelName ? `\`${selectedModelName}\`` : '_Not specified_'}
 
 **Dependencies Identified by Generator API:**
 ${formatDependencies(identifiedDependencies, '_None explicitly identified by the generation API._')}
 ${identifiedDependencies.length > 0
-    ? '\n_Note: Please review the generated code for any other implicitly used libraries (like \`three\`, \`@react-three/fiber\`, etc. if applicable) and ensure all necessary dependencies are added to package.json._'
+    ? '\n_Note: Please review the generated code for any other implicitly used libraries (like \`jwt-decode\`, \`three\`, \`@react-three/fiber\`, etc. if applicable) and ensure all necessary dependencies are added to package.json._'
     : '\n_Note: Please review the generated code for any implicitly used libraries and ensure dependencies are added to package.json if needed._'
 }
 
@@ -274,6 +286,7 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
     }
 }
 
+// GET handler
 export async function GET() {
     console.log(`[API create-anonymous-pr] -------- GET (${new Date().toISOString()}) --------`);
     if (!process.env.GITHUB_APP_ID || !process.env.GITHUB_PRIVATE_KEY_BASE64) return NextResponse.json({ message: "API route active, but server config missing credentials." });

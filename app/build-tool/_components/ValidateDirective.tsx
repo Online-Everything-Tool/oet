@@ -19,7 +19,7 @@ interface ValidateDirectiveProps { // Renamed Props Interface
 
 // Interface for the expected API response structure
 interface ApiValidationResponseData {
-    valid: boolean;
+    success: boolean;
     message: string;
     generativeDescription: string | null; // Field name from API
     generativeRequestedDirectives: string[]; // Field name from API
@@ -70,7 +70,7 @@ export default function ValidateDirective({
 
             const data: ApiValidationResponseData = await response.json();
 
-            if (!response.ok || !data.valid) {
+            if (!response.ok || !data.success) {
                 throw new Error(data.message || `Validation failed (${response.status})`);
             }
 
