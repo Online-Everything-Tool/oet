@@ -7,7 +7,8 @@ import path from 'path';
 import "./globals.css";
 import { HistoryProvider } from "./context/HistoryContext";
 import { ImageLibraryProvider } from "./context/ImageLibraryContext";
-import { FavoritesProvider } from "./context/FavoritesContext"; // Import FavoritesProvider
+import { FileLibraryProvider } from "./context/FileLibraryContext"; // Import FileLibraryProvider
+import { FavoritesProvider } from "./context/FavoritesContext";
 import Header from "./_components/Header";
 import ShoelaceSetup from "@/app/_components/ShoelaceSetup";
 import ClientOnly from "./_components/ClientOnly";
@@ -74,16 +75,20 @@ export default function RootLayout({
             >
                 <ShoelaceSetup />
                 <ClientOnly>
-                    <ImageLibraryProvider>
-                        <HistoryProvider>
-                            <FavoritesProvider> {/* Add FavoritesProvider here */}
-                                <Header />
-                                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                                    {children}
-                                </main>
-                            </FavoritesProvider> {/* Close FavoritesProvider */}
-                        </HistoryProvider>
-                    </ImageLibraryProvider>
+                    {/* Wrap ImageLibraryProvider with FileLibraryProvider */}
+                    {/* Order might matter if one depends on the other, but they seem independent */}
+                    <FileLibraryProvider>
+                        <ImageLibraryProvider>
+                            <HistoryProvider>
+                                <FavoritesProvider>
+                                    <Header />
+                                    <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                                        {children}
+                                    </main>
+                                </FavoritesProvider>
+                            </HistoryProvider>
+                        </ImageLibraryProvider>
+                    </FileLibraryProvider>
                 </ClientOnly>
             </body>
         </html>

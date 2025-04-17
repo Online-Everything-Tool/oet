@@ -12,323 +12,202 @@ import React, {
   ReactNode,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-// Import shared types
+import type { OetDatabase } from '../lib/db';
 import type { LoggingPreference, ToolMetadata } from '@/src/types/tools';
-// Import history-specific types
-import type { TriggerType, HistoryEntry, NewHistoryData } from '@/src/types/history'; // Updated import
-
-import { HISTORY_LOCAL_STORAGE_KEY, SETTINGS_LOCAL_STORAGE_KEY, MAX_HISTORY_ENTRIES, REDACTED_OUTPUT_PLACEHOLDER } from '@/src/constants/history';
+import type { TriggerType, HistoryEntry, NewHistoryData } from '@/src/types/history';
+import { SETTINGS_LOCAL_STORAGE_KEY, MAX_HISTORY_ENTRIES, REDACTED_OUTPUT_PLACEHOLDER } from '@/src/constants/history';
 
 const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on';
 
+// --- Fully Defined Interfaces ---
+
+// Describes the structure of settings saved in localStorage
 interface HistorySettings {
     isHistoryEnabled: boolean;
+    // Key: toolRoute (e.g., "/tool/base64-encoder-decoder/"), Value: preference
     toolPreferences?: Record<string, LoggingPreference>;
 }
 
+// Defines the shape of the value provided by the context
 interface HistoryContextValue {
-  history: HistoryEntry[]; // Use imported type
-  addHistoryEntry: (entryData: NewHistoryData) => void; // Use imported type
-  deleteHistoryEntry: (idToDelete: string) => void;
-  clearHistory: () => void;
-  clearHistoryForTool: (toolRoute: string) => void;
-  isLoaded: boolean;
+  history: HistoryEntry[];
+  addHistoryEntry: (entryData: NewHistoryData) => Promise<void>;
+  deleteHistoryEntry: (idToDelete: string) => Promise<void>;
+  clearHistory: () => Promise<void>;
+  clearHistoryForTool: (toolRoute: string) => Promise<void>;
+  isLoaded: boolean; // Combined loaded state (settings + history)
+  isLoadingHistory: boolean; // Specifically for DB operations
+  historyError: string | null;
   isHistoryEnabled: boolean;
   toggleHistoryEnabled: () => void;
-  getToolLoggingPreference: (toolRoute: string) => LoggingPreference; // Use imported type
-  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>; // Use imported type
+  getToolLoggingPreference: (toolRoute: string) => LoggingPreference;
+  setToolLoggingPreference: (toolRoute: string, preference: LoggingPreference) => Promise<void>;
 }
+// --- End Interfaces ---
 
-// areStatesEqual uses imported types implicitly via arguments
-function areStatesEqual(entry1: NewHistoryData, entry2: HistoryEntry): boolean {
-    if (entry1.toolRoute !== entry2.toolRoute) return false;
-    try {
-        const inputEqual = JSON.stringify(entry1.input ?? {}) === JSON.stringify(entry2.input ?? {});
-        return inputEqual;
-    } catch (e) {
-        console.warn("[HistoryCtx] Error comparing history states with JSON.stringify:", e);
-        return entry1.input === entry2.input;
-    }
-}
 
-// Context creation uses imported types implicitly
+// Context creation with proper default implementations (warning functions)
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
-  addHistoryEntry: () => { console.warn('addHistoryEntry called outside of HistoryProvider'); },
-  deleteHistoryEntry: () => { console.warn('deleteHistoryEntry called outside of HistoryProvider'); },
-  clearHistory: () => { console.warn('clearHistory called outside of HistoryProvider'); },
-  clearHistoryForTool: () => { console.warn('clearHistoryForTool called outside of HistoryProvider'); },
+  addHistoryEntry: async () => { console.warn('HistoryContext: addHistoryEntry called before provider.') },
+  deleteHistoryEntry: async () => { console.warn('HistoryContext: deleteHistoryEntry called before provider.') },
+  clearHistory: async () => { console.warn('HistoryContext: clearHistory called before provider.') },
+  clearHistoryForTool: async () => { console.warn('HistoryContext: clearHistoryForTool called before provider.') },
   isLoaded: false,
-  isHistoryEnabled: true,
-  toggleHistoryEnabled: () => { console.warn('toggleHistoryEnabled called outside of HistoryProvider'); },
+  isLoadingHistory: true, // Default to loading initially
+  historyError: null,
+  isHistoryEnabled: true, // Default enabled state before loading settings
+  toggleHistoryEnabled: () => { console.warn('HistoryContext: toggleHistoryEnabled called before provider.') },
   getToolLoggingPreference: () => GLOBAL_DEFAULT_LOGGING,
-  setToolLoggingPreference: async () => { console.warn('setToolLoggingPreference called outside of HistoryProvider'); },
+  setToolLoggingPreference: async () => { console.warn('HistoryContext: setToolLoggingPreference called before provider.') },
 });
 
-export const useHistory = () => {
+// --- useHistory Hook Implementation ---
+export const useHistory = (): HistoryContextValue => { // Added return type annotation
   const context = useContext(HistoryContext);
-  if (context === undefined) { throw new Error('useHistory must be used within a HistoryProvider'); }
-  return context;
+  if (context === undefined) {
+    // Provide a more informative error message
+    throw new Error('useHistory hook must be used within a HistoryProvider component tree.');
+  }
+  return context; // Return the context value
 };
+// --- End useHistory Hook ---
+
+// areInputsEqual function remains the same
+function areInputsEqual(input1: unknown, input2: unknown): boolean {
+    // Simple comparison for null/undefined
+    if (input1 === null || input1 === undefined) {
+        return input2 === null || input2 === undefined;
+    }
+    if (input2 === null || input2 === undefined) {
+        // input1 is not null/undefined here, so they can't be equal
+        return false;
+    }
+
+    // Stringify for objects/arrays, basic comparison otherwise
+    try {
+        if (typeof input1 === 'object' && typeof input2 === 'object') {
+            // Use JSON.stringify for deep comparison of object structures
+            return JSON.stringify(input1) === JSON.stringify(input2);
+        }
+        // Handle primitives, allow type coercion for comparison (e.g., '5' vs 5)
+        // Using String() handles numbers, booleans, strings appropriately here.
+        return String(input1) === String(input2);
+    } catch (e) {
+        // Catch potential errors during stringification (e.g., circular references)
+        console.warn("[HistoryCtx] Error comparing history inputs via JSON.stringify:", e);
+        // Fallback to strict equality if stringify fails
+        return input1 === input2;
+    }
+}
 
 interface HistoryProviderProps {
   children: ReactNode;
 }
 
-// HistoryProvider uses imported types implicitly via state and callbacks
 export const HistoryProvider = ({ children }: HistoryProviderProps) => {
+  // ... (state, refs, effects, callbacks, value memoization - all as implemented in the previous correct version) ...
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState<boolean>(false);
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState<boolean>(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [isHistoryEnabled, setIsHistoryEnabled] = useState<boolean>(true);
   const [toolPreferences, setToolPreferences] = useState<Record<string, LoggingPreference>>({});
   const [toolDefaults, setToolDefaults] = useState<Record<string, LoggingPreference>>({});
   const fetchingDefaultsRef = useRef<Set<string>>(new Set());
+  const dbRef = useRef<OetDatabase | null>(null);
 
-  // ... (useEffect for loading/saving remains the same) ...
+  // Effect 0: Initialize DB instance on client
   useEffect(() => {
-    let loadedEnabledState = true;
-    let loadedPrefs: Record<string, LoggingPreference> = {};
-    try {
-        const storedSettings = localStorage.getItem(SETTINGS_LOCAL_STORAGE_KEY);
-        if (storedSettings) {
-             const parsedSettings: Partial<HistorySettings> = JSON.parse(storedSettings);
-             if (typeof parsedSettings.isHistoryEnabled === 'boolean') {
-                 loadedEnabledState = parsedSettings.isHistoryEnabled;
-             }
-             if (typeof parsedSettings.toolPreferences === 'object' && parsedSettings.toolPreferences !== null) {
-                  const validPrefs: Record<string, LoggingPreference> = {};
-                  const validPrefValues: LoggingPreference[] = ['on', 'restrictive', 'off'];
-                  for (const route in parsedSettings.toolPreferences) {
-                      const pref = parsedSettings.toolPreferences[route];
-                      if (validPrefValues.includes(pref)) {
-                          validPrefs[route] = pref;
-                      }
-                  }
-                  loadedPrefs = validPrefs;
-             }
-        }
-    } catch (error) { console.error('[HistoryCtx] Error parsing settings:', error); }
-    setIsHistoryEnabled(loadedEnabledState);
-    setToolPreferences(loadedPrefs);
-    try {
-      const storedHistory = localStorage.getItem(HISTORY_LOCAL_STORAGE_KEY);
-      if (storedHistory) {
-        const parsedHistory = JSON.parse(storedHistory);
-        if (Array.isArray(parsedHistory) && parsedHistory.every(item =>
-             item.id && Array.isArray(item.timestamps) && item.timestamps.length > 0 &&
-             item.toolName && item.toolRoute && 'input' in item &&
-             Array.isArray(item.triggers)
-           )) {
-           parsedHistory.sort((a, b) => b.timestamps[0] - a.timestamps[0]);
-           setHistory(parsedHistory);
-        } else {
-            localStorage.removeItem(HISTORY_LOCAL_STORAGE_KEY); setHistory([]);
-        }
-      } else { setHistory([]); }
-    } catch (error) {
-      console.error('[HistoryCtx] Error parsing v3 history:', error);
-      localStorage.removeItem(HISTORY_LOCAL_STORAGE_KEY); setHistory([]);
-    } finally { setIsLoaded(true); }
+      import('../lib/db').then((dbModule) => {
+          dbRef.current = dbModule.db;
+          console.log("[HistoryCtx] Dexie DB instance assigned to ref.");
+          loadHistoryFromDb(); // Trigger initial load *after* db is set
+      }).catch(err => {
+           console.error("[HistoryCtx] Failed to dynamically import db:", err);
+           setHistoryError("Failed to initialize database.");
+           setIsLoadingHistory(false);
+           setIsHistoryLoaded(true);
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Effect 1: Load Settings from localStorage
   useEffect(() => {
-    if (isLoaded) {
-      try {
-        const historyString = JSON.stringify(history);
-        localStorage.setItem(HISTORY_LOCAL_STORAGE_KEY, historyString);
-      } catch (error) { console.error('[HistoryCtx] Error saving history:', error); }
-    }
-  }, [history, isLoaded]);
-
-  useEffect(() => {
-      if (isLoaded) {
-          try {
-              const settings: HistorySettings = { isHistoryEnabled, toolPreferences };
-              localStorage.setItem(SETTINGS_LOCAL_STORAGE_KEY, JSON.stringify(settings));
-          } catch (error) { console.error('[HistoryCtx] Error saving settings:', error); }
-      }
-  }, [isHistoryEnabled, toolPreferences, isLoaded]);
-
-  // ... (fetchToolDefaultPreference, getToolLoggingPreference, setToolLoggingPreference remain the same) ...
-   const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
-      if (!toolRoute || !toolRoute.startsWith('/tool/')) {
-          console.warn(`[HistoryCtx] Invalid toolRoute for fetching default: ${toolRoute}`);
-          return GLOBAL_DEFAULT_LOGGING;
-      }
-      if (fetchingDefaultsRef.current.has(toolRoute)) {
-           return GLOBAL_DEFAULT_LOGGING;
-      }
-
-      fetchingDefaultsRef.current.add(toolRoute);
-      const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, '');
-
-       if (!directive || directive.includes('/')) {
-           console.warn(`[HistoryCtx] Invalid directive extracted ('${directive}') from route: ${toolRoute}. Using global default.`);
-           fetchingDefaultsRef.current.delete(toolRoute);
-           setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
-           return GLOBAL_DEFAULT_LOGGING;
-       }
-
-      try {
-          console.log(`[HistoryCtx] Fetching default preference for directive: ${directive}`);
-          const response = await fetch(`/api/tool-metadata/${directive}.json`);
-
-          if (!response.ok) {
-               if (response.status === 404) {
-                   console.warn(`[HistoryCtx] Metadata file not found for ${directive}. Using global default.`);
-               } else {
-                   console.error(`[HistoryCtx] Failed to fetch metadata for ${directive}. Status: ${response.status}. Using global default.`);
-               }
-               setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
-               return GLOBAL_DEFAULT_LOGGING;
-           }
-
-           const data: ToolMetadata = await response.json();
-
-           const fetchedDefault = (['on', 'restrictive', 'off'] as LoggingPreference[]).includes(data?.defaultLogging as LoggingPreference)
-             ? data.defaultLogging as LoggingPreference
-             : GLOBAL_DEFAULT_LOGGING;
-
-           console.log(`[HistoryCtx] Fetched default for ${directive}: ${fetchedDefault}`);
-           setToolDefaults(prev => ({ ...prev, [toolRoute]: fetchedDefault }));
-           return fetchedDefault;
-
-      } catch (error) {
-          console.error(`[HistoryCtx] Error fetching or parsing default preference for ${toolRoute} (Directive: ${directive}):`, error);
-          setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING }));
-          return GLOBAL_DEFAULT_LOGGING;
-      } finally {
-          fetchingDefaultsRef.current.delete(toolRoute);
-      }
+    let loadedEnabledState = true; let loadedPrefs: Record<string, LoggingPreference> = {};
+    try { const storedSettings = localStorage.getItem(SETTINGS_LOCAL_STORAGE_KEY); if (storedSettings) { const parsedSettings: Partial<HistorySettings> = JSON.parse(storedSettings); if (typeof parsedSettings.isHistoryEnabled === 'boolean') { loadedEnabledState = parsedSettings.isHistoryEnabled; } if (typeof parsedSettings.toolPreferences === 'object' && parsedSettings.toolPreferences !== null) { const validPrefs: Record<string, LoggingPreference> = {}; const validPrefValues: LoggingPreference[] = ['on', 'restrictive', 'off']; for (const route in parsedSettings.toolPreferences) { if (Object.prototype.hasOwnProperty.call(parsedSettings.toolPreferences, route)) { const pref = parsedSettings.toolPreferences[route]; if (validPrefValues.includes(pref)) { validPrefs[route] = pref; } else { console.warn(`[HistoryCtx] Ignoring invalid stored preference for ${route}: ${pref}`); } } } loadedPrefs = validPrefs; } }
+    } catch (error) { console.error('[HistoryCtx] Error parsing settings from localStorage:', error); }
+    setIsHistoryEnabled(loadedEnabledState); setToolPreferences(loadedPrefs); setIsSettingsLoaded(true); console.log("[HistoryCtx] Settings loaded from localStorage.", { isHistoryEnabled: loadedEnabledState, toolPreferences: loadedPrefs });
   }, []);
+
+  // Effect 2: Load History from Dexie
+  const loadHistoryFromDb = useCallback(async () => {
+    if (!dbRef.current) { console.log("[HistoryCtx] loadHistoryFromDb called before DB ref initialized. Skipping."); return; }
+    const db = dbRef.current; setIsLoadingHistory(true); setHistoryError(null);
+    try { if (!db.historyEntries) throw new Error("Database 'historyEntries' table not available."); const loadedHistory = await db.historyEntries.orderBy('lastUsed').reverse().limit(MAX_HISTORY_ENTRIES + 50).toArray(); setHistory(loadedHistory); console.log(`[HistoryCtx] Loaded ${loadedHistory.length} history entries from Dexie.`); setIsHistoryLoaded(true);
+    } catch (error) { console.error("[HistoryCtx] Error loading history from Dexie:", error); const message = error instanceof Error ? error.message : "Unknown database error"; setHistoryError(`Failed to load history: ${message}`); setHistory([]); setIsHistoryLoaded(true); }
+    finally { setIsLoadingHistory(false); }
+  }, []);
+
+  // Effect 3: Save Settings to localStorage
+  useEffect(() => {
+      if (isSettingsLoaded) { try { const settings: HistorySettings = { isHistoryEnabled, toolPreferences }; localStorage.setItem(SETTINGS_LOCAL_STORAGE_KEY, JSON.stringify(settings)); } catch (error) { console.error('[HistoryCtx] Error saving settings to localStorage:', error); } }
+  }, [isHistoryEnabled, toolPreferences, isSettingsLoaded]);
+
+  // --- Preferences Logic ---
+  const fetchToolDefaultPreference = useCallback(async (toolRoute: string): Promise<LoggingPreference> => {
+      if (!toolRoute || !toolRoute.startsWith('/tool/')) return GLOBAL_DEFAULT_LOGGING; if (toolDefaults[toolRoute]) return toolDefaults[toolRoute]; if (fetchingDefaultsRef.current.has(toolRoute)) return GLOBAL_DEFAULT_LOGGING; fetchingDefaultsRef.current.add(toolRoute); const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, ''); if (!directive || directive.includes('/')) { fetchingDefaultsRef.current.delete(toolRoute); setToolDefaults(prev => ({ ...prev, [toolRoute]: GLOBAL_DEFAULT_LOGGING })); return GLOBAL_DEFAULT_LOGGING; } let fetchedDefault: LoggingPreference = GLOBAL_DEFAULT_LOGGING;
+      try { /* ... fetch logic ... */ const response = await fetch(`/api/tool-metadata/${directive}.json`); if(response.ok){ const data: ToolMetadata = await response.json(); const validPrefs: LoggingPreference[] = ['on', 'restrictive', 'off']; const metadataDefault = data?.defaultLogging as LoggingPreference; if(metadataDefault && validPrefs.includes(metadataDefault)) fetchedDefault = metadataDefault; else console.warn(`[HistoryCtx] Metadata for ${directive} missing or has invalid defaultLogging. Using global default.`);} else console.warn(`[HistoryCtx] Metadata not found or failed for ${directive} (Status: ${response.status}). Using global default.`);}
+      catch (error) { console.error(`[HistoryCtx] Error fetching/parsing default preference for ${toolRoute}:`, error); } finally { setToolDefaults(prev => ({ ...prev, [toolRoute]: fetchedDefault })); fetchingDefaultsRef.current.delete(toolRoute); } return fetchedDefault;
+  }, [toolDefaults]);
 
   const getToolLoggingPreference = useCallback((toolRoute: string): LoggingPreference => {
-      if (!isLoaded) return GLOBAL_DEFAULT_LOGGING;
-      if (toolPreferences[toolRoute]) { return toolPreferences[toolRoute]; }
-      if (toolDefaults[toolRoute]) { return toolDefaults[toolRoute]; }
-      if (!fetchingDefaultsRef.current.has(toolRoute)) { fetchToolDefaultPreference(toolRoute); }
-      return GLOBAL_DEFAULT_LOGGING;
-  }, [isLoaded, toolPreferences, toolDefaults, fetchToolDefaultPreference]);
+      if (!isSettingsLoaded) return GLOBAL_DEFAULT_LOGGING; if (toolPreferences[toolRoute]) return toolPreferences[toolRoute]; if (toolDefaults[toolRoute]) return toolDefaults[toolRoute]; if (!fetchingDefaultsRef.current.has(toolRoute)) { fetchToolDefaultPreference(toolRoute); } return GLOBAL_DEFAULT_LOGGING;
+  }, [isSettingsLoaded, toolPreferences, toolDefaults, fetchToolDefaultPreference]);
 
   const setToolLoggingPreference = useCallback(async (toolRoute: string, preference: LoggingPreference) => {
-       if (!isLoaded) {
-           console.warn("[HistoryCtx] Attempted to set preference before settings loaded.");
-           return;
-       }
-       let defaultPreference = toolDefaults[toolRoute];
-       if (!defaultPreference && !fetchingDefaultsRef.current.has(toolRoute)) {
-           defaultPreference = await fetchToolDefaultPreference(toolRoute);
-       }
-       if (!defaultPreference) defaultPreference = GLOBAL_DEFAULT_LOGGING;
+      if (!isSettingsLoaded) return; let defaultPreference = toolDefaults[toolRoute]; if (!defaultPreference && !fetchingDefaultsRef.current.has(toolRoute)) { defaultPreference = await fetchToolDefaultPreference(toolRoute); } defaultPreference = defaultPreference || GLOBAL_DEFAULT_LOGGING;
+      setToolPreferences(prev => { const newPrefs = { ...prev }; if (preference === defaultPreference) { delete newPrefs[toolRoute]; console.log(`[HistoryCtx] Preference for ${toolRoute} matches default (${defaultPreference}). Removing override.`); } else { newPrefs[toolRoute] = preference; console.log(`[HistoryCtx] Setting preference for ${toolRoute} to ${preference} (default: ${defaultPreference}).`); } return newPrefs; });
+  }, [isSettingsLoaded, toolDefaults, fetchToolDefaultPreference]);
 
-       setToolPreferences(prev => {
-           const newPrefs = { ...prev };
-           if (preference === defaultPreference) {
-               delete newPrefs[toolRoute];
-               console.log(`[HistoryCtx] Preference for ${toolRoute} matches default (${defaultPreference}). Removing override.`);
-           } else {
-               newPrefs[toolRoute] = preference;
-                console.log(`[HistoryCtx] Setting preference for ${toolRoute} to ${preference} (default: ${defaultPreference}).`);
-           }
-           return newPrefs;
-       });
-   }, [isLoaded, toolDefaults, fetchToolDefaultPreference]);
+  // --- History Actions ---
+  const addHistoryEntry = useCallback(async (entryData: NewHistoryData): Promise<void> => {
+      if (!dbRef.current) { console.error("[HistoryCtx] addHistoryEntry: DB not initialized."); return; } const db = dbRef.current; if (!isSettingsLoaded || !isHistoryEnabled) return; const toolRoute = entryData.toolRoute; const preference = getToolLoggingPreference(toolRoute); if (preference === 'off') return; let outputToStore = entryData.output; if (preference === 'restrictive') outputToStore = REDACTED_OUTPUT_PLACEHOLDER; const now = Date.now(); const currentTrigger = entryData.trigger; setIsLoadingHistory(true); setHistoryError(null);
+      try { if (!db.historyEntries) throw new Error("Database 'historyEntries' table not available."); const existingEntriesForTool = await db.historyEntries.where('toolRoute').equals(toolRoute).toArray(); const existingEntry = existingEntriesForTool.find(entry => areInputsEqual(entryData.input, entry.input)); if (existingEntry) { const newTimestamps = [now, ...existingEntry.timestamps].sort((a, b) => b - a).slice(0, 50); const uniqueTriggers = new Set(existingEntry.triggers); uniqueTriggers.add(currentTrigger); await db.historyEntries.update(existingEntry.id, { timestamps: newTimestamps, triggers: Array.from(uniqueTriggers).slice(0, 10), output: outputToStore, status: entryData.status, lastUsed: now }); console.log(`[HistoryCtx] Updated entry ${existingEntry.id} in Dexie.`); } else { const newEntry: HistoryEntry = { toolName: entryData.toolName, toolRoute: entryData.toolRoute, input: entryData.input, output: outputToStore, status: entryData.status, id: uuidv4(), timestamps: [now], triggers: [currentTrigger], lastUsed: now }; await db.historyEntries.add(newEntry); console.log(`[HistoryCtx] Added new entry ${newEntry.id} to Dexie.`); const currentCount = await db.historyEntries.count(); if (currentCount > MAX_HISTORY_ENTRIES) { const excessCount = currentCount - MAX_HISTORY_ENTRIES; const oldestEntries = await db.historyEntries.orderBy('lastUsed').limit(excessCount).primaryKeys(); await db.historyEntries.bulkDelete(oldestEntries); console.log(`[HistoryCtx] Pruned ${oldestEntries.length} oldest history entries.`); } } await loadHistoryFromDb(); }
+      catch (error) { console.error("[HistoryCtx] Error adding/updating history entry in Dexie:", error); const message = error instanceof Error ? error.message : "Unknown database error"; setHistoryError(`Failed to save history: ${message}`); } finally { setIsLoadingHistory(false); }
+  }, [isSettingsLoaded, isHistoryEnabled, getToolLoggingPreference, loadHistoryFromDb]);
 
-  // addHistoryEntry uses imported types implicitly via arguments
-  const addHistoryEntry = useCallback((entryData: NewHistoryData) => {
-      if (!isHistoryEnabled) return;
-      const toolRoute = entryData.toolRoute;
-      const preference = getToolLoggingPreference(toolRoute);
-      if (preference === 'off') { return; }
+  const deleteHistoryEntry = useCallback(async (idToDelete: string): Promise<void> => {
+      if (!dbRef.current) return; const db = dbRef.current; setIsLoadingHistory(true); setHistoryError(null);
+      try { if (!db.historyEntries) throw new Error("Table not available."); await db.historyEntries.delete(idToDelete); setHistory(prev => prev.filter(entry => entry.id !== idToDelete)); console.log(`[HistoryCtx] Deleted entry ${idToDelete}.`); }
+      catch (error) { console.error(`[HistoryCtx] Error deleting entry ${idToDelete}:`, error); const message = error instanceof Error ? error.message : "Unknown DB error"; setHistoryError(`Failed to delete entry: ${message}`); } finally { setIsLoadingHistory(false); }
+  }, []);
 
-      let outputToStore = entryData.output;
-      if (preference === 'restrictive') {
-          outputToStore = REDACTED_OUTPUT_PLACEHOLDER;
-      }
+  const clearHistory = useCallback(async (): Promise<void> => {
+      if (!dbRef.current) return; const db = dbRef.current; setIsLoadingHistory(true); setHistoryError(null);
+      try { if (!db.historyEntries) throw new Error("Table not available."); await db.historyEntries.clear(); setHistory([]); console.log(`[HistoryCtx] Cleared all history.`); }
+      catch (error) { console.error("[HistoryCtx] Error clearing history:", error); const message = error instanceof Error ? error.message : "Unknown DB error"; setHistoryError(`Failed to clear history: ${message}`); } finally { setIsLoadingHistory(false); }
+  }, []);
 
-      const now = Date.now();
-      const currentTrigger = entryData.trigger;
+  const clearHistoryForTool = useCallback(async (toolRoute: string): Promise<void> => {
+      if (!dbRef.current) return; const db = dbRef.current; setIsLoadingHistory(true); setHistoryError(null);
+      try { if (!db.historyEntries) throw new Error("Table not available."); await db.historyEntries.where('toolRoute').equals(toolRoute).delete(); setHistory(prev => prev.filter(entry => entry.toolRoute !== toolRoute)); console.log(`[HistoryCtx] Cleared history for tool ${toolRoute}.`); }
+      catch (error) { console.error(`[HistoryCtx] Error clearing history for tool ${toolRoute}:`, error); const message = error instanceof Error ? error.message : "Unknown DB error"; setHistoryError(`Failed to clear history for tool: ${message}`); } finally { setIsLoadingHistory(false); }
+  }, []);
 
-      setHistory((prevHistory) => {
-          const existingEntryIndex = prevHistory.findIndex(entry => areStatesEqual(entryData, entry));
-          let updatedHistory = [...prevHistory];
-          if (existingEntryIndex > -1) {
-              const existingEntry = updatedHistory[existingEntryIndex];
-              const newTimestamps = [now, ...existingEntry.timestamps].sort((a,b) => b-a);
-              const uniqueTriggers = new Set(existingEntry.triggers);
-              uniqueTriggers.add(currentTrigger);
-              const newTriggers = Array.from(uniqueTriggers);
-              const updatedEntry: HistoryEntry = { // Uses imported type
-                  ...existingEntry,
-                  timestamps: newTimestamps,
-                  triggers: newTriggers,
-                  output: outputToStore,
-                  status: entryData.status,
-              };
-              updatedHistory.splice(existingEntryIndex, 1);
-              updatedHistory.unshift(updatedEntry);
-          } else {
-              const newEntry: HistoryEntry = { // Uses imported type
-                  toolName: entryData.toolName,
-                  toolRoute: entryData.toolRoute,
-                  input: entryData.input,
-                  output: outputToStore,
-                  status: entryData.status,
-                  id: uuidv4(),
-                  timestamps: [now],
-                  triggers: [currentTrigger], // Uses imported type
-              };
-              updatedHistory.unshift(newEntry);
-              if (updatedHistory.length > MAX_HISTORY_ENTRIES) {
-                   updatedHistory = updatedHistory.slice(0, MAX_HISTORY_ENTRIES);
-              }
-          }
-          return updatedHistory;
-      });
-  }, [isHistoryEnabled, getToolLoggingPreference]);
+  const toggleHistoryEnabled = useCallback(() => {
+    if (!isSettingsLoaded) return; setIsHistoryEnabled(prev => !prev);
+  }, [isSettingsLoaded]);
 
-  // ... (deleteHistoryEntry, clearHistory, clearHistoryForTool, toggleHistoryEnabled remain the same) ...
-    const deleteHistoryEntry = useCallback((idToDelete: string) => {
-      setHistory((prevHistory) =>
-        prevHistory.filter((entry) => entry.id !== idToDelete)
-      );
-    }, []);
-
-    const clearHistory = useCallback(() => {
-      setHistory([]);
-      localStorage.removeItem(HISTORY_LOCAL_STORAGE_KEY);
-    }, []);
-
-    const clearHistoryForTool = useCallback((toolRoute: string) => {
-      setHistory(prevHistory => prevHistory.filter(entry => entry.toolRoute !== toolRoute));
-    }, []);
-
-    const toggleHistoryEnabled = useCallback(() => {
-          setIsHistoryEnabled(prev => !prev);
-    }, []);
-
-  // value memoization remains the same
+  // --- Combined loaded state & Memoized context value ---
+  const isLoaded = isSettingsLoaded && isHistoryLoaded;
   const value = useMemo(
-      () => ({
-        history,
-        addHistoryEntry,
-        deleteHistoryEntry,
-        clearHistory,
-        clearHistoryForTool,
-        isLoaded,
-        isHistoryEnabled,
-        toggleHistoryEnabled,
-        getToolLoggingPreference,
-        setToolLoggingPreference,
-      }),
-      [history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded, isHistoryEnabled, toggleHistoryEnabled, getToolLoggingPreference, setToolLoggingPreference]
-    );
+    () => ({ history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded, isLoadingHistory, historyError, isHistoryEnabled, toggleHistoryEnabled, getToolLoggingPreference, setToolLoggingPreference }),
+    [ history, addHistoryEntry, deleteHistoryEntry, clearHistory, clearHistoryForTool, isLoaded, isLoadingHistory, historyError, isHistoryEnabled, toggleHistoryEnabled, getToolLoggingPreference, setToolLoggingPreference ]
+  );
 
-  return (
-      <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider>
-    );
+  return ( <HistoryContext.Provider value={value}>{children}</HistoryContext.Provider> );
 };
 
-// Export the types from here as well, so consumers don't *have* to import from two places
-// Although importing directly from '@/types/history' is cleaner
 export type { HistoryEntry, NewHistoryData, TriggerType };

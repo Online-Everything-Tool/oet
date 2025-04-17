@@ -1,41 +1,51 @@
 // FILE: app/lib/db.ts
 import Dexie, { type EntityTable } from 'dexie';
-// Import the shared type definition
-import type { LibraryImage } from '@/src/types/image';
+import type { StoredFile } from '@/src/types/storage';
+import type { HistoryEntry } from '@/src/types/history';
 
-// LibraryImage interface definition removed from here
+const CURRENT_SCHEMA_VERSION = 5;
 
-// Define the Dexie database schema
-class ImageDatabase extends Dexie {
-  // Use the imported LibraryImage type
-  images!: EntityTable<LibraryImage, 'id'>;
+// Export the class definition
+export class OetDatabase extends Dexie {
+  files!: EntityTable<StoredFile, 'id'>;
+  historyEntries!: EntityTable<HistoryEntry, 'id'>;
 
   constructor() {
-    super('ImageDatabase');
-    this.version(1).stores({
-      // Schema definition remains the same
-      images: 'id, name, type, size, createdAt'
+    super('OetDatabase');
+    this.version(CURRENT_SCHEMA_VERSION).stores({
+      files: 'id, name, type, size, category, createdAt, isTemporary',
+      historyEntries: 'id, toolRoute, lastUsed'
     });
+    this.files.mapToClass(Object as unknown as { new(): StoredFile });
+    this.historyEntries.mapToClass(Object as unknown as { new(): HistoryEntry });
+    console.log(`[DB] Initialized Dexie schema version ${CURRENT_SCHEMA_VERSION}.`);
   }
 }
 
-// Database instance logic remains the same
-let dbInstance: ImageDatabase | null = null;
-if (typeof window !== 'undefined') {
-    dbInstance = new ImageDatabase();
-}
-const getDbInstance = (): ImageDatabase => {
+// --- DB Instance Singleton ---
+let dbInstance: OetDatabase | null = null;
+
+// Correct implementation of the singleton getter
+const getDbInstance = (): OetDatabase => {
     if (!dbInstance) {
+        // Check if running in a browser environment
         if (typeof window === 'undefined') {
-            throw new Error("Dexie database cannot be accessed on the server-side.");
+            // This error prevents accidental server-side usage
+            throw new Error("Dexie Database cannot be accessed on the server-side.");
         }
-        console.warn("Re-initializing Dexie DB instance unexpectedly.");
-        dbInstance = new ImageDatabase();
+        // Initialize only if on the client and not already initialized
+        console.log("[DB] Initializing Dexie DB instance...");
+        dbInstance = new OetDatabase();
     }
     return dbInstance;
 };
+
+// Export the initialized instance (using the getter)
 export const db = getDbInstance();
+// Keep default export if needed elsewhere
 export default db;
 
-// Re-export the type if needed elsewhere, although direct import is better
-export type { LibraryImage };
+// Re-export types
+export type { StoredFile, HistoryEntry };
+
+// Removed the incorrect placeholder comment and function
