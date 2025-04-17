@@ -34,7 +34,9 @@ SCAN_DIRS=(
   "app/context"
   "app/lib"
   "app/history"
-  "infra"
+  "infra/cloudformation"
+  "infra/generate_context"
+  "infra/analyze_context"
 )
 
 # Define directories/patterns to exclude from the 'tree' command
