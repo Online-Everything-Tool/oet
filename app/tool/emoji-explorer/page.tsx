@@ -60,7 +60,7 @@ export default async function EmojiExplorerPage() {
     <div className="relative p-0">
         {/* Render ToolSettings */}
         <ToolSettings toolRoute={toolRoute} />
-        <ToolHeader
+        <ToolHeader        
             title={toolTitle}
             description={metadata.description || ""}
         />

@@ -1,7 +1,7 @@
 // --- FILE: app/_components/FavoriteToolsWidget.tsx ---
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useFavorites } from '../context/FavoritesContext';
 import type { ToolMetadata } from '@/src/types/tools';
@@ -101,7 +101,7 @@ export default function FavoriteToolsWidget() {
       <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8">
         <h2 className="text-lg font-semibold mb-3 text-[rgb(var(--color-text-muted))]">Favorites</h2>
         <p className="text-sm text-[rgb(var(--color-text-muted))] italic text-center py-4">
-           You haven't favorited any tools yet. Click the ☆ on a tool's page to add it!
+           You haven&apos;t favorited any tools yet. Click the ☆ on a tool&apos;s page to add it!
         </p>
       </div>
     );

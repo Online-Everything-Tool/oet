@@ -1,10 +1,11 @@
-// FILE: /app/page.tsx
+// --- FILE: /app/page.tsx ---
 import fs from 'fs/promises';
 import path from 'path';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
+import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget'; // Import the new widget
 import ToolListWidget from '@/app/_components/ToolListWidget';
-import BuildToolWidget from '@/app/_components/BuildToolWidget'; // Import the new widget
-import { ToolMetadata } from '@/src/types/tools'
+import BuildToolWidget from '@/app/_components/BuildToolWidget';
+import { ToolMetadata } from '@/src/types/tools';
 
 interface ToolDisplayData {
   href: string;
@@ -20,9 +21,9 @@ interface ProjectAnalysisData {
   modelNameUsed: string;
 }
 
-// --- Helper function getAvailableTools (Updated Paths) ---
+// --- Helper function getAvailableTools (Unchanged) ---
 async function getAvailableTools(): Promise<ToolDisplayData[]> {
-    const toolsDirPath = path.join(process.cwd(), 'app', 'tool'); // <-- CORRECTED PATH
+    const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
     const dynamicTools: ToolDisplayData[] = [];
     try {
         const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
@@ -36,7 +37,7 @@ async function getAvailableTools(): Promise<ToolDisplayData[]> {
                     const metadata: ToolMetadata = JSON.parse(metadataContent);
                     if (metadata.title && metadata.description && metadata.includeInSitemap !== false) {
                         dynamicTools.push({
-                        href: `/tool/${directive}/`, // <-- CORRECTED PATH
+                        href: `/tool/${directive}/`,
                         title: metadata.title,
                         description: metadata.description,
                         });
@@ -71,12 +72,10 @@ async function getProjectAnalysisData(): Promise<ProjectAnalysisData | null> {
         await fs.access(analysisFilePath);
         const analysisContent = await fs.readFile(analysisFilePath, 'utf-8');
         const data: ProjectAnalysisData = JSON.parse(analysisContent);
-        // Added check for siteTagline as well, though less critical
         if (data.siteDescription && data.suggestedNewToolDirectives && data.siteTagline) {
             return data;
         } else {
             console.warn("[Page Load] project_analysis.json might be missing some fields (description, suggestions, tagline).");
-            // Return potentially partial data if description/suggestions are present
             if (data.siteDescription && data.suggestedNewToolDirectives) return data;
             return null;
         }
@@ -103,13 +102,11 @@ export default async function Home() {
   ]);
 
   const pageDescription = analysisData?.siteDescription ?? "Your one-stop utility for client-side data transformations & generation.";
-  // Provide default empty array if analysisData or suggested directives are missing
   const suggestedDirectives = analysisData?.suggestedNewToolDirectives ?? [];
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-8">
 
-        {/* Welcome Header (Unchanged) */}
         <div className="text-center border-b border-[rgb(var(--color-border-base))] pb-6 mb-6">
             <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2">
                 Online Everything Tool
@@ -125,12 +122,12 @@ export default async function Home() {
              )}
         </div>
 
+        <FavoriteToolsWidget />
+
         <RecentlyUsedWidget limit={5} displayMode="homepage" />
 
-        {/* Available Tools Section (Uses Widget - Unchanged structure) */}
         <ToolListWidget initialTools={availableTools} />
 
-        {/* Build a New Tool Section (Uses Widget - Unchanged structure) */}
         <BuildToolWidget
             suggestedDirectives={suggestedDirectives}
             modelNameUsed={analysisData?.modelNameUsed}

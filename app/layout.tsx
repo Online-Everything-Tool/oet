@@ -1,4 +1,4 @@
-// FILE: app/layout.tsx
+// --- FILE: app/layout.tsx ---
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import fs from 'fs/promises';
@@ -7,9 +7,10 @@ import path from 'path';
 import "./globals.css";
 import { HistoryProvider } from "./context/HistoryContext";
 import { ImageLibraryProvider } from "./context/ImageLibraryContext";
+import { FavoritesProvider } from "./context/FavoritesContext"; // Import FavoritesProvider
 import Header from "./_components/Header";
 import ShoelaceSetup from "@/app/_components/ShoelaceSetup";
-import ClientOnly from "./_components/ClientOnly"; // Keep the import
+import ClientOnly from "./_components/ClientOnly";
 import '@shoelace-style/shoelace/dist/themes/light.css';
 
 // Font setup
@@ -69,17 +70,18 @@ export default function RootLayout({
                 <meta name="mobile-web-app-capable" content="yes" />
             </head>
             <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`} // Added flex classes for layout
+                className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
             >
                 <ShoelaceSetup />
-                {/* Wrap all client-side dependent parts */}
                 <ClientOnly>
-                    <ImageLibraryProvider> {/* Image Library is likely independent */}
-                        <HistoryProvider> {/* HistoryProvider wraps both Header and main content */}
-                            <Header /> {/* Header is now inside HistoryProvider */}
-                            <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                                {children} {/* Children (page content) are also inside HistoryProvider */}
-                            </main>
+                    <ImageLibraryProvider>
+                        <HistoryProvider>
+                            <FavoritesProvider> {/* Add FavoritesProvider here */}
+                                <Header />
+                                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                                    {children}
+                                </main>
+                            </FavoritesProvider> {/* Close FavoritesProvider */}
                         </HistoryProvider>
                     </ImageLibraryProvider>
                 </ClientOnly>
@@ -87,3 +89,4 @@ export default function RootLayout({
         </html>
     );
 }
+// --- END FILE: app/layout.tsx ---
