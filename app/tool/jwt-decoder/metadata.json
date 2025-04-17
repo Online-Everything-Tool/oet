@@ -1,0 +1,1 @@
+{"title": "JWT Decoder","description": "Decode JSON Web Tokens (JWTs) to reveal their payload and header information.","urlStateParams": [{"paramName": "jwt", "type": "string", "defaultValue": ""}],"outputConfig": {"summaryField": "decoded"},"tags": ["jwt", "token", "decode", "security"],"iconName": null,"includeInSitemap": true,"status": "stable","defaultLogging": "on"}
