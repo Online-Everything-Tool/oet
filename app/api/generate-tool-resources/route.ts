@@ -40,6 +40,8 @@ const API_KEY = process.env.GEMINI_API_KEY;
 
 // --- Files to add to the core context ---
 const CORE_CONTEXT_FILES = [
+  // Project Files
+  'package.json', 'tsconfig.json',
   // Types
   'src/types/tools.ts', 'src/types/history.ts', 'src/types/image.ts', 'src/types/build.ts',
   // Hooks
@@ -84,6 +86,7 @@ async function getExampleFileContent(directive: string): Promise<{ filePath: str
             const errorCode = isFsError ? (error as { code: string }).code : null;
 
             if (errorCode === 'ENOENT') {
+                 // This is expected if an optional component file doesn't exist
                  console.log(`[API generate-tool/getExample] Optional example file not found: ${relativePath}`);
             } else {
                  const message = error instanceof Error ? error.message : String(error);
@@ -98,7 +101,6 @@ async function getExampleFileContent(directive: string): Promise<{ filePath: str
 // --- Main API Handler ---
 export async function POST(req: NextRequest) {
     if (!API_KEY) {
-        // Restore error handling
         console.error("[API generate-tool] Error: GEMINI_API_KEY is not configured.");
         return NextResponse.json({ success: false, message: "API key not configured" }, { status: 500 });
     }
@@ -115,7 +117,6 @@ export async function POST(req: NextRequest) {
         } = body;
 
         if (!toolDirective || !generativeDescription) {
-            // Restore error handling
             return NextResponse.json({ success: false, message: "Missing required fields: toolDirective or generativeDescription." }, { status: 400 });
         }
 
@@ -180,16 +181,14 @@ export async function POST(req: NextRequest) {
         const genAI = new GoogleGenerativeAI(API_KEY);
         const model = genAI.getGenerativeModel({ model: modelName });
 
-        // Restore full GenerationConfig
         const generationConfig: GenerationConfig = {
-            temperature: 0.7, // Keep some creativity
+            temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 8192, // Use max allowed by model if needed
+            maxOutputTokens: 8192,
             responseMimeType: "application/json",
         };
 
-        // Restore full SafetySetting[]
         const safetySettings: SafetySetting[] = [
              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -203,7 +202,7 @@ export async function POST(req: NextRequest) {
         const clientComponentPath = `${toolBasePath}/_components/${componentName}Client.tsx`;
         const metadataPath = `${toolBasePath}/metadata.json`;
 
-        // --- ### UPDATED PROMPT (As defined in previous step) ### ---
+        // --- Prompt with Decomposition Rule ---
         const prompt = `You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
 
 **Task:** Generate the necessary code resources for a new client-side utility tool.
@@ -261,7 +260,7 @@ The value for the metadata file (\`app/tool/<directive>/metadata.json\`) MUST be
 \`\`\`
 Ensure the code within "generatedFiles" values is complete and valid source code. Ensure the "metadata" value is a valid JSON *string*. Do not add comments like "// Content for ..." within the generated code strings unless they are actual necessary code comments.
 `;
-        // --- ### END UPDATED PROMPT ### ---
+        // --- End Prompt ---
 
 
         const parts = [{ text: prompt }];
@@ -270,12 +269,14 @@ Ensure the code within "generatedFiles" values is complete and valid source code
         const result = await model.generateContent({ contents: [{ role: "user", parts }], generationConfig, safetySettings });
 
         if (!result.response) {
-            // Restore error handling
             throw new Error("Gemini API call failed: No response received.");
         }
 
         const responseText = result.response.text();
-        // console.log("[API generate-tool] Raw Gemini Response Text:", responseText);
+        // Log raw response *before* parsing attempt
+        console.log("--- RAW AI Response Text ---");
+        console.log(responseText);
+        console.log("--- END RAW AI Response Text ---");
 
         // --- Parse Gemini Response ---
         let parsedResponse: GeminiGenerationResponse;
@@ -283,47 +284,62 @@ Ensure the code within "generatedFiles" values is complete and valid source code
             // Attempt to directly parse (or clean and parse)
             parsedResponse = JSON.parse(responseText.trim().replace(/^```json\s*|\s*```$/g, '')) as GeminiGenerationResponse;
             console.log("[API generate-tool] Successfully parsed Gemini JSON response.");
-             // --- Validate new structure ---
+             // --- Validate structure (checks if generatedFiles exists and is an object with >= 3 files) ---
              if (!parsedResponse || typeof parsedResponse.generatedFiles !== 'object' || parsedResponse.generatedFiles === null || Object.keys(parsedResponse.generatedFiles).length < 3) {
                  console.warn("[API generate-tool] Parsed response missing core 'generatedFiles' or insufficient files.", parsedResponse?.generatedFiles);
-                 throw new Error("AI response missing expected core generated files.");
+                 // Log the parsed object that failed validation
+                 console.error("[API generate-tool] Parsed object structure:", JSON.stringify(parsedResponse, null, 2));
+                 throw new Error("AI response missing expected core generated files or invalid structure.");
              }
              const fileKeys = Object.keys(parsedResponse.generatedFiles);
              if (!fileKeys.includes(serverComponentPath) || !fileKeys.includes(clientComponentPath) || !fileKeys.includes(metadataPath)) {
                   console.warn(`[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}`);
+                  // Allowing this to proceed as a warning, as the core check is for >= 3 files
              }
              // --- End Validation ---
 
         } catch (e) {
             console.error("[API generate-tool] Failed to parse Gemini JSON response:", e);
-            console.error("[API generate-tool] Response Text Was:", responseText);
+            // Response text already logged above
             throw new Error("Failed to parse generation response from AI. Response was not valid JSON.");
         }
 
-        // --- Validate Parsed Structure ---
+        // --- Validate Parsed Structure (Corrected check for dependencies) ---
         if (
             typeof parsedResponse.message !== 'string' ||
-            typeof parsedResponse.generatedFiles !== 'object' || // null checked above
+            typeof parsedResponse.generatedFiles !== 'object' || // null checked during parsing
             !Object.values(parsedResponse.generatedFiles).every(content => typeof content === 'string') ||
-            (parsedResponse.identifiedDependencies !== null && !Array.isArray(parsedResponse.identifiedDependencies))
+            // Correctly checks if dependencies exists AND is not null AND is not an array
+            (
+                parsedResponse.identifiedDependencies !== undefined &&
+                parsedResponse.identifiedDependencies !== null &&
+                !Array.isArray(parsedResponse.identifiedDependencies)
+            )
         ) {
-            console.error("[API generate-tool] Invalid structure in parsed AI response:", parsedResponse);
+            console.error("[API generate-tool] Invalid structure in parsed AI response (after initial parse):", parsedResponse);
             throw new Error("Received malformed generation data structure from AI.");
         }
+        // --- End Validation ---
+
 
         // --- Additional validation for metadata string ---
         let parsedMetadata;
-        const metadataContent = parsedResponse.generatedFiles[metadataPath];
+        const metadataContent = parsedResponse.generatedFiles[metadataPath]; // Get metadata string using path
         if (typeof metadataContent !== 'string') {
+             // This check is now more important as core file presence was relaxed slightly above
+             console.error(`[API generate-tool] Metadata content missing or not a string at path: ${metadataPath}`);
              throw new Error(`AI response missing metadata content string at path: ${metadataPath}`);
         }
         try {
-            parsedMetadata = JSON.parse(metadataContent);
+            parsedMetadata = JSON.parse(metadataContent); // Parse the string value
+             // Basic check on parsed metadata structure
              if (typeof parsedMetadata !== 'object' || parsedMetadata === null || typeof parsedMetadata.title !== 'string' || typeof parsedMetadata.description !== 'string') {
                  console.warn("[API generate-tool] Generated metadata JSON string seems to be missing required fields (title, description).");
+                 // Don't throw an error here, let it proceed but log warning
              }
         } catch (jsonError) {
              console.error("[API generate-tool] Generated metadata string is not valid JSON:", metadataContent, jsonError);
+             // Consider how critical valid metadata JSON is. Throw error for now.
              throw new Error("AI generated invalid JSON string for metadata.json.");
         }
 
@@ -332,8 +348,10 @@ Ensure the code within "generatedFiles" values is complete and valid source code
              success: true,
              message: parsedResponse.message,
              generatedFiles: parsedResponse.generatedFiles, // Pass the map directly
-             identifiedDependencies: parsedResponse.identifiedDependencies,
+             // Use nullish coalescing to ensure it's null or an array
+             identifiedDependencies: parsedResponse.identifiedDependencies ?? null,
         };
+
 
         return NextResponse.json(finalResponseData, { status: 200 });
 
@@ -343,7 +361,7 @@ Ensure the code within "generatedFiles" values is complete and valid source code
         const message = error instanceof Error ? error.message : "An unexpected error occurred.";
          if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes("response was blocked due to safety")) {
               console.warn("[API generate-tool] Generation blocked by safety settings.");
-             return NextResponse.json({ success: false, message: "Generation blocked due to safety settings.", error: message }, { status: 400 });
+             return NextResponse.json({ success: false, message: "Generation blocked due to safety settings.", error: message }, { status: 400 }); // 400 Bad Request is appropriate
          }
         // Use 500 Internal Server Error for other unexpected errors
         return NextResponse.json({ success: false, message: `Internal Server Error: ${message}`, error: message }, { status: 500 });

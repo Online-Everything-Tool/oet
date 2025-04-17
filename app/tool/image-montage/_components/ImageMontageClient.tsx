@@ -192,7 +192,7 @@ export default function ImageMontageClient({ toolTitle, toolRoute }: ImageMontag
         });
     }, [generateMontageBlob, addImage, montageImages.length, addHistoryEntry, toolTitle, toolRoute, clearError]); // Added clearError dependency (line 211 related)
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any  
     const handleAdjustment = useCallback( (action: (...args: any[]) => void) => (...args: any[]) => {
         setIsSaved(false);
         setIsCopied(false);
