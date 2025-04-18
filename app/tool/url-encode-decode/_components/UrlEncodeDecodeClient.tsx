@@ -76,6 +76,7 @@ export default function UrlEncodeDecodeClient({
             },
             output: historyOutputObj, // Log structured object
             status: status,
+            eventTimestamp: Date.now()
         });
 
     }, [text, addHistoryEntry, toolTitle, toolRoute]); // Added text dependency
@@ -124,6 +125,7 @@ export default function UrlEncodeDecodeClient({
             },
             output: historyOutputObj, // Log structured object
             status: status,
+            eventTimestamp: Date.now()
         });
       }, [text, addHistoryEntry, toolTitle, toolRoute]); // Added text dependency
 

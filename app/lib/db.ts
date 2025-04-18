@@ -3,8 +3,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { StoredFile } from '@/src/types/storage';
 import type { HistoryEntry } from '@/src/types/history';
 
-// Increment version number AGAIN because we are changing the schema
-const CURRENT_SCHEMA_VERSION = 9; // Assuming previous was 8
+const CURRENT_SCHEMA_VERSION = 9;
 
 export class OetDatabase extends Dexie {
   files!: EntityTable<StoredFile, 'id'>;
@@ -15,10 +14,8 @@ export class OetDatabase extends Dexie {
 
     this.version(CURRENT_SCHEMA_VERSION).stores({
       files: 'id, createdAt, isTemporary, type', // name, size, blob also stored
-
       history: 'id, toolRoute, eventTimestamp', // Other fields also stored
     });
-    // No .upgrade() block
 
     this.files.mapToClass(Object as unknown as { new(): StoredFile });
     this.history.mapToClass(Object as unknown as { new(): HistoryEntry });
@@ -27,18 +24,20 @@ export class OetDatabase extends Dexie {
   }
 }
 
-// --- DB Instance Singleton (Remains the same) ---
 let dbInstance: OetDatabase | null = null;
 const getDbInstance = (): OetDatabase => {
+    if (typeof window === 'undefined') {
+        // In a real scenario needing SSR, you might return a mock or null here.
+        // But for this client-side only DB, throwing is appropriate if accessed server-side.
+        // This throw *should only* happen now if getDbInstance is called incorrectly server-side.
+        throw new Error("Dexie Database cannot be accessed on the server-side. Ensure getDbInstance is called client-side.");
+    }
     if (!dbInstance) {
-        if (typeof window === 'undefined') {
-            throw new Error("Dexie Database cannot be accessed on the server-side.");
-        }
         console.log("[DB] Initializing Dexie DB instance...");
         dbInstance = new OetDatabase();
     }
     return dbInstance;
 };
-export const db = getDbInstance();
-export default db;
+
 export type { StoredFile, HistoryEntry };
+export { getDbInstance };

@@ -102,6 +102,7 @@ export default function JsonValidateFormatClient({
             input: inputDetails,
             output: historyOutputObj, // Log the structured object
             status: status,
+            eventTimestamp: Date.now() // Add event timestamp
         });
 
     }, [json, indent, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
@@ -179,6 +180,7 @@ export default function JsonValidateFormatClient({
                     },
                     output: historyOutputObj, // Log structured output
                     status: status,
+                    eventTimestamp: Date.now() // Add eventTimestamp
                 });
            }
         } else {

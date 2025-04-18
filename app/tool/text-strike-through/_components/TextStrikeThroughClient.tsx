@@ -100,6 +100,7 @@ export default function TextStrikeThroughClient({
                 },
                 output: historyOutputObj, // Log the structured object
                 status: 'success', // Assume formatting update is always successful visually
+                eventTimestamp: Date.now()
             });
 
             // Update refs only after logging

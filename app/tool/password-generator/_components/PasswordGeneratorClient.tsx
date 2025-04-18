@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history'
+import type { TriggerType } from '@/src/types/history';
 import { LOWERCASE, UPPERCASE, NUMBERS, SYMBOLS } from '@/src/constants/charset';
 
 interface PasswordGeneratorClientProps {
@@ -41,12 +41,14 @@ export default function PasswordGeneratorClient({
     if (includeNumbers) charset += NUMBERS;
     if (includeSymbols) charset += SYMBOLS;
 
-    if (charset.length === 0) {
+    if (!charset) {
       currentError = 'Please select at least one character type.';
       status = 'error';
+      generatedPassword = '';
     } else if (length <= 0 || !Number.isInteger(length)) {
         currentError = 'Password length must be a positive whole number.';
         status = 'error';
+         generatedPassword = '';
     } else if (length > 256) {
         setError('Warning: Password length is very long (> 256). Generation might be slow or browser may struggle.');
     }
@@ -67,6 +69,7 @@ export default function PasswordGeneratorClient({
                 }
             }
             setPassword(generatedPassword);
+
         } catch (err) {
              console.error("Password Generation Error:", err);
              currentError = "An unexpected error occurred during password generation.";
@@ -98,6 +101,7 @@ export default function PasswordGeneratorClient({
         input: historyInput,
         output: generatedPassword || `Error: ${currentError}`,
         status: status,
+        eventTimestamp: Date.now() // ADD eventTimestamp
     });
 
   }, [length, includeUppercase, includeLowercase, includeNumbers, includeSymbols, addHistoryEntry, toolTitle, toolRoute]);
@@ -169,7 +173,8 @@ export default function PasswordGeneratorClient({
                       readOnly
                       className="flex-grow p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
                       placeholder="Click 'Generate New Password' below"
-                      aria-live="polite"
+                      aria-label="Generated Password"
+                      aria-describedby="password-generation-success"
                     />
                    <button
                      type="button"

@@ -2,7 +2,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
-import { db } from '../lib/db';
+// Import the db instance NO LONGER db, but the getDbInstance function
+import { getDbInstance, type OetDatabase } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage'; // Uses the updated type
 import { v4 as uuidv4 } from 'uuid';
 
@@ -41,6 +42,18 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         limit: number = 50,
         includeTemporary: boolean = false // Default to showing only permanent files
     ): Promise<StoredFile[]> => {
+
+    // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[FileCtx] listFiles: Failed to get DB instance client-side:", e);
+         setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         setLoading(false); // Ensure loading state is false
+         return []; // Return empty array on failure
+     }
+
     setLoading(true); setError(null);
     try {
       if (!db?.files) throw new Error("Database 'files' table is not available.");
@@ -56,14 +69,26 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
       console.error("Error listing files:", err);
-      setError(`Failed to list files: ${message}`);
+      // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+      if (!error?.startsWith('Database unavailable')) {
+           setError(`Failed to list files: ${message}`);
+      }
       return [];
     } finally { setLoading(false); }
-  }, []);
+  }, [error]); // Added error dependency
 
   // getFile remains the same
   const getFile = useCallback(async (id: string): Promise<StoredFile | undefined> => {
     setError(null);
+     // Get DB instance client-side
+      let db: OetDatabase | null = null;
+      try {
+          db = getDbInstance();
+      } catch (e) {
+          console.error("[FileCtx] getFile: Failed to get DB instance client-side:", e);
+          setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+          return undefined; // Return undefined on failure
+      }
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
         const file = await db.files.get(id);
@@ -71,10 +96,13 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     } catch (err: unknown) {
         const m = err instanceof Error ? err.message : 'Unknown DB error';
         console.error(`Error getting file ${id}:`, err);
-        setError(`Failed to get file: ${m}`);
+        // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+        if (!error?.startsWith('Database unavailable')) {
+             setError(`Failed to get file: ${m}`);
+        }
         return undefined;
     }
-  }, []);
+  }, [error]); // Added error dependency
 
   // addFile: Simplified - no category, isApplication, toolRoute
   const addFile = useCallback(async (
@@ -85,6 +113,16 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     ): Promise<string> => {
     setLoading(true); setError(null);
     const id = uuidv4();
+    // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[FileCtx] addFile: Failed to get DB instance client-side:", e);
+         setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         throw e; // Re-throw
+     }
+
     try {
       if (!db?.files) throw new Error("Database 'files' table is not available.");
 
@@ -105,29 +143,55 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
         console.error("Error adding file to files table:", err);
-        setError(`Failed to add file: ${message}`);
+         // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+        if (!error?.startsWith('Database unavailable')) {
+            setError(`Failed to add file: ${message}`);
+        }
         throw err;
     } finally { setLoading(false); }
-  }, []);
+  }, [error]); // Added error dependency
 
   // promoteToLibrary is removed
 
   // deleteFile remains the same
   const deleteFile = useCallback(async (id: string): Promise<void> => {
     setLoading(true); setError(null);
+     // Get DB instance client-side
+      let db: OetDatabase | null = null;
+      try {
+          db = getDbInstance();
+      } catch (e) {
+          console.error("[FileCtx] deleteFile: Failed to get DB instance client-side:", e);
+          setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+          throw e; // Re-throw
+      }
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
         await db.files.delete(id);
         console.log(`[FileCtx] Deleted file ${id}`);
     } catch (err: unknown) {
         const m = err instanceof Error ? err.message : 'Unknown DB error';
-        console.error(`Error deleting file ${id}:`, err); setError(`Failed to delete file: ${m}`); throw err;
+        console.error(`Error deleting file ${id}:`, err);
+         // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+        if (!error?.startsWith('Database unavailable')) {
+             setError(`Failed to delete file: ${m}`);
+        }
+        throw err;
     } finally { setLoading(false); }
-  }, []);
+  }, [error]); // Added error dependency
 
   // clearAllFiles: Simplified - no isApplication logic
   const clearAllFiles = useCallback(async (includeTemporary: boolean = false): Promise<void> => {
     setLoading(true); setError(null);
+     // Get DB instance client-side
+      let db: OetDatabase | null = null;
+      try {
+          db = getDbInstance();
+      } catch (e) {
+          console.error("[FileCtx] clearAllFiles: Failed to get DB instance client-side:", e);
+          setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+          throw e; // Re-throw
+      }
     try {
        if (!db?.files) throw new Error("Database 'files' table is not available.");
        let collectionToClear = db.files.toCollection();
@@ -147,14 +211,26 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
         console.error(`Error clearing files (includeTemporary: ${includeTemporary}):`, err);
-        setError(`Failed to clear files: ${message}`);
+         // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+        if (!error?.startsWith('Database unavailable')) {
+             setError(`Failed to clear files: ${message}`);
+        }
         throw err;
     } finally { setLoading(false); }
-  }, []);
+  }, [error]); // Added error dependency
 
   // cleanupTemporaryFiles remains the same (targets isTemporary flag)
   const cleanupTemporaryFiles = useCallback(async (ids?: string[]): Promise<void> => {
       setLoading(true); setError(null);
+       // Get DB instance client-side
+        let db: OetDatabase | null = null;
+        try {
+            db = getDbInstance();
+        } catch (e) {
+            console.error("[FileCtx] cleanupTemporaryFiles: Failed to get DB instance client-side:", e);
+            setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+            return; // Cannot proceed
+        }
       try {
           if (!db?.files) throw new Error("Database 'files' table is not available.");
           let keysToDelete: string[];
@@ -174,9 +250,12 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       } catch (err: unknown) {
           const message = err instanceof Error ? err.message : 'Unknown DB error';
           console.error(`Error cleaning up temporary files:`, err);
-          setError(`Failed to cleanup temporary files: ${message}`);
+           // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+          if (!error?.startsWith('Database unavailable')) {
+              setError(`Failed to cleanup temporary files: ${message}`);
+          }
       } finally { setLoading(false); }
-  }, []);
+  }, [error]); // Added error dependency
 
   // Context value memoization updated
   const contextValue = useMemo(() => ({

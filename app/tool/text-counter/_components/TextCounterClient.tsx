@@ -108,6 +108,7 @@ export default function TextCounterClient({
                   customCount: latestCounts.customCount
               },
               status: 'success',
+              eventTimestamp: Date.now()
           });
 
           lastLoggedTextRef.current = currentText;
@@ -191,7 +192,7 @@ export default function TextCounterClient({
                         onBlur={handleBlurLogging}
                         placeholder="Text to Count Occurrences..."
                         aria-label="Text to count occurrences of"
-                        className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
+                        className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
                     />
                 </div>
                 <div className="flex items-center shrink-0 order-2 sm:order-none">

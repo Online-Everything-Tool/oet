@@ -2,7 +2,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
-import { db } from '../lib/db'; // Uses the updated db instance
+// Import the db instance NO LONGER db, but the getDbInstance function
+import { getDbInstance, type OetDatabase } from '../lib/db'; // Uses the updated db instance
 import type { StoredFile } from '@/src/types/storage'; // Uses the updated type
 import { v4 as uuidv4 } from 'uuid';
 
@@ -114,6 +115,17 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
 
   // listImages: Filters by type instead of category
   const listImages = useCallback(async (limit: number = 50): Promise<StoredFile[]> => {
+    // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[ImageCtx] listImages: Failed to get DB instance client-side:", e);
+         setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         setLoading(false); // Ensure loading state is false
+         return []; // Return empty array on failure
+     }
+
     setLoading(true); setError(null);
     try {
       if (!db?.files) throw new Error("DB 'files' table not available.");
@@ -135,6 +147,16 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
 
   // getImage: Checks type after fetching
   const getImage = useCallback(async (id: string): Promise<StoredFile | undefined> => {
+      // Get DB instance client-side
+       let db: OetDatabase | null = null;
+       try {
+           db = getDbInstance();
+       } catch (e) {
+           console.error("[ImageCtx] getImage: Failed to get DB instance client-side:", e);
+           setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+           return undefined; // Return undefined on failure
+       }
+
       setError(null);
       try {
           if (!db?.files) throw new Error("DB 'files' table not available.");
@@ -172,6 +194,16 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
           thumbnailBlob = null;
       }
 
+      // Get DB instance client-side
+       let db: OetDatabase | null = null;
+       try {
+           db = getDbInstance();
+       } catch (e) {
+           console.error("[ImageCtx] addImage: Failed to get DB instance client-side:", e);
+           setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+           throw e; // Re-throw the error
+       }
+
       if (!db?.files) throw new Error("DB 'files' table not available.");
 
       const newImageFile: StoredFile = {
@@ -191,14 +223,27 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
       console.error("Error adding image:", err);
-      setError(`Failed to add image: ${message}`);
+      // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+      if (!error?.startsWith('Database unavailable')) {
+          setError(`Failed to add image: ${message}`);
+      }
       throw err;
     } finally { setLoading(false); }
-  }, [generateThumbnail, setError]); // Added setError dependency
+  }, [generateThumbnail, setError, error]); // Added setError dependency
 
   // deleteImage: Needs to ensure it only deletes images (optional check)
   const deleteImage = useCallback(async (id: string): Promise<void> => {
     setLoading(true); setError(null);
+    // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[ImageCtx] deleteImage: Failed to get DB instance client-side:", e);
+         setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         throw e; // Re-throw
+     }
+
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
         // Optional: Verify it's an image before deleting
@@ -211,13 +256,28 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
         console.log(`[ImageCtx] Deleted file ${id}`);
     } catch (err: unknown) {
         const m = err instanceof Error ? err.message : 'Unknown DB error';
-        console.error(`Error deleting file ${id}:`, err); setError(`Failed to delete file: ${m}`); throw err;
+        console.error(`Error deleting file ${id}:`, err);
+        // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+        if (!error?.startsWith('Database unavailable')) {
+             setError(`Failed to delete file: ${m}`);
+        }
+        throw err;
     } finally { setLoading(false); }
-  }, []); // Stable dependencies
+  }, [setError, error]); // Added setError, error dependency
 
   // clearAllImages: Filters by type prefix
   const clearAllImages = useCallback(async (): Promise<void> => {
     setLoading(true); setError(null);
+    // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[ImageCtx] clearAllImages: Failed to get DB instance client-side:", e);
+         setError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         throw e; // Re-throw
+     }
+
     try {
       if (!db?.files) throw new Error("DB 'files' table not available.");
       // Get keys of non-temporary image files using type prefix
@@ -235,10 +295,13 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
       console.error("Error clearing image files:", err);
-      setError(`Failed to clear image files: ${message}`);
+       // If error occurred *after* getting DB instance, don't overwrite potential DB unavailable error
+       if (!error?.startsWith('Database unavailable')) {
+            setError(`Failed to clear image files: ${message}`);
+       }
       throw err;
     } finally { setLoading(false); }
-  }, []); // Stable dependencies
+  }, [setError, error]); // Added setError, error dependency
 
   // --- Context Value ---
   const contextValue = useMemo(() => ({

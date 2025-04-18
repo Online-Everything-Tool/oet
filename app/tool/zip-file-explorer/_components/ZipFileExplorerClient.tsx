@@ -85,6 +85,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
         input: historyInput,
         output: historyOutputObj, // Log structured object
         status: historyStatus,
+        eventTimestamp: Date.now() // Add it here
       });
     }
   }, [addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
@@ -116,6 +117,7 @@ export default function ZipFileExplorerClient({ toolTitle, toolRoute }: ZipFileE
             input: { fileName: file.name, error: 'Invalid file type' },
             output: { fileCount: "Error", errorMessage: errorMsg }, // Use structured output
             status: 'error',
+             eventTimestamp: Date.now() // add it here
          });
         if(fileInputRef.current) fileInputRef.current.value = '';
       }

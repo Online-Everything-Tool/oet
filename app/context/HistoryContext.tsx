@@ -12,7 +12,8 @@ import React, {
   ReactNode,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../lib/db'; // Import the db instance
+// Import the db instance NO LONGER db, but the getDbInstance function
+import { getDbInstance, type OetDatabase } from '../lib/db'; // Import the getter function and DB class type
 import type { LoggingPreference, ToolMetadata } from '@/src/types/tools';
 // Import the specific History types needed
 import type { TriggerType, HistoryEntry, NewHistoryData } from '@/src/types/history';
@@ -98,7 +99,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   const [toolPreferences, setToolPreferences] = useState<Record<string, LoggingPreference>>({});
   const [toolDefaults, setToolDefaults] = useState<Record<string, LoggingPreference>>({});
   const fetchingDefaultsRef = useRef<Set<string>>(new Set());
-  // No dbRef needed, just import and use `db` directly
+  // Removed dbRef needed, just import and use `db` directly
 
   // --- Settings Management (Unchanged) ---
   useEffect(() => {
@@ -136,12 +137,22 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   // --- History DB Operations ---
   const loadHistoryFromDb = useCallback(async () => {
-    // Use the imported `db` instance directly
-    if (!db) { console.warn("[HistoryCtx] loadHistoryFromDb: DB instance not available yet."); return; }
+    // Use the imported `getDbInstance` function here
+    let db: OetDatabase | null = null;
+    try {
+        db = getDbInstance(); // Get instance client-side
+    } catch (e) {
+        console.error("[HistoryCtx] loadHistoryFromDb: Failed to get DB instance client-side:", e);
+        setHistoryError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        setIsLoadingHistory(false);
+        setIsHistoryLoaded(true); // Mark as loaded even on failure to avoid infinite loading
+        return;
+    }
+
     setIsLoadingHistory(true); setHistoryError(null);
     try {
       // Query the renamed 'history' table
-      const loadedHistory = await db.history
+      const loadedHistory = await db.history // Access table from instance
                                   .orderBy('eventTimestamp') // Sort by event time
                                   .reverse() // Newest first
                                   .limit(MAX_HISTORY_ENTRIES + 50) // Load slightly more for pruning check
@@ -168,7 +179,16 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
 
   const addHistoryEntry = useCallback(async (entryData: NewHistoryData): Promise<void> => {
-    if (!db) { console.error("[HistoryCtx] addHistoryEntry: DB not available."); return; }
+    // Get DB instance client-side
+    let db: OetDatabase | null = null;
+    try {
+        db = getDbInstance();
+    } catch (e) {
+        console.error("[HistoryCtx] addHistoryEntry: Failed to get DB instance client-side:", e);
+        setHistoryError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        return; // Cannot proceed without DB
+    }
+
     if (!isSettingsLoaded || !isHistoryEnabled) return; // Check settings loaded and history enabled
 
     const toolRoute = entryData.toolRoute;
@@ -224,6 +244,8 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
         }
       }
       // Reload history state after add/update
+      // Note: This might cause flickering if updates are very frequent.
+      // An alternative is to optimistically update the local state and handle sync errors.
       await loadHistoryFromDb();
     } catch (error) {
       console.error("[HistoryCtx] Error adding/updating history entry:", error);
@@ -236,7 +258,16 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
 
   const deleteHistoryEntry = useCallback(async (idToDelete: string): Promise<void> => {
-    if (!db) return;
+    // Get DB instance client-side
+    let db: OetDatabase | null = null;
+    try {
+        db = getDbInstance();
+    } catch (e) {
+        console.error("[HistoryCtx] deleteHistoryEntry: Failed to get DB instance client-side:", e);
+        setHistoryError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        return; // Cannot proceed without DB
+    }
+
     setIsLoadingHistory(true); setHistoryError(null);
     try {
       await db.history.delete(idToDelete);
@@ -255,7 +286,15 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
 
   const clearHistory = useCallback(async (): Promise<void> => {
-    if (!db) return;
+     // Get DB instance client-side
+     let db: OetDatabase | null = null;
+     try {
+         db = getDbInstance();
+     } catch (e) {
+         console.error("[HistoryCtx] clearHistory: Failed to get DB instance client-side:", e);
+         setHistoryError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+         return; // Cannot proceed without DB
+     }
     setIsLoadingHistory(true); setHistoryError(null);
     try {
       await db.history.clear();
@@ -272,7 +311,16 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
 
   const clearHistoryForTool = useCallback(async (toolRoute: string): Promise<void> => {
-    if (!db) return;
+    // Get DB instance client-side
+    let db: OetDatabase | null = null;
+    try {
+        db = getDbInstance();
+    } catch (e) {
+        console.error("[HistoryCtx] clearHistoryForTool: Failed to get DB instance client-side:", e);
+        setHistoryError(`Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        return; // Cannot proceed without DB
+    }
+
     setIsLoadingHistory(true); setHistoryError(null);
     try {
       // Query and delete entries for the specific toolRoute
