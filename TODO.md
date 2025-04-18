@@ -7,50 +7,39 @@
 
 ---
 
-## Infrastructure & Deployment
-*   [ ] **Configure CloudFront/API Gateway:** ...
-*   [ ] **Set up Email:** ...
-
 ## Core Features & UX
-*   [ ] **Implement Inter-Tool Data Transfer:** ... *(Next step after FileSelectionModal integration)*
-*   [x] **Build Foundational "file-storage" Tool:** *(Basic implementation complete: CRUD, paste, drag-drop, download, conditional copy, send-to placeholder)*
+*   [x] **Refactor Core Storage:** Implement two-table Dexie schema (`files`, `history`). Update types (`StoredFile`, `HistoryEntry`).
+*   [x] **Refactor `FileLibraryContext`:** Align with new `files` schema.
+*   [x] **Refactor `HistoryContext`:** Align with new `history` schema and use Dexie directly.
+*   [x] **Refactor `ImageLibraryContext`:** Align with new `files` schema (filter by `type`).
+*   [x] **Update Basic Tool Clients:** Fix `addHistoryEntry` calls (`eventTimestamp`) in `Base64EncodeDecodeClient`, `CaseConverterClient`, `ColorConverterClient`, `CryptoWalletGeneratorClient`, `EmojiExplorerClient`, `HashGeneratorClient`, `HtmlEntityExplorerClient` (implied by build fixes).
+*   [x] **Update Image Tool Clients:** Fix `addHistoryEntry` and `category`/`type` checks in `ImageFlipClient`, `ImageGrayScaleClient`, `ImageMontageClient`'s hooks/client.
+*   [x] **Update `file-storage` Tool (Client & Controls):** Remove app file logic, add selection state/handlers.
+*   [x] **Update `image-storage` Tool (Client):** Add selection state/handlers, align with `ImageLibraryContext`.
+*   [x] **Update History Page & Widgets:** Adapt `/history/page.tsx`, `RecentlyUsedWidget`, `RecentlyUsedItem` to use updated `HistoryContext` and `eventTimestamp`.
+*   [x] **Update Modals:** Fix `FileSelectionModal` filtering (use `type` mapping). Update `useImageProcessing` hook.
+*   [ ] **Refine `file-storage` UI (Selection Visuals):**
+    *   [ ] Implement checkbox/highlight display in `FileListView`.
+    *   [ ] Implement checkbox/action overlay display in `FileGridView`.
+*   [ ] **Implement Inter-Tool Data Transfer:** Define mechanism (URL params, context, etc.) and implement "Send To" functionality beyond zip explorer.
+*   [ ] **Implement Tool State Persistence:** Decide on mechanism (likely state blobs in `files` table) and implement saving/loading for tool-specific UI state. Create `ToolStateContext` or add to `FileLibraryContext`.
+*   [ ] **Refactor `FavoritesContext`:** Migrate from Local Storage to DB (`files` table blob or dedicated table).
+*   [ ] **Implement "Recently Visited" Feature:** Decide on storage (Local Storage, dedicated table) and implement logic/UI.
 *   [ ] **Create Site Footer:** ...
-*   [ ] **Add "Pending Tools" Widget to Header:** ...
-*   [x] **Add "Favorite Tool" Feature:** ...
-*   [x] **Refine Recently Used/History Preview:** Handle deleted images.
-*   [ ] **Refactor `ImageSelectionModal` into Generic `FileSelectionModal`:** *(In Progress)*
-    *   [ ] **Create Generic `FileSelectionModal.tsx`:** *(Next Step)*
-        *   [ ] Define configurable props: `isOpen`, `onClose`, `onFileSelected`, `accept` (for upload input), `libraryFilter` (e.g., `{ category: 'archive' }`).
-        *   [ ] Implement UI with "Upload New" and "Select from Library" tabs.
-        *   [ ] Use `useFileLibrary` to list files in the "Library" tab based on `libraryFilter`.
-        *   [ ] Add file input (`<input type="file">`) using the `accept` prop.
-        *   [ ] Add drag-and-drop and paste support to the "Upload New" area.
-        *   [ ] Add an optional "Add to Library after selecting?" checkbox for new uploads.
-        *   [ ] Implement the `onFileSelected(blob, name, source, savePreference, fileId?)` callback logic.
-    *   [ ] Move image adding logic (upload button, paste handler, drag-and-drop) from `image-storage` tool (or implement if not existing) into `FileSelectionModal`. *(Addressed by creating the generic modal first)*
-    *   [ ] Use `useFileLibrary().addFile` within the modal *if* the "Save to Library" option is chosen *during upload*. *(Decision: Callback approach preferred - modal returns preference, caller saves)*. Let's stick to the plan: Modal calls `onFileSelected` with selection details including save preference, the *calling tool* handles the actual saving via context.
-    *   [ ] Ensure the image list within the modal refreshes after adding new images. *(Covered by `useFileLibrary` state)*
-    *   [ ] Update tools using the modal (e.g., `image-gray-scale`, `zip-file-explorer`) to use the enhanced `FileSelectionModal`.
-    *   [ ] Simplify or refactor the `image-storage` tool's primary view, potentially removing redundant upload UI if the modal becomes the main input method.
 
 ## AI Build Tool & Development Experience
-*   [ ] **Refine AI Prompts for Build Tool:**
-    *   [ ] Continuously iterate on prompts for `validate-directive` and `generate-tool-resources`.
-    *   [x] **Update prompt to allow/suggest generation of hooks or sub-components.**
+*   [ ] **Refine AI Prompts for Build Tool:** Continuously iterate based on generation quality.
 *   [ ] **Implement End-to-End Testing Strategy:** ...
 *   [ ] **Define Documentation Strategy:** ...
 
 ## Completed
-*   [x] **Centralize Constants:** ...
-*   [x] **Centralize Shared Types:** ... (`StoredFile`, moved `LibraryImage`)
-*   [x] **Centralize Utility Functions:** ...
-*   [x] **Generate Static Metadata:** ...
-*   [x] **Refactor `ImageMontageClient`:** ...
-*   [x] **Implement Favorites Feature:** ...
-*   [x] **Fix History Preview for Deleted Images:** ...
+*   [x] **Centralize Constants:** (`charset`, `history`, `text`)
+*   [x] **Centralize Shared Types:** (`tools`, `history`, `storage`, `build`)
+*   [x] **Centralize Utility Functions:** (`utils`, `colorUtils`)
+*   [x] **Generate Static Metadata:** (`scripts/generate-metadata-files.mjs`)
+*   [x] **Refactor `ImageMontageClient`:** *(Implicitly updated during context refactor)*
+*   [x] **Implement Favorites Feature:** (Using Local Storage)
+*   [x] **Fix History Preview for Deleted Images:** *(Needs re-verification after HistoryContext refactor)*
 *   [x] **Add `package.json` to Generation Context:** ...
-*   [x] **Refactor `ImageLibraryContext`:** Uses `StoredFile` and `files` table.
-*   [x] **Create `FileLibraryContext`:** Generic context for `files` table.
-*   [x] **Update Dexie Schema:** Added `files` table, incremented version.
-*   [x] **Update components using `ImageLibraryContext`:** (`HistoryOutputPreview`, `ImageSelectionModal`, `ImageStorageClient`)
-*   [x] **Create initial `file-storage` tool:** (`metadata.json`, `page.tsx`, `FileStorageClient.tsx` with basic CRUD, paste, drag-drop, download, conditional copy).
+*   [x] **Create initial `file-storage` tool:** (Basic UI and structure)
+*   [x] **Implement file-storage Selection Logic:** (State, controls, basic prop drilling)

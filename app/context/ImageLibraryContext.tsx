@@ -2,15 +2,15 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
-import { db } from '../lib/db';
-import type { StoredFile } from '@/src/types/storage';
+import { db } from '../lib/db'; // Uses the updated db instance
+import type { StoredFile } from '@/src/types/storage'; // Uses the updated type
 import { v4 as uuidv4 } from 'uuid';
 
-// Context value interface uses StoredFile
+// Context value interface remains conceptually the same
 interface ImageLibraryContextValue {
   listImages: (limit?: number) => Promise<StoredFile[]>;
   getImage: (id: string) => Promise<StoredFile | undefined>;
-  addImage: (blob: Blob, name: string, type: string) => Promise<string>;
+  addImage: (blob: Blob, name: string, type: string) => Promise<string>; // Type is crucial here
   deleteImage: (id: string) => Promise<void>;
   clearAllImages: () => Promise<void>;
   loading: boolean;
@@ -33,7 +33,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
   const workerRef = useRef<Worker | null>(null);
   const requestPromisesRef = useRef<Map<string, { resolve: (value: unknown) => void, reject: (reason?: unknown) => void }>>(new Map());
 
-  // --- Worker Setup & Communication ---
+  // --- Worker Setup & Thumbnail Generation (Unchanged from previous correct version) ---
   const handleWorkerMessage = useCallback((msgEvent: MessageEvent) => {
     const { id, type, payload, error: workerError } = msgEvent.data;
     const promiseFuncs = requestPromisesRef.current.get(id);
@@ -49,26 +49,21 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } else {
       console.warn(`[ImageCtx] Received worker message for unknown request ID: ${id}`);
     }
-  }, []); // Stable function
+  }, []);
 
   const handleWorkerError = useCallback((err: ErrorEvent) => {
     console.error('[ImageCtx] Worker Error:', err);
-    // Set context error state
     setError(`Worker error: ${err.message}. Thumbnails may not generate.`);
-    // Reject any pending promises associated with this worker instance
     requestPromisesRef.current.forEach((promiseFuncs, id) => {
       promiseFuncs.reject(new Error(`Worker encountered an unrecoverable error: ${err.message}`));
       requestPromisesRef.current.delete(id);
     });
-    // Potentially try to re-initialize or signal a permanent failure state?
-    // For now, just setting the error might be sufficient.
-  }, [setError]); // Depends on setError
+  }, [setError]);
 
   useEffect(() => {
     let workerInstance: Worker | null = null;
-    if (typeof window !== 'undefined' && !workerRef.current) { // Avoid re-initializing if already exists
+    if (typeof window !== 'undefined' && !workerRef.current) {
       try {
-        // Ensure the path is correct relative to the worker's context when bundled
         workerInstance = new Worker(new URL('../lib/workers/thumbnail.worker.ts', import.meta.url));
         workerRef.current = workerInstance;
         workerInstance.addEventListener('message', handleWorkerMessage);
@@ -77,61 +72,57 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       } catch (initError: unknown) {
         console.error('[ImageCtx] Failed to initialize worker:', initError);
         setError(`Failed to load thumbnail generator: ${initError instanceof Error ? initError.message : 'Unknown worker error'}. Thumbnails unavailable.`);
-        workerRef.current = null; // Ensure ref is null on failure
+        workerRef.current = null;
       }
     }
-    const currentPromises = requestPromisesRef.current; // Capture ref for cleanup
+    const currentPromises = requestPromisesRef.current;
 
-    // Cleanup function
     return () => {
-      if (workerRef.current) { // Check ref before accessing
+      if (workerRef.current) {
         workerRef.current.removeEventListener('message', handleWorkerMessage);
         workerRef.current.removeEventListener('error', handleWorkerError);
         workerRef.current.terminate();
         workerRef.current = null;
         console.log('[ImageCtx] Thumbnail worker terminated.');
       }
-      // Reject any promises still pending on unmount
       currentPromises.forEach((promiseFuncs, id) => {
         promiseFuncs.reject(new Error("ImageLibraryProvider unmounted"));
         currentPromises.delete(id);
       });
     };
-  }, [handleWorkerMessage, handleWorkerError, setError]); // Effect dependencies
+  }, [handleWorkerMessage, handleWorkerError, setError]);
 
   const generateThumbnail = useCallback((id: string, blob: Blob): Promise<Blob | null> => {
     return new Promise((resolve, reject) => {
       if (!workerRef.current) {
-        // If there's already a context error related to the worker, resolve null silently
         if (error?.includes('Worker error') || error?.includes('thumbnail generator')) {
           console.warn("[ImageCtx] Thumbnail generation skipped because worker failed to initialize or encountered an error.");
           resolve(null);
         } else {
-          // Otherwise, reject as the worker should be available but isn't
           reject(new Error("Thumbnail worker not available."));
         }
         return;
       }
       const requestId = `thumb-${id}-${Date.now()}`;
       requestPromisesRef.current.set(requestId, { resolve: resolve as (value: unknown) => void, reject });
-      // Post message to the worker
       workerRef.current.postMessage({ id: requestId, blob });
     });
-  }, [error]); // Depends on error state
-
+  }, [error]);
+  // --- End Worker Logic ---
 
   // --- Modified DB Operations ---
 
+  // listImages: Filters by type instead of category
   const listImages = useCallback(async (limit: number = 50): Promise<StoredFile[]> => {
     setLoading(true); setError(null);
     try {
       if (!db?.files) throw new Error("DB 'files' table not available.");
-      // Query the 'files' table, filtering by category and non-temporary
+      // Query the 'files' table, filtering by type prefix and non-temporary
+      // NOTE: Dexie's startsWith is case-sensitive. MIME types are generally lowercase.
       return await db.files
-        .where({ category: 'image' })
-        .and(file => file.isTemporary !== true)
-        .reverse() // Shows newest first based on primary key or first index if no specific order is set
-        // .orderBy('createdAt').reverse() // Alternative: explicitly sort by creation date
+        .where('type').startsWith('image/') // Filter based on MIME type prefix
+        .and(file => file.isTemporary !== true) // Exclude temporary files
+        .reverse() // Shows newest first based on primary key (createdAt index)
         .limit(limit)
         .toArray();
     } catch (err: unknown) {
@@ -142,15 +133,15 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
     } finally { setLoading(false); }
   }, []); // Stable dependencies
 
-  // getImage - Checks category after fetching
+  // getImage: Checks type after fetching
   const getImage = useCallback(async (id: string): Promise<StoredFile | undefined> => {
       setError(null);
       try {
           if (!db?.files) throw new Error("DB 'files' table not available.");
           const file = await db.files.get(id);
-          // Ensure the retrieved file is actually an image
-          if (file && file.category !== 'image') {
-              console.warn(`[ImageCtx] getImage requested file ${id}, but it is not categorized as an image (${file.category}).`);
+          // Ensure the retrieved file is actually an image based on type
+          if (file && !file.type?.startsWith('image/')) {
+              console.warn(`[ImageCtx] getImage requested file ${id}, but its type is not image/* (${file.type}).`);
               return undefined; // Return undefined if it's not an image
           }
           return file;
@@ -162,9 +153,13 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       }
   }, []); // Stable dependencies
 
-  // addImage - Generates thumbnail before adding to 'files'
+  // addImage: No category field set
   const addImage = useCallback(async (blob: Blob, name: string, type: string): Promise<string> => {
-    if (!type?.startsWith('image/')) { const e = `[ImageCtx] addImage called with non-image type: ${type}`; console.error(e); setError(e); throw new Error(e); }
+    // Input validation now relies solely on the type parameter
+    if (!type?.startsWith('image/')) {
+        const e = `[ImageCtx] addImage called with non-image type: ${type}`;
+        console.error(e); setError(e); throw new Error(e);
+    }
     setLoading(true); setError(null);
     const id = uuidv4();
     let thumbnailBlob: Blob | null = null;
@@ -173,7 +168,6 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       try {
           thumbnailBlob = await generateThumbnail(id, blob);
       } catch (thumbError: unknown) {
-          // Log the error but continue without a thumbnail
           console.error(`[ImageCtx] Thumbnail generation failed for ${id}:`, thumbError);
           thumbnailBlob = null;
       }
@@ -181,49 +175,54 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       if (!db?.files) throw new Error("DB 'files' table not available.");
 
       const newImageFile: StoredFile = {
-        id: id, name: name, type: type, size: blob.size, blob: blob,
-        thumbnailBlob: thumbnailBlob ?? undefined, // Use undefined if null
+        id: id,
+        name: name,
+        type: type, // Use the provided MIME type
+        size: blob.size,
+        blob: blob,
+        thumbnailBlob: thumbnailBlob ?? undefined,
         createdAt: new Date(),
-        category: 'image',
-        isTemporary: false // Assume images added via this context are permanent
+        isTemporary: false // Assume images added via ImageLibrary are permanent
+        // No category field to set
       };
       await db.files.add(newImageFile);
-      console.log(`[ImageCtx] Added image ${id} to 'files' table.`);
+      console.log(`[ImageCtx] Added image ${id} (type: ${type}) to 'files' table.`);
       return id;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
       console.error("Error adding image:", err);
       setError(`Failed to add image: ${message}`);
-      throw err; // Re-throw
+      throw err;
     } finally { setLoading(false); }
-  }, [generateThumbnail]); // Depends on generateThumbnail
+  }, [generateThumbnail, setError]); // Added setError dependency
 
-  // deleteImage - Simple delete by ID
+  // deleteImage: Needs to ensure it only deletes images (optional check)
   const deleteImage = useCallback(async (id: string): Promise<void> => {
     setLoading(true); setError(null);
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
-        // Consider ensuring it's an image before deleting? Or let delete fail if ID not found?
-        // const file = await db.files.get(id);
-        // if (file && file.category !== 'image') {
-        //   throw new Error(`Attempted to delete non-image file ${id} via ImageLibraryContext.`);
-        // }
+        // Optional: Verify it's an image before deleting
+        const file = await db.files.get(id);
+        if (file && !file.type?.startsWith('image/')) {
+          throw new Error(`Attempted to delete non-image file (type: ${file.type}) with ID ${id} via ImageLibraryContext.`);
+        }
+        // Proceed with deletion if it is an image or if the file doesn't exist (delete is idempotent)
         await db.files.delete(id);
         console.log(`[ImageCtx] Deleted file ${id}`);
     } catch (err: unknown) {
         const m = err instanceof Error ? err.message : 'Unknown DB error';
-        console.error(`Error deleting file ${id}:`, err); setError(`Failed to delete file: ${m}`); throw err; // Re-throw
+        console.error(`Error deleting file ${id}:`, err); setError(`Failed to delete file: ${m}`); throw err;
     } finally { setLoading(false); }
   }, []); // Stable dependencies
 
-  // clearAllImages - Deletes only non-temporary images
+  // clearAllImages: Filters by type prefix
   const clearAllImages = useCallback(async (): Promise<void> => {
     setLoading(true); setError(null);
     try {
       if (!db?.files) throw new Error("DB 'files' table not available.");
-      // Get keys of non-temporary image files
+      // Get keys of non-temporary image files using type prefix
       const keysToDelete = await db.files
-        .where({ category: 'image' })
+        .where('type').startsWith('image/')
         .and(file => file.isTemporary !== true)
         .primaryKeys();
 
@@ -237,7 +236,7 @@ export const ImageLibraryProvider = ({ children }: ImageLibraryProviderProps) =>
       const message = err instanceof Error ? err.message : 'Unknown DB error';
       console.error("Error clearing image files:", err);
       setError(`Failed to clear image files: ${message}`);
-      throw err; // Re-throw
+      throw err;
     } finally { setLoading(false); }
   }, []); // Stable dependencies
 

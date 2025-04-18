@@ -5,9 +5,6 @@ import React from 'react';
 import type { StoredFile } from '@/src/types/storage';
 import { formatBytes } from '@/app/lib/utils';
 
-// TODO: Replace placeholders with actual icon components
-
-// Helper function
 const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
     if (!mimeType) return false;
     return mimeType.startsWith('text/') ||
@@ -20,65 +17,143 @@ const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
 interface FileGridViewProps {
     files: StoredFile[];
     isLoading: boolean;
-    isDeleting: string | null;
+    isBulkDeleting: boolean;
+    selectedIds: Set<string>;
     feedbackState: Record<string, { type: 'copy' | 'download' | 'error'; message: string } | null>;
     onSendTo: (fileId: string) => void;
     onCopy: (fileId: string) => void;
     onDownload: (fileId: string) => void;
     onDelete: (fileId: string) => void;
-    // --- NEW PROP ---
-    // Function to render the preview content for a file
+    onToggleSelection: (fileId: string) => void;
     renderPreview: (file: StoredFile) => React.ReactNode;
 }
 
 export default function FileGridView({
     files,
     isLoading,
-    isDeleting,
+    isBulkDeleting,
+    selectedIds,
     feedbackState,
     onSendTo,
     onCopy,
     onDownload,
     onDelete,
-    // --- ACCEPT NEW PROP ---
+    onToggleSelection,
     renderPreview
 }: FileGridViewProps) {
+
+    const handleCardClick = (e: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>, fileId: string) => {
+        const target = e.target as HTMLElement;
+        if (target.closest('[data-overlay="actions"]') || target.tagName === 'BUTTON' || target.tagName === 'A') {
+            return;
+        }
+        if (target.closest('[data-element="checkbox"]') || target.tagName === 'INPUT') {
+             return;
+        }
+        onToggleSelection(fileId);
+    };
+
+    // Specific handler for keyboard activation
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, fileId: string) => {
+        // Trigger selection on Space or Enter
+        if (e.key === ' ' || e.key === 'Enter') {
+            // Prevent default behavior like scrolling page on space
+            e.preventDefault();
+            handleCardClick(e, fileId);
+        }
+    };
+
+
+    const handleActionClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+        e.stopPropagation();
+    };
 
     return (
         <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 relative z-0">
             {files.map((file) => {
-                 const isThisDeleting = isDeleting === file.id;
+                 const isSelected = selectedIds.has(file.id);
+                 const isProcessing = isLoading;
                  const currentFeedback = feedbackState[file.id];
                  const isTextFile = isTextBasedMimeType(file.type);
-                 // Removed generic icon logic - parent will provide preview via renderPreview
 
                  return (
-                    <div key={file.id} className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isThisDeleting ? 'opacity-50 animate-pulse' : 'hover:shadow-md hover:border-gray-300'}`}>
-                        {/* --- Use renderPreview prop --- */}
+                    <div
+                        key={file.id}
+                        className={`relative group border rounded-md shadow-sm overflow-hidden bg-white flex flex-col items-center gap-1 transition-all duration-150 ease-in-out focus-within:ring-2 focus-within:ring-blue-400 focus-within:ring-offset-1 ${
+                            isSelected ? 'border-blue-500 ring-2 ring-blue-400 ring-offset-0' : 'hover:shadow-md hover:border-gray-300 border-gray-200'
+                         } ${isProcessing ? 'opacity-70 cursor-default' : 'cursor-pointer'}`}
+                         onClick={(e) => handleCardClick(e, file.id)}
+                         onKeyDown={(e) => handleKeyDown(e, file.id)} // Use specific keyboard handler
+                         // role="button" // REMOVED role="button"
+                         tabIndex={0}
+                         aria-selected={isSelected} // Keep aria-selected for semantics, even if not strictly supported by default div role
+                         aria-label={`File: ${file.name || 'Untitled'}`}
+                    >
+                        {/* Preview Area */}
                         <div className="aspect-square w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
-                             {/* Call the provided function to render preview */}
                              {renderPreview(file)}
                         </div>
-                        {/* --- End Preview Area --- */}
 
                         {/* File Info */}
-                        <p className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none" title={file.name}> {file.name || 'Untitled'} </p>
-                        <p className="text-[10px] text-gray-500 pointer-events-none">{formatBytes(file.size)}</p>
+                        <p className="text-xs text-center font-medium text-gray-800 truncate w-full px-1 pointer-events-none" title={file.name}>
+                            {file.name || 'Untitled'}
+                        </p>
+                        <p className="text-[10px] text-gray-500 pointer-events-none mb-1">{formatBytes(file.size)}</p>
 
-                        {/* Actions Overlay (no change in logic) */}
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 transition-opacity duration-150 flex items-center justify-center gap-2 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
-                              {(file.type === 'application/zip' || file.category === 'archive') && ( <button onClick={() => onSendTo(file.id)} disabled={isThisDeleting || isLoading} title="Send to ZIP Explorer" className="p-1.5 text-white rounded-full bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"> ➡️ </button> )}
-                             <button onClick={() => onCopy(file.id)} disabled={!isTextFile || isThisDeleting || isLoading || currentFeedback?.type === 'copy'} title={isTextFile ? "Copy content" : "Cannot copy"} className={`p-1.5 text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-700 ring-green-500' : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'}`}> {currentFeedback?.type === 'copy' ? '✔️' : '📄'} </button>
-                             <button onClick={() => onDownload(file.id)} disabled={isThisDeleting || isLoading || currentFeedback?.type === 'download'} title="Download file" className={`p-1.5 text-white rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-700 ring-indigo-500' : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'}`}> {currentFeedback?.type === 'download' ? '✔️' : '⬇️'} </button>
-                            <button onClick={() => onDelete(file.id)} disabled={isThisDeleting || isLoading} title="Delete file" className="p-1.5 text-white bg-red-600 rounded-full hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"> ❌ </button>
+                        {/* Selection Checkbox (Top Left) */}
+                        <div className="absolute top-1.5 left-1.5 z-20" data-element="checkbox">
+                             <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => onToggleSelection(file.id)}
+                                onClick={(e) => e.stopPropagation()}
+                                disabled={isProcessing}
+                                className={`h-4 w-4 rounded border-gray-300 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-opacity duration-150 ${
+                                    isSelected ? 'opacity-100 text-blue-600 accent-blue-600' : 'opacity-0 group-hover:opacity-100 text-gray-600 accent-gray-600'
+                                 }`}
+                                aria-label={`Select file ${file.name}`}
+                                tabIndex={-1}
+                             />
                         </div>
+
+                        {/* Actions Overlay (Top Right) */}
+                        <div
+                            data-overlay="actions"
+                            className={`absolute top-1.5 right-1.5 z-20 flex items-center gap-1.5 p-0.5 bg-white/80 backdrop-blur-sm rounded-full shadow transition-opacity duration-150 ${
+                                isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+                             }`}
+                        >
+                              {(file.type === 'application/zip' || file.type === 'application/x-zip-compressed') && (
+                                  <button onClick={(e) => { handleActionClick(e); onSendTo(file.id); }} disabled={isProcessing} title="Send to ZIP Explorer" className="p-1 text-blue-600 rounded-full hover:bg-blue-100 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50">➡️</button>
+                              )}
+                             <button onClick={(e) => { handleActionClick(e); onCopy(file.id); }} disabled={!isTextFile || isProcessing || currentFeedback?.type === 'copy'} title={isTextFile ? "Copy content" : "Cannot copy"} className={`p-1 rounded-full focus:outline-none focus:ring-1 disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700 ring-1 ring-green-300' : 'text-green-600 hover:bg-green-100 focus:ring-green-400'}`}>{currentFeedback?.type === 'copy' ? '✔️' : '📄'}</button>
+                             <button onClick={(e) => { handleActionClick(e); onDownload(file.id); }} disabled={isProcessing || currentFeedback?.type === 'download'} title="Download file" className={`p-1 rounded-full focus:outline-none focus:ring-1 disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'text-indigo-600 hover:bg-indigo-100 focus:ring-indigo-400'}`}>{currentFeedback?.type === 'download' ? '✔️' : '⬇️'}</button>
+                             <button onClick={(e) => { handleActionClick(e); onDelete(file.id); }} disabled={isProcessing || isSelected} title={isSelected ? "Use 'Delete Selected' button" : "Delete file"} className="p-1 text-red-600 rounded-full hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-400 disabled:opacity-50 disabled:cursor-not-allowed">❌</button>
+                        </div>
+
                         {/* Deleting Overlay */}
-                        {isThisDeleting && ( <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center pointer-events-none"> <span className="text-red-500 text-xs">Deleting...</span> </div> )}
+                        {isBulkDeleting && isSelected && (
+                            <div className="absolute inset-0 bg-white bg-opacity-60 flex items-center justify-center pointer-events-none z-30">
+                                <span className="text-red-500 text-xs animate-pulse">Deleting...</span>
+                            </div>
+                        )}
+
                         {/* Error Feedback Bar */}
-                        {currentFeedback?.type === 'error' && ( <div className="absolute inset-x-0 bottom-0 p-1 bg-red-100 text-red-700 text-[10px] text-center truncate pointer-events-none" title={currentFeedback.message}> Error: {currentFeedback.message}</div> )}
+                        {currentFeedback?.type === 'error' && (
+                            <div className="absolute inset-x-0 bottom-0 p-1 bg-red-100 text-red-700 text-[10px] text-center truncate pointer-events-none z-10" title={currentFeedback.message}>
+                                Error: {currentFeedback.message}
+                            </div>
+                        )}
                     </div>
                 );
             })}
+
+             {files.length === 0 && !isLoading && (
+                 <p className="col-span-full text-center text-gray-500 italic py-16">No files found.</p>
+             )}
+             {isLoading && (
+                <p className="col-span-full text-center text-gray-500 italic py-16 animate-pulse">Loading...</p>
+             )}
         </div>
     );
 }

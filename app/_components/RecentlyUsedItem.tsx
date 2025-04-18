@@ -2,9 +2,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { formatDistanceToNowStrict } from 'date-fns';
-import type { HistoryEntry } from '@/src/types/history';
+import type { HistoryEntry } from '@/src/types/history'; // Uses updated type
 import type { ToolMetadata } from '@/src/types/tools';
-import HistoryOutputPreview from './HistoryOutputPreview';
+import HistoryOutputPreview from './HistoryOutputPreview'; // Relies on this component being correct
 
 interface RecentlyUsedItemProps {
     entry: HistoryEntry;
@@ -13,54 +13,65 @@ interface RecentlyUsedItemProps {
 }
 
 const RecentlyUsedItem = React.memo(({ entry, metadata, displayMode }: RecentlyUsedItemProps) => {
-    const latestTimestamp = entry.timestamps[0];
-    const timeAgo = formatDistanceToNowStrict(new Date(latestTimestamp), { addSuffix: false });
+    // Use eventTimestamp directly
+    const eventTimestamp = entry.eventTimestamp;
+    const timeAgo = formatDistanceToNowStrict(new Date(eventTimestamp), { addSuffix: false });
+    const formattedTimestamp = new Date(eventTimestamp).toLocaleString(); // For title attribute
 
+    // Simplified time formatter
     const formatTime = (time: string): string => {
         time = time.replace(/ minutes?/, 'm');
         time = time.replace(/ hours?/, 'h');
         time = time.replace(/ days?/, 'd');
         time = time.replace(/ months?/, 'mo');
         time = time.replace(/ years?/, 'y');
-        if (time.startsWith('less than') || time.includes('second')) return '< 1m';
+        // Handle seconds and sub-minute times more consistently
+        if (time.startsWith('0 second') || time.includes('second') || time.startsWith('less than')) return '<1m';
         return time;
     };
 
+    // Removed formatTriggerType and formatTriggers functions
+
     if (displayMode === 'homepage') {
         return (
-            <div className="flex flex-col items-start p-2 gap-1 hover:bg-[rgba(var(--color-border-base)/0.1)] rounded transition-colors duration-100 w-28">
-                <Link href={entry.toolRoute} className="text-sm font-medium text-[rgb(var(--color-text-link))] hover:underline truncate block w-full text-center">
-                    {entry.toolName}
-                </Link>
-                <div className="text-xs text-[rgb(var(--color-text-muted))]" title={new Date(latestTimestamp).toLocaleString()}>
-                    {formatTime(timeAgo)} ago
-                </div>
+            // Link now wraps the entire item for better clickability
+            <Link
+                href={entry.toolRoute}
+                className="flex flex-col items-center p-2 gap-1 hover:bg-[rgba(var(--color-border-base)/0.1)] rounded transition-colors duration-100 w-28 text-center group"
+                title={`${entry.toolName}\nUsed: ${formattedTimestamp}`} // Add tooltip with full info
+            >
                 {/* Icon/Preview container */}
-                <div className="flex-shrink-0 w-16 h-16 mx-auto mt-1 flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded border border-[rgb(var(--color-border-base))] overflow-hidden">
-                    {/* Always render preview inside the box */}
+                <div className="flex-shrink-0 w-16 h-16 mx-auto mb-1 flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded border border-[rgb(var(--color-border-base))] overflow-hidden">
                     <HistoryOutputPreview entry={entry} metadata={metadata} />
                 </div>
-            </div>
+                {/* Tool Name */}
+                <div className="text-xs font-medium text-[rgb(var(--color-text-link))] group-hover:underline truncate block w-full">
+                    {entry.toolName}
+                </div>
+                {/* Time Ago */}
+                <div className="text-[10px] text-[rgb(var(--color-text-muted))]">
+                    {formatTime(timeAgo)} ago
+                </div>
+            </Link>
         );
     } else {
-        // Toolpage layout
+        // Toolpage layout (List item)
         return (
             <div className="flex items-center p-2 gap-3 hover:bg-[rgba(var(--color-border-base)/0.1)] rounded transition-colors duration-100">
                  {/* Icon/Preview container */}
                  <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded border border-[rgb(var(--color-border-base))] overflow-hidden">
-                     {/* Always render preview inside the box */}
                      <HistoryOutputPreview entry={entry} metadata={metadata} />
                 </div>
                 {/* Link */}
                 <div className="flex-grow overflow-hidden">
-                    <Link href={entry.toolRoute} className="text-sm font-medium text-[rgb(var(--color-text-link))] hover:underline truncate block">
+                    <Link href={entry.toolRoute} className="text-sm font-medium text-[rgb(var(--color-text-link))] hover:underline truncate block" title={`Go to ${entry.toolName}`}>
                         {entry.toolName}
                     </Link>
-                    {/* --- REMOVED Secondary text preview logic --- */}
+                    {/* Optionally display input summary here if needed later */}
                 </div>
                  {/* Time Ago */}
-                <div className="text-xs text-right text-[rgb(var(--color-text-muted))] flex-shrink-0 w-10" title={new Date(latestTimestamp).toLocaleString()}>
-                    {formatTime(timeAgo)}
+                <div className="text-xs text-right text-[rgb(var(--color-text-muted))] flex-shrink-0 w-12" title={formattedTimestamp}>
+                    {formatTime(timeAgo)} ago
                 </div>
             </div>
         );

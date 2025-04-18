@@ -1,18 +1,18 @@
 // FILE: app/context/FileLibraryContext.tsx
 'use client';
 
-// Removed useEffect from import
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { db } from '../lib/db';
-import type { StoredFile } from '@/src/types/storage';
+import type { StoredFile } from '@/src/types/storage'; // Uses the updated type
 import { v4 as uuidv4 } from 'uuid';
 
 // --- Context Value Interface ---
+// Removed listFiles filtering by category/isApplication
+// Removed promoteToLibrary
 interface FileLibraryContextValue {
-  listFiles: (limit?: number, categoryFilter?: string, includeTemporary?: boolean) => Promise<StoredFile[]>;
+  listFiles: (limit?: number, includeTemporary?: boolean) => Promise<StoredFile[]>;
   getFile: (id: string) => Promise<StoredFile | undefined>;
-  addFile: (blob: Blob, name: string, type: string, category?: string, isTemporary?: boolean) => Promise<string>;
-  promoteToLibrary: (id: string) => Promise<void>;
+  addFile: (blob: Blob, name: string, type: string, isTemporary?: boolean) => Promise<string>;
   deleteFile: (id: string) => Promise<void>;
   clearAllFiles: (includeTemporary?: boolean) => Promise<void>;
   cleanupTemporaryFiles: (ids?: string[]) => Promise<void>;
@@ -28,15 +28,7 @@ export const useFileLibrary = () => {
   return context;
 };
 
-// Helper function to infer category
-const inferCategory = (type: string): string => {
-    if (!type) return 'other';
-    if (type.startsWith('image/')) return 'image';
-    if (type === 'application/zip' || type === 'application/x-zip-compressed') return 'archive';
-    if (type.startsWith('text/')) return 'text';
-    if (type === 'application/pdf') return 'document';
-    return 'other';
-};
+// Removed inferCategory helper function as 'category' is no longer stored
 
 interface FileLibraryProviderProps { children: ReactNode; }
 
@@ -44,25 +36,22 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // listFiles: Simplified filtering
   const listFiles = useCallback(async (
         limit: number = 50,
-        categoryFilter?: string,
-        includeTemporary: boolean = false
+        includeTemporary: boolean = false // Default to showing only permanent files
     ): Promise<StoredFile[]> => {
     setLoading(true); setError(null);
     try {
-      if (!db?.files) throw new Error("Database 'files' table is not available."); // Added null check for db
+      if (!db?.files) throw new Error("Database 'files' table is not available.");
       let collection = db.files.orderBy('createdAt').reverse();
 
-      // Apply filters using Dexie's Collection methods for efficiency
-      if (!includeTemporary || categoryFilter) {
-            collection = collection.filter(file => {
-                const tempCheck = includeTemporary ? true : (file.isTemporary === undefined || file.isTemporary === false);
-                const categoryCheck = categoryFilter ? file.category === categoryFilter : true;
-                return tempCheck && categoryCheck;
-            });
+      // Filter based on the isTemporary flag
+      if (!includeTemporary) {
+            collection = collection.filter(file => file.isTemporary !== true);
       }
-      // Apply limit
+      // No category or isApplication filtering needed here
+
       return await collection.limit(limit).toArray();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
@@ -70,13 +59,13 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       setError(`Failed to list files: ${message}`);
       return [];
     } finally { setLoading(false); }
-  }, []); // Dependencies are only setError, setLoading which are stable from useState
+  }, []);
 
+  // getFile remains the same
   const getFile = useCallback(async (id: string): Promise<StoredFile | undefined> => {
-    setError(null); // Clear previous errors
+    setError(null);
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
-        // Use Dexie's get method - should be type-safe now
         const file = await db.files.get(id);
         return file;
     } catch (err: unknown) {
@@ -85,74 +74,69 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         setError(`Failed to get file: ${m}`);
         return undefined;
     }
-  }, []); // Dependencies stable
+  }, []);
 
+  // addFile: Simplified - no category, isApplication, toolRoute
   const addFile = useCallback(async (
         blob: Blob,
         name: string,
         type: string,
-        category?: string,
-        isTemporary: boolean = false
+        isTemporary: boolean = false // Default to permanent
     ): Promise<string> => {
     setLoading(true); setError(null);
     const id = uuidv4();
     try {
       if (!db?.files) throw new Error("Database 'files' table is not available.");
-      const determinedCategory = category || inferCategory(type);
 
       const newFile: StoredFile = {
-          id: id, name: name, type: type, size: blob.size, blob: blob,
-          createdAt: new Date(), category: determinedCategory,
+          id: id,
+          name: name,
+          type: type,
+          size: blob.size,
+          blob: blob,
+          createdAt: new Date(),
           isTemporary: isTemporary
-          // thumbnailBlob is intentionally left out here - ImageLibraryContext handles that
+          // No category, isApplication, toolRoute
+          // thumbnailBlob still handled by ImageLibraryContext if needed
       };
       await db.files.add(newFile);
-      console.log(`[FileCtx] Added file ${id} (category: ${determinedCategory}, temporary: ${isTemporary}) to 'files' table.`);
+      console.log(`[FileCtx] Added file ${id} (temporary: ${isTemporary}) to 'files' table.`);
       return id;
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
         console.error("Error adding file to files table:", err);
         setError(`Failed to add file: ${message}`);
-        throw err; // Re-throw so the caller knows it failed
+        throw err;
     } finally { setLoading(false); }
-  }, []); // Dependencies stable
+  }, []);
 
-  const promoteToLibrary = useCallback(async (id: string): Promise<void> => {
-    setLoading(true); setError(null);
-    try {
-        if (!db?.files) throw new Error("Database 'files' table is not available.");
-        // Update should be type-safe
-        const updatedCount = await db.files.update(id, { isTemporary: false });
-        if (updatedCount > 0) { console.log(`[FileCtx] Promoted file ${id} to permanent library.`); }
-        else { console.warn(`[FileCtx] File ${id} not found during promotion attempt.`); /* Or throw error? */ }
-    } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        console.error(`Error promoting file ${id}:`, err); setError(`Failed to promote file: ${message}`); throw err;
-    } finally { setLoading(false); }
-  }, []); // Dependencies stable
+  // promoteToLibrary is removed
 
+  // deleteFile remains the same
   const deleteFile = useCallback(async (id: string): Promise<void> => {
     setLoading(true); setError(null);
     try {
         if (!db?.files) throw new Error("DB 'files' table not available.");
-        // Delete should be type-safe
         await db.files.delete(id);
         console.log(`[FileCtx] Deleted file ${id}`);
     } catch (err: unknown) {
         const m = err instanceof Error ? err.message : 'Unknown DB error';
         console.error(`Error deleting file ${id}:`, err); setError(`Failed to delete file: ${m}`); throw err;
     } finally { setLoading(false); }
-  }, []); // Dependencies stable
+  }, []);
 
+  // clearAllFiles: Simplified - no isApplication logic
   const clearAllFiles = useCallback(async (includeTemporary: boolean = false): Promise<void> => {
     setLoading(true); setError(null);
     try {
        if (!db?.files) throw new Error("Database 'files' table is not available.");
        let collectionToClear = db.files.toCollection();
-       // Filter based on includeTemporary flag
+
        if (!includeTemporary) {
             collectionToClear = collectionToClear.filter(file => file.isTemporary !== true);
        }
+       // No isApplication filtering
+
        const keysToDelete = await collectionToClear.primaryKeys();
        if (keysToDelete.length > 0) {
             await db.files.bulkDelete(keysToDelete);
@@ -166,21 +150,18 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         setError(`Failed to clear files: ${message}`);
         throw err;
     } finally { setLoading(false); }
-  }, []); // Dependencies stable
+  }, []);
 
+  // cleanupTemporaryFiles remains the same (targets isTemporary flag)
   const cleanupTemporaryFiles = useCallback(async (ids?: string[]): Promise<void> => {
-      // This logic seems fine - it finds temporary files (optionally within a specific set) and deletes them
       setLoading(true); setError(null);
       try {
           if (!db?.files) throw new Error("Database 'files' table is not available.");
           let keysToDelete: string[];
           if (ids && ids.length > 0) {
-              // Fetch only the specified IDs first
               const filesToCheck = await db.files.where('id').anyOf(ids).toArray();
-              // Filter those that are actually temporary
               keysToDelete = filesToCheck.filter(f => f.isTemporary === true).map(f => f.id);
           } else {
-              // Get primary keys of *all* temporary files
               keysToDelete = await db.files.where({ isTemporary: true }).primaryKeys();
           }
 
@@ -194,14 +175,13 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
           const message = err instanceof Error ? err.message : 'Unknown DB error';
           console.error(`Error cleaning up temporary files:`, err);
           setError(`Failed to cleanup temporary files: ${message}`);
-          // Don't re-throw, cleanup failure is less critical
       } finally { setLoading(false); }
-  }, []); // Dependencies stable
+  }, []);
 
-  // Context value memoization remains the same
+  // Context value memoization updated
   const contextValue = useMemo(() => ({
-    listFiles, getFile, addFile, promoteToLibrary, deleteFile, clearAllFiles, cleanupTemporaryFiles, loading, error,
-  }), [listFiles, getFile, addFile, promoteToLibrary, deleteFile, clearAllFiles, cleanupTemporaryFiles, loading, error]);
+    listFiles, getFile, addFile, deleteFile, clearAllFiles, cleanupTemporaryFiles, loading, error,
+  }), [listFiles, getFile, addFile, deleteFile, clearAllFiles, cleanupTemporaryFiles, loading, error]);
 
   return ( <FileLibraryContext.Provider value={contextValue}> {children} </FileLibraryContext.Provider> );
 };

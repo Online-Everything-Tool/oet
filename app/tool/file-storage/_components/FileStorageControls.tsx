@@ -1,56 +1,94 @@
 // FILE: app/tool/file-storage/_components/FileStorageControls.tsx
 'use client';
 
-// Removed useRef import
 import React from 'react';
 
-// TODO: Replace placeholders with actual icon components
-
+// Removed: isApplication related props/state
 interface FileStorageControlsProps {
     isLoading: boolean;
-    isPasting: boolean;
-    isDeleting: boolean | string | null;
+    isDeleting: boolean | string | null; // If any single item is deleting
     storedFileCount: number;
     currentLayout: 'list' | 'grid';
+    selectedFileCount: number; // New prop for selected count
     onAddClick: () => void;
     onClearAllClick: () => void;
     onLayoutChange: (newLayout: 'list' | 'grid') => void;
+    onDeleteSelectedClick: () => void; // New prop for delete selected action
 }
 
 export default function FileStorageControls({
     isLoading,
-    isPasting,
     isDeleting,
     storedFileCount,
     currentLayout,
+    selectedFileCount, // Use prop
     onAddClick,
     onClearAllClick,
-    onLayoutChange
+    onLayoutChange,
+    onDeleteSelectedClick // Use prop
 }: FileStorageControlsProps) {
 
-    // Removed unused fileInputRef
+    const hasSelection = selectedFileCount > 0;
 
     return (
       <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
         {/* Row 1: Main Actions */}
         <div className="flex flex-wrap gap-4 items-center justify-between">
-            <button type="button" onClick={onAddClick} disabled={isLoading || isPasting} className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-accent2-bg))] transition-colors duration-150 ease-in-out ${isLoading || isPasting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                 <span>➕</span> {isLoading ? 'Processing...' : (isPasting ? 'Pasting...' : 'Add File(s)')}
+            {/* Add File Button */}
+            <button
+                type="button"
+                onClick={onAddClick}
+                disabled={isLoading}
+                className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-accent2-bg))] transition-colors duration-150 ease-in-out ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+                 <span>➕</span> {isLoading ? 'Processing...' : 'Add File(s)'}
             </button>
-             <div className="flex-grow"></div>
-            <button type="button" onClick={onClearAllClick} disabled={storedFileCount === 0 || isLoading || isPasting || isDeleting !== null} className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
-                 <span>🗑️</span> Clear All
+
+            {/* Conditional Bulk Actions */}
+            {hasSelection && (
+                <button
+                    type="button"
+                    onClick={onDeleteSelectedClick}
+                    disabled={isLoading || isDeleting !== null}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-danger-text))] bg-[rgb(var(--color-button-danger-bg))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    <span>🗑️</span> Delete Selected ({selectedFileCount})
+                </button>
+            )}
+
+            <div className="flex-grow"></div> {/* Spacer */}
+
+            {/* Clear All Button */}
+            <button
+                type="button"
+                onClick={onClearAllClick}
+                disabled={storedFileCount === 0 || isLoading || isDeleting !== null || hasSelection} // Disable if selection exists
+                title={hasSelection ? "Clear selection before using Clear All" : "Delete all files from library"}
+                className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                 <span>🗑️</span> Clear All ({storedFileCount})
              </button>
         </div>
-        {/* Row 2: View Options & Filtering */}
+
+        {/* Row 2: View Options */}
         <div className="flex flex-wrap gap-4 items-center border-t border-gray-200 pt-3 mt-2">
+            {/* Layout Toggle */}
             <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
-                 <button onClick={() => onLayoutChange('list')} disabled={currentLayout === 'list'} title="List View" className={`p-1.5 rounded disabled:opacity-100 disabled:cursor-default ${currentLayout === 'list' ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}> <span className="text-lg">📄</span> </button>
-                 <button onClick={() => onLayoutChange('grid')} disabled={currentLayout === 'grid'} title="Grid View" className={`p-1.5 rounded disabled:opacity-100 disabled:cursor-default ${currentLayout === 'grid' ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}> <span className="text-lg">🖼️</span> </button>
+                 <button onClick={() => onLayoutChange('list')} disabled={currentLayout === 'list'} title="List View" className={`p-1.5 rounded disabled:opacity-100 disabled:cursor-default ${currentLayout === 'list' ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /> </svg>
+                 </button>
+                 <button onClick={() => onLayoutChange('grid')} disabled={currentLayout === 'grid'} title="Grid View" className={`p-1.5 rounded disabled:opacity-100 disabled:cursor-default ${currentLayout === 'grid' ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700'}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /> </svg>
+                 </button>
             </div>
-            <div className="relative"> <button disabled className="inline-flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"> <span>🔎</span> Filter: All </button> </div>
-             <div className="relative flex-grow max-w-xs"> <input type="search" placeholder="Search files..." disabled className="w-full pl-8 pr-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-400 bg-gray-100 cursor-not-allowed placeholder-gray-400" /> <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400"> 🔍 </span> </div>
-            <div className="flex items-center ml-auto pl-4 border-l border-gray-200"> <input id="includeAppFiles" type="checkbox" disabled className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-not-allowed accent-indigo-600" /> <label htmlFor="includeAppFiles" className="ml-2 block text-sm text-gray-500 cursor-not-allowed"> Include Application Files </label> </div>
+
+            {/* Removed Filter/Search/IncludeApp Checkbox */}
+             <div className="flex-grow"></div> {/* Spacer */}
+              <span className="text-sm text-gray-500">
+                {storedFileCount} item(s) in library
+             </span>
+
+
         </div>
       </div>
     );

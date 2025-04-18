@@ -2,10 +2,10 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history'
+import { useHistory } from '../../../context/HistoryContext'; // Uses updated HistoryContext
+import type { TriggerType } from '@/src/types/history'; // Use updated types
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
-import type { ParamConfig } from '@/src/types/tools'
+import type { ParamConfig } from '@/src/types/tools';
 
 type Operation = 'encode' | 'decode';
 type Base64Likelihood = 'unknown' | 'possibly_base64_or_text' | 'likely_text';
@@ -27,7 +27,7 @@ export default function Base64EncodeDecodeClient({
     const [error, setError] = useState<string>('');
     const [base64Likelihood, setBase64Likelihood] = useState<Base64Likelihood>('unknown');
 
-    const { addHistoryEntry } = useHistory();
+    const { addHistoryEntry } = useHistory(); // Use updated context hook
     const stateSetters = useMemo(() => ({
         text: setText,
         operation: setOperation,
@@ -37,33 +37,26 @@ export default function Base64EncodeDecodeClient({
         stateSetters as StateSetters
     );
 
+    // Likelihood detection useEffect (remains the same)
     useEffect(() => {
-        if (!text) {
-            setBase64Likelihood('unknown');
-            return;
-        }
+        if (!text) { setBase64Likelihood('unknown'); return; }
         const cleanedInput = text.replace(/\s/g, '');
         if (!cleanedInput) { setBase64Likelihood('unknown'); return; }
         const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
         const isValidLength = cleanedInput.length % 4 === 0;
         const hasValidChars = base64Regex.test(cleanedInput);
         if (isValidLength && hasValidChars) {
-            try {
-                atob(cleanedInput);
-                setBase64Likelihood('possibly_base64_or_text');
-            } catch {
-                 setBase64Likelihood('likely_text');
-            }
-        } else {
-            setBase64Likelihood('likely_text');
-        }
+            try { atob(cleanedInput); setBase64Likelihood('possibly_base64_or_text'); }
+            catch { setBase64Likelihood('likely_text'); }
+        } else { setBase64Likelihood('likely_text'); }
       }, [text]);
 
+    // handleEncode: Added eventTimestamp to addHistoryEntry call
     const handleEncode = useCallback((triggerType: TriggerType, textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
-        let historyOutputObj: Record<string, unknown> = {}; // For structured output
+        let historyOutputObj: Record<string, unknown> = {};
 
         setError('');
         setOutputValue('');
@@ -72,7 +65,7 @@ export default function Base64EncodeDecodeClient({
         try {
             currentOutput = btoa(unescape(encodeURIComponent(textToProcess)));
             setOutputValue(currentOutput);
-            historyOutputObj = { // Structure the success output
+            historyOutputObj = {
                 operationResult: "Encoded Text",
                 outputValue: currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput
             };
@@ -81,12 +74,13 @@ export default function Base64EncodeDecodeClient({
             currentError = "Failed to encode text to Base64. Ensure text is valid UTF-8.";
             setError(currentError);
             status = 'error';
-            historyOutputObj = { // Structure the error output
+            historyOutputObj = {
                  operationResult: "Encoding Error",
                  errorMessage: currentError
             };
         }
 
+        // Add eventTimestamp to the history entry object
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
@@ -95,16 +89,18 @@ export default function Base64EncodeDecodeClient({
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'encode'
             },
-            output: historyOutputObj, // Log the structured object
+            output: historyOutputObj,
             status: status,
+            eventTimestamp: Date.now() // Add timestamp here
         });
-      }, [addHistoryEntry, text, toolTitle, toolRoute]);
+      }, [addHistoryEntry, text, toolTitle, toolRoute]); // Dependencies remain the same
 
+    // handleDecode: Added eventTimestamp to addHistoryEntry call
     const handleDecode = useCallback((triggerType: TriggerType, textToProcess = text) => {
         let currentOutput = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
-        let historyOutputObj: Record<string, unknown> = {}; // For structured output
+        let historyOutputObj: Record<string, unknown> = {};
 
         setError('');
         setOutputValue('');
@@ -117,7 +113,7 @@ export default function Base64EncodeDecodeClient({
                Array.from(decodedBytes).map((byte) => ('0' + byte.charCodeAt(0).toString(16)).slice(-2)).join('%'),
            );
            setOutputValue(currentOutput);
-           historyOutputObj = { // Structure the success output
+           historyOutputObj = {
                 operationResult: "Decoded Text",
                 outputValue: currentOutput.length > 500 ? currentOutput.substring(0, 500) + '...' : currentOutput
             };
@@ -130,12 +126,13 @@ export default function Base64EncodeDecodeClient({
             }
             setError(currentError);
             status = 'error';
-             historyOutputObj = { // Structure the error output
+             historyOutputObj = {
                  operationResult: "Decoding Error",
                  errorMessage: currentError
              };
         }
 
+         // Add eventTimestamp to the history entry object
          addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
@@ -144,11 +141,13 @@ export default function Base64EncodeDecodeClient({
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
                 operation: 'decode'
             },
-            output: historyOutputObj, // Log the structured object
+            output: historyOutputObj,
             status: status,
+            eventTimestamp: Date.now() // Add timestamp here
         });
-      }, [addHistoryEntry, text, toolTitle, toolRoute]);
+      }, [addHistoryEntry, text, toolTitle, toolRoute]); // Dependencies remain the same
 
+    // useEffect for URL state loading (remains the same)
     useEffect(() => {
         if (shouldRunOnLoad && text) {
           if (operation === 'encode') {
@@ -162,6 +161,7 @@ export default function Base64EncodeDecodeClient({
         }
       }, [shouldRunOnLoad, setShouldRunOnLoad, text, operation, handleEncode, handleDecode]);
 
+    // Other handlers (handleInputChange, handleClear) remain the same
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(event.target.value);
         setOutputValue('');
@@ -174,22 +174,19 @@ export default function Base64EncodeDecodeClient({
         setError('');
         setOperation('encode');
         setBase64Likelihood('unknown');
-        // No history log
     };
 
+    // Likelihood bar logic (remains the same)
     const getLikelihoodBarState = () => {
         switch (base64Likelihood) {
-          case 'likely_text':
-            return { text: 'Format: Likely Plain Text', bgColor: 'bg-[rgb(var(--color-indicator-text))]', label: 'Text', valueNow: 0 };
-          case 'possibly_base64_or_text':
-            return { text: 'Format: Potentially Base64', bgColor: 'bg-[rgb(var(--color-indicator-ambiguous))]', label: 'Ambiguous', valueNow: 50 };
-          case 'unknown':
-          default:
-            return { text: 'Enter text to analyze format', bgColor: 'bg-[rgb(var(--color-indicator-base))]', label: 'Unknown', valueNow: 50 };
+          case 'likely_text': return { text: 'Format: Likely Plain Text', bgColor: 'bg-[rgb(var(--color-indicator-text))]', label: 'Text', valueNow: 0 };
+          case 'possibly_base64_or_text': return { text: 'Format: Potentially Base64', bgColor: 'bg-[rgb(var(--color-indicator-ambiguous))]', label: 'Ambiguous', valueNow: 50 };
+          case 'unknown': default: return { text: 'Enter text to analyze format', bgColor: 'bg-[rgb(var(--color-indicator-base))]', label: 'Unknown', valueNow: 50 };
         }
     };
     const { text: likelihoodText, bgColor, label, valueNow } = getLikelihoodBarState();
 
+    // JSX Render Logic (remains the same)
     return (
          <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
             <div>

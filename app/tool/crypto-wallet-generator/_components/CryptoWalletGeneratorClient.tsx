@@ -2,8 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-// Removed unused TriggerType import
-import { useHistory } from '../../../context/HistoryContext';
+import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import ECPairFactory from 'ecpair';
@@ -40,8 +39,9 @@ export default function CryptoWalletGeneratorClient({
   const [generating, setGenerating] = useState<boolean>(false);
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
 
-  const { addHistoryEntry } = useHistory();
+  const { addHistoryEntry } = useHistory(); // Use updated hook
 
+  // toggleSpecificPrivateKeyVisibility remains the same
   const toggleSpecificPrivateKeyVisibility = (id: string) => {
     setGeneratedWallets(prevWallets =>
       prevWallets.map(wallet =>
@@ -52,6 +52,7 @@ export default function CryptoWalletGeneratorClient({
     );
   };
 
+  // handleGenerateWallet: Added eventTimestamp
   const handleGenerateWallet = useCallback(async () => {
     setGenerating(true);
     setError(null);
@@ -105,27 +106,30 @@ export default function CryptoWalletGeneratorClient({
       (inputDetails as Record<string, unknown>).error = errorMessage;
     } finally {
       setGenerating(false);
-      // Log ONLY the generation action
+      // Add eventTimestamp to the history entry object
       addHistoryEntry({
-        toolName: toolTitle, toolRoute: toolRoute,
-        trigger: 'click', // Generation is always a click
+        toolName: toolTitle,
+        toolRoute: toolRoute,
+        trigger: 'click',
         input: inputDetails,
         output: status === 'success' ? `Generated ${walletType}: ${generatedPublicKey}` : errorMessage,
         status: status,
+        eventTimestamp: Date.now() // Add timestamp here
       });
     }
-  }, [walletType, addHistoryEntry, toolTitle, toolRoute]);
+  }, [walletType, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
+  // handleTypeChange remains the same
   const handleTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newType = event.target.value as WalletType;
     setWalletType(newType);
     setError(null);
   };
 
+  // copyToClipboard remains the same (no history logging)
   const copyToClipboard = useCallback(async (textToCopy: string, copyType: 'Address' | 'Private Key', walletId: string) => {
     setLastCopiedId(null);
     if (!textToCopy) return;
-
     try {
       await navigator.clipboard.writeText(textToCopy);
       setLastCopiedId(`${walletId}-${copyType}`);
@@ -135,15 +139,15 @@ export default function CryptoWalletGeneratorClient({
       console.error(`Failed to copy ${copyType}:`, err);
       setError(`Failed to copy ${copyType}: ${message}`);
     }
-    // History logging removed
-  }, []); // Removed dependencies only used for logging
+  }, []);
 
+  // handleClearAllWallets remains the same
   const handleClearAllWallets = useCallback(() => {
     setGeneratedWallets([]);
     setError(null);
-    // No history log for clear
   }, []);
 
+  // JSX Render logic remains the same
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
         <div role="alert" className="p-4 text-sm rounded-lg bg-[rgb(var(--color-indicator-ambiguous)/0.1)] border border-[rgb(var(--color-indicator-ambiguous)/0.5)] text-[rgb(var(--color-text-muted))]">
@@ -168,48 +172,26 @@ export default function CryptoWalletGeneratorClient({
               </div>
             </div>
           </fieldset>
-
           <button type="button" onClick={handleGenerateWallet} disabled={generating} className="inline-flex items-center rounded-md bg-[rgb(var(--color-button-primary-bg))] px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-primary-text))] shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
             {generating ? ( <><svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Generating...</> ) : ( 'Generate New Wallet' )}
           </button>
-            <button type="button" onClick={handleClearAllWallets} disabled={generating || generatedWallets.length === 0} title="Clear all generated wallets" className="inline-flex items-center rounded-md bg-[rgb(var(--color-button-neutral-bg))] px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-neutral-text))] shadow-sm hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
-               Clear All
-           </button>
+            <button type="button" onClick={handleClearAllWallets} disabled={generating || generatedWallets.length === 0} title="Clear all generated wallets" className="inline-flex items-center rounded-md bg-[rgb(var(--color-button-neutral-bg))] px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-neutral-text))] shadow-sm hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"> Clear All </button>
         </div>
 
-        {error && (
-          <div role="alert" className="p-4 text-sm rounded-lg bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]">
-            <strong className="font-medium">⛔ Error:</strong> {error.replace('Error: ','')}
-          </div>
-        )}
+        {error && ( <div role="alert" className="p-4 text-sm rounded-lg bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]"> <strong className="font-medium">⛔ Error:</strong> {error.replace('Error: ','')} </div> )}
 
         <div className="space-y-4">
-            {generatedWallets.length > 0 && (
-                <h2 className="text-lg font-semibold text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-border-base))] pb-2">
-                    Generated Wallets ({generatedWallets.length})
-                </h2>
-            )}
+            {generatedWallets.length > 0 && ( <h2 className="text-lg font-semibold text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-border-base))] pb-2"> Generated Wallets ({generatedWallets.length}) </h2> )}
             {generatedWallets.map((wallet) => {
                  const isPublicKeyCopied = lastCopiedId === `${wallet.id}-Address`;
                  const isPrivateKeyCopied = lastCopiedId === `${wallet.id}-Private Key`;
-                let addressLabel = 'Address';
-                if(wallet.type === 'bitcoin') addressLabel = 'Bitcoin Address (P2PKH)';
-                if(wallet.type === 'solana') addressLabel = 'Solana Address (Base58)';
-
-                let privateKeyLabel = 'Private Key';
-                 if(wallet.type === 'bitcoin') privateKeyLabel = 'Private Key (WIF)';
-                 if(wallet.type === 'solana') privateKeyLabel = 'Private Key (Bytes, Base58)';
-
+                 let addressLabel = 'Address'; if(wallet.type === 'bitcoin') addressLabel = 'Bitcoin Address (P2PKH)'; if(wallet.type === 'solana') addressLabel = 'Solana Address (Base58)';
+                 let privateKeyLabel = 'Private Key'; if(wallet.type === 'bitcoin') privateKeyLabel = 'Private Key (WIF)'; if(wallet.type === 'solana') privateKeyLabel = 'Private Key (Bytes, Base58)';
                  return (
                     <div key={wallet.id} className="space-y-4 border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))] shadow-sm animate-slide-down">
-                        <h3 className="text-md font-medium text-[rgb(var(--color-text-base))] flex justify-between items-center">
-                           <span>{wallet.type.charAt(0).toUpperCase() + wallet.type.slice(1)} Wallet</span>
-                           <span className='text-xs font-normal text-gray-400'>Generated: {new Date(wallet.timestamp).toLocaleString()}</span>
-                        </h3>
+                        <h3 className="text-md font-medium text-[rgb(var(--color-text-base))] flex justify-between items-center"> <span>{wallet.type.charAt(0).toUpperCase() + wallet.type.slice(1)} Wallet</span> <span className='text-xs font-normal text-gray-400'>Generated: {new Date(wallet.timestamp).toLocaleString()}</span> </h3>
                         <div>
-                           <label htmlFor={`publicKeyOutput-${wallet.id}`} className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]">
-                             {addressLabel}
-                           </label>
+                           <label htmlFor={`publicKeyOutput-${wallet.id}`} className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]"> {addressLabel} </label>
                            <div className="mt-1 flex rounded-md shadow-sm border border-[rgb(var(--color-input-border))]">
                               <input id={`publicKeyOutput-${wallet.id}`} type="text" value={wallet.publicKey} readOnly className="block w-full flex-1 rounded-l-md py-1.5 px-2 text-[rgb(var(--color-input-text))] focus:outline-none sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"/>
                               <button type="button" onClick={() => copyToClipboard(wallet.publicKey, 'Address', wallet.id)} title="Copy public address" className={`relative inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold border-l border-[rgb(var(--color-input-border))] focus:outline-none focus:z-10 transition-colors duration-150 ${isPublicKeyCopied ? 'bg-green-500 text-white hover:bg-green-600' : 'text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))]'} `}> {isPublicKeyCopied ? 'Copied!' : 'Copy'} </button>
@@ -217,9 +199,7 @@ export default function CryptoWalletGeneratorClient({
                             <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))]">This is your public identifier, safe to share.</p>
                          </div>
                          <div>
-                            <label htmlFor={`privateKeyOutput-${wallet.id}`} className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]">
-                              {privateKeyLabel}
-                           </label>
+                            <label htmlFor={`privateKeyOutput-${wallet.id}`} className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]"> {privateKeyLabel} </label>
                            <div className="mt-1 flex rounded-md shadow-sm border border-[rgb(var(--color-input-border))]">
                               <input id={`privateKeyOutput-${wallet.id}`} type={wallet.isPrivateKeyVisible ? 'text' : 'password'} value={wallet.privateKey} readOnly className="block w-full flex-1 rounded-l-md py-1.5 px-2 font-mono text-[rgb(var(--color-input-text))] focus:outline-none sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"/>
                                <button type="button" onClick={() => toggleSpecificPrivateKeyVisibility(wallet.id)} title={wallet.isPrivateKeyVisible ? 'Hide Private Key' : 'Show Private Key'} className="relative inline-flex items-center gap-x-1.5 rounded-none px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] border-l border-[rgb(var(--color-input-border))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none focus:z-10"> {wallet.isPrivateKeyVisible ? 'Hide' : 'Show'} </button>

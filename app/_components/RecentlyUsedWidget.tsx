@@ -3,25 +3,25 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useHistory } from '../context/HistoryContext';
-import type { HistoryEntry } from '@/src/types/history'
-import RecentlyUsedItem from './RecentlyUsedItem'; // Import the new component
-import { ToolMetadata } from '@/src/types/tools'
-
-// Note: No MetadataApiResponse interface needed now, we fetch direct JSON
+import { useHistory } from '../context/HistoryContext'; // Uses updated HistoryContext
+import type { HistoryEntry } from '@/src/types/history'; // Uses updated HistoryEntry
+import RecentlyUsedItem from './RecentlyUsedItem';
+import type { ToolMetadata } from '@/src/types/tools'; // Correct import path
 
 interface RecentlyUsedWidgetProps {
   limit: number;
-  filterToolRoute?: string; // Optional: Filter history by a specific tool route
-  displayMode: 'homepage' | 'toolpage'; // Control layout variations
+  filterToolRoute?: string;
+  displayMode: 'homepage' | 'toolpage';
 }
 
 export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode }: RecentlyUsedWidgetProps) {
-  const { history, isLoaded } = useHistory();
+  const { history, isLoaded } = useHistory(); // Get history from the updated context
   const [metadataCache, setMetadataCache] = useState<Record<string, ToolMetadata | null>>({});
 
   const filteredHistory = useMemo(() => {
-      const sorted = history.sort((a, b) => b.timestamps[0] - a.timestamps[0]);
+      // Sort by eventTimestamp (descending for newest first)
+      const sorted = history.sort((a, b) => b.eventTimestamp - a.eventTimestamp);
+      // Filtering logic remains the same
       if (filterToolRoute) {
           return sorted.filter(entry => entry.toolRoute === filterToolRoute).slice(0, limit);
       }
@@ -29,6 +29,7 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
            const uniqueRoutes = new Set<string>();
            const uniqueEntries: HistoryEntry[] = [];
            for (const entry of sorted) {
+               // Ensure unique tools are added based on toolRoute
                if (!uniqueRoutes.has(entry.toolRoute) && uniqueEntries.length < limit) {
                    uniqueEntries.push(entry);
                    uniqueRoutes.add(entry.toolRoute);
@@ -36,10 +37,11 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
            }
            return uniqueEntries;
        }
+      // Default case: return sorted slice for toolpage or if no special mode
       return sorted.slice(0, limit);
   }, [history, limit, filterToolRoute, displayMode]);
 
-  // Fetch metadata for displayed tools - UPDATED FETCH LOGIC
+  // Metadata fetching logic remains the same
   const fetchMetadata = useCallback(async (toolRoute: string) => {
     if (metadataCache[toolRoute] !== undefined) return;
 
@@ -47,44 +49,41 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
 
     const directive = toolRoute.substring('/tool/'.length).replace(/\/$/, '');
      if (!directive) {
-          console.warn(`[RecentlyUsed] Could not extract directive from route: ${toolRoute}`);
           setMetadataCache(prev => ({ ...prev, [toolRoute]: null }));
           return;
       }
 
-    // Mark as fetching/pending
     setMetadataCache(prev => ({ ...prev, [toolRoute]: null }));
 
     try {
-      // Fetch the static JSON file directly
       const response = await fetch(`/api/tool-metadata/${directive}.json`);
-
       if (response.ok) {
-        const data: ToolMetadata = await response.json(); // Expect direct ToolMetadata object
+        const data: ToolMetadata = await response.json();
         setMetadataCache(prev => ({ ...prev, [toolRoute]: data || null }));
       } else {
-         // Handle 404 or other errors specifically if needed
          if (response.status === 404) {
-              console.warn(`[RecentlyUsed] Metadata file not found for ${directive} at /api/tool-metadata/${directive}.json`);
+              console.warn(`[RecentlyUsed] Metadata file not found for ${directive}.`);
          } else {
-              throw new Error(`Failed to fetch metadata for ${directive} (${response.status})`);
+              console.error(`[RecentlyUsed] Failed fetch metadata ${directive} (${response.status})`);
          }
-         setMetadataCache(prev => ({ ...prev, [toolRoute]: null })); // Mark as failed if not OK
+         setMetadataCache(prev => ({ ...prev, [toolRoute]: null }));
       }
     } catch (fetchError: unknown) {
       console.error(`[RecentlyUsed] Error fetching metadata for ${toolRoute}:`, fetchError);
-      setMetadataCache(prev => ({ ...prev, [toolRoute]: null })); // Mark as failed
+      setMetadataCache(prev => ({ ...prev, [toolRoute]: null }));
     }
   }, [metadataCache]);
 
   useEffect(() => {
     filteredHistory.forEach(entry => {
-      fetchMetadata(entry.toolRoute);
+      // Ensure toolRoute exists before fetching
+      if (entry.toolRoute) {
+         fetchMetadata(entry.toolRoute);
+      }
     });
   }, [filteredHistory, fetchMetadata]);
 
-
-  // Loading State (Unchanged)
+  // Loading State
   if (!isLoaded) {
     return (
         <div className={`p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] ${displayMode === 'homepage' ? 'mb-8' : ''}`}>
@@ -94,7 +93,7 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
     );
   }
 
-  // Empty State (Unchanged)
+  // Empty State
   if (history.length === 0 || filteredHistory.length === 0) {
       if (displayMode === 'toolpage') {
            return (
@@ -104,10 +103,11 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
                 </div>
            );
        }
+       // Don't render anything on homepage if empty
        return null;
   }
 
-  // Render logic using RecentlyUsedItem (Unchanged)
+  // Render logic using RecentlyUsedItem
   const items = filteredHistory.map(entry => (
     <RecentlyUsedItem
       key={entry.id}
@@ -130,7 +130,8 @@ export default function RecentlyUsedWidget({ limit, filterToolRoute, displayMode
             )}
         </div>
         {displayMode === 'homepage' ? (
-            <div className="flex space-x-4 overflow-x-auto py-2">
+            // Use flex-wrap and allow items to wrap if needed, add padding for scrolling appearance
+            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 -mx-2 px-2">
                  {items}
              </div>
         ) : (

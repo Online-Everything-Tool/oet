@@ -2,11 +2,11 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history'
+import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
+import type { TriggerType } from '@/src/types/history'; // Use updated types
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
-import type { ParamConfig } from '@/src/types/tools'
-import { bufferToHex } from '@/app/lib/utils'
+import type { ParamConfig } from '@/src/types/tools';
+import { bufferToHex } from '@/app/lib/utils';
 import { md5 } from 'js-md5';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
@@ -27,7 +27,7 @@ export default function HashGeneratorClient({
     const [outputValue, setOutputValue] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const { addHistoryEntry } = useHistory();
+    const { addHistoryEntry } = useHistory(); // Use updated hook
 
     const stateSetters = useMemo(() => ({
         text: setText,
@@ -39,7 +39,7 @@ export default function HashGeneratorClient({
         stateSetters as StateSetters
     );
 
-    // Updated handleGenerateHash
+    // Updated handleGenerateHash: Added eventTimestamp
     const handleGenerateHash = useCallback(async (triggerType: TriggerType, textToProcess = text) => {
         setError('');
         setOutputValue('');
@@ -48,13 +48,13 @@ export default function HashGeneratorClient({
         if (!textToProcess) {
           setOutputValue('');
           setIsLoading(false);
-          return; // Don't log history for empty input
+          return;
         }
 
         let result = '';
         let status: 'success' | 'error' = 'success';
         let errorMessage = '';
-        let historyOutputObj: Record<string, unknown> = {}; // For structured output
+        let historyOutputObj: Record<string, unknown> = {};
         const inputDetails = {
             text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
             algorithm: algorithm
@@ -65,18 +65,16 @@ export default function HashGeneratorClient({
             result = md5(textToProcess);
             setOutputValue(result);
           } else {
-            if (!crypto?.subtle) {
-                throw new Error('Web Crypto API (crypto.subtle) is not available in this browser or context (requires HTTPS).');
-            }
+            if (!crypto?.subtle) { throw new Error('Web Crypto API (crypto.subtle) is not available in this browser or context (requires HTTPS).'); }
             const encoder = new TextEncoder();
             const dataBuffer = encoder.encode(textToProcess);
-            const subtleAlgo = algorithm as AlgorithmIdentifier; // Assume type compatibility
+            const subtleAlgo = algorithm as AlgorithmIdentifier;
             const hashBuffer = await crypto.subtle.digest(subtleAlgo, dataBuffer);
             result = bufferToHex(hashBuffer);
             setOutputValue(result);
           }
-           historyOutputObj = { // Structure the success output
-               algorithmUsed: algorithm, // Summary field
+           historyOutputObj = {
+               algorithmUsed: algorithm,
                hashValue: result
            };
         } catch (err) {
@@ -85,27 +83,29 @@ export default function HashGeneratorClient({
           setError(`Error generating hash: ${errorMessage}`);
           setOutputValue('');
           status = 'error';
-          (inputDetails as Record<string, unknown>).error = errorMessage; // Add error to input details
-           historyOutputObj = { // Structure the error output
-               algorithmUsed: `Error (${algorithm})`, // Summary field for error
+          (inputDetails as Record<string, unknown>).error = errorMessage;
+           historyOutputObj = {
+               algorithmUsed: `Error (${algorithm})`,
                errorMessage: errorMessage
            };
         } finally {
           setIsLoading(false);
         }
 
-        // Log the hashing action result
+        // Add eventTimestamp to the history entry object
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
             trigger: triggerType,
             input: inputDetails,
-            output: historyOutputObj, // Log the structured object
+            output: historyOutputObj,
             status: status,
+            eventTimestamp: Date.now() // Add timestamp here
         });
 
     }, [text, algorithm, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
 
+    // useEffect for URL load (remains the same)
     useEffect(() => {
         if (shouldRunOnLoad && text) {
             const runAsync = async () => {
@@ -118,66 +118,35 @@ export default function HashGeneratorClient({
         }
     }, [shouldRunOnLoad, setShouldRunOnLoad, text, algorithm, handleGenerateHash]);
 
-
+    // Other handlers remain the same
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setText(event.target.value);
-        setOutputValue('');
-        setError('');
+        setText(event.target.value); setOutputValue(''); setError('');
     };
-
     const handleAlgorithmChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
         const newAlgorithm = event.target.value as HashAlgorithm;
-        setAlgorithm(newAlgorithm);
-        setOutputValue('');
-        setError('');
-        if (text) {
-            // Use await here if you want processing to finish before UI potentially updates further
-            // Although in this case, it might not be strictly necessary
-            handleGenerateHash('click', text);
-        }
+        setAlgorithm(newAlgorithm); setOutputValue(''); setError('');
+        if (text) { handleGenerateHash('click', text); }
     };
-
     const handleClear = useCallback(() => {
-        setText('');
-        setOutputValue('');
-        setError('');
-        setAlgorithm('MD5');
-        setIsLoading(false);
-        // No history log
+        setText(''); setOutputValue(''); setError(''); setAlgorithm('MD5'); setIsLoading(false);
     }, []);
 
+    // JSX Render logic remains the same
     return (
         <div className="space-y-6 text-[rgb(var(--color-text-base))]">
             <div>
               <label htmlFor="text-input" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"> Input Text: </label>
-              <textarea
-                id="text-input"
-                rows={8}
-                value={text}
-                onChange={handleInputChange}
-                placeholder="Enter text to hash..."
-                className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base placeholder:text-[rgb(var(--color-input-placeholder))]" spellCheck="false" />
+              <textarea id="text-input" rows={8} value={text} onChange={handleInputChange} placeholder="Enter text to hash..." className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base placeholder:text-[rgb(var(--color-input-placeholder))]" spellCheck="false" />
             </div>
             <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
                <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
                    <label htmlFor="algorithm-select" className="text-sm font-medium text-[rgb(var(--color-text-muted))] whitespace-nowrap">Algorithm:</label>
-                   <select
-                        id="algorithm-select"
-                        name="algorithm"
-                        value={algorithm}
-                        onChange={handleAlgorithmChange}
-                        className="rounded-md border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm py-1.5 pl-2 pr-8" >
-                      <option value={'MD5'}>MD5</option>
-                      <option value={'SHA-1'}>SHA-1</option>
-                      <option value={'SHA-256'}>SHA-256</option>
-                      <option value={'SHA-512'}>SHA-512</option>
+                   <select id="algorithm-select" name="algorithm" value={algorithm} onChange={handleAlgorithmChange} className="rounded-md border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm py-1.5 pl-2 pr-8" >
+                      <option value={'MD5'}>MD5</option> <option value={'SHA-1'}>SHA-1</option> <option value={'SHA-256'}>SHA-256</option> <option value={'SHA-512'}>SHA-512</option>
                    </select>
                </div>
                <div className="flex gap-3 ml-auto">
-                   <button
-                        onClick={() => handleGenerateHash('click', text)}
-                        disabled={isLoading || !text}
-                        className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed" > {isLoading ? 'Generating...' : 'Generate Hash'} </button>
+                   <button onClick={() => handleGenerateHash('click', text)} disabled={isLoading || !text} className="px-5 py-2 rounded-md text-[rgb(var(--color-button-accent-text))] font-medium bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:outline-none transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed" > {isLoading ? 'Generating...' : 'Generate Hash'} </button>
                    <button onClick={handleClear} title="Clear input and output" className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition duration-150 ease-in-out" > Clear </button>
                </div>
             </div>
@@ -186,13 +155,7 @@ export default function HashGeneratorClient({
             {(outputValue || isLoading) && (
               <div>
                 <label htmlFor="text-output" className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"> Hash Output ({algorithm}): </label>
-                <textarea
-                    id="text-output"
-                    rows={3}
-                    value={isLoading ? 'Generating...' : outputValue}
-                    readOnly
-                    placeholder="Generated hash will appear here..."
-                    className={`w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none text-base font-mono focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none placeholder:text-[rgb(var(--color-input-placeholder))] ${isLoading ? 'animate-pulse' : ''}`} aria-live="polite" onClick={(e) => e.currentTarget.select()} />
+                <textarea id="text-output" rows={3} value={isLoading ? 'Generating...' : outputValue} readOnly placeholder="Generated hash will appear here..." className={`w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none text-base font-mono focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none placeholder:text-[rgb(var(--color-input-placeholder))] ${isLoading ? 'animate-pulse' : ''}`} aria-live="polite" onClick={(e) => e.currentTarget.select()} />
               </div>
             )}
         </div>

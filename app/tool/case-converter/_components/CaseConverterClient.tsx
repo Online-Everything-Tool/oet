@@ -2,11 +2,10 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history'
+import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
+import type { TriggerType } from '@/src/types/history'; // Use updated types
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
-
 import { CASE_TYPES } from '@/src/constants/text';
 
 const SENTENCE_CASE_REGEX = /(^\s*\w|[.!?]\s*\w)/g;
@@ -14,7 +13,6 @@ const TITLE_CASE_DELIMITERS = /[\s\-_]+/;
 
 type Case = typeof CASE_TYPES[number]['value'];
 
-// Button color cycle remains the same
 const buttonColorCycle = [
     { base: '--color-button-primary-bg', hover: '--color-button-primary-hover-bg', text: '--color-button-primary-text'},
     { base: '--color-button-secondary-bg', hover: '--color-button-secondary-hover-bg', text: '--color-button-secondary-text'},
@@ -25,7 +23,6 @@ const buttonColorCycle = [
 const activeBgColorVar = '--color-button-accent-bg';
 const activeHoverBgColorVar = '--color-button-accent-hover-bg';
 const activeTextColorVar = '--color-button-accent-text';
-
 
 interface CaseConverterClientProps {
     urlStateParams: ParamConfig[];
@@ -54,13 +51,13 @@ export default function CaseConverterClient({
         stateSetters as StateSetters
     );
 
-    // Updated handleConvertCase
+    // Updated handleConvertCase: Added eventTimestamp
     const handleConvertCase = useCallback((triggerType: TriggerType, targetCase: Case, textToProcess = text) => {
         let result = '';
         let currentError = '';
         let status: 'success' | 'error' = 'success';
-        let historyOutputObj: Record<string, unknown> = {}; // For structured output
-        const targetCaseLabel = CASE_TYPES.find(ct => ct.value === targetCase)?.label || targetCase; // Get label
+        let historyOutputObj: Record<string, unknown> = {};
+        const targetCaseLabel = CASE_TYPES.find(ct => ct.value === targetCase)?.label || targetCase;
 
         setError('');
         setOutputValue('');
@@ -82,7 +79,7 @@ export default function CaseConverterClient({
                  throw new Error(`Unsupported case type: ${exhaustiveCheck}`);
             }
             setOutputValue(result);
-            historyOutputObj = { // Structure the success output
+            historyOutputObj = {
                 resultCaseTypeLabel: targetCaseLabel,
                 outputValue: result.length > 500 ? result.substring(0, 500) + '...' : result
             };
@@ -91,27 +88,29 @@ export default function CaseConverterClient({
             currentError = err instanceof Error ? err.message : "Failed to convert case.";
             setError(currentError);
             status = 'error';
-            historyOutputObj = { // Structure the error output
+            historyOutputObj = {
                 resultCaseTypeLabel: `Error converting to ${targetCaseLabel}`,
                 errorMessage: currentError
             };
         }
 
-        // Log the conversion action
+        // Add eventTimestamp to the history entry object
         addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
             trigger: triggerType,
             input: {
                 text: textToProcess.length > 500 ? textToProcess.substring(0, 500) + '...' : textToProcess,
-                case: targetCase // Log the internal value ('lowercase')
+                case: targetCase
             },
-            output: historyOutputObj, // Log the structured object
+            output: historyOutputObj,
             status: status,
+            eventTimestamp: Date.now() // Add timestamp here
         });
 
-    }, [text, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
+    }, [text, addHistoryEntry, toolTitle, toolRoute]);
 
+    // useEffect for URL state loading (remains the same)
     useEffect(() => {
         if (shouldRunOnLoad && text) {
             handleConvertCase('query', caseType, text);
@@ -121,6 +120,7 @@ export default function CaseConverterClient({
         }
     }, [shouldRunOnLoad, setShouldRunOnLoad, text, caseType, handleConvertCase]);
 
+    // Other handlers remain the same
     const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(event.target.value);
         setOutputValue(''); setError('');
@@ -131,7 +131,6 @@ export default function CaseConverterClient({
         setOutputValue('');
         setError('');
         setCaseType('lowercase');
-        // No history log
     }, []);
 
     const handleCaseButtonClick = (newCaseType: Case) => {
@@ -148,6 +147,7 @@ export default function CaseConverterClient({
         return CASE_TYPES.find(ct => ct.value === caseType)?.label || caseType;
     }, [caseType]);
 
+    // JSX Render logic remains the same
     return (
         <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
             <div>
@@ -170,33 +170,14 @@ export default function CaseConverterClient({
                         const isActive = caseType === ct.value;
                         const colorIndex = index % buttonColorCycle.length;
                         const colors = buttonColorCycle[colorIndex];
-
                         const baseClasses = "px-3 py-1.5 rounded-md text-sm font-medium border-2 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1";
                         const inactiveClasses = `bg-[rgb(var(${colors.base}))] border-transparent text-[rgb(var(${colors.text}))] hover:bg-[rgb(var(${colors.hover}))] focus:ring-[rgb(var(${colors.base})/0.5)]`;
                         const activeClasses = `bg-[rgb(var(${activeBgColorVar}))] border-transparent text-[rgb(var(${activeTextColorVar}))] hover:bg-[rgb(var(${activeHoverBgColorVar}))] ring-2 ring-offset-2 ring-[rgb(var(${activeBgColorVar}))]`;
-
                         return (
-                            <button
-                                key={ct.value}
-                                type="button"
-                                onClick={() => handleCaseButtonClick(ct.value)}
-                                disabled={!text}
-                                className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}
-                                aria-pressed={isActive}
-                            >
-                                {ct.label}
-                            </button>
+                            <button key={ct.value} type="button" onClick={() => handleCaseButtonClick(ct.value)} disabled={!text} className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`} aria-pressed={isActive}> {ct.label} </button>
                         );
                     })}
-                     <button
-                        type="button"
-                        onClick={handleClear}
-                        disabled={!text && !outputValue && !error}
-                        title="Clear input and output"
-                        className="px-3 py-1.5 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-[rgb(var(--color-border-base))] focus:outline-none transition-colors duration-150 ease-in-out ml-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Clear
-                    </button>
+                     <button type="button" onClick={handleClear} disabled={!text && !outputValue && !error} title="Clear input and output" className="px-3 py-1.5 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-[rgb(var(--color-border-base))] focus:outline-none transition-colors duration-150 ease-in-out ml-auto disabled:opacity-50 disabled:cursor-not-allowed"> Clear </button>
                 </div>
             </div>
 
@@ -206,14 +187,10 @@ export default function CaseConverterClient({
                     Output ({currentCaseLabel}):
                 </label>
                 <textarea
-                    id="text-output"
-                    rows={8}
-                    value={outputValue}
-                    readOnly
+                    id="text-output" rows={8} value={outputValue} readOnly
                     placeholder="Result appears here..."
                     className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
-                    aria-live="polite"
-                    spellCheck="false"
+                    aria-live="polite" spellCheck="false"
                  />
             </div>
         </div>
