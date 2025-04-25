@@ -1,0 +1,1 @@
+{"title": "Image Converter", "description": "Converts images between JPEG, PNG, GIF, and WebP formats.", "outputConfig": {"summaryField": "message", "referenceType": "imageLibraryId", "referenceField": "imageId"}, "tags": ["image", "convert", "format"], "iconName": null, "includeInSitemap": true, "status": "stable", "defaultLogging": "on"}
