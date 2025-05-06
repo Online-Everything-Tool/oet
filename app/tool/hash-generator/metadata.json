@@ -15,7 +15,7 @@
   ],
   "outputConfig": {
     "summaryField": "algorithmUsed"
-  },  
+  },
   "tags": ["security", "developer", "data"],
   "iconName": null,
   "includeInSitemap": true,

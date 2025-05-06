@@ -12,10 +12,10 @@
       "type": "number",
       "defaultValue": 2
     }
-  ],  
+  ],
   "outputConfig": {
     "summaryField": "validationStatus"
-  },  
+  },
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,

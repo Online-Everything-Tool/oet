@@ -10,23 +10,20 @@ export default function ColorConverterPage() {
   const typedMetadata = metadata as ToolMetadata;
   const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
 
-  const toolTitle = metadata.title || "Hex Color Converter";
-  const toolRoute = "/tool/color-converter";
+  const toolTitle = metadata.title || 'Hex Color Converter';
+  const toolRoute = '/tool/color-converter';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
-       {/* Render ToolSettings */}
-       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      {/* Render ToolSettings */}
+      <ToolSettings toolRoute={toolRoute} />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <ColorConverterClient
-            urlStateParams={urlStateParams}
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
+          urlStateParams={urlStateParams}
+          toolTitle={toolTitle}
+          toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>
     </div>

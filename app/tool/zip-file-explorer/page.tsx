@@ -7,23 +7,17 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ZipFileExplorerClient from './_components/ZipFileExplorerClient';
 
 export default function ZipFileExplorerPage() {
-  const toolTitle = metadata.title || "Zip File Explorer";
-  const toolRoute = "/tool/zip-file-explorer";
+  const toolTitle = metadata.title || 'Zip File Explorer';
+  const toolRoute = '/tool/zip-file-explorer';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ZipFileExplorerClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <ZipFileExplorerClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

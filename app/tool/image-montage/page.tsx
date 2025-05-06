@@ -7,23 +7,17 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ImageMontageClient from './_components/ImageMontageClient';
 
 export default function ImageMontagePage() {
-  const toolTitle = metadata.title || "Image Montage";
-  const toolRoute = "/tool/image-montage";
+  const toolTitle = metadata.title || 'Image Montage';
+  const toolRoute = '/tool/image-montage';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
-       {/* Render ToolSettings */}
-       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      {/* Render ToolSettings */}
+      <ToolSettings toolRoute={toolRoute} />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageMontageClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <ImageMontageClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

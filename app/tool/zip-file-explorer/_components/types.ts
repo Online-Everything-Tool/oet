@@ -22,7 +22,7 @@ export interface TreeNodeData {
 
 // Type for data passed to action handlers like download/preview
 export interface ActionEntryData {
-    name: string; // Original full name/path for reference
-    id: string; // Path ID
-    _zipObject: JSZip.JSZipObject; // Action requires the zip object
+  name: string; // Original full name/path for reference
+  id: string; // Path ID
+  _zipObject: JSZip.JSZipObject; // Action requires the zip object
 }

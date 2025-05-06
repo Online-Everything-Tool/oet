@@ -7,21 +7,15 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ImageStorageClient from './_components/ImageStorageClient';
 
 export default function ImageStoragePage() {
-  const toolTitle = metadata.title || "Image Storage";
-  const toolRoute = "/tool/image-storage"; // Ensure this matches IDB key
+  const toolTitle = metadata.title || 'Image Storage';
+  const toolRoute = '/tool/image-storage'; // Ensure this matches IDB key
 
   return (
     <div className="relative flex flex-col gap-6">
       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageStorageClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <ImageStorageClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

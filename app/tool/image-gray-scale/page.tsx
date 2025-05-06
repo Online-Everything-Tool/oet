@@ -7,23 +7,17 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ImageGrayScaleClient from './_components/ImageGrayScaleClient';
 
 export default function ImageGrayScalePage() {
-  const toolTitle = metadata.title || "Image GrayScale";
-  const toolRoute = "/tool/image-gray-scale";
+  const toolTitle = metadata.title || 'Image GrayScale';
+  const toolRoute = '/tool/image-gray-scale';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageGrayScaleClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <ImageGrayScaleClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

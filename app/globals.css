@@ -1,5 +1,5 @@
 /* /app/globals.css */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   /* === Core Palette (RGB values for Tailwind arbitrary syntax) === */
@@ -64,23 +64,23 @@
   --color-input-text: var(--color-text-base);
   --color-input-placeholder: 161 161 170; /* zinc-400 */
 
-    /* Accent Button (Purple) */
-    --color-button-accent-bg: 126 34 206; /* purple-600 */
-    --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
-    --color-button-accent-text: var(--color-text-inverted);
-  
-    /* Accent 2 Button (Orange) */
-    --color-button-accent2-bg: 234 88 12; /* orange-600 */
-    --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
-    --color-button-accent2-text: var(--color-text-inverted);
-  
-    /* Danger Button (Red) */
-    --color-button-danger-bg: 220 38 38; /* red-600 */
-    --color-button-danger-hover-bg: 185 28 28; /* red-700 */
-    --color-button-danger-text: var(--color-text-inverted);
-  
-    /* Checkbox */
-    --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
+  /* Accent Button (Purple) */
+  --color-button-accent-bg: 126 34 206; /* purple-600 */
+  --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
+  --color-button-accent-text: var(--color-text-inverted);
+
+  /* Accent 2 Button (Orange) */
+  --color-button-accent2-bg: 234 88 12; /* orange-600 */
+  --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
+  --color-button-accent2-text: var(--color-text-inverted);
+
+  /* Danger Button (Red) */
+  --color-button-danger-bg: 220 38 38; /* red-600 */
+  --color-button-danger-hover-bg: 185 28 28; /* red-700 */
+  --color-button-danger-text: var(--color-text-inverted);
+
+  /* Checkbox */
+  --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
 }
 
 /* Optional: Add Keyframes for Animation */

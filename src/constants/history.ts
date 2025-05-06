@@ -4,7 +4,7 @@
 export const HISTORY_LOCAL_STORAGE_KEY = 'oetHistory_v3';
 export const SETTINGS_LOCAL_STORAGE_KEY = 'oetSettings_v1';
 export const MAX_HISTORY_ENTRIES = 100; // Keep this configurable here if needed
-export const REDACTED_OUTPUT_PLACEHOLDER = "[Output Redacted by Setting]";
+export const REDACTED_OUTPUT_PLACEHOLDER = '[Output Redacted by Setting]';
 
 // Note: GLOBAL_DEFAULT_LOGGING might be better left in HistoryContext
 // if it's tightly coupled with the context's logic, or defined here if truly global.

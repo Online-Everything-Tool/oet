@@ -1,7 +1,7 @@
 // next.config.ts
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 // --- Import from Serwist ---
-import withSerwist from "@serwist/next";
+import withSerwist from '@serwist/next';
 // --- End Serwist Import ---
 
 // Your base Next.js configuration (remains the same)
@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
     config.module.rules ??= [];
     config.module.rules.push({
       test: /\.wasm$/,
-      type: "webassembly/async",
+      type: 'webassembly/async',
     });
     return config;
   },
@@ -27,10 +27,10 @@ const nextConfig: NextConfig = {
 // Create the Serwist wrapper function
 const withPWA = withSerwist({
   // Similar options to next-pwa
-  swSrc: "app/sw.ts", // Point to your custom service worker source file (TypeScript!)
-  swDest: "public/sw.js", // Output path for the compiled service worker
+  swSrc: 'app/sw.ts', // Point to your custom service worker source file (TypeScript!)
+  swDest: 'public/sw.js', // Output path for the compiled service worker
   cacheOnNavigation: true, // Example: Cache pages on navigation
-  disable: process.env.NODE_ENV === "development", // Disable in dev
+  disable: process.env.NODE_ENV === 'development', // Disable in dev
   // Recommended: Use injectManifest strategy for more control
   // We'll likely need to create `app/sw.ts`
 });

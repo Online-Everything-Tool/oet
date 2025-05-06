@@ -149,7 +149,7 @@ Resources:
 Outputs:
   # Output the API endpoint URL after deployment
   OetApiEndpoint:
-    Description: "API Gateway endpoint URL for OET Backend API"
-    Value: !Sub "https://${OetApiGateway}.execute-api.${AWS::Region}.amazonaws.com"
+    Description: 'API Gateway endpoint URL for OET Backend API'
+    Value: !Sub 'https://${OetApiGateway}.execute-api.${AWS::Region}.amazonaws.com'
     # Export: # Optional: Export value for cross-stack references
     #   Name: !Sub "${AWS::StackName}-ApiEndpoint"

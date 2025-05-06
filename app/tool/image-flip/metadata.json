@@ -5,7 +5,7 @@
     "summaryField": "message",
     "referenceType": "imageLibraryId",
     "referenceField": "imageId"
-  },  
+  },
   "tags": ["image", "transform"],
   "iconName": null,
   "includeInSitemap": true,

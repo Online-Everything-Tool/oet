@@ -1,17 +1,14 @@
 {
-    "title": "Image GrayScale",
-    "description": "Converts an image to grayscale.",
-    "outputConfig": {
-        "summaryField": "message",
-        "referenceType": "imageLibraryId",
-        "referenceField": "imageId"
-    },
-    "tags": [
-        "image",
-        "grayscale"
-    ],
-    "iconName": null,
-    "includeInSitemap": true,
-    "status": "stable",
-    "defaultLogging": "on"
+  "title": "Image GrayScale",
+  "description": "Converts an image to grayscale.",
+  "outputConfig": {
+    "summaryField": "message",
+    "referenceType": "imageLibraryId",
+    "referenceField": "imageId"
+  },
+  "tags": ["image", "grayscale"],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "stable",
+  "defaultLogging": "on"
 }

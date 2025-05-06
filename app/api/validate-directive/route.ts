@@ -1,12 +1,12 @@
 // FILE: app/api/validate-directive/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import {
-    GoogleGenerativeAI,
-    HarmCategory,
-    HarmBlockThreshold,
-    GenerationConfig,
-    SafetySetting,
-} from "@google/generative-ai";
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+  GenerationConfig,
+  SafetySetting,
+} from '@google/generative-ai';
 import fs from 'fs/promises';
 import path from 'path';
 // Import the shared API response type
@@ -14,99 +14,127 @@ import type { ApiValidationResponseData } from '@/src/types/build';
 
 // Interface for the request body remains the same
 interface RequestBody {
-    toolDirective: string;
-    modelName?: string;
+  toolDirective: string;
+  modelName?: string;
 }
 
 // Interface for the expected *internal* structure parsed from Gemini's JSON response
 interface GeminiValidationResponse {
-    // isValid field expected from AI
-    isValid: boolean;
-    // Using validationMessage as expected field name from AI based on prompt
-    validationMessage: string;
-    generativeDescription: string;
-    generativeRequestedDirectives: string[];
-    directive?: string; // Optional: AI might return the directive it processed
+  // isValid field expected from AI
+  isValid: boolean;
+  // Using validationMessage as expected field name from AI based on prompt
+  validationMessage: string;
+  generativeDescription: string;
+  generativeRequestedDirectives: string[];
+  directive?: string; // Optional: AI might return the directive it processed
 }
 // --- END INTERFACES ---
 
-
 // --- Constants ---
-const DEFAULT_MODEL_NAME = "gemini-1.5-flash-latest";
+const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 // --- Helper: Get available tool directives ---
 async function getAvailableDirectives(): Promise<string[]> {
-    const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
-    const directives: string[] = [];
-    try {
-        const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
-        for (const entry of entries) {
-            if (entry.isDirectory() && !entry.name.startsWith('_')) {
-                directives.push(entry.name);
-            }
-        }
-    } catch (error) {
-        console.error("[API validate-directive] Error reading tools directory:", error);
+  const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
+  const directives: string[] = [];
+  try {
+    const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('_')) {
+        directives.push(entry.name);
+      }
     }
-    return directives.sort();
+  } catch (error) {
+    console.error(
+      '[API validate-directive] Error reading tools directory:',
+      error
+    );
+  }
+  return directives.sort();
 }
 // --- End Helper ---
 
-
 // --- Main API Handler ---
 export async function POST(req: NextRequest) {
-    if (!API_KEY) {
-        console.error("[API validate-directive] Error: GEMINI_API_KEY is not configured.");
-        return NextResponse.json({ success: false, message: "Server configuration error." }, { status: 500 });
+  if (!API_KEY) {
+    console.error(
+      '[API validate-directive] Error: GEMINI_API_KEY is not configured.'
+    );
+    return NextResponse.json(
+      { success: false, message: 'Server configuration error.' },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const body: RequestBody = await req.json();
+    const toolDirective = body.toolDirective?.trim();
+    const modelName = body.modelName || DEFAULT_MODEL_NAME;
+
+    if (!toolDirective) {
+      return NextResponse.json(
+        { success: false, message: 'Tool directive is required.' },
+        { status: 400 }
+      );
     }
 
-    try {
-        const body: RequestBody = await req.json();
-        const toolDirective = body.toolDirective?.trim();
-        const modelName = body.modelName || DEFAULT_MODEL_NAME;
+    const directiveRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    if (!directiveRegex.test(toolDirective)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Invalid format. Directive must be lowercase kebab-case (e.g., 'text-formatter', 'image-resizer').",
+        },
+        { status: 400 }
+      );
+    }
 
-        if (!toolDirective) {
-            return NextResponse.json({ success: false, message: "Tool directive is required." }, { status: 400 });
-        }
+    const availableDirectives = await getAvailableDirectives();
+    if (availableDirectives.includes(toolDirective)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Directive "${toolDirective}" already exists.`,
+        },
+        { status: 409 }
+      ); // 409 Conflict
+    }
 
-        const directiveRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-        if (!directiveRegex.test(toolDirective)) {
-            return NextResponse.json({
-                success: false,
-                message: "Invalid format. Directive must be lowercase kebab-case (e.g., 'text-formatter', 'image-resizer')."
-            }, { status: 400 });
-        }
+    // --- Gemini Interaction ---
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: modelName });
 
-        const availableDirectives = await getAvailableDirectives();
-        if (availableDirectives.includes(toolDirective)) {
-            return NextResponse.json({
-                success: false,
-                message: `Directive "${toolDirective}" already exists.`
-            }, { status: 409 }); // 409 Conflict
-        }
+    const generationConfig: GenerationConfig = {
+      temperature: 0.6,
+      topK: 40,
+      topP: 0.9,
+      maxOutputTokens: 1024,
+      responseMimeType: 'application/json',
+    };
 
-        // --- Gemini Interaction ---
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        const model = genAI.getGenerativeModel({ model: modelName });
+    const safetySettings: SafetySetting[] = [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+    ];
 
-        const generationConfig: GenerationConfig = {
-          temperature: 0.6,
-          topK: 40,
-          topP: 0.9,
-          maxOutputTokens: 1024,
-          responseMimeType: "application/json",
-        };
-
-        const safetySettings: SafetySetting[] = [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        ];
-
-        // --- UPDATED PROMPT --- (Already updated in previous step to ask for 10)
-        const prompt = `
+    // --- UPDATED PROMPT --- (Already updated in previous step to ask for 10)
+    const prompt = `
 Analyze the proposed tool directive "${toolDirective}" for the "Online Everything Tool" project.
 
 The project provides free, client-side browser utilities. Adhere to these strict rules:
@@ -131,73 +159,113 @@ Return the response ONLY as a valid JSON object with the following structure:
   "generativeRequestedDirectives": ["string"] // Array containing 0 to 10 suggested existing directive names.
 }
         `;
-        // --- END UPDATED PROMPT ---
+    // --- END UPDATED PROMPT ---
 
-        const parts = [{ text: prompt }];
-        console.log(`[API validate-directive] Sending prompt for directive: ${toolDirective} to model: ${modelName}`);
-        const result = await model.generateContent({ contents: [{ role: "user", parts }], generationConfig, safetySettings });
+    const parts = [{ text: prompt }];
+    console.log(
+      `[API validate-directive] Sending prompt for directive: ${toolDirective} to model: ${modelName}`
+    );
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts }],
+      generationConfig,
+      safetySettings,
+    });
 
-        if (!result.response) {
-            console.error("[API validate-directive] Gemini API call failed: No response field.");
-            throw new Error("AI service did not return a response.");
-        }
-
-        const responseText = result.response.text();
-        console.log("[API validate-directive] Raw Gemini Response:", responseText);
-
-        // --- Parse and Validate Gemini Response ---
-        let parsedAiResponse: GeminiValidationResponse;
-        try {
-            parsedAiResponse = JSON.parse(responseText) as GeminiValidationResponse;
-        } catch (e) {
-            console.error("[API validate-directive] Failed to parse Gemini JSON response:", e);
-            console.error("[API validate-directive] Response Text Was:", responseText);
-            throw new Error("Failed to parse validation response from AI.");
-        }
-
-        if (typeof parsedAiResponse !== 'object' || parsedAiResponse === null ||
-            typeof parsedAiResponse.isValid !== 'boolean' ||
-            typeof parsedAiResponse.validationMessage !== 'string' ||
-            typeof parsedAiResponse.generativeDescription !== 'string' ||
-            !Array.isArray(parsedAiResponse.generativeRequestedDirectives) ||
-            !parsedAiResponse.generativeRequestedDirectives.every((item: unknown) => typeof item === 'string') )
-        {
-             console.error("[API validate-directive] Invalid structure in parsed AI response:", parsedAiResponse);
-             throw new Error("Received malformed validation data structure from AI.");
-        }
-
-        // --- Construct Final API Response using shared type ---
-        const finalResponse: ApiValidationResponseData = {
-            // *** Use 'success' field based on AI's 'isValid' ***
-            success: parsedAiResponse.isValid,
-            message: parsedAiResponse.validationMessage,
-            generativeDescription: parsedAiResponse.isValid ? parsedAiResponse.generativeDescription : null,
-            generativeRequestedDirectives: parsedAiResponse.generativeRequestedDirectives
-                .filter(d => typeof d === 'string' && d.trim() !== '')
-                .slice(0, 10),
-        };
-
-        // Final check against current directives list
-         if (finalResponse.success && availableDirectives.includes(toolDirective)) {
-             console.warn(`[API validate-directive] AI validated "${toolDirective}" but it exists. Overriding.`);
-             finalResponse.success = false; // Change success field
-             finalResponse.message = `Directive "${toolDirective}" already exists (validation override).`;
-             finalResponse.generativeDescription = null;
-             finalResponse.generativeRequestedDirectives = [];
-         }
-
-        // *** Return the finalResponse object which now has the 'success' field ***
-        return NextResponse.json(finalResponse, { status: 200 });
-
-    } catch (error: unknown) {
-        console.error("[API validate-directive] Overall Error:", error);
-        const message = error instanceof Error ? error.message : "An unexpected error occurred.";
-        if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes("response was blocked due to safety")) {
-             console.warn("[API validate-directive] Response blocked by safety settings.");
-             // Use success: false in the response payload
-             return NextResponse.json({ success: false, message: "Request blocked due to safety settings." }, { status: 400 });
-        }
-        // Use success: false in the response payload
-        return NextResponse.json({ success: false, message: `Internal Server Error: ${message}` }, { status: 500 });
+    if (!result.response) {
+      console.error(
+        '[API validate-directive] Gemini API call failed: No response field.'
+      );
+      throw new Error('AI service did not return a response.');
     }
+
+    const responseText = result.response.text();
+    console.log('[API validate-directive] Raw Gemini Response:', responseText);
+
+    // --- Parse and Validate Gemini Response ---
+    let parsedAiResponse: GeminiValidationResponse;
+    try {
+      parsedAiResponse = JSON.parse(responseText) as GeminiValidationResponse;
+    } catch (e) {
+      console.error(
+        '[API validate-directive] Failed to parse Gemini JSON response:',
+        e
+      );
+      console.error(
+        '[API validate-directive] Response Text Was:',
+        responseText
+      );
+      throw new Error('Failed to parse validation response from AI.');
+    }
+
+    if (
+      typeof parsedAiResponse !== 'object' ||
+      parsedAiResponse === null ||
+      typeof parsedAiResponse.isValid !== 'boolean' ||
+      typeof parsedAiResponse.validationMessage !== 'string' ||
+      typeof parsedAiResponse.generativeDescription !== 'string' ||
+      !Array.isArray(parsedAiResponse.generativeRequestedDirectives) ||
+      !parsedAiResponse.generativeRequestedDirectives.every(
+        (item: unknown) => typeof item === 'string'
+      )
+    ) {
+      console.error(
+        '[API validate-directive] Invalid structure in parsed AI response:',
+        parsedAiResponse
+      );
+      throw new Error('Received malformed validation data structure from AI.');
+    }
+
+    // --- Construct Final API Response using shared type ---
+    const finalResponse: ApiValidationResponseData = {
+      // *** Use 'success' field based on AI's 'isValid' ***
+      success: parsedAiResponse.isValid,
+      message: parsedAiResponse.validationMessage,
+      generativeDescription: parsedAiResponse.isValid
+        ? parsedAiResponse.generativeDescription
+        : null,
+      generativeRequestedDirectives:
+        parsedAiResponse.generativeRequestedDirectives
+          .filter((d) => typeof d === 'string' && d.trim() !== '')
+          .slice(0, 10),
+    };
+
+    // Final check against current directives list
+    if (finalResponse.success && availableDirectives.includes(toolDirective)) {
+      console.warn(
+        `[API validate-directive] AI validated "${toolDirective}" but it exists. Overriding.`
+      );
+      finalResponse.success = false; // Change success field
+      finalResponse.message = `Directive "${toolDirective}" already exists (validation override).`;
+      finalResponse.generativeDescription = null;
+      finalResponse.generativeRequestedDirectives = [];
+    }
+
+    // *** Return the finalResponse object which now has the 'success' field ***
+    return NextResponse.json(finalResponse, { status: 200 });
+  } catch (error: unknown) {
+    console.error('[API validate-directive] Overall Error:', error);
+    const message =
+      error instanceof Error ? error.message : 'An unexpected error occurred.';
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof error.message === 'string' &&
+      error.message.includes('response was blocked due to safety')
+    ) {
+      console.warn(
+        '[API validate-directive] Response blocked by safety settings.'
+      );
+      // Use success: false in the response payload
+      return NextResponse.json(
+        { success: false, message: 'Request blocked due to safety settings.' },
+        { status: 400 }
+      );
+    }
+    // Use success: false in the response payload
+    return NextResponse.json(
+      { success: false, message: `Internal Server Error: ${message}` },
+      { status: 500 }
+    );
+  }
 }

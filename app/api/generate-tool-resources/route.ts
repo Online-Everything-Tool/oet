@@ -1,215 +1,271 @@
 // --- FILE: app/api/generate-tool-resources/route.ts ---
 import { NextRequest, NextResponse } from 'next/server';
 import {
-    GoogleGenerativeAI,
-    HarmCategory,
-    HarmBlockThreshold,
-    GenerationConfig,
-    SafetySetting,
-} from "@google/generative-ai";
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold,
+  GenerationConfig,
+  SafetySetting,
+} from '@google/generative-ai';
 import fs from 'fs/promises';
 import path from 'path';
 
 // --- Interfaces ---
 interface RequestBody {
-    toolDirective: string;
-    generativeDescription: string;
-    additionalDescription?: string;
-    modelName?: string;
-    generativeRequestedDirectives?: string[]; // Examples AI suggested
-    userSelectedExampleDirectives?: string[] | null; // Array for user-selected examples
+  toolDirective: string;
+  generativeDescription: string;
+  additionalDescription?: string;
+  modelName?: string;
+  generativeRequestedDirectives?: string[]; // Examples AI suggested
+  userSelectedExampleDirectives?: string[] | null; // Array for user-selected examples
 }
 
 // Interface for expected dependency structure
 interface LibraryDependency {
-    packageName: string;
-    reason?: string;
-    importUsed?: string; // Example import statement
+  packageName: string;
+  reason?: string;
+  importUsed?: string; // Example import statement
 }
 
 // Interface for the expected raw Gemini response structure
 interface GeminiGenerationResponse {
-    message: string;
-    generatedFiles: Record<string, string> | null; // Key = file path, Value = file content
-    identifiedDependencies: LibraryDependency[] | null;
+  message: string;
+  generatedFiles: Record<string, string> | null; // Key = file path, Value = file content
+  identifiedDependencies: LibraryDependency[] | null;
 }
 
 // --- Constants ---
-const DEFAULT_MODEL_NAME = "gemini-1.5-flash-latest";
+const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 // --- Files to add to the core context ---
 const CORE_CONTEXT_FILES = [
   // Project Files
-  'package.json', 'tsconfig.json',
+  'package.json',
+  'tsconfig.json',
   // Types
-  'src/types/tools.ts', 'src/types/history.ts', 'src/types/image.ts', 'src/types/build.ts',
+  'src/types/tools.ts',
+  'src/types/history.ts',
+  'src/types/image.ts',
+  'src/types/build.ts',
   // Hooks
-  'app/tool/_hooks/useToolUrlState.ts', 'app/tool/_hooks/useImageProcessing.ts',
+  'app/tool/_hooks/useToolUrlState.ts',
+  'app/tool/_hooks/useImageProcessing.ts',
   // Components (Shared)
   'app/tool/_components/ImageSelectionModal.tsx', // Example of a shared tool component
   // Contexts
-  'app/context/HistoryContext.tsx', 'app/context/ImageLibraryContext.tsx',
+  'app/context/HistoryContext.tsx',
+  'app/context/ImageLibraryContext.tsx',
   // Utils
-  'app/lib/utils.ts', 'app/lib/colorUtils.ts', 'app/lib/db.ts',
+  'app/lib/utils.ts',
+  'app/lib/colorUtils.ts',
+  'app/lib/db.ts',
   // Constants
-  'src/constants/charset.ts', 'src/constants/history.ts', 'src/constants/text.ts',
+  'src/constants/charset.ts',
+  'src/constants/history.ts',
+  'src/constants/text.ts',
 ];
 // --- End Core Context Files ---
 
-
 // --- Helper: Convert directive to PascalCase for component name ---
 function toPascalCase(kebabCase: string): string {
-    if (!kebabCase) return '';
-    return kebabCase.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('');
+  if (!kebabCase) return '';
+  return kebabCase
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
 }
 
 // --- Helper: Get Content of Example Files ---
-async function getExampleFileContent(directive: string): Promise<{ filePath: string; content: string }[]> {
-    const filePathsToTry = [
-        `app/tool/${directive}/page.tsx`,
-        `app/tool/${directive}/_components/${toPascalCase(directive)}Client.tsx`, // Main client component
-        `app/tool/${directive}/metadata.json`
-        // Note: This helper doesn't automatically fetch potential sub-components or hooks from examples,
-        // but the AI prompt encourages looking at the provided example file content.
-    ];
-    const results: { filePath: string; content: string }[] = [];
+async function getExampleFileContent(
+  directive: string
+): Promise<{ filePath: string; content: string }[]> {
+  const filePathsToTry = [
+    `app/tool/${directive}/page.tsx`,
+    `app/tool/${directive}/_components/${toPascalCase(directive)}Client.tsx`, // Main client component
+    `app/tool/${directive}/metadata.json`,
+    // Note: This helper doesn't automatically fetch potential sub-components or hooks from examples,
+    // but the AI prompt encourages looking at the provided example file content.
+  ];
+  const results: { filePath: string; content: string }[] = [];
 
-    for (const relativePath of filePathsToTry) {
-        const fullPath = path.join(process.cwd(), relativePath);
-        try {
-            await fs.access(fullPath); // Check if file exists
-            const content = await fs.readFile(fullPath, 'utf-8');
-            results.push({ filePath: relativePath, content });
-        } catch (error: unknown) {
-            const isFsError = typeof error === 'object' && error !== null && 'code' in error;
-            const errorCode = isFsError ? (error as { code: string }).code : null;
+  for (const relativePath of filePathsToTry) {
+    const fullPath = path.join(process.cwd(), relativePath);
+    try {
+      await fs.access(fullPath); // Check if file exists
+      const content = await fs.readFile(fullPath, 'utf-8');
+      results.push({ filePath: relativePath, content });
+    } catch (error: unknown) {
+      const isFsError =
+        typeof error === 'object' && error !== null && 'code' in error;
+      const errorCode = isFsError ? (error as { code: string }).code : null;
 
-            if (errorCode === 'ENOENT') {
-                 // This is expected if an optional component file doesn't exist
-                 console.log(`[API generate-tool/getExample] Optional example file not found: ${relativePath}`);
-            } else {
-                 const message = error instanceof Error ? error.message : String(error);
-                 console.warn(`[API generate-tool/getExample] Error reading example file ${relativePath}:`, message);
-            }
-        }
+      if (errorCode === 'ENOENT') {
+        // This is expected if an optional component file doesn't exist
+        console.log(
+          `[API generate-tool/getExample] Optional example file not found: ${relativePath}`
+        );
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[API generate-tool/getExample] Error reading example file ${relativePath}:`,
+          message
+        );
+      }
     }
-    return results;
+  }
+  return results;
 }
-
 
 // --- Main API Handler ---
 export async function POST(req: NextRequest) {
-    if (!API_KEY) {
-        console.error("[API generate-tool] Error: GEMINI_API_KEY is not configured.");
-        return NextResponse.json({ success: false, message: "API key not configured" }, { status: 500 });
+  if (!API_KEY) {
+    console.error(
+      '[API generate-tool] Error: GEMINI_API_KEY is not configured.'
+    );
+    return NextResponse.json(
+      { success: false, message: 'API key not configured' },
+      { status: 500 }
+    );
+  }
+
+  try {
+    const body: RequestBody = await req.json();
+    const {
+      toolDirective,
+      generativeDescription,
+      additionalDescription,
+      modelName = DEFAULT_MODEL_NAME,
+      generativeRequestedDirectives = [],
+      userSelectedExampleDirectives, // Accept array from request
+    } = body;
+
+    if (!toolDirective || !generativeDescription) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            'Missing required fields: toolDirective or generativeDescription.',
+        },
+        { status: 400 }
+      );
     }
 
-    try {
-        const body: RequestBody = await req.json();
-        const {
-            toolDirective,
-            generativeDescription,
-            additionalDescription,
-            modelName = DEFAULT_MODEL_NAME,
-            generativeRequestedDirectives = [],
-            userSelectedExampleDirectives // Accept array from request
-        } = body;
+    // --- Prepare Example Context ---
+    let exampleFileContext = '';
+    // Combine AI and User selected examples, ensuring uniqueness and filtering nulls/empty
+    const directivesToFetch = [
+      ...new Set(
+        [
+          ...generativeRequestedDirectives,
+          ...(userSelectedExampleDirectives || []),
+        ].filter((d): d is string => typeof d === 'string' && d.trim() !== '')
+      ),
+    ];
 
-        if (!toolDirective || !generativeDescription) {
-            return NextResponse.json({ success: false, message: "Missing required fields: toolDirective or generativeDescription." }, { status: 400 });
+    if (directivesToFetch.length > 0) {
+      console.log(
+        `[API generate-tool] Fetching examples for: ${directivesToFetch.join(', ')}`
+      );
+      exampleFileContext += '\n\n--- Relevant Example File Content ---\n';
+      for (const directive of directivesToFetch) {
+        const files = await getExampleFileContent(directive);
+        if (files.length > 0) {
+          exampleFileContext += `\nExample Tool: ${directive}\n`;
+          files.forEach((file) => {
+            const lang = file.filePath.split('.').pop() || '';
+            exampleFileContext += `\n\`\`\`${lang}\n// File: ${file.filePath}\n${file.content}\n\`\`\`\n`;
+          });
         }
+      }
+      exampleFileContext += '\n--- End Example File Content ---\n';
+    } else {
+      console.log(
+        `[API generate-tool] No specific example directives provided or found.`
+      );
+      exampleFileContext =
+        '\nNo specific existing tool examples were requested or found.\n';
+    }
 
-        // --- Prepare Example Context ---
-        let exampleFileContext = "";
-        // Combine AI and User selected examples, ensuring uniqueness and filtering nulls/empty
-        const directivesToFetch = [...new Set(
-             [...generativeRequestedDirectives, ...(userSelectedExampleDirectives || [])]
-             .filter((d): d is string => typeof d === 'string' && d.trim() !== '')
-        )];
-
-
-        if (directivesToFetch.length > 0) {
-            console.log(`[API generate-tool] Fetching examples for: ${directivesToFetch.join(', ')}`);
-            exampleFileContext += "\n\n--- Relevant Example File Content ---\n";
-            for (const directive of directivesToFetch) {
-                 const files = await getExampleFileContent(directive);
-                 if (files.length > 0) {
-                    exampleFileContext += `\nExample Tool: ${directive}\n`;
-                    files.forEach(file => {
-                        const lang = file.filePath.split('.').pop() || '';
-                        exampleFileContext += `\n\`\`\`${lang}\n// File: ${file.filePath}\n${file.content}\n\`\`\`\n`;
-                    });
-                 }
-            }
-             exampleFileContext += "\n--- End Example File Content ---\n";
+    // --- Prepare Core Project Context ---
+    console.log(`[API generate-tool] Reading core context files...`);
+    let coreContextContent = '\n\n--- Core Project Definitions ---\n';
+    for (const filePath of CORE_CONTEXT_FILES) {
+      const fullPath = path.join(process.cwd(), filePath);
+      try {
+        const content = await fs.readFile(fullPath, 'utf-8');
+        const lang = filePath.split('.').pop() || '';
+        coreContextContent += `\n\`\`\`${lang}\n// File: ${filePath}\n${content}\n\`\`\`\n`;
+        console.log(`[API generate-tool]   Added context: ${filePath}`);
+      } catch (error: unknown) {
+        const isFsError =
+          typeof error === 'object' && error !== null && 'code' in error;
+        const errorCode = isFsError ? (error as { code: string }).code : null;
+        if (errorCode === 'ENOENT') {
+          console.warn(
+            `[API generate-tool] Core context file not found: ${filePath}`
+          );
+          coreContextContent += `\n// File: ${filePath} (Not Found)\n`;
         } else {
-            console.log(`[API generate-tool] No specific example directives provided or found.`);
-            exampleFileContext = "\nNo specific existing tool examples were requested or found.\n";
+          const message =
+            error instanceof Error ? error.message : String(error);
+          console.error(
+            `[API generate-tool] Error reading core context file ${filePath}:`,
+            message
+          );
+          coreContextContent += `\n// File: ${filePath} (Error Reading)\n`;
         }
+      }
+    }
+    coreContextContent += '\n--- End Core Project Definitions ---\n';
+    console.log(`[API generate-tool] Finished reading core context files.`);
+    // --- End Core Project Context ---
 
+    // --- Gemini Interaction ---
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: modelName });
 
-        // --- Prepare Core Project Context ---
-        console.log(`[API generate-tool] Reading core context files...`);
-        let coreContextContent = "\n\n--- Core Project Definitions ---\n";
-        for (const filePath of CORE_CONTEXT_FILES) {
-            const fullPath = path.join(process.cwd(), filePath);
-            try {
-                const content = await fs.readFile(fullPath, 'utf-8');
-                const lang = filePath.split('.').pop() || '';
-                coreContextContent += `\n\`\`\`${lang}\n// File: ${filePath}\n${content}\n\`\`\`\n`;
-                console.log(`[API generate-tool]   Added context: ${filePath}`);
-            } catch (error: unknown) {
-                const isFsError = typeof error === 'object' && error !== null && 'code' in error;
-                const errorCode = isFsError ? (error as { code: string }).code : null;
-                if (errorCode === 'ENOENT') {
-                    console.warn(`[API generate-tool] Core context file not found: ${filePath}`);
-                    coreContextContent += `\n// File: ${filePath} (Not Found)\n`;
-                } else {
-                    const message = error instanceof Error ? error.message : String(error);
-                    console.error(`[API generate-tool] Error reading core context file ${filePath}:`, message);
-                    coreContextContent += `\n// File: ${filePath} (Error Reading)\n`;
-                }
-            }
-        }
-        coreContextContent += "\n--- End Core Project Definitions ---\n";
-        console.log(`[API generate-tool] Finished reading core context files.`);
-        // --- End Core Project Context ---
+    const generationConfig: GenerationConfig = {
+      temperature: 0.7,
+      topK: 40,
+      topP: 0.95,
+      maxOutputTokens: 8192,
+      responseMimeType: 'application/json',
+    };
 
+    const safetySettings: SafetySetting[] = [
+      {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+      {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+      },
+    ];
 
-        // --- Gemini Interaction ---
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        const model = genAI.getGenerativeModel({ model: modelName });
+    const componentName = toPascalCase(toolDirective);
+    const toolBasePath = `app/tool/${toolDirective}`;
+    const serverComponentPath = `${toolBasePath}/page.tsx`;
+    const clientComponentPath = `${toolBasePath}/_components/${componentName}Client.tsx`;
+    const metadataPath = `${toolBasePath}/metadata.json`;
 
-        const generationConfig: GenerationConfig = {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json",
-        };
-
-        const safetySettings: SafetySetting[] = [
-             { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-             { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-             { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-             { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        ];
-
-        const componentName = toPascalCase(toolDirective);
-        const toolBasePath = `app/tool/${toolDirective}`;
-        const serverComponentPath = `${toolBasePath}/page.tsx`;
-        const clientComponentPath = `${toolBasePath}/_components/${componentName}Client.tsx`;
-        const metadataPath = `${toolBasePath}/metadata.json`;
-
-        // --- Prompt with Decomposition Rule ---
-        const prompt = `You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
+    // --- Prompt with Decomposition Rule ---
+    const prompt = `You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
 
 **Task:** Generate the necessary code resources for a new client-side utility tool.
 
 **Target Tool Directive:** ${toolDirective}
 **AI Generated Description:** ${generativeDescription}
-**User Provided Refinements:** ${additionalDescription || "None"}
+**User Provided Refinements:** ${additionalDescription || 'None'}
 
 **Project Structure & Rules:**
 1.  **Client-Side Focus:** Core tool logic MUST execute entirely in the user's browser. No backend needed for the main functionality unless explicitly stated otherwise (rare).
@@ -260,111 +316,181 @@ The value for the metadata file (\`app/tool/<directive>/metadata.json\`) MUST be
 \`\`\`
 Ensure the code within "generatedFiles" values is complete and valid source code. Ensure the "metadata" value is a valid JSON *string*. Do not add comments like "// Content for ..." within the generated code strings unless they are actual necessary code comments.
 `;
-        // --- End Prompt ---
+    // --- End Prompt ---
 
+    const parts = [{ text: prompt }];
+    console.log(
+      `[API generate-tool] Sending prompt to ${modelName} for ${toolDirective} (Prompt length: ~${prompt.length} chars)...`
+    );
 
-        const parts = [{ text: prompt }];
-        console.log(`[API generate-tool] Sending prompt to ${modelName} for ${toolDirective} (Prompt length: ~${prompt.length} chars)...`);
+    const result = await model.generateContent({
+      contents: [{ role: 'user', parts }],
+      generationConfig,
+      safetySettings,
+    });
 
-        const result = await model.generateContent({ contents: [{ role: "user", parts }], generationConfig, safetySettings });
-
-        if (!result.response) {
-            throw new Error("Gemini API call failed: No response received.");
-        }
-
-        const responseText = result.response.text();
-        // Log raw response *before* parsing attempt
-        console.log("--- RAW AI Response Text ---");
-        console.log(responseText);
-        console.log("--- END RAW AI Response Text ---");
-
-        // --- Parse Gemini Response ---
-        let parsedResponse: GeminiGenerationResponse;
-        try {
-            // Attempt to directly parse (or clean and parse)
-            parsedResponse = JSON.parse(responseText.trim().replace(/^```json\s*|\s*```$/g, '')) as GeminiGenerationResponse;
-            console.log("[API generate-tool] Successfully parsed Gemini JSON response.");
-             // --- Validate structure (checks if generatedFiles exists and is an object with >= 3 files) ---
-             if (!parsedResponse || typeof parsedResponse.generatedFiles !== 'object' || parsedResponse.generatedFiles === null || Object.keys(parsedResponse.generatedFiles).length < 3) {
-                 console.warn("[API generate-tool] Parsed response missing core 'generatedFiles' or insufficient files.", parsedResponse?.generatedFiles);
-                 // Log the parsed object that failed validation
-                 console.error("[API generate-tool] Parsed object structure:", JSON.stringify(parsedResponse, null, 2));
-                 throw new Error("AI response missing expected core generated files or invalid structure.");
-             }
-             const fileKeys = Object.keys(parsedResponse.generatedFiles);
-             if (!fileKeys.includes(serverComponentPath) || !fileKeys.includes(clientComponentPath) || !fileKeys.includes(metadataPath)) {
-                  console.warn(`[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}`);
-                  // Allowing this to proceed as a warning, as the core check is for >= 3 files
-             }
-             // --- End Validation ---
-
-        } catch (e) {
-            console.error("[API generate-tool] Failed to parse Gemini JSON response:", e);
-            // Response text already logged above
-            throw new Error("Failed to parse generation response from AI. Response was not valid JSON.");
-        }
-
-        // --- Validate Parsed Structure (Corrected check for dependencies) ---
-        if (
-            typeof parsedResponse.message !== 'string' ||
-            typeof parsedResponse.generatedFiles !== 'object' || // null checked during parsing
-            !Object.values(parsedResponse.generatedFiles).every(content => typeof content === 'string') ||
-            // Correctly checks if dependencies exists AND is not null AND is not an array
-            (
-                parsedResponse.identifiedDependencies !== undefined &&
-                parsedResponse.identifiedDependencies !== null &&
-                !Array.isArray(parsedResponse.identifiedDependencies)
-            )
-        ) {
-            console.error("[API generate-tool] Invalid structure in parsed AI response (after initial parse):", parsedResponse);
-            throw new Error("Received malformed generation data structure from AI.");
-        }
-        // --- End Validation ---
-
-
-        // --- Additional validation for metadata string ---
-        let parsedMetadata;
-        const metadataContent = parsedResponse.generatedFiles[metadataPath]; // Get metadata string using path
-        if (typeof metadataContent !== 'string') {
-             // This check is now more important as core file presence was relaxed slightly above
-             console.error(`[API generate-tool] Metadata content missing or not a string at path: ${metadataPath}`);
-             throw new Error(`AI response missing metadata content string at path: ${metadataPath}`);
-        }
-        try {
-            parsedMetadata = JSON.parse(metadataContent); // Parse the string value
-             // Basic check on parsed metadata structure
-             if (typeof parsedMetadata !== 'object' || parsedMetadata === null || typeof parsedMetadata.title !== 'string' || typeof parsedMetadata.description !== 'string') {
-                 console.warn("[API generate-tool] Generated metadata JSON string seems to be missing required fields (title, description).");
-                 // Don't throw an error here, let it proceed but log warning
-             }
-        } catch (jsonError) {
-             console.error("[API generate-tool] Generated metadata string is not valid JSON:", metadataContent, jsonError);
-             // Consider how critical valid metadata JSON is. Throw error for now.
-             throw new Error("AI generated invalid JSON string for metadata.json.");
-        }
-
-        // Construct final response structure
-        const finalResponseData = {
-             success: true,
-             message: parsedResponse.message,
-             generatedFiles: parsedResponse.generatedFiles, // Pass the map directly
-             // Use nullish coalescing to ensure it's null or an array
-             identifiedDependencies: parsedResponse.identifiedDependencies ?? null,
-        };
-
-
-        return NextResponse.json(finalResponseData, { status: 200 });
-
-    } catch (error: unknown) {
-        // Restore full error handling
-        console.error("[API generate-tool] Error in POST handler:", error);
-        const message = error instanceof Error ? error.message : "An unexpected error occurred.";
-         if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string' && error.message.includes("response was blocked due to safety")) {
-              console.warn("[API generate-tool] Generation blocked by safety settings.");
-             return NextResponse.json({ success: false, message: "Generation blocked due to safety settings.", error: message }, { status: 400 }); // 400 Bad Request is appropriate
-         }
-        // Use 500 Internal Server Error for other unexpected errors
-        return NextResponse.json({ success: false, message: `Internal Server Error: ${message}`, error: message }, { status: 500 });
+    if (!result.response) {
+      throw new Error('Gemini API call failed: No response received.');
     }
+
+    const responseText = result.response.text();
+    // Log raw response *before* parsing attempt
+    console.log('--- RAW AI Response Text ---');
+    console.log(responseText);
+    console.log('--- END RAW AI Response Text ---');
+
+    // --- Parse Gemini Response ---
+    let parsedResponse: GeminiGenerationResponse;
+    try {
+      // Attempt to directly parse (or clean and parse)
+      parsedResponse = JSON.parse(
+        responseText.trim().replace(/^```json\s*|\s*```$/g, '')
+      ) as GeminiGenerationResponse;
+      console.log(
+        '[API generate-tool] Successfully parsed Gemini JSON response.'
+      );
+      // --- Validate structure (checks if generatedFiles exists and is an object with >= 3 files) ---
+      if (
+        !parsedResponse ||
+        typeof parsedResponse.generatedFiles !== 'object' ||
+        parsedResponse.generatedFiles === null ||
+        Object.keys(parsedResponse.generatedFiles).length < 3
+      ) {
+        console.warn(
+          "[API generate-tool] Parsed response missing core 'generatedFiles' or insufficient files.",
+          parsedResponse?.generatedFiles
+        );
+        // Log the parsed object that failed validation
+        console.error(
+          '[API generate-tool] Parsed object structure:',
+          JSON.stringify(parsedResponse, null, 2)
+        );
+        throw new Error(
+          'AI response missing expected core generated files or invalid structure.'
+        );
+      }
+      const fileKeys = Object.keys(parsedResponse.generatedFiles);
+      if (
+        !fileKeys.includes(serverComponentPath) ||
+        !fileKeys.includes(clientComponentPath) ||
+        !fileKeys.includes(metadataPath)
+      ) {
+        console.warn(
+          `[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}`
+        );
+        // Allowing this to proceed as a warning, as the core check is for >= 3 files
+      }
+      // --- End Validation ---
+    } catch (e) {
+      console.error(
+        '[API generate-tool] Failed to parse Gemini JSON response:',
+        e
+      );
+      // Response text already logged above
+      throw new Error(
+        'Failed to parse generation response from AI. Response was not valid JSON.'
+      );
+    }
+
+    // --- Validate Parsed Structure (Corrected check for dependencies) ---
+    if (
+      typeof parsedResponse.message !== 'string' ||
+      typeof parsedResponse.generatedFiles !== 'object' || // null checked during parsing
+      !Object.values(parsedResponse.generatedFiles).every(
+        (content) => typeof content === 'string'
+      ) ||
+      // Correctly checks if dependencies exists AND is not null AND is not an array
+      (parsedResponse.identifiedDependencies !== undefined &&
+        parsedResponse.identifiedDependencies !== null &&
+        !Array.isArray(parsedResponse.identifiedDependencies))
+    ) {
+      console.error(
+        '[API generate-tool] Invalid structure in parsed AI response (after initial parse):',
+        parsedResponse
+      );
+      throw new Error('Received malformed generation data structure from AI.');
+    }
+    // --- End Validation ---
+
+    // --- Additional validation for metadata string ---
+    let parsedMetadata;
+    const metadataContent = parsedResponse.generatedFiles[metadataPath]; // Get metadata string using path
+    if (typeof metadataContent !== 'string') {
+      // This check is now more important as core file presence was relaxed slightly above
+      console.error(
+        `[API generate-tool] Metadata content missing or not a string at path: ${metadataPath}`
+      );
+      throw new Error(
+        `AI response missing metadata content string at path: ${metadataPath}`
+      );
+    }
+    try {
+      parsedMetadata = JSON.parse(metadataContent); // Parse the string value
+      // Basic check on parsed metadata structure
+      if (
+        typeof parsedMetadata !== 'object' ||
+        parsedMetadata === null ||
+        typeof parsedMetadata.title !== 'string' ||
+        typeof parsedMetadata.description !== 'string'
+      ) {
+        console.warn(
+          '[API generate-tool] Generated metadata JSON string seems to be missing required fields (title, description).'
+        );
+        // Don't throw an error here, let it proceed but log warning
+      }
+    } catch (jsonError) {
+      console.error(
+        '[API generate-tool] Generated metadata string is not valid JSON:',
+        metadataContent,
+        jsonError
+      );
+      // Consider how critical valid metadata JSON is. Throw error for now.
+      throw new Error('AI generated invalid JSON string for metadata.json.');
+    }
+
+    // Construct final response structure
+    const finalResponseData = {
+      success: true,
+      message: parsedResponse.message,
+      generatedFiles: parsedResponse.generatedFiles, // Pass the map directly
+      // Use nullish coalescing to ensure it's null or an array
+      identifiedDependencies: parsedResponse.identifiedDependencies ?? null,
+    };
+
+    return NextResponse.json(finalResponseData, { status: 200 });
+  } catch (error: unknown) {
+    // Restore full error handling
+    console.error('[API generate-tool] Error in POST handler:', error);
+    const message =
+      error instanceof Error ? error.message : 'An unexpected error occurred.';
+    if (
+      error &&
+      typeof error === 'object' &&
+      'message' in error &&
+      typeof error.message === 'string' &&
+      error.message.includes('response was blocked due to safety')
+    ) {
+      console.warn(
+        '[API generate-tool] Generation blocked by safety settings.'
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Generation blocked due to safety settings.',
+          error: message,
+        },
+        { status: 400 }
+      ); // 400 Bad Request is appropriate
+    }
+    // Use 500 Internal Server Error for other unexpected errors
+    return NextResponse.json(
+      {
+        success: false,
+        message: `Internal Server Error: ${message}`,
+        error: message,
+      },
+      { status: 500 }
+    );
+  }
 }
 // --- END FILE: app/api/generate-tool-resources/route.ts ---

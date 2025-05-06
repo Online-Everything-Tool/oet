@@ -7,8 +7,8 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import FileStorageClient from './_components/FileStorageClient'; // Import the client component
 
 export default function FileStoragePage() {
-  const toolTitle = metadata.title || "File Storage";
-  const toolRoute = "/tool/file-storage/"; // Use trailing slash consistently
+  const toolTitle = metadata.title || 'File Storage';
+  const toolRoute = '/tool/file-storage/'; // Use trailing slash consistently
 
   return (
     <div className="relative flex flex-col gap-6">
@@ -16,17 +16,11 @@ export default function FileStoragePage() {
       <ToolSettings toolRoute={toolRoute} />
 
       {/* Add ToolHeader component */}
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
 
       {/* Wrap Client Component in Suspense */}
       <ToolSuspenseWrapper>
-        <FileStorageClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <FileStorageClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

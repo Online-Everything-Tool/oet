@@ -7,23 +7,17 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import ImageFlipClient from './_components/ImageFlipClient';
 
 export default function ImageFlipPage() {
-  const toolTitle = metadata.title || "Image Flip";
-  const toolRoute = "/tool/image-flip";
+  const toolTitle = metadata.title || 'Image Flip';
+  const toolRoute = '/tool/image-flip';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageFlipClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
-        />
+        <ImageFlipClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

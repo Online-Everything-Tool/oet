@@ -6,18 +6,18 @@ This document provides guidelines for contributing to OET. Please read it to ens
 
 ## Table of Contents
 
-*   [Code of Conduct](#code-of-conduct)
-*   [How Can I Contribute?](#how-can-i-contribute)
-    *   [Reporting Bugs](#reporting-bugs)
-    *   [Suggesting Enhancements](#suggesting-enhancements)
-    *   [Your First Code Contribution](#your-first-code-contribution)
-    *   [Pull Requests](#pull-requests)
-*   [Development Setup](#development-setup)
-*   [Styleguides](#styleguides)
-    *   [Git Commit Messages](#git-commit-messages)
-    *   [TypeScript Styleguide](#typescript-styleguide)
-    *   [Code Formatting & Linting](#code-formatting--linting)
-*   [Questions?](#questions)
+- [Code of Conduct](#code-of-conduct)
+- [How Can I Contribute?](#how-can-i-contribute)
+  - [Reporting Bugs](#reporting-bugs)
+  - [Suggesting Enhancements](#suggesting-enhancements)
+  - [Your First Code Contribution](#your-first-code-contribution)
+  - [Pull Requests](#pull-requests)
+- [Development Setup](#development-setup)
+- [Styleguides](#styleguides)
+  - [Git Commit Messages](#git-commit-messages)
+  - [TypeScript Styleguide](#typescript-styleguide)
+  - [Code Formatting & Linting](#code-formatting--linting)
+- [Questions?](#questions)
 
 ## Code of Conduct
 
@@ -31,11 +31,11 @@ Bugs are tracked as [GitHub Issues](https://github.com/Online-Everything-Tool/oe
 
 When reporting a bug, please include as much detail as possible:
 
-*   **A clear and descriptive title.**
-*   **Steps to reproduce the bug.** Be specific!
-*   **What you expected to happen.**
-*   **What actually happened.** Include screenshots if helpful.
-*   **Environment details:** Browser version, Operating System.
+- **A clear and descriptive title.**
+- **Steps to reproduce the bug.** Be specific!
+- **What you expected to happen.**
+- **What actually happened.** Include screenshots if helpful.
+- **Environment details:** Browser version, Operating System.
 
 ### Suggesting Enhancements
 
@@ -43,16 +43,16 @@ Enhancement suggestions are also tracked as [GitHub Issues](https://github.com/O
 
 When suggesting an enhancement:
 
-*   **Use a clear and descriptive title.**
-*   **Provide a step-by-step description of the suggested enhancement** in as many details as possible.
-*   **Explain why this enhancement would be useful** to OET users.
-*   **Include mockups or examples** if applicable.
+- **Use a clear and descriptive title.**
+- **Provide a step-by-step description of the suggested enhancement** in as many details as possible.
+- **Explain why this enhancement would be useful** to OET users.
+- **Include mockups or examples** if applicable.
 
 ### Your First Code Contribution
 
 Unsure where to begin contributing to OET? You can start by looking through `good first issue` or `help wanted` issues: [Link to good first issues](https://github.com/Online-Everything-Tool/oet/labels/good%20first%20issue)
 
-Working on your first Pull Request? You can learn how from this *free* series: [How to Contribute to an Open Source Project on GitHub](https://egghead.io/courses/how-to-contribute-to-an-open-source-project-on-github).
+Working on your first Pull Request? You can learn how from this _free_ series: [How to Contribute to an Open Source Project on GitHub](https://egghead.io/courses/how-to-contribute-to-an-open-source-project-on-github).
 
 ### Pull Requests
 
@@ -79,24 +79,24 @@ Please refer to the [Getting Started (Development)](README.md#getting-started-de
 
 ### Git Commit Messages
 
-*   Use the present tense ("Add feature" not "Added feature").
-*   Use the imperative mood ("Move cursor to..." not "Moves cursor to...").
-*   Limit the first line to 72 characters or less.
-*   Reference issues and pull requests liberally after the first line.
-*   Consider using [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for more structured messages (e.g., `feat: Add Base64 Encoder tool`, `fix: Correct calculation in Word Count`).
+- Use the present tense ("Add feature" not "Added feature").
+- Use the imperative mood ("Move cursor to..." not "Moves cursor to...").
+- Limit the first line to 72 characters or less.
+- Reference issues and pull requests liberally after the first line.
+- Consider using [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for more structured messages (e.g., `feat: Add Base64 Encoder tool`, `fix: Correct calculation in Word Count`).
 
 ### TypeScript Styleguide
 
-*   Follow the standard conventions used in the existing codebase.
-*   Use TypeScript features appropriately (types, interfaces, etc.) to improve code clarity and safety.
+- Follow the standard conventions used in the existing codebase.
+- Use TypeScript features appropriately (types, interfaces, etc.) to improve code clarity and safety.
 
 ### Code Formatting & Linting
 
 This project uses [ESLint](https://eslint.org/) for linting and [Prettier](https://prettier.io/) (or specify otherwise, e.g., Tailwind Prettier plugin) for code formatting.
 
-*   Run `[Your lint command, e.g., npm run lint]` to check for linting errors.
-*   Run `[Your format command, e.g., npm run format]` to automatically format the code.
-*   Please ensure your code passes linting checks before submitting a pull request. Consider configuring your editor to lint and format on save.
+- Run `[Your lint command, e.g., npm run lint]` to check for linting errors.
+- Run `[Your format command, e.g., npm run format]` to automatically format the code.
+- Please ensure your code passes linting checks before submitting a pull request. Consider configuring your editor to lint and format on save.
 
 ## Questions?
 

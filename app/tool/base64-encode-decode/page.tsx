@@ -11,23 +11,20 @@ import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 export default function Base64EncodeDecodePage() {
   const typedMetadata = metadata as ToolMetadata;
   const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
-  const toolTitle = metadata.title || "Base64 Converter";
-  const toolRoute = "/tool/base64-encode-decode";
+  const toolTitle = metadata.title || 'Base64 Converter';
+  const toolRoute = '/tool/base64-encode-decode';
 
   return (
     // Add relative positioning
     <div className="relative flex flex-col gap-6">
-       {/* Render ToolSettings */}
-       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      {/* Render ToolSettings */}
+      <ToolSettings toolRoute={toolRoute} />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <Base64EncodeDecodeClient
-            urlStateParams={urlStateParams}
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
+          urlStateParams={urlStateParams}
+          toolTitle={toolTitle}
+          toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>
     </div>

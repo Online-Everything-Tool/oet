@@ -7,23 +7,19 @@ import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import CryptoWalletGeneratorClient from './_components/CryptoWalletGeneratorClient';
 
 export default function CryptoWalletGeneratorPage() {
-
-  const toolTitle = metadata.title || "Crypto Wallet Generator";
-  const toolRoute = "/tool/crypto-wallet-generator";
+  const toolTitle = metadata.title || 'Crypto Wallet Generator';
+  const toolRoute = '/tool/crypto-wallet-generator';
 
   return (
     // Add relative positioning for ToolSettings
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
-      <ToolHeader
-        title={toolTitle}
-        description={metadata.description || ""}
-      />
+      <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <CryptoWalletGeneratorClient
-            toolTitle={toolTitle}
-            toolRoute={toolRoute}
+          toolTitle={toolTitle}
+          toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>
     </div>

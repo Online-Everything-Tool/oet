@@ -8,8 +8,8 @@ export const SYMBOLS = '!@#$%^&*()_+~=`|}{[]:;?><,./-=';
 
 // Combine them for easier access if needed elsewhere, or keep separate
 export const ALL_CHARS = {
-    LOWERCASE,
-    UPPERCASE,
-    NUMBERS,
-    SYMBOLS,
+  LOWERCASE,
+  UPPERCASE,
+  NUMBERS,
+  SYMBOLS,
 };

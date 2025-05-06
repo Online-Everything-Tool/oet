@@ -12,22 +12,18 @@ export default function PasswordGeneratorPage() {
   const typedMetadata = metadata as ToolMetadata;
 
   // Now access urlStateParams safely
-  const toolTitle = typedMetadata.title || "Password Generator";
-  const toolRoute = "/tool/password-generator";
+  const toolTitle = typedMetadata.title || 'Password Generator';
+  const toolRoute = '/tool/password-generator';
 
   return (
     <div className="relative flex flex-col gap-6">
       <ToolSettings toolRoute={toolRoute}></ToolSettings>
       <ToolHeader
         title={toolTitle}
-        description={typedMetadata.description || ""}
+        description={typedMetadata.description || ''}
       />
       <ToolSuspenseWrapper>
-        
-        <PasswordGeneratorClient
-          toolTitle={toolTitle}
-          toolRoute={toolRoute}
-        />
+        <PasswordGeneratorClient toolTitle={toolTitle} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );
