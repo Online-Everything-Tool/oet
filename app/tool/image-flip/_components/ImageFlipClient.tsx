@@ -93,9 +93,11 @@ export default function ImageFlipClient({
         setLastProcessedImageId(null);
         setIsCopied(false);
         setUiError(null);
+
         objectUrl = URL.createObjectURL(selectedFile.blob);
         setOriginalImageSrc(objectUrl);
       } catch (e) {
+        console.error('Error creating object URL for original image:', e);
         setUiError('Could not create preview for selected image.');
         setOriginalImageSrc(null);
       }
@@ -114,7 +116,6 @@ export default function ImageFlipClient({
   const processingEffectRunCount = useRef(0);
   const processingKey = useMemo(() => {
     if (!selectedFile?.id) return null;
-    // Key now only depends on file and flip type. Auto-save is just a flag for the operation.
     return `${selectedFile.id}-${flipType}`;
   }, [selectedFile, flipType]);
   const prevProcessingKey = useRef<string | null>(null);
@@ -128,14 +129,13 @@ export default function ImageFlipClient({
 
     if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
       console.log(
-        `  (#${runId}) No valid selectedFile for processing. ID: ${selectedFile?.id}`
+        `  (#${runId}) No valid selectedFile for processing. Current ID: ${selectedFile?.id}`
       );
       prevProcessingKey.current = processingKey;
       return;
     }
 
     if (processingKey === prevProcessingKey.current && !isProcessingImage) {
-      // If key is same, and we just finished processing, no need to re-run unless forced by user action that changes the key
       console.log(
         `  (#${runId}) Key ${processingKey} is same as previous and not processing. Skipping re-processing.`
       );
@@ -189,11 +189,10 @@ export default function ImageFlipClient({
         );
       } else {
         console.warn(
-          `    (#${runId}) Race condition: selectedFile changed. Not setting ID.`
+          `    (#${runId}) Race condition: selectedFile changed while processing ${currentInputFileForAsync.id}. Current selectedFile is ${selectedFile?.id}. Not setting lastProcessedImageId for old run.`
         );
       }
     };
-
     triggerProcessing();
   }, [
     processingKey,
@@ -208,7 +207,7 @@ export default function ImageFlipClient({
     (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
-      prevProcessingKey.current = null; // Force re-process for new file
+      prevProcessingKey.current = null;
       if (files && files.length > 0) {
         const firstFile = files[0];
         if (firstFile.type?.startsWith('image/') && firstFile.blob) {
@@ -226,21 +225,19 @@ export default function ImageFlipClient({
 
   const handleFlipTypeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      prevProcessingKey.current = null; // Force re-process for new flip type
+      prevProcessingKey.current = null;
       setFlipType(event.target.value as 'horizontal' | 'vertical');
       setIsCopied(false);
     },
     []
   );
 
-  // Handler for Auto-Save Checkbox
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSaveState = e.target.checked;
       setAutoSaveProcessed(newAutoSaveState);
       setUiError(null);
 
-      // If changing from OFF to ON, and there's an unsaved processed image, save it.
       if (
         newAutoSaveState === true &&
         processedImageBlob &&
@@ -251,8 +248,7 @@ export default function ImageFlipClient({
         console.log(
           '[ImageFlipClient] Auto-save toggled ON. Attempting to save current processed image.'
         );
-        // Call the manual save function
-        setIsManuallySaving(true); // Indicate manual save process starting
+        setIsManuallySaving(true);
         const baseName = fileName || 'flipped-image';
         const mimeType = processedImageBlob.type || 'image/png';
         const extension = mimeType.split('/')[1] || 'png';
@@ -265,7 +261,19 @@ export default function ImageFlipClient({
           );
           setLastProcessedImageId(newImageId);
           addHistoryEntry({
-            /* ... history entry for this save ... */
+            toolName: toolTitle,
+            toolRoute,
+            trigger: 'auto',
+            input: {
+              originalFile: selectedFile?.name,
+              operation: 'auto-save toggled on for processed image',
+            },
+            output: {
+              message: `Auto-saved processed image "${outputFileName}" to library.`,
+              imageId: newImageId,
+            },
+            status: 'success',
+            eventTimestamp: Date.now(),
           });
         } catch (err) {
           const message =
@@ -275,8 +283,6 @@ export default function ImageFlipClient({
           setIsManuallySaving(false);
         }
       }
-      // If changing from ON to OFF, no immediate action on existing processed image is needed.
-      // The processingKey logic will handle future processing based on selectedFile & flipType.
     },
     [
       processedImageBlob,
@@ -287,6 +293,7 @@ export default function ImageFlipClient({
       addHistoryEntry,
       toolTitle,
       toolRoute,
+      selectedFile?.name,
       isProcessingImage,
       isManuallySaving,
       setUiError,
@@ -310,7 +317,7 @@ export default function ImageFlipClient({
       setUiError('No image to download.');
       return;
     }
-    setUiError(null); /* ... download logic ... */
+    setUiError(null);
     const link = document.createElement('a');
     const baseName =
       fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
@@ -367,7 +374,7 @@ export default function ImageFlipClient({
       setUiError('No image to save.');
       return;
     }
-    if (lastProcessedImageId) return; // Already saved or save in progress
+    if (lastProcessedImageId) return;
     setIsManuallySaving(true);
     setUiError(null);
     try {
@@ -383,7 +390,19 @@ export default function ImageFlipClient({
       );
       setLastProcessedImageId(newImageId);
       addHistoryEntry({
-        /* ... history ... */
+        toolName: toolTitle,
+        toolRoute,
+        trigger: 'click',
+        input: {
+          originalFile: selectedFile?.name,
+          operation: 'manual save processed image',
+        },
+        output: {
+          message: `Saved processed image "${outputFileName}" to library.`,
+          imageId: newImageId,
+        },
+        status: 'success',
+        eventTimestamp: Date.now(),
       });
     } catch (err) {
       setUiError(
@@ -397,10 +416,11 @@ export default function ImageFlipClient({
     fileName,
     flipType,
     addImage,
-    addHistoryEntry,
     toolTitle,
     toolRoute,
+    addHistoryEntry,
     lastProcessedImageId,
+    selectedFile?.name,
     setUiError,
   ]);
 
@@ -429,10 +449,8 @@ export default function ImageFlipClient({
           </Button>
           <fieldset
             className="flex gap-x-4 gap-y-2 items-center"
-            disabled={isProcessingImage || isManuallySaving}
+            disabled={isProcessingImage || isManuallySaving} // Allow selection even if no originalImageSrc
           >
-            {' '}
-            {/* Enabled by default now */}
             <legend className="sr-only">Flip Direction</legend>
             <div className="flex items-center">
               <input
@@ -557,7 +575,9 @@ export default function ImageFlipClient({
             {' '}
             Original Image{' '}
             {fileName && (
-              <span className="font-normal text-xs">({fileName})</span>
+              <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">
+                ({fileName})
+              </span>
             )}{' '}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
