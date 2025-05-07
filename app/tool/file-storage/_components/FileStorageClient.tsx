@@ -6,27 +6,16 @@ import Image from 'next/image';
 import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
-import FileStorageControls from './FileStorageControls';
+import StorageControls from '../../_components/storage/StorageControls';
 import FileListView from '../../_components/storage/FileListView';
 import FileGridView from '../../_components/storage/FileGridView';
 import FileSelectionModal from '../../_components/FileSelectionModal'; // Import the modal
-import { getFileIconClassName } from '@/app/lib/utils';
+import { getFileIconClassName, isTextBasedMimeType } from '@/app/lib/utils';
 
 interface FileStorageClientProps {
   toolTitle: string;
   toolRoute: string;
 }
-
-const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
-  if (!mimeType) return false;
-  return (
-    mimeType.startsWith('text/') ||
-    mimeType === 'application/json' ||
-    mimeType === 'application/xml' ||
-    mimeType === 'application/javascript' ||
-    mimeType === 'application/csv'
-  );
-};
 
 export default function FileStorageClient({
   toolTitle,
@@ -338,13 +327,6 @@ export default function FileStorageClient({
     setError(null);
     setIsProcessing(true);
     const count = storedFiles.length;
-    const result = confirm(
-      `Are you sure you want to delete all ${count} file(s)?`
-    );
-    if (!result) {
-      setIsProcessing(false);
-      return;
-    }
     try {
       await clearAllFiles(false);
       setStoredFiles([]); // Optimistic update
@@ -458,9 +440,6 @@ export default function FileStorageClient({
       return;
 
     const count = selectedFileIds.size;
-    if (!confirm(`Are you sure you want to delete ${count} selected file(s)?`))
-      return;
-
     setIsBulkDeleting(true);
     setError(null);
     const idsToDelete = Array.from(selectedFileIds);
@@ -567,16 +546,18 @@ export default function FileStorageClient({
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      <FileStorageControls
+      <StorageControls
         isLoading={controlsAreLoading}
         isDeleting={isBulkDeleting}
-        storedFileCount={storedFiles.length}
+        itemCount={storedFiles.length}
         currentLayout={layout}
-        selectedFileCount={selectedFileIds.size}
+        selectedItemCount={selectedFileIds.size}
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
         onLayoutChange={setLayout}
         onDeleteSelectedClick={handleDeleteSelected}
+        itemNameSingular={'File'}
+        itemNamePlural={'Files'}
       />
       {error && (
         <div

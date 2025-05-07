@@ -1,12 +1,32 @@
 // FILE: app/tool/image-flip/_components/ImageFlipClient.tsx
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import Image from 'next/image';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext'; // Uses updated context
-import type { StoredFile } from '@/src/types/storage'; // Uses updated type
+import { useImageLibrary } from '@/app/context/ImageLibraryContext';
+import { useHistory, TriggerType } from '../../../context/HistoryContext';
+import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/FileSelectionModal';
-import useImageProcessing from '@/app/tool/_hooks/useImageProcessing'; // Uses updated hook
+import useImageProcessing, {
+  ProcessImageResult,
+} from '@/app/tool/_hooks/useImageProcessing';
+import Button from '@/app/tool/_components/form/Button';
+import Checkbox from '@/app/tool/_components/form/Checkbox';
+import {
+  PhotoIcon,
+  ArrowDownTrayIcon,
+  ClipboardDocumentIcon,
+  XCircleIcon,
+  CheckIcon,
+  ArrowPathIcon,
+  ArchiveBoxArrowDownIcon,
+} from '@heroicons/react/20/solid';
 
 interface ImageFlipClientProps {
   toolTitle: string;
@@ -22,29 +42,32 @@ export default function ImageFlipClient({
   );
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<StoredFile | null>(null);
+
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [lastProcessedImageId, setLastProcessedImageId] = useState<
     string | null
   >(null);
+  const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true);
+  const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
+
+  const [uiError, setUiError] = useState<string | null>(null);
+
+  const { addHistoryEntry } = useHistory();
+  const { addImage, getImage } = useImageLibrary();
 
   const {
     originalImageSrc,
     processedImageSrc,
+    processedImageBlob,
     fileName,
-    isLoading,
-    error,
+    isLoading: isProcessingImage,
+    error: processingErrorHook,
     setOriginalImageSrc,
-    setProcessedImageSrc,
-    setFileName,
-    setError,
-    setIsLoading,
     processImage,
-  } = useImageProcessing({ toolTitle, toolRoute }); // Uses updated hook
+    clearProcessingOutput,
+  } = useImageProcessing({ toolTitle, toolRoute });
 
-  const { getImage } = useImageLibrary(); // Uses updated hook
-
-  // flip function remains the same
-  const flip = useCallback(
+  const flipDrawFunction = useCallback(
     (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
       const { naturalWidth: w, naturalHeight: h } = img;
       ctx.clearRect(0, 0, w, h);
@@ -62,278 +85,479 @@ export default function ImageFlipClient({
     [flipType]
   );
 
-  // useEffect for original preview (remains the same)
   useEffect(() => {
     let objectUrl: string | null = null;
-    if (selectedFile?.blob) {
+    if (selectedFile?.blob && selectedFile.type?.startsWith('image/')) {
       try {
-        objectUrl = URL.createObjectURL(selectedFile.blob);
-        setOriginalImageSrc(objectUrl);
-        setFileName(selectedFile.name);
-        setProcessedImageSrc(null);
-        setError(null);
+        clearProcessingOutput();
         setLastProcessedImageId(null);
         setIsCopied(false);
+        setUiError(null);
+        objectUrl = URL.createObjectURL(selectedFile.blob);
+        setOriginalImageSrc(objectUrl);
       } catch (e) {
-        console.error('Error creating object URL:', e);
-        setError('Could not create preview for selected image.');
+        setUiError('Could not create preview for selected image.');
         setOriginalImageSrc(null);
-        setFileName(null);
       }
     } else {
       setOriginalImageSrc(null);
-      setFileName(null);
+      clearProcessingOutput();
+      if (selectedFile) {
+        setUiError('Invalid file type. Please select an image.');
+      }
     }
     return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [selectedFile, setOriginalImageSrc, clearProcessingOutput, setUiError]);
+
+  const processingEffectRunCount = useRef(0);
+  const processingKey = useMemo(() => {
+    if (!selectedFile?.id) return null;
+    // Key now only depends on file and flip type. Auto-save is just a flag for the operation.
+    return `${selectedFile.id}-${flipType}`;
+  }, [selectedFile, flipType]);
+  const prevProcessingKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    processingEffectRunCount.current += 1;
+    const runId = processingEffectRunCount.current;
+    console.log(
+      `[ImageFlipClient] PROC_EFFECT (#${runId}) Eval. Key: ${processingKey}, PrevKey: ${prevProcessingKey.current}, isProcessing: ${isProcessingImage}, AutoSave: ${autoSaveProcessed}`
+    );
+
+    if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
+      console.log(
+        `  (#${runId}) No valid selectedFile for processing. ID: ${selectedFile?.id}`
+      );
+      prevProcessingKey.current = processingKey;
+      return;
+    }
+
+    if (processingKey === prevProcessingKey.current && !isProcessingImage) {
+      // If key is same, and we just finished processing, no need to re-run unless forced by user action that changes the key
+      console.log(
+        `  (#${runId}) Key ${processingKey} is same as previous and not processing. Skipping re-processing.`
+      );
+      return;
+    }
+
+    if (isProcessingImage) {
+      console.log(
+        `  (#${runId}) isProcessingImage is TRUE. Skipping duplicate process call for key ${processingKey}.`
+      );
+      return;
+    }
+
+    console.log(
+      `  (#${runId}) New processing task or re-processing due to key change. Key: ${processingKey}, Prev: ${prevProcessingKey.current}`
+    );
+    prevProcessingKey.current = processingKey;
+
+    const currentInputFileForAsync = selectedFile;
+
+    const triggerProcessing = async () => {
+      const baseName =
+        currentInputFileForAsync.name.substring(
+          0,
+          currentInputFileForAsync.name.lastIndexOf('.')
+        ) || currentInputFileForAsync.name;
+      const mimeTypeParts = currentInputFileForAsync.type?.split('/');
+      const extension =
+        mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
+      const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
+
+      console.log(
+        `    (#${runId}) Calling processImage for ${outputFileName} (AutoSave: ${autoSaveProcessed}) (Input ID: ${currentInputFileForAsync.id})`
+      );
+      const result: ProcessImageResult = await processImage(
+        currentInputFileForAsync,
+        flipDrawFunction,
+        'auto',
+        outputFileName,
+        { flipType },
+        autoSaveProcessed
+      );
+      console.log(
+        `    (#${runId}) processImage returned. Result ID: ${result.id}, Input ID: ${currentInputFileForAsync.id}`
+      );
+
+      if (selectedFile && selectedFile.id === currentInputFileForAsync.id) {
+        setLastProcessedImageId(result.id);
+        console.log(
+          `    (#${runId}) Set lastProcessedImageId to: ${result.id}`
+        );
+      } else {
+        console.warn(
+          `    (#${runId}) Race condition: selectedFile changed. Not setting ID.`
+        );
       }
     };
+
+    triggerProcessing();
   }, [
+    processingKey,
+    isProcessingImage,
     selectedFile,
-    setOriginalImageSrc,
-    setProcessedImageSrc,
-    setFileName,
-    setError,
+    processImage,
+    flipDrawFunction,
+    autoSaveProcessed,
   ]);
 
-  // useEffect for processing (remains the same)
-  useEffect(() => {
-    if (selectedFile && originalImageSrc) {
-      const triggerProcessing = async () => {
-        const baseName =
-          selectedFile.name.substring(0, selectedFile.name.lastIndexOf('.')) ||
-          selectedFile.name;
-        const extension =
-          selectedFile.name.substring(selectedFile.name.lastIndexOf('.') + 1) ||
-          'png';
-        const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
-        const newImageId = await processImage(
-          selectedFile,
-          flip,
-          'auto',
-          outputFileName,
-          { flipType: flipType }
-        );
-        setLastProcessedImageId(newImageId);
-      };
-      triggerProcessing();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFile, flipType, originalImageSrc]);
-
-  // handleFilesSelected: Check type instead of category
-  const handleFilesSelected = useCallback(
-    (files: StoredFile[], source: 'library' | 'upload') => {
+  const handleFilesSelectedFromModal = useCallback(
+    (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
+      setUiError(null);
+      prevProcessingKey.current = null; // Force re-process for new file
       if (files && files.length > 0) {
-        console.log(`[ImageFlip] File selected from ${source}:`, files[0].name);
-        // *** Check type prefix instead of category ***
-        if (files[0].type?.startsWith('image/') && files[0].blob) {
-          setSelectedFile(files[0]);
+        const firstFile = files[0];
+        if (firstFile.type?.startsWith('image/') && firstFile.blob) {
+          setSelectedFile(firstFile);
         } else {
-          setError('Invalid file selected. Please select an image.');
+          setUiError('Invalid file selected. Please select an image.');
           setSelectedFile(null);
         }
       } else {
         setSelectedFile(null);
       }
     },
-    [setError]
-  ); // Dependency remains setError
+    [setUiError]
+  );
 
-  // Other handlers remain the same
   const handleFlipTypeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
+      prevProcessingKey.current = null; // Force re-process for new flip type
       setFlipType(event.target.value as 'horizontal' | 'vertical');
       setIsCopied(false);
     },
     []
   );
+
+  // Handler for Auto-Save Checkbox
+  const handleAutoSaveChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newAutoSaveState = e.target.checked;
+      setAutoSaveProcessed(newAutoSaveState);
+      setUiError(null);
+
+      // If changing from OFF to ON, and there's an unsaved processed image, save it.
+      if (
+        newAutoSaveState === true &&
+        processedImageBlob &&
+        !lastProcessedImageId &&
+        !isProcessingImage &&
+        !isManuallySaving
+      ) {
+        console.log(
+          '[ImageFlipClient] Auto-save toggled ON. Attempting to save current processed image.'
+        );
+        // Call the manual save function
+        setIsManuallySaving(true); // Indicate manual save process starting
+        const baseName = fileName || 'flipped-image';
+        const mimeType = processedImageBlob.type || 'image/png';
+        const extension = mimeType.split('/')[1] || 'png';
+        const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
+        try {
+          const newImageId = await addImage(
+            processedImageBlob,
+            outputFileName,
+            mimeType
+          );
+          setLastProcessedImageId(newImageId);
+          addHistoryEntry({
+            /* ... history entry for this save ... */
+          });
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : 'Failed to auto-save image.';
+          setUiError(`Auto-save failed: ${message}`);
+        } finally {
+          setIsManuallySaving(false);
+        }
+      }
+      // If changing from ON to OFF, no immediate action on existing processed image is needed.
+      // The processingKey logic will handle future processing based on selectedFile & flipType.
+    },
+    [
+      processedImageBlob,
+      lastProcessedImageId,
+      fileName,
+      flipType,
+      addImage,
+      addHistoryEntry,
+      toolTitle,
+      toolRoute,
+      isProcessingImage,
+      isManuallySaving,
+      setUiError,
+    ]
+  );
+
   const handleClear = useCallback(() => {
     setOriginalImageSrc(null);
-    setProcessedImageSrc(null);
-    setFileName(null);
+    clearProcessingOutput();
     setFlipType('horizontal');
-    setError(null);
-    setIsLoading(false);
+    setUiError(null);
     setSelectedFile(null);
+    prevProcessingKey.current = null;
     setLastProcessedImageId(null);
     setIsCopied(false);
-  }, [
-    setOriginalImageSrc,
-    setProcessedImageSrc,
-    setFileName,
-    setError,
-    setIsLoading,
-  ]);
+    setAutoSaveProcessed(true);
+  }, [setOriginalImageSrc, clearProcessingOutput, setUiError]);
+
   const handleDownload = useCallback(() => {
     if (!processedImageSrc || !fileName) {
-      setError('No processed image available to download.');
+      setUiError('No image to download.');
       return;
     }
-    setError(null);
+    setUiError(null); /* ... download logic ... */
     const link = document.createElement('a');
     const baseName =
       fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-    const extension =
-      fileName.substring(fileName.lastIndexOf('.') + 1) || 'png';
+    const mimeType =
+      processedImageSrc.match(/data:(image\/\w+);base64,/)?.[1] || 'image/png';
+    const extension = mimeType.split('/')[1] || 'png';
     link.download = `flipped-${flipType}-${baseName}.${extension}`;
     link.href = processedImageSrc;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [processedImageSrc, fileName, flipType, setError]);
+  }, [processedImageSrc, fileName, flipType, setUiError]);
+
   const handleCopyToClipboard = useCallback(async () => {
-    if (!lastProcessedImageId) {
-      setError('No processed image available to copy.');
+    setIsCopied(false);
+    setUiError(null);
+    let blobToCopy: Blob | null = null;
+    if (lastProcessedImageId) {
+      const imgD = await getImage(lastProcessedImageId);
+      if (imgD?.blob && imgD.type?.startsWith('image/')) {
+        blobToCopy = imgD.blob;
+      } else {
+        setUiError('Saved image for copy invalid.');
+        return;
+      }
+    } else if (processedImageBlob) {
+      blobToCopy = processedImageBlob;
+    } else {
+      setUiError('No image to copy.');
       return;
     }
-    setIsCopied(false);
-    setError(null);
+    if (!blobToCopy) {
+      setUiError('Blob missing for copy.');
+      return;
+    }
     try {
-      const imageData = await getImage(lastProcessedImageId);
-      if (!imageData?.blob) {
-        throw new Error('Processed image data or blob not found.');
-      }
       if (!navigator.clipboard?.write) {
-        throw new Error('Clipboard API (write) not available.');
+        throw new Error('Clipboard API not available.');
       }
-      const clipboardItem = new ClipboardItem({
-        [imageData.blob.type]: imageData.blob,
-      });
-      await navigator.clipboard.write([clipboardItem]);
+      await navigator.clipboard.write([
+        new ClipboardItem({ [blobToCopy.type || 'image/png']: blobToCopy }),
+      ]);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy image to clipboard:', err);
-      const message =
-        err instanceof Error ? err.message : 'Unknown clipboard error';
-      setError(`Copy failed: ${message}`);
+      setUiError(
+        `Copy failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
-  }, [lastProcessedImageId, getImage, setError]);
+  }, [lastProcessedImageId, processedImageBlob, getImage, setUiError]);
 
-  // JSX Render logic remains the same
+  const handleSaveProcessedToLibrary = useCallback(async () => {
+    if (!processedImageBlob || !fileName) {
+      setUiError('No image to save.');
+      return;
+    }
+    if (lastProcessedImageId) return; // Already saved or save in progress
+    setIsManuallySaving(true);
+    setUiError(null);
+    try {
+      const baseName =
+        fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+      const mimeType = processedImageBlob.type || 'image/png';
+      const extension = mimeType.split('/')[1] || 'png';
+      const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
+      const newImageId = await addImage(
+        processedImageBlob,
+        outputFileName,
+        mimeType
+      );
+      setLastProcessedImageId(newImageId);
+      addHistoryEntry({
+        /* ... history ... */
+      });
+    } catch (err) {
+      setUiError(
+        `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsManuallySaving(false);
+    }
+  }, [
+    processedImageBlob,
+    fileName,
+    flipType,
+    addImage,
+    addHistoryEntry,
+    toolTitle,
+    toolRoute,
+    lastProcessedImageId,
+    setUiError,
+  ]);
+
+  const imageFilter = useMemo(() => ({ category: 'image' }), []);
+  const displayError = processingErrorHook || uiError;
+  const canPerformActions =
+    !!processedImageSrc && !isProcessingImage && !isManuallySaving;
+  const showSaveButton =
+    !autoSaveProcessed &&
+    processedImageBlob &&
+    !lastProcessedImageId &&
+    !isProcessingImage &&
+    !isManuallySaving;
+
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* Controls Section */}
-      <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <button
-          type="button"
-          onClick={() => setIsLibraryModalOpen(true)}
-          disabled={isLoading}
-          className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {' '}
-          {originalImageSrc ? 'Change Image' : 'Select from Library'}{' '}
-        </button>
-        <fieldset
-          className="flex gap-x-4 gap-y-2 items-center"
-          disabled={isLoading || !originalImageSrc}
-        >
-          <legend className="sr-only">Flip Direction</legend>
-          <div className="flex items-center">
-            <input
-              type="radio"
-              id="flip-h"
-              name="flipType"
-              value="horizontal"
-              checked={flipType === 'horizontal'}
-              onChange={handleFlipTypeChange}
-              disabled={isLoading || !originalImageSrc}
-              className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:ring-[rgb(var(--color-input-focus-border))] disabled:opacity-50 disabled:cursor-not-allowed accent-[rgb(var(--color-checkbox-accent))]"
-            />
-            <label
-              htmlFor="flip-h"
-              className={`ml-2 block text-sm ${isLoading || !originalImageSrc ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
+      <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
+        <div className="flex flex-wrap gap-4 items-center">
+          <Button
+            variant="accent2"
+            iconLeft={<PhotoIcon className="h-5 w-5" />}
+            onClick={() => setIsLibraryModalOpen(true)}
+            disabled={isProcessingImage || isManuallySaving}
+          >
+            {originalImageSrc ? 'Change Image' : 'Select Image'}
+          </Button>
+          <fieldset
+            className="flex gap-x-4 gap-y-2 items-center"
+            disabled={isProcessingImage || isManuallySaving}
+          >
+            {' '}
+            {/* Enabled by default now */}
+            <legend className="sr-only">Flip Direction</legend>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="flip-h"
+                name="flipType"
+                value="horizontal"
+                checked={flipType === 'horizontal'}
+                onChange={handleFlipTypeChange}
+                disabled={isProcessingImage || isManuallySaving}
+                className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] accent-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <label
+                htmlFor="flip-h"
+                className={`ml-2 block text-sm ${isProcessingImage || isManuallySaving ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
+              >
+                Horizontal
+              </label>
+            </div>
+            <div className="flex items-center">
+              <input
+                type="radio"
+                id="flip-v"
+                name="flipType"
+                value="vertical"
+                checked={flipType === 'vertical'}
+                onChange={handleFlipTypeChange}
+                disabled={isProcessingImage || isManuallySaving}
+                className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] accent-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <label
+                htmlFor="flip-v"
+                className={`ml-2 block text-sm ${isProcessingImage || isManuallySaving ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
+              >
+                Vertical
+              </label>
+            </div>
+          </fieldset>
+        </div>
+        <div className="flex flex-wrap gap-4 items-center pt-3 border-t border-gray-200 mt-2">
+          <Checkbox
+            label="Auto-save flipped image to Library"
+            checked={autoSaveProcessed}
+            onChange={handleAutoSaveChange}
+            disabled={isProcessingImage || isManuallySaving}
+            id="autoSaveFlippedImage"
+          />
+          <div className="flex gap-3 ml-auto">
+            {showSaveButton && (
+              <Button
+                variant="secondary"
+                iconLeft={<ArchiveBoxArrowDownIcon className="h-5 w-5" />}
+                onClick={handleSaveProcessedToLibrary}
+                disabled={isManuallySaving || isProcessingImage}
+                isLoading={isManuallySaving}
+                loadingText="Saving..."
+              >
+                Save to Library
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
+              onClick={handleDownload}
+              disabled={!canPerformActions}
             >
-              Horizontal
-            </label>
-          </div>
-          <div className="flex items-center">
-            <input
-              type="radio"
-              id="flip-v"
-              name="flipType"
-              value="vertical"
-              checked={flipType === 'vertical'}
-              onChange={handleFlipTypeChange}
-              disabled={isLoading || !originalImageSrc}
-              className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:ring-[rgb(var(--color-input-focus-border))] disabled:opacity-50 disabled:cursor-not-allowed accent-[rgb(var(--color-checkbox-accent))]"
-            />
-            <label
-              htmlFor="flip-v"
-              className={`ml-2 block text-sm ${isLoading || !originalImageSrc ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
+              Download
+            </Button>
+            <Button
+              variant={isCopied ? 'secondary' : 'accent'}
+              iconLeft={
+                isCopied ? (
+                  <CheckIcon className="h-5 w-5" />
+                ) : (
+                  <ClipboardDocumentIcon className="h-5 w-5" />
+                )
+              }
+              onClick={handleCopyToClipboard}
+              disabled={!canPerformActions}
             >
-              Vertical
-            </label>
+              {isCopied ? 'Copied!' : 'Copy'}
+            </Button>
+            <Button
+              variant="neutral"
+              iconLeft={<XCircleIcon className="h-5 w-5" />}
+              onClick={handleClear}
+              disabled={
+                !originalImageSrc &&
+                !processedImageSrc &&
+                !processingErrorHook &&
+                !uiError &&
+                !isProcessingImage &&
+                !isManuallySaving
+              }
+            >
+              Clear
+            </Button>
           </div>
-        </fieldset>
-        <div className="flex gap-3 ml-auto">
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={!processedImageSrc || isLoading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {' '}
-            Download{' '}
-          </button>
-          <button
-            type="button"
-            onClick={handleCopyToClipboard}
-            disabled={!processedImageSrc || isLoading}
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${isCopied ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]' : 'bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-[rgb(var(--color-button-accent-text))]'}`}
-          >
-            {' '}
-            {isCopied ? 'Copied!' : 'Copy'}{' '}
-          </button>
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={!originalImageSrc && !processedImageSrc && !error}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {' '}
-            Clear{' '}
-          </button>
         </div>
       </div>
-      {/* Error Display */}
-      {error && (
+
+      {displayError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
-          {' '}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 flex-shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-              clipRule="evenodd"
-            />
-          </svg>{' '}
+          <XCircleIcon
+            className="h-5 w-5 text-[rgb(var(--color-text-error))] "
+            aria-hidden="true"
+          />
           <div>
-            <strong className="font-semibold">Error:</strong> {error}
-          </div>{' '}
+            {' '}
+            <strong className="font-semibold">Error:</strong>{' '}
+            {displayError}{' '}
+          </div>
         </div>
       )}
-      {/* Image Previews */}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Original Image Preview */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
             {' '}
             Original Image{' '}
             {fileName && (
-              <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">
-                ({fileName})
-              </span>
+              <span className="font-normal text-xs">({fileName})</span>
             )}{' '}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
@@ -348,23 +572,35 @@ export default function ImageFlipClient({
               />
             ) : (
               <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">
-                Select an image from library
+                Select an image
               </span>
             )}
           </div>
         </div>
-        {/* Processed Image Preview */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
             Flipped Image
-          </label>
-          <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {isLoading && !processedImageSrc && (
-              <span className="text-sm text-[rgb(var(--color-text-link))] italic animate-pulse">
-                Flipping...
+            {lastProcessedImageId && (
+              <span className="text-xs text-green-600 ml-1">
+                (Saved to Library)
               </span>
             )}
-            {!isLoading && processedImageSrc ? (
+            {!autoSaveProcessed &&
+              processedImageBlob &&
+              !lastProcessedImageId && (
+                <span className="text-xs text-orange-600 ml-1">
+                  (Not Saved)
+                </span>
+              )}
+          </label>
+          <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
+            {isProcessingImage && !processedImageSrc && (
+              <div className="flex flex-col items-center text-sm text-[rgb(var(--color-text-link))] italic">
+                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2 text-[rgb(var(--color-text-link))]" />{' '}
+                Flipping...
+              </div>
+            )}
+            {!isProcessingImage && processedImageSrc ? (
               <Image
                 src={processedImageSrc}
                 alt={fileName ? `Flipped ${fileName}` : 'Flipped Image'}
@@ -374,7 +610,7 @@ export default function ImageFlipClient({
                 unoptimized={true}
               />
             ) : (
-              !isLoading && (
+              !isProcessingImage && (
                 <span className="text-sm text-[rgb(var(--color-input-placeholder))] italic">
                   Output appears here
                 </span>
@@ -383,14 +619,16 @@ export default function ImageFlipClient({
           </div>
         </div>
       </div>
-      {/* File Selection Modal */}
+
       <FileSelectionModal
         isOpen={isLibraryModalOpen}
         onClose={() => setIsLibraryModalOpen(false)}
-        onFilesSelected={handleFilesSelected}
-        libraryFilter={{ category: 'image' }} // Still uses category conceptually for filtering
-        selectionMode="single"
+        onFilesSelected={handleFilesSelectedFromModal}
+        mode="selectExistingOrUploadNew"
+        initialTab="library"
         accept="image/*"
+        selectionMode="single"
+        libraryFilter={imageFilter}
         className="max-w-4xl"
       />
     </div>

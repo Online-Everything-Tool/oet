@@ -80,7 +80,9 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         let collection = db.files.orderBy('createdAt').reverse();
 
         if (!includeTemporary) {
-          collection = collection.filter((file) => file.isTemporary !== true);
+          collection = collection.filter(
+            (file: StoredFile) => file.isTemporary !== true
+          );
         }
 
         return await collection.limit(limit).toArray();

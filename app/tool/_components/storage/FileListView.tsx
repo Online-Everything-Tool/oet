@@ -3,18 +3,15 @@
 
 import React from 'react';
 import type { StoredFile } from '@/src/types/storage';
-import { formatBytes } from '@/app/lib/utils';
-
-const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
-  if (!mimeType) return false;
-  return (
-    mimeType.startsWith('text/') ||
-    mimeType === 'application/json' ||
-    mimeType === 'application/xml' ||
-    mimeType === 'application/javascript' ||
-    mimeType === 'application/csv'
-  );
-};
+import { formatBytes, isTextBasedMimeType } from '@/app/lib/utils';
+import {
+  CheckIcon,
+  ClipboardDocumentCheckIcon,
+  ArrowDownTrayIcon,
+  DocumentDuplicateIcon,
+  TrashIcon,
+} from '@heroicons/react/20/solid';
+import Checkbox from '../form/Checkbox';
 
 interface FileListViewProps {
   files: StoredFile[];
@@ -110,11 +107,9 @@ export default function FileListView({
         <tbody className="bg-white divide-y divide-gray-200">
           {files.map((file) => {
             const isSelected = selectedIds.has(file.id);
-            // Combine isLoading and isBulkDeleting for general processing state
             const isProcessing = isLoading || isBulkDeleting;
             const currentFeedback = feedbackState[file.id];
             const isTextFile = isTextBasedMimeType(file.type);
-            // Determine if this specific selected row should be dimmed during bulk delete
             const showBulkDeleteOpacity = isBulkDeleting && isSelected;
 
             return (
@@ -124,23 +119,21 @@ export default function FileListView({
                   isSelected
                     ? 'bg-blue-50 hover:bg-blue-100'
                     : 'hover:bg-gray-50'
-                } ${isProcessing ? 'cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-50' : ''}`} // Apply opacity if selected during bulk delete
+                } ${isProcessing ? 'cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-50' : ''}`}
                 onClick={(e) => handleRowClick(e, file.id)}
                 aria-selected={isSelected}
               >
-                {/* Checkbox Cell */}
                 <td
                   className="pl-4 pr-2 py-2 whitespace-nowrap"
                   data-cell="checkbox"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={isSelected}
                     onChange={() => onToggleSelection(file.id)}
                     onClick={(e) => e.stopPropagation()}
-                    disabled={isProcessing} // Disable checkbox if any operation is running
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 accent-blue-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isProcessing}
                     aria-label={`Select file ${file.name}`}
+                    inputClassName="cursor-pointer"
                   />
                 </td>
                 {/* Data Cells */}
@@ -165,14 +158,11 @@ export default function FileListView({
                 >
                   {file.createdAt.toLocaleDateString()}
                 </td>
-                {/* Actions Cell */}
                 <td
                   className="px-4 py-2 whitespace-nowrap text-right text-sm font-medium"
                   data-cell="actions"
                 >
-                  <div
-                    className={`flex items-center justify-end gap-1.5 ${isSelected && 'invisible'}`}
-                  >
+                  <div className="flex items-center justify-end gap-1.5">
                     <button
                       onClick={(e) => {
                         handleActionClick(e);
@@ -186,9 +176,13 @@ export default function FileListView({
                       title={
                         isTextFile ? 'Copy file content' : 'Cannot copy content'
                       }
-                      className={`p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
+                      className={`${!isTextFile && 'invisible'} p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
                     >
-                      {currentFeedback?.type === 'copy' ? '✔️' : '📄'}
+                      {currentFeedback?.type === 'copy' ? (
+                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+                      )}
                     </button>
                     <button
                       onClick={(e) => {
@@ -201,7 +195,11 @@ export default function FileListView({
                       title="Download this file"
                       className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
                     >
-                      {currentFeedback?.type === 'download' ? '✔️' : '⬇️'}
+                      {currentFeedback?.type === 'download' ? (
+                        <CheckIcon className="h-5 w-5 text-indigo-600" />
+                      ) : (
+                        <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
+                      )}
                     </button>
                     <button
                       onClick={(e) => {
@@ -216,7 +214,7 @@ export default function FileListView({
                       }
                       className="p-1 text-red-600 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ❌
+                      <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
                     </button>
                   </div>
                 </td>
@@ -244,14 +242,11 @@ export default function FileListView({
       {files.length === 0 && !isLoading && (
         <p className="text-center text-gray-500 italic py-8">No files found.</p>
       )}
-      {isLoading &&
-        !isBulkDeleting && ( // Show general loading only if not bulk deleting
-          <p className="text-center text-gray-500 italic py-8 animate-pulse">
-            Loading...
-          </p>
-        )}
-      {/* Optional: Specific indicator during bulk delete? */}
-      {/* {isBulkDeleting && ( <p className="text-center text-red-500 italic py-8 animate-pulse">Deleting selected items...</p> )} */}
+      {isLoading && !isBulkDeleting && (
+        <p className="text-center text-gray-500 italic py-8 animate-pulse">
+          Loading...
+        </p>
+      )}
     </div>
   );
 }

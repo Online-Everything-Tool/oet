@@ -3,18 +3,15 @@
 
 import React from 'react';
 import type { StoredFile } from '@/src/types/storage';
-import { formatBytes } from '@/app/lib/utils';
-
-const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
-  if (!mimeType) return false;
-  return (
-    mimeType.startsWith('text/') ||
-    mimeType === 'application/json' ||
-    mimeType === 'application/xml' ||
-    mimeType === 'application/javascript' ||
-    mimeType === 'application/csv'
-  );
-};
+import { formatBytes, isTextBasedMimeType } from '@/app/lib/utils';
+import {
+  CheckIcon,
+  ClipboardDocumentCheckIcon,
+  ArrowDownTrayIcon,
+  DocumentDuplicateIcon,
+  TrashIcon,
+} from '@heroicons/react/20/solid';
+import Checkbox from '../form/Checkbox';
 
 interface FileGridViewProps {
   files: StoredFile[];
@@ -107,28 +104,19 @@ export default function FileGridView({
           >
             <div className="flex flex-row w-full justify-between items-center px-2">
               <div data-element="checkbox" className="justify-self-start">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={isSelected}
                   onChange={() => onToggleSelection(file.id)}
                   onClick={(e) => e.stopPropagation()}
                   disabled={isProcessing}
-                  className={`h-4 w-4 rounded border-gray-300 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-opacity duration-150 ${
-                    isSelected
-                      ? 'opacity-100 text-blue-600 accent-blue-600'
-                      : 'opacity-0 group-hover:opacity-100 text-gray-600 accent-gray-600'
-                  }`}
                   aria-label={`Select file ${file.name}`}
+                  inputClassName="cursor-pointer"
                   tabIndex={-1}
                 />
               </div>
               <div
                 data-overlay="actions"
-                className={`justify-self-end ${
-                  isSelected
-                    ? 'invisible'
-                    : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
-                }`}
+                className="justify-self-end opacity-0 group-hover:opacity-100 focus-within:opacity-100"
               >
                 <button
                   onClick={(e) => {
@@ -141,9 +129,13 @@ export default function FileGridView({
                     currentFeedback?.type === 'copy'
                   }
                   title={isTextFile ? 'Copy content' : 'Cannot copy'}
-                  className={`p-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
+                  className={`${!isTextFile && 'invisible'} p-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
                 >
-                  {currentFeedback?.type === 'copy' ? '✔️' : '📄'}
+                  {currentFeedback?.type === 'copy' ? (
+                    <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
@@ -156,7 +148,11 @@ export default function FileGridView({
                   title="Download file"
                   className={`p-1 rounded-full disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
                 >
-                  {currentFeedback?.type === 'download' ? '✔️' : '⬇️'}
+                  {currentFeedback?.type === 'download' ? (
+                    <CheckIcon className="h-5 w-5 text-indigo-600" />
+                  ) : (
+                    <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
@@ -169,7 +165,7 @@ export default function FileGridView({
                   }
                   className="p-1 text-red-600 rounded-full hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  ❌
+                  <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
                 </button>
               </div>
             </div>

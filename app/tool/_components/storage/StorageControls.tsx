@@ -1,56 +1,57 @@
-// FILE: app/tool/file-storage/_components/FileStorageControls.tsx
+// FILE: app/tool/_components/storage/StorageControls.tsx
 'use client';
 
 import React from 'react';
-import Button from '@/app/tool/_components/form/Button'; // Import the new Button
+import Button from '@/app/tool/_components/form/Button';
 import {
   PlusIcon,
   TrashIcon,
-  ViewColumnsIcon, // Or Squares2X2Icon
-  Bars3Icon, // Or ListBulletIcon
-} from '@heroicons/react/20/solid'; // Using 20px solid icons for density
+  ViewColumnsIcon,
+  Bars3Icon,
+} from '@heroicons/react/20/solid';
 
-interface FileStorageControlsProps {
+interface StorageControlsProps {
   isLoading: boolean;
   isDeleting: boolean;
-  storedFileCount: number;
+  itemCount: number;
+  itemNameSingular: string;
+  itemNamePlural: string;
   currentLayout: 'list' | 'grid';
-  selectedFileCount: number;
+  selectedItemCount: number;
   onAddClick: () => void;
   onClearAllClick: () => void;
   onLayoutChange: (newLayout: 'list' | 'grid') => void;
   onDeleteSelectedClick: () => void;
 }
 
-export default function FileStorageControls({
+export default function StorageControls({
   isLoading,
   isDeleting,
-  storedFileCount,
+  itemCount,
+  itemNameSingular,
+  itemNamePlural,
   currentLayout,
-  selectedFileCount,
+  selectedItemCount,
   onAddClick,
   onClearAllClick,
   onLayoutChange,
   onDeleteSelectedClick,
-}: FileStorageControlsProps) {
-  const hasSelection = selectedFileCount > 0;
+}: StorageControlsProps) {
+  const hasSelection = selectedItemCount > 0;
 
   return (
     <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-      {/* Row 1: Main Actions */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
-        {/* Add File Button */}
         <Button
           variant="accent2"
           onClick={onAddClick}
           disabled={isLoading}
-          isLoading={isLoading && !isDeleting} // Show loading only if not bulk deleting
+          isLoading={isLoading && !isDeleting}
           loadingText="Processing..."
           iconLeft={<PlusIcon className="h-5 w-5" />}
         >
-          Add File(s)
+          Add {itemNameSingular}(s)
         </Button>
-        {/* Conditional Bulk Actions */}
         {hasSelection && (
           <Button
             variant="danger"
@@ -60,40 +61,35 @@ export default function FileStorageControls({
             loadingText="Deleting..."
             iconLeft={<TrashIcon className="h-5 w-5" />}
           >
-            Delete Selected ({selectedFileCount})
+            Delete Selected ({selectedItemCount})
           </Button>
         )}
-        <div className="flex-grow"></div> {/* Spacer */}
-        {/* Clear All Button */}
+        <div className="flex-grow"></div>
         <Button
           variant="neutral"
           onClick={onClearAllClick}
-          disabled={storedFileCount === 0 || isLoading || hasSelection}
+          disabled={itemCount === 0 || isLoading || hasSelection}
           title={
             hasSelection
               ? 'Clear selection before using Clear All'
-              : 'Delete all files from library'
+              : `Delete all ${itemCount} ${itemCount === 1 ? itemNameSingular : itemNamePlural} from library`
           }
           iconLeft={<TrashIcon className="h-5 w-5" />}
         >
-          Clear All ({storedFileCount})
+          Clear All ({itemCount})
         </Button>
       </div>
 
-      {/* Row 2: View Options */}
       <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
-        {/* Layout Toggle */}
         <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
           <Button
             variant={currentLayout === 'list' ? 'primary' : 'neutral'}
-            size="sm" // Use smaller buttons for toggles
+            size="sm"
             onClick={() => onLayoutChange('list')}
-            disabled={isLoading} // Disable while loading, but not if it's the current layout
+            disabled={isLoading}
             title="List View"
             className={
-              currentLayout === 'list'
-                ? 'shadow' // Add shadow to active
-                : 'hover:bg-gray-200' // Standard hover for inactive
+              currentLayout === 'list' ? 'shadow' : 'hover:bg-gray-200'
             }
           >
             <Bars3Icon className="h-5 w-5" />
@@ -111,9 +107,10 @@ export default function FileStorageControls({
             <ViewColumnsIcon className="h-5 w-5" />
           </Button>
         </div>
-        <div className="flex-grow"></div> {/* Spacer */}
+        <div className="flex-grow"></div>
         <span className="text-sm text-gray-500">
-          {storedFileCount} item(s) in library
+          {itemCount} {itemCount === 1 ? itemNameSingular : itemNamePlural} in
+          library
         </span>
       </div>
     </div>

@@ -1,8 +1,8 @@
 // FILE: app/tool/_hooks/useImageProcessing.ts
 import { useState, useCallback } from 'react';
-import { useHistory, TriggerType } from '../../context/HistoryContext'; // Uses updated HistoryContext
-import { useImageLibrary } from '@/app/context/ImageLibraryContext'; // Uses updated ImageLibraryContext
-import type { StoredFile } from '@/src/types/storage'; // Uses updated StoredFile type
+import { useHistory, TriggerType } from '../../context/HistoryContext';
+import { useImageLibrary } from '@/app/context/ImageLibraryContext';
+import type { StoredFile } from '@/src/types/storage';
 
 interface UseImageProcessingProps {
   toolTitle: string;
@@ -15,24 +15,30 @@ type ProcessingFunction = (
   options?: Record<string, unknown>
 ) => void;
 
+export interface ProcessImageResult {
+  // Exporting this interface
+  id: string | null;
+  dataUrl: string | null;
+  blob: Blob | null;
+}
+
 interface UseImageProcessingReturn {
   originalImageSrc: string | null;
   processedImageSrc: string | null;
+  processedImageBlob: Blob | null;
   fileName: string | null;
   isLoading: boolean;
   error: string | null;
   setOriginalImageSrc: React.Dispatch<React.SetStateAction<string | null>>;
-  setProcessedImageSrc: React.Dispatch<React.SetStateAction<string | null>>;
-  setFileName: React.Dispatch<React.SetStateAction<string | null>>;
-  setError: React.Dispatch<React.SetStateAction<string | null>>;
-  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   processImage: (
     inputFile: StoredFile,
     processingFunction: ProcessingFunction,
     trigger: TriggerType,
     outputFileName: string,
-    options?: Record<string, unknown>
-  ) => Promise<string | null>; // Returns image ID or null
+    options?: Record<string, unknown>,
+    saveOutputToLibrary?: boolean
+  ) => Promise<ProcessImageResult>;
+  clearProcessingOutput: () => void;
 }
 
 const useImageProcessing = ({
@@ -43,11 +49,23 @@ const useImageProcessing = ({
   const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(
     null
   );
+  const [processedImageBlob, setProcessedImageBlob] = useState<Blob | null>(
+    null
+  );
   const [fileName, setFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { addHistoryEntry } = useHistory(); // Use updated HistoryContext
-  const { addImage } = useImageLibrary(); // Use updated ImageLibraryContext
+
+  const { addHistoryEntry } = useHistory();
+  const { addImage } = useImageLibrary();
+
+  const clearProcessingOutput = useCallback(() => {
+    setProcessedImageSrc(null);
+    setProcessedImageBlob(null);
+    setError(null);
+  }, []);
+
+  // In app/tool/_hooks/useImageProcessing.ts
 
   const processImage = useCallback(
     async (
@@ -55,63 +73,69 @@ const useImageProcessing = ({
       processingFunction: ProcessingFunction,
       trigger: TriggerType,
       outputFileName: string,
-      options: Record<string, unknown> = {}
-    ): Promise<string | null> => {
-      // *** MODIFIED VALIDATION: Check type instead of category ***
+      options: Record<string, unknown> = {},
+      saveOutputToLibrary: boolean = true
+    ): Promise<ProcessImageResult> => {
+      setOriginalImageSrc(null);
+      clearProcessingOutput();
+      setFileName(inputFile.name);
+
       if (!inputFile.blob || !inputFile.type?.startsWith('image/')) {
-        // *** MODIFIED ERROR MESSAGE ***
-        const errMsg = `Invalid input file provided to processImage: ID ${inputFile.id}, Type ${inputFile.type || 'unknown'}, Blob exists: ${!!inputFile.blob}`;
+        const errMsg = `Invalid input file: ID ${inputFile.id || 'unknown'}, Type ${inputFile.type || 'unknown'}`;
         console.error(errMsg);
         setError(errMsg);
-        return null;
+        setIsLoading(false);
+        return { id: null, dataUrl: null, blob: null };
       }
 
       setIsLoading(true);
-      setError(null);
-      setProcessedImageSrc(null);
-      setFileName(inputFile.name);
 
-      let generatedDataUrl: string | null = null;
-      let newImageId: string | undefined = undefined;
+      let tempOriginalObjectUrl: string | null = null;
+      const result: ProcessImageResult = {
+        id: null,
+        dataUrl: null,
+        blob: null,
+      };
       let status: 'success' | 'error' = 'success';
-      let historyOutput: string | Record<string, unknown> =
-        'Image processed successfully.';
+      let historyOutputDetails: string | Record<string, unknown> =
+        'Processing started.';
       const inputDetails: Record<string, unknown> = {
         inputFileId: inputFile.id,
         fileName: inputFile.name,
         originalSize: inputFile.size,
         originalType: inputFile.type,
+        requestedSaveToLibrary: saveOutputToLibrary,
         ...options,
       };
-      let objectUrlToRevoke: string | null = null;
 
       try {
         const img = new window.Image();
-        objectUrlToRevoke = URL.createObjectURL(inputFile.blob);
-        setOriginalImageSrc(objectUrlToRevoke);
 
-        if (!objectUrlToRevoke) {
-          throw new Error('Failed to create object URL from input blob.');
+        tempOriginalObjectUrl = URL.createObjectURL(inputFile.blob);
+        setOriginalImageSrc(tempOriginalObjectUrl);
+
+        // Explicit check to satisfy TypeScript
+        if (tempOriginalObjectUrl === null) {
+          throw new Error(
+            'Object URL creation unexpectedly returned null for original image.'
+          );
         }
+        const urlForImgElement: string = tempOriginalObjectUrl; // Now it's definitely a string
 
-        const loadPromise = new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
-          img.onerror = (event: unknown) => {
-            console.error('Failed to load image data:', event);
-            if (objectUrlToRevoke) {
-              URL.revokeObjectURL(objectUrlToRevoke);
-            }
-            reject(new Error('Failed to load image from blob.'));
+          img.onerror = (errEvent) => {
+            console.error('Failed to load image for processing:', errEvent);
+            reject(new Error('Failed to load image from blob for processing.'));
           };
-          img.src = objectUrlToRevoke!;
+          img.src = urlForImgElement; // Assign the guaranteed string
         });
 
-        await loadPromise;
-
-        if (img.naturalWidth <= 0 || img.naturalHeight <= 0)
+        if (img.naturalWidth <= 0 || img.naturalHeight <= 0) {
           throw new Error(
             `Invalid image dimensions: ${img.naturalWidth}x${img.naturalHeight}`
           );
+        }
 
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth;
@@ -121,72 +145,98 @@ const useImageProcessing = ({
 
         processingFunction(ctx, img, options);
 
-        // Determine output type (e.g., PNG default, could be option)
-        const outputMimeType = 'image/png'; // Or make configurable via options
-        generatedDataUrl = canvas.toDataURL(outputMimeType);
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, outputMimeType)
+        const outputMimeType =
+          inputFile.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+        const quality = outputMimeType === 'image/jpeg' ? 0.9 : undefined;
+
+        result.dataUrl = canvas.toDataURL(outputMimeType, quality);
+        const processedBlobFromCanvas = await new Promise<Blob | null>(
+          (resolve) => canvas.toBlob(resolve, outputMimeType, quality)
         );
-        if (!blob) throw new Error('Canvas toBlob failed.');
 
-        // Use addImage from context - it handles thumbnails and saving to 'files' table
-        newImageId = await addImage(blob, outputFileName, outputMimeType);
+        if (!processedBlobFromCanvas)
+          throw new Error('Canvas toBlob failed for processed image.');
 
-        // Update history output to reference the new image ID
-        historyOutput = {
-          message: 'Image processed successfully.',
-          imageId: newImageId,
-          outputType: outputMimeType,
-          outputSize: blob.size,
-        } as Record<string, unknown>;
-        setProcessedImageSrc(generatedDataUrl);
+        result.blob = processedBlobFromCanvas;
+        setProcessedImageSrc(result.dataUrl);
+        setProcessedImageBlob(result.blob);
+
+        if (saveOutputToLibrary) {
+          const newImageId = await addImage(
+            result.blob,
+            outputFileName,
+            outputMimeType
+          );
+          result.id = newImageId;
+          historyOutputDetails = {
+            message: 'Image processed and saved successfully.',
+            savedImageId: newImageId,
+            outputType: outputMimeType,
+            outputSize: result.blob.size,
+          };
+        } else {
+          historyOutputDetails = {
+            message: 'Image processed (not saved to library).',
+            outputType: outputMimeType,
+            outputSize: result.blob.size,
+          };
+        }
+        status = 'success';
       } catch (err: unknown) {
-        console.error('Processing Error:', err);
         const message =
-          err instanceof Error
-            ? err.message
-            : 'An unknown error occurred during processing.';
-        setError(`Error processing image: ${message}`);
-        setProcessedImageSrc(null);
+          err instanceof Error ? err.message : 'Unknown processing error.';
+        console.error('Image Processing Error:', err);
+        setError(message);
         setOriginalImageSrc(null);
+        // clearProcessingOutput() would also clear error, so set error after or ensure it doesn't
+        setProcessedImageSrc(null); // Ensure these are also cleared
+        setProcessedImageBlob(null);
         status = 'error';
-        historyOutput = `Error: ${message}`;
+        historyOutputDetails = `Error: ${message}`;
         inputDetails.error = message;
-        newImageId = undefined;
       } finally {
         setIsLoading(false);
-        // Use updated addHistoryEntry signature
+        if (tempOriginalObjectUrl) {
+          // Check before revoking
+          URL.revokeObjectURL(tempOriginalObjectUrl);
+        }
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
           trigger: trigger,
           input: inputDetails,
-          output: historyOutput,
+          output: historyOutputDetails,
           status: status,
-          eventTimestamp: Date.now(), // Add event timestamp
+          eventTimestamp: Date.now(),
         });
-        if (objectUrlToRevoke) {
-          URL.revokeObjectURL(objectUrlToRevoke);
-        }
       }
-      // Return the ID of the newly created image file or null on failure
-      return newImageId || null;
+      return result;
     },
-    [addImage, addHistoryEntry, toolRoute, toolTitle]
-  ); // Correct dependencies
+    [
+      toolTitle,
+      toolRoute,
+      addImage,
+      addHistoryEntry,
+      clearProcessingOutput,
+      setOriginalImageSrc,
+      setError,
+      setFileName,
+      setIsLoading,
+      setProcessedImageBlob,
+      setProcessedImageSrc,
+    ]
+  );
 
   return {
     originalImageSrc,
     processedImageSrc,
+    processedImageBlob,
     fileName,
     isLoading,
     error,
-    setOriginalImageSrc,
-    setProcessedImageSrc,
-    setFileName,
-    setError,
-    setIsLoading,
+    setOriginalImageSrc, // Keep this if parent needs to set it (e.g. from URL param initially)
     processImage,
+    clearProcessingOutput,
   };
 };
 

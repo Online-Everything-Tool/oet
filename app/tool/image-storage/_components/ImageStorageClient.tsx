@@ -1,19 +1,16 @@
 // FILE: app/tool/image-storage/_components/ImageStorageClient.tsx
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  ChangeEvent,
-  useRef,
-  useEffect,
-} from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
-import FileDropZone from '../../_components/storage/FileDropZone';
+import StorageControls from '../../_components/storage/StorageControls';
+import FileListView from '../../_components/storage/FileListView';
 import FileGridView from '../../_components/storage/FileGridView';
+import FileSelectionModal from '../../_components/FileSelectionModal';
+import { getFileIconClassName } from '@/app/lib/utils';
 
 interface ImageStorageClientProps {
   toolTitle: string;
@@ -25,38 +22,126 @@ export default function ImageStorageClient({
   toolRoute,
 }: ImageStorageClientProps) {
   const [storedImages, setStoredImages] = useState<StoredFile[]>([]);
-  const [imageObjectUrls, setImageObjectUrls] = useState<Map<string, string>>(
-    new Map()
-  );
-  const [isLoading, setIsLoading] = useState<boolean>(true); // Initial load state
-  const [isProcessing, setIsProcessing] = useState<boolean>(false); // State for adding/processing files
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
-    new Set()
-  ); // Track selected IDs
-  const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false); // Add bulk deleting state
+  const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
   const [feedbackState, setFeedbackState] = useState<
     Record<
       string,
       { type: 'copy' | 'download' | 'error'; message: string } | null
     >
   >({});
+  const [layout, setLayout] = useState<'list' | 'grid'>('grid');
+  const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(
+    new Map()
+  );
+  const managedUrlsRef = useRef<Map<string, string>>(new Map());
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const { addHistoryEntry } = useHistory();
-  const {
-    addImage,
-    getImage,
-    deleteImage,
-    listImages,
-    clearAllImages,
-    loading: libraryLoading,
-    error: libraryError,
-  } = useImageLibrary(); // Get loading/error from context
+  const { listImages, addImage, deleteImage, clearAllImages, getImage } =
+    useImageLibrary();
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const managedUrlsRef = useRef<Map<string, string>>(new Map());
+  const revokeManagedUrls = useCallback(() => {
+    managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    managedUrlsRef.current.clear();
+  }, []);
 
-  // --- Helper Functions ---
+  const updatePreviewUrlsForImagesClient = useCallback(
+    // Renamed for clarity
+    (imagesToDisplay: StoredFile[]) => {
+      setPreviewUrls((prevPreviewMap) => {
+        const newPreviewMap = new Map<string, string>();
+        let mapChanged = false;
+
+        imagesToDisplay.forEach((image) => {
+          if (!image.id) return;
+          // For images, always try to use the blob or thumbnailBlob for preview
+          const blobToUse = image.thumbnailBlob || image.blob;
+
+          if (blobToUse && image.type?.startsWith('image/')) {
+            // Ensure it's an image
+            if (managedUrlsRef.current.has(image.id)) {
+              newPreviewMap.set(
+                image.id,
+                managedUrlsRef.current.get(image.id)!
+              );
+            } else {
+              try {
+                const url = URL.createObjectURL(blobToUse);
+                newPreviewMap.set(image.id, url);
+                managedUrlsRef.current.set(image.id, url);
+                mapChanged = true;
+              } catch (e) {
+                console.error(
+                  `[ImageStorageClient] Error creating Object URL for image ID ${image.id}:`,
+                  e
+                );
+              }
+            }
+          }
+        });
+
+        if (prevPreviewMap.size !== newPreviewMap.size) {
+          mapChanged = true;
+        } else {
+          for (const [key, value] of newPreviewMap) {
+            if (prevPreviewMap.get(key) !== value) {
+              mapChanged = true;
+              break;
+            }
+          }
+          for (const key of prevPreviewMap.keys()) {
+            if (!newPreviewMap.has(key)) {
+              mapChanged = true;
+              break;
+            }
+          }
+        }
+        return mapChanged ? newPreviewMap : prevPreviewMap;
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      revokeManagedUrls();
+    };
+  }, [revokeManagedUrls]);
+
+  useEffect(() => {
+    updatePreviewUrlsForImagesClient(storedImages);
+
+    const currentImageIds = new Set(storedImages.map((f) => f.id));
+    const urlsToRevokeAndRemove = new Map<string, string>();
+
+    managedUrlsRef.current.forEach((url, id) => {
+      if (!currentImageIds.has(id)) {
+        urlsToRevokeAndRemove.set(id, url);
+      }
+    });
+
+    if (urlsToRevokeAndRemove.size > 0) {
+      setPreviewUrls((prevPreviewUrls) => {
+        const newPreviewMap = new Map(prevPreviewUrls);
+        urlsToRevokeAndRemove.forEach((url, id) => {
+          URL.revokeObjectURL(url);
+          managedUrlsRef.current.delete(id);
+          newPreviewMap.delete(id);
+        });
+        if (newPreviewMap.size !== prevPreviewUrls.size) return newPreviewMap;
+        for (const [key, value] of newPreviewMap)
+          if (prevPreviewUrls.get(key) !== value) return newPreviewMap;
+        return prevPreviewUrls;
+      });
+    }
+  }, [storedImages, updatePreviewUrlsForImagesClient]);
+
   const setItemFeedback = useCallback(
     (
       id: string,
@@ -67,7 +152,6 @@ export default function ImageStorageClient({
         ...prev,
         [id]: type ? { type, message } : null,
       }));
-      // Clear non-error feedback after a delay
       if (type && type !== 'error') {
         setTimeout(() => {
           setFeedbackState((prev) =>
@@ -77,146 +161,69 @@ export default function ImageStorageClient({
       }
     },
     []
-  ); // No dependencies needed for setItemFeedback logic
+  );
 
-  const revokeManagedUrls = useCallback(() => {
-    managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    managedUrlsRef.current.clear();
-    setImageObjectUrls(new Map()); // Clear the state map as well
-  }, []); // No dependencies needed
-
-  // Updated Object URL handling to use thumbnail if available
-  const updateObjectUrls = useCallback((images: StoredFile[]) => {
-    // Don't revoke URLs managed elsewhere (like original image in image processing tools)
-    // This utility should only manage URLs it creates for *previews* of stored images.
-    // Clean up URLs ONLY for files that are no longer in the list.
-    const currentIds = new Set(images.map((img) => img.id));
-    const urlsToRevoke = new Map<string, string>();
-    managedUrlsRef.current.forEach((url, id) => {
-      if (!currentIds.has(id)) {
-        urlsToRevoke.set(id, url); // Add to list of URLs to actually revoke
-        managedUrlsRef.current.delete(id); // Remove from managed list
-      }
-    });
-    urlsToRevoke.forEach((url) => URL.revokeObjectURL(url));
-
-    const newUrlMap = new Map<string, string>();
-    images.forEach((img) => {
-      // Create a new URL only if one doesn't exist or if the blob might have changed (less common)
-      if (img.id && !managedUrlsRef.current.has(img.id)) {
-        const blobToUse = img.thumbnailBlob || img.blob; // Prefer thumbnail
-        if (blobToUse && img.type?.startsWith('image/')) {
-          // Only create for images
-          try {
-            const url = URL.createObjectURL(blobToUse);
-            newUrlMap.set(img.id, url);
-            managedUrlsRef.current.set(img.id, url); // Add to managed list
-          } catch (e: unknown) {
-            console.error(
-              `[ImageStorage] Error creating Object URL for ID ${img.id}:`,
-              e
-            );
-          } // Corrected catch syntax
-        }
-      } else if (img.id && managedUrlsRef.current.has(img.id)) {
-        // If URL already exists and is managed, just add it to the map for this render
-        newUrlMap.set(img.id, managedUrlsRef.current.get(img.id)!);
-      }
-    });
-    // Combine existing valid URLs with new ones created in this batch
-    // This ensures URLs for files that didn't need re-creating are still in the map
-    // Use functional update form to get latest state
-    setImageObjectUrls((prev) => {
-      const finalUrlMap = new Map<string, string>(prev); // Start with previous state provided by React
-      newUrlMap.forEach((url, id) => finalUrlMap.set(id, url));
-      return finalUrlMap;
-    });
-  }, []); // Dependency removed because we use the functional updater
-
-  // --- Load images function ---
-  const loadAndDisplayImages = useCallback(
-    async (limit = 50) => {
-      // setError(null); // Let context handle errors for listing
-      setIsLoading(true); // Start local loading state
-      try {
-        // listImages now handles its own loading/error state and DB access
-        const images = await listImages(limit);
-        setStoredImages(images);
-        updateObjectUrls(images); // Update previews for the loaded images
-      } catch {
-        // Corrected catch syntax: Error variable not needed locally
-        // Explicitly set error if context error exists, or set a generic one if not
-        setError(libraryError || 'Failed to load stored images.'); // Use context error or fallback
-        setStoredImages([]); // Clear list on error
-        revokeManagedUrls(); // Clean up existing URLs
-      } finally {
-        // We are no longer solely dependent on this try/catch for isLoading
-        // We might want a combined loading state: local isLoading + context loading
-        // Let's keep local loading for now to reflect *this component's* data fetching
-        setIsLoading(false);
-      }
-    },
-    [listImages, updateObjectUrls, revokeManagedUrls, libraryError]
-  ); // Add libraryError as dependency
+  const loadAndDisplayImages = useCallback(async () => {
+    const limit = 100;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const images = await listImages(limit);
+      setStoredImages(images);
+    } catch (err: unknown) {
+      console.error('[ImageStorage] Error loading images:', err);
+      setError('Failed to load stored images.');
+      setStoredImages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [listImages]);
 
   useEffect(() => {
-    // Initial load and cleanup on unmount
     loadAndDisplayImages();
-    return () => {
-      revokeManagedUrls();
-    };
-    // Add revokeManagedUrls to dependency array as it's used in cleanup
-  }, [loadAndDisplayImages, revokeManagedUrls]);
+  }, [loadAndDisplayImages]);
 
-  // --- SAVE IMAGE HELPER ---
-  const saveNewImage = useCallback(
-    async (file: File, trigger: TriggerType) => {
-      if (!file.type.startsWith('image/')) {
-        setError((prev) =>
-          prev
-            ? `${prev}; Skipped non-image file: ${file.name}`
-            : `Skipped non-image file: ${file.name}`
-        );
-        // Log history entry for skipped file? Optional.
-        // For now, just skip and maybe log one general message at the end of handleFilesAdded
-        return; // Do not process
-      }
+  const persistTemporaryImage = useCallback(
+    async (tempImageFile: StoredFile, trigger: TriggerType) => {
       let historyOutput: string | Record<string, unknown> = '';
       let status: 'success' | 'error' = 'success';
       let imageId: string | undefined = undefined;
       const inputDetails: Record<string, unknown> = {
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
+        fileName: tempImageFile.name,
+        fileType: tempImageFile.type,
+        fileSize: tempImageFile.size,
         source: trigger,
       };
 
+      if (!tempImageFile.type?.startsWith('image/')) {
+        console.warn(
+          `[ImageStorage] Attempted to persist non-image file: ${tempImageFile.name}`
+        );
+        return undefined;
+      }
+
       try {
-        // addImage now handles its own loading/error state and DB access
         imageId = await addImage(
-          file,
-          file.name || `image-${Date.now()}`,
-          file.type
+          tempImageFile.blob,
+          tempImageFile.name || `image-${Date.now()}`,
+          tempImageFile.type
         );
         historyOutput = {
-          message: `Image "${file.name}" added successfully.`,
+          message: `Image "${tempImageFile.name}" added successfully to library.`,
           imageId: imageId,
         };
-      } catch (err: unknown) {
-        // Corrected catch syntax
+      } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Unknown error saving image.';
-        // Append to existing error message if multiple files fail
         setError((prev) =>
           prev
-            ? `${prev}; Failed to save "${file.name}"`
-            : `Failed to save "${file.name}"`
+            ? `${prev}; Failed to save "${tempImageFile.name}"`
+            : `Failed to save "${tempImageFile.name}"`
         );
         status = 'error';
-        historyOutput = `Error saving "${file.name}": ${message}`;
-        inputDetails.error = message; // Log error details in history input
+        historyOutput = `Error saving "${tempImageFile.name}": ${message}`;
+        inputDetails.error = message;
       } finally {
-        // Add history entry for each processed file (success or error)
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
@@ -224,643 +231,427 @@ export default function ImageStorageClient({
           input: inputDetails,
           output: historyOutput,
           status: status,
-          eventTimestamp: Date.now(), // Add event timestamp
+          eventTimestamp: Date.now(),
         });
       }
+      return imageId;
     },
-    [addImage, addHistoryEntry, toolTitle, toolRoute]
-  ); // Dependencies: addImage, addHistoryEntry, toolTitle, toolRoute
+    [addImage, addHistoryEntry, toolRoute, toolTitle]
+  );
 
-  // --- Handler for files added via DropZone or Input ---
-  const handleFilesAdded = useCallback(
-    async (files: File[]) => {
-      if (!files || files.length === 0) return;
-      setError(null); // Clear previous errors before starting
-      setIsProcessing(true); // Indicate processing started
-      const trigger: TriggerType = 'upload';
-      const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+  const handleModalFilesSelected = useCallback(
+    async (
+      filesFromModal: StoredFile[],
+      source: 'library' | 'upload',
+      saveUploadedToLibrary?: boolean
+    ) => {
+      setIsModalOpen(false);
+      if (!filesFromModal || filesFromModal.length === 0) return;
 
-      if (imageFiles.length !== files.length) {
-        // Set error for skipped files, but don't stop processing images
+      setError(null);
+      setIsProcessing(true);
+
+      const imageFilesFromModal = filesFromModal.filter((f) =>
+        f.type?.startsWith('image/')
+      );
+
+      if (imageFilesFromModal.length !== filesFromModal.length) {
         setError(
-          `Skipped ${files.length - imageFiles.length} non-image file(s).`
+          `Some non-image files were filtered out by the modal or selection process.`
         );
       }
 
-      // Process only the image files
-      const savePromises = imageFiles.map((file) =>
-        saveNewImage(file, trigger)
-      );
-      await Promise.all(savePromises); // Wait for all save operations to complete
+      if (imageFilesFromModal.length === 0) {
+        setIsProcessing(false);
+        return;
+      }
 
-      // After saving/failing to save, reload the displayed list to show changes
-      await loadAndDisplayImages(); // This will update storedImages and object URLs
-
-      setIsProcessing(false); // Indicate processing finished
+      if (source === 'upload' && !saveUploadedToLibrary) {
+        console.log(
+          '[ImageStorageClient] Persisting temporary images from modal upload...'
+        );
+        const imagesToPersist = imageFilesFromModal.filter(
+          (f) => f.isTemporary
+        );
+        if (imagesToPersist.length > 0) {
+          const persistPromises = imagesToPersist.map((tempImage) =>
+            persistTemporaryImage(tempImage, 'upload')
+          );
+          await Promise.all(persistPromises);
+        }
+      }
+      await loadAndDisplayImages();
+      setIsProcessing(false);
     },
-    [saveNewImage, loadAndDisplayImages]
-  ); // Dependencies: saveNewImage, loadAndDisplayImages
+    [persistTemporaryImage, loadAndDisplayImages]
+  );
 
-  // --- Trigger hidden file input ---
   const handleAddClick = () => {
-    // Check if the input ref exists and is not disabled by current operations
-    if (fileInputRef.current && !anyOperationInProgress) {
-      fileInputRef.current.click();
-    }
+    setIsModalOpen(true);
   };
 
-  // --- File Input Change Handler ---
-  const handleFileChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (files && files.length > 0) {
-        handleFilesAdded(Array.from(files));
-      }
-      // Always reset the input value so the same file can be selected again
-      if (event.target) event.target.value = '';
-    },
-    [handleFilesAdded]
-  ); // Dependency: handleFilesAdded
-
-  // --- Selection Handlers ---
-  const handleToggleSelection = (fileId: string) => {
-    // Do not allow selection changes during bulk delete
-    if (isBulkDeleting) return;
-    setSelectedFileIds((prev) => {
-      const newSelection = new Set(prev);
-      if (newSelection.has(fileId)) {
-        newSelection.delete(fileId);
-      } else {
-        newSelection.add(fileId);
-      }
-      return newSelection;
-    });
-  };
-
-  // --- Delete/Clear Handlers ---
   const handleDeleteSingleImage = useCallback(
     async (imageId: string) => {
-      if (isBulkDeleting || isLoading || isProcessing) return; // Prevent single delete during any operation
-      setIsProcessing(true); // Indicate operation is running
-      setError(null); // Clear previous errors
-      setItemFeedback(imageId, null); // Clear any existing feedback for this item
-
-      let imageName = `Image ID ${imageId}`; // Default name if fetch fails
-      let status: 'success' | 'error' = 'success';
-      let historyOutput: string | Record<string, unknown> = {
-        message: `Deleted image.`,
-      };
-      const inputDetails: Record<string, unknown> = { deletedImageId: imageId };
-
+      if (isBulkDeleting || selectedImageIds.has(imageId)) return;
+      setIsProcessing(true);
+      setError(null);
+      const imageToDelete = storedImages.find((f) => f.id === imageId);
+      const imageName = imageToDelete?.name || `Image ID ${imageId}`;
       try {
-        // Fetch the image details first to get the name for history/feedback
-        const imageToDelete = await getImage(imageId);
-
-        if (!imageToDelete) {
-          // If image doesn't exist, log error and return, no DB operation needed
-          const msg = `Attempted to delete non-existent or invalid image ID: ${imageId}`;
-          console.warn(`[ImageStorage] ${msg}`);
-          setError(msg);
-          status = 'error';
-          historyOutput = `Error: ${msg}`;
-          inputDetails.error = msg;
-          setItemFeedback(imageId, 'error', `Delete failed: Not found.`);
-          // We should ideally reload the list here too, in case the image *was* there but failed to delete previously?
-          // Or maybe just loadAndDisplayImages in the finally block? Let's keep it simple and just log/feedback.
-          // Add loadAndDisplayImages to finally block to catch potential state discrepancies
-          return; // Exit function early
-        }
-
-        imageName = imageToDelete.name || imageName; // Use the fetched name
-        inputDetails.deletedImageName = imageName; // Add name to history input
-
-        // Perform the deletion
         await deleteImage(imageId);
-
-        // Update local state directly or reload. reload is simpler for now.
-        // Note: deleteImage in context provider *should* update its state,
-        // which this component reads. A full reload confirms state sync.
-        // Moved loadAndDisplayImages to finally block
-
-        // History logging for success
-        historyOutput = { message: `Deleted "${imageName}"` };
-        status = 'success';
-      } catch (err: unknown) {
-        // Corrected catch syntax
-        const message =
-          err instanceof Error ? err.message : 'Unknown error deleting image.';
-        console.error(
-          `[ImageStorage] Error deleting "${imageName}" (ID: ${imageId}):`,
-          err
-        );
-        setError(`Failed to delete "${imageName}". ${message}`);
-        status = 'error';
-        historyOutput = `Error deleting "${imageName}": ${message}`;
-        inputDetails.error = message; // Log error details in history input
-        setItemFeedback(imageId, 'error', `Delete failed: ${message}`); // Set error feedback on the item
-      } finally {
-        setIsProcessing(false); // End processing state
-        // Add history entry for the delete attempt (success or failure)
+        setStoredImages((prev) => prev.filter((f) => f.id !== imageId));
+        setSelectedImageIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(imageId);
+          return newSet;
+        });
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
-          trigger: 'click', // Trigger type for a button click
-          input: inputDetails,
-          output: historyOutput,
-          status: status,
-          eventTimestamp: Date.now(), // Add event timestamp
+          trigger: 'click',
+          input: { deletedImageId: imageId, deletedImageName: imageName },
+          output: { message: `Deleted "${imageName}"` },
+          status: 'success',
+          eventTimestamp: Date.now(),
         });
-        // Always reload the list in finally to ensure UI reflects current DB state
-        await loadAndDisplayImages();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Unknown error deleting image.';
+        setError(`Failed to delete "${imageName}". ${message}`);
+        addHistoryEntry({
+          toolName: toolTitle,
+          toolRoute: toolRoute,
+          trigger: 'click',
+          input: { deletedImageId: imageId, error: message },
+          output: `Error deleting "${imageName}": ${message}`,
+          status: 'error',
+          eventTimestamp: Date.now(),
+        });
+      } finally {
+        setIsProcessing(false);
       }
-      // No setItemFeedback('download') here - that was likely a copy/paste error
-      // Removed the dependency on storedImages as it's not used directly within the useCallback body anymore
     },
     [
       isBulkDeleting,
-      isLoading,
-      isProcessing,
-      getImage,
+      selectedImageIds,
+      storedImages,
       deleteImage,
       addHistoryEntry,
-      toolTitle,
       toolRoute,
-      setItemFeedback,
-      loadAndDisplayImages,
+      toolTitle,
     ]
-  ); // Dependencies: State variables used *before* async calls, and functions/props used inside.
-
-  const handleBulkDeleteSelected = useCallback(async () => {
-    if (
-      selectedFileIds.size === 0 ||
-      isLoading ||
-      isProcessing ||
-      isBulkDeleting
-    )
-      return;
-    if (
-      !confirm(
-        `Are you sure you want to delete ${selectedFileIds.size} selected image(s)? This cannot be undone.`
-      )
-    )
-      return;
-
-    setIsBulkDeleting(true); // Enter bulk delete mode
-    setIsProcessing(true); // Also indicate processing is happening
-    setError(null); // Clear previous errors
-    setFeedbackState({}); // Clear all feedback for items
-
-    const idsToDelete = Array.from(selectedFileIds);
-    let historyOutput: string | Record<string, unknown> = {
-      message: `Attempted to delete ${idsToDelete.length} selected images.`,
-    };
-    let status: 'success' | 'error' = 'success';
-    const inputDetails: Record<string, unknown> = {
-      attemptedDeleteCount: idsToDelete.length,
-      idsToDelete: idsToDelete,
-    };
-
-    try {
-      // We need to delete specific IDs. Dexie supports bulkDelete.
-      // A bulk delete method in FileLibraryContext would be ideal.
-      // For now, using deleteImage(id) in a loop, accepting it might be less performant for very large numbers.
-
-      // Filter out IDs that don't start with 'temp-' if we only manage permanent images?
-      // No, the context allows deleting temporary files too. Keep as is.
-
-      const deletionPromises = idsToDelete.map((id) =>
-        deleteImage(id).catch((err: unknown) => {
-          // Corrected catch syntax
-          console.error(`[ImageStorage] Failed to bulk delete ID ${id}:`, err);
-          // Log error for this specific ID
-          setItemFeedback(
-            id,
-            'error',
-            `Delete failed: ${err instanceof Error ? err.message : String(err)}`
-          );
-          return {
-            id,
-            error: err instanceof Error ? err.message : String(err),
-          }; // Return error result
-        })
-      );
-
-      const results = await Promise.all(deletionPromises);
-      const failedDeletions = results.filter(
-        (r) => r && typeof r === 'object' && 'error' in r
-      ); // Refined check for error results
-
-      if (failedDeletions.length === 0) {
-        console.log(
-          `[ImageStorage] Successfully deleted ${idsToDelete.length} selected images.`
-        );
-        historyOutput = {
-          message: `Deleted ${idsToDelete.length} selected image(s).`,
-        };
-        status = 'success';
-      } else {
-        const successCount = idsToDelete.length - failedDeletions.length;
-        const errorMsg = `Failed to delete ${failedDeletions.length} of ${idsToDelete.length} selected image(s).`;
-        console.error(`[ImageStorage] ${errorMsg}`);
-        setError(errorMsg); // Set component-level error
-        status = 'error';
-        historyOutput = `Error deleting selected images. ${successCount} succeeded, ${failedDeletions.length} failed.`;
-        inputDetails.failedDeletions = failedDeletions.map((f) => f.id);
-      }
-
-      // After deletion attempts, reload the displayed list
-      // Moved loadAndDisplayImages to finally block
-
-      setSelectedFileIds(new Set()); // Clear selection regardless of success
-    } catch (err: unknown) {
-      // Corrected catch syntax
-      // This catch block would only be for errors *before* the deletion loop starts
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Unknown error during bulk delete setup.';
-      console.error('[ImageStorage] Unexpected error during bulk delete:', err);
-      setError(`An unexpected error occurred during bulk deletion: ${message}`);
-      status = 'error';
-      historyOutput = `Unexpected error during bulk delete: ${message}`;
-      inputDetails.error = message;
-    } finally {
-      setIsBulkDeleting(false); // Exit bulk delete mode
-      setIsProcessing(false); // End processing state
-      // Add history entry for the bulk delete action
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click', // Trigger type for a button click
-        input: inputDetails,
-        output: historyOutput,
-        status: status,
-        eventTimestamp: Date.now(), // Add event timestamp
-      });
-      // Always reload the list in finally to ensure UI reflects current DB state
-      await loadAndDisplayImages();
-    }
-  }, [
-    selectedFileIds,
-    isLoading,
-    isProcessing,
-    isBulkDeleting,
-    deleteImage,
-    addHistoryEntry,
-    toolTitle,
-    toolRoute,
-    setItemFeedback,
-    loadAndDisplayImages,
-  ]); // Dependencies
+  );
 
   const handleClearAll = useCallback(async () => {
     if (
       isLoading ||
       isProcessing ||
       isBulkDeleting ||
-      storedImages.length === 0
+      storedImages.length === 0 ||
+      selectedImageIds.size > 0
     )
       return;
-    // Use the clearAllImages function from context
-    if (
-      !confirm(
-        `Are you sure you want to delete all ${storedImages.length} stored images? This cannot be undone.`
-      )
-    )
-      return;
-
-    setError(null); // Clear previous errors
-    setIsLoading(true); // Show loading state
-    setIsProcessing(true); // Show processing state
-    setIsBulkDeleting(true); // Engage bulk delete mode for visual feedback
-    setFeedbackState({}); // Clear all item feedback
-
-    let historyOutput: string | Record<string, unknown> =
-      `Attempted to clear all ${storedImages.length} images.`;
-    let status: 'success' | 'error' = 'success';
-    const inputDetails: Record<string, unknown> = {
-      attemptedClearCount: storedImages.length,
-    };
-
+    setError(null);
+    setIsProcessing(true);
+    const count = storedImages.length;
     try {
-      // clearAllImages now handles its own loading/error state and DB access
-      await clearAllImages(); // Clear all permanent images via context hook
-
-      // Optimistically update local state
+      await clearAllImages();
       setStoredImages([]);
-      setSelectedFileIds(new Set()); // Clear selections
-      revokeManagedUrls(); // Clean up all associated object URLs
-
-      console.log(`[ImageStorage] Cleared all images via context.`);
-      historyOutput = `Cleared all ${inputDetails.attemptedClearCount} images.`; // Use attempted count in success message
-      status = 'success';
-    } catch (err: unknown) {
-      // Corrected catch syntax
-      const message =
-        err instanceof Error ? err.message : 'Unknown error clearing images.';
-      console.error('[ImageStorage] Error clearing all images:', err);
-      setError(`Failed to clear all images. ${message}`); // Set component-level error
-      status = 'error';
-      historyOutput = `Error clearing all images: ${message}`;
-      inputDetails.error = message; // Log error details in history input
-      // Reload the list on failure to show which images might remain
-      await loadAndDisplayImages(); // Reload the displayed list
-    } finally {
-      setIsLoading(false); // End loading state
-      setIsProcessing(false); // End processing state
-      setIsBulkDeleting(false); // Exit bulk delete mode
-      // Add history entry for the clear all action
+      setSelectedImageIds(new Set());
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        trigger: 'click', // Trigger type for a button click
-        input: inputDetails,
-        output: historyOutput,
-        status: status,
-        eventTimestamp: Date.now(), // Add event timestamp
+        trigger: 'click',
+        input: { clearAllCount: count },
+        output: `Cleared all ${count} images.`,
+        status: 'success',
+        eventTimestamp: Date.now(),
       });
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Unknown error clearing images.';
+      setError(`Failed to clear all images. ${message}`);
+      addHistoryEntry({
+        toolName: toolTitle,
+        toolRoute: toolRoute,
+        trigger: 'click',
+        input: { clearAllCount: count, error: message },
+        output: `Error clearing images: ${message}`,
+        status: 'error',
+        eventTimestamp: Date.now(),
+      });
+      await loadAndDisplayImages();
+    } finally {
+      setIsProcessing(false);
     }
   }, [
     isLoading,
     isProcessing,
     isBulkDeleting,
-    storedImages.length,
+    storedImages,
+    selectedImageIds,
     clearAllImages,
-    revokeManagedUrls,
     addHistoryEntry,
-    toolTitle,
     toolRoute,
+    toolTitle,
     loadAndDisplayImages,
-  ]); // Dependencies
-
-  // --- Action Handlers (Copy/Download/SendTo) ---
-  const handleCopyFileContent = useCallback(
-    async (imageId: string) => {
-      if (anyOperationInProgress) return;
-      setError(null);
-      setItemFeedback(imageId, null);
-      try {
-        const image = await getImage(imageId); // Use getImage from context
-        if (!image?.blob) throw new Error('Image data not found.');
-        // Check if it's a text-like file type before attempting to read as text
-        if (
-          !image.type?.startsWith('text/') &&
-          image.type !== 'application/json' &&
-          image.type !== 'application/xml' &&
-          image.type !== 'application/javascript' &&
-          image.type !== 'application/csv'
-        ) {
-          throw new Error(
-            `Cannot copy content of type "${image.type}". Only text-based files are supported.`
-          );
-        }
-        if (!navigator.clipboard?.writeText)
-          throw new Error('Clipboard API not available.');
-        const text = await new Response(image.blob).text();
-        await navigator.clipboard.writeText(text);
-        setItemFeedback(imageId, 'copy', 'Copied!');
-      } catch (err: unknown) {
-        // Corrected catch syntax
-        const message =
-          err instanceof Error ? err.message : 'Unknown copy error.';
-        console.error(
-          `[ImageStorage] Error copying content for ID ${imageId}:`,
-          err
-        );
-        setItemFeedback(imageId, 'error', `Copy failed: ${message}`);
-      }
-    },
-    [anyOperationInProgress, getImage, setItemFeedback]
-  ); // Dependencies
+  ]);
 
   const handleDownloadFile = useCallback(
+    // Stays generic, "File" is fine
     async (imageId: string) => {
-      if (anyOperationInProgress) return;
       setError(null);
       setItemFeedback(imageId, null);
       try {
-        const image = await getImage(imageId); // Use getImage from context
+        const image = await getImage(imageId); // From useImageLibrary
         if (!image?.blob) throw new Error('Image data not found.');
         const url = URL.createObjectURL(image.blob);
         const link = document.createElement('a');
         link.href = url;
-        // Derive download name from stored file name, fall back to ID/type
-        link.download =
-          image.name || `file-${imageId}.${image.type.split('/')[1] || 'bin'}`;
+        link.download = image.name || `download-${imageId}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(url); // Clean up the temporary URL
+        URL.revokeObjectURL(url);
         setItemFeedback(imageId, 'download', 'Downloaded!');
-      } catch (err: unknown) {
-        // Corrected catch syntax
+      } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Unknown download error.';
-        console.error(
-          `[ImageStorage] Error downloading file ID ${imageId}:`,
-          err
-        );
         setItemFeedback(imageId, 'error', `Download failed: ${message}`);
       }
     },
-    [anyOperationInProgress, getImage, setItemFeedback]
-  ); // Dependencies
+    [getImage, setItemFeedback]
+  );
 
-  const handleSendTo = useCallback(
-    (imageId: string) => {
-      if (anyOperationInProgress) return;
-      // This is a placeholder. Actual implementation would involve routing or context update.
-      alert(
-        `"Send To" clicked for image ID: ${imageId}. (Feature Not Implemented)`
-      );
-      console.log('Send To clicked for:', imageId);
-      // Potentially add history entry for this action if it becomes a real feature
-      /*
-       addHistoryEntry({
-         toolName: toolTitle,
-         toolRoute: toolRoute,
-         trigger: 'click',
-         input: { sendImageId: imageId },
-         output: `Attempted to send image ID ${imageId} to another tool.`,
-         status: 'success', // Or 'error' if failed
-         eventTimestamp: Date.now()
-       });
-      */
-      // Removed dependencies related to history entry that is commented out
+  const handleCopyFileContent = useCallback(
+    // Image-specific copy
+    async (imageId: string) => {
+      setError(null);
+      setItemFeedback(imageId, null);
+      try {
+        const image = await getImage(imageId); // From useImageLibrary
+        if (!image?.blob) throw new Error('Image data not found.');
+        if (!image.type?.startsWith('image/'))
+          throw new Error('Not an image file.');
+        if (!navigator.clipboard?.write)
+          throw new Error('Clipboard API (write) not available.');
+
+        const clipboardItem = new ClipboardItem({
+          [image.blob.type]: image.blob,
+        });
+        await navigator.clipboard.write([clipboardItem]);
+        setItemFeedback(imageId, 'copy', 'Copied!');
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Unknown copy error.';
+        setItemFeedback(imageId, 'error', `Copy failed: ${message}`);
+      }
     },
-    [anyOperationInProgress]
-  ); // Dependencies
+    [getImage, setItemFeedback]
+  );
 
-  // --- Custom Preview Renderer for FileGridView ---
+  const handleToggleSelection = useCallback((imageId: string) => {
+    setSelectedImageIds((prevSelected) => {
+      const newSelected = new Set(prevSelected);
+      if (newSelected.has(imageId)) {
+        newSelected.delete(imageId);
+      } else {
+        newSelected.add(imageId);
+      }
+      return newSelected;
+    });
+  }, []);
+
+  const handleDeleteSelected = useCallback(async () => {
+    if (
+      selectedImageIds.size === 0 ||
+      isLoading ||
+      isProcessing ||
+      isBulkDeleting
+    )
+      return;
+
+    const count = selectedImageIds.size;
+    setIsBulkDeleting(true);
+    setError(null);
+    const idsToDelete = Array.from(selectedImageIds);
+    const deletedNames: string[] = [];
+    const errorsEncountered: string[] = [];
+
+    for (const id of idsToDelete) {
+      const image = storedImages.find((f) => f.id === id); // Use storedImages
+      const name = image?.name || `Image ID ${id}`;
+      try {
+        await deleteImage(id); // From useImageLibrary
+        deletedNames.push(name);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        errorsEncountered.push(`Failed to delete "${name}": ${message}`);
+      }
+    }
+
+    setStoredImages((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
+    setSelectedImageIds(new Set());
+
+    let historyOutput: Record<string, unknown> | string = {};
+    let finalStatus: 'success' | 'error' = 'success';
+
+    if (errorsEncountered.length === 0) {
+      historyOutput = {
+        message: `Deleted ${count} selected image(s).`,
+        deletedCount: count,
+        deletedNames: deletedNames,
+      };
+    } else {
+      finalStatus = 'error';
+      const errorMessage = `Errors occurred: ${errorsEncountered.join('; ')}`;
+      setError(errorMessage);
+      historyOutput = {
+        message: errorMessage,
+        deletedCount: deletedNames.length,
+        errorCount: errorsEncountered.length,
+        errors: errorsEncountered,
+      };
+      await loadAndDisplayImages();
+    }
+
+    addHistoryEntry({
+      toolName: toolTitle,
+      toolRoute: toolRoute,
+      trigger: 'click',
+      input: { deletedImageIds: idsToDelete, requestedCount: count },
+      output: historyOutput,
+      status: finalStatus,
+      eventTimestamp: Date.now(),
+    });
+
+    setIsBulkDeleting(false);
+  }, [
+    selectedImageIds,
+    isLoading,
+    isProcessing,
+    isBulkDeleting,
+    storedImages,
+    deleteImage,
+    loadAndDisplayImages,
+    addHistoryEntry,
+    toolRoute,
+    toolTitle,
+  ]);
+
   const renderDefaultPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
-      // This checks if the file is an image type and if we have an object URL for its preview
-      const objectUrl = imageObjectUrls.get(file.id);
+      const objectUrl = previewUrls.get(file.id);
       if (objectUrl && file.type?.startsWith('image/')) {
-        // Using unoptimized={true} for local blobs is appropriate
         return (
           <Image
             src={objectUrl}
             alt={file.name || 'Stored image preview'}
-            width={150}
-            height={150}
-            className="max-w-full max-h-full object-contain"
-            unoptimized={true}
+            width={120}
+            height={120}
+            className="max-w-full max-h-full object-contain pointer-events-none"
+            unoptimized
           />
         );
       }
-      // Fallback for non-images or images without a generated preview URL
-      const fileType = file.type || '';
-      if (
-        fileType === 'application/zip' ||
-        fileType === 'application/x-zip-compressed'
-      )
-        return <span className="text-4xl opacity-50">📦</span>;
-      if (fileType.startsWith('text/'))
-        return <span className="text-4xl opacity-50">📄</span>;
-      if (fileType === 'application/pdf')
-        return <span className="text-4xl opacity-50">📕</span>;
-      // Generic image icon if it's an image type but no URL (e.g., thumbnail failed)
-      if (fileType.startsWith('image/'))
-        return (
-          <Image
-            src="/icon-org.svg"
-            alt="Generic image icon"
-            width={48}
-            height={48}
-            className="opacity-50"
-          />
-        ); // Use a generic image icon
-      return <span className="text-4xl opacity-50">❔</span>; // Generic file icon
+      const iconClassName = getFileIconClassName(file.name);
+      return (
+        <span className="flex items-center justify-center h-full w-full">
+          <span
+            aria-hidden="true"
+            className={`${iconClassName}`}
+            title={file.type || 'File'}
+          ></span>
+        </span>
+      );
     },
-    [imageObjectUrls]
-  ); // Dependency: imageObjectUrls state
+    [previewUrls]
+  );
 
-  // --- Calculate Flags / States ---
-  // Combine local loading/processing with library context loading/error
-  const anyOperationInProgress =
-    isLoading || isProcessing || isBulkDeleting || libraryLoading;
-  const displayError = error || libraryError;
-
-  // --- Render Logic ---
-  const showLoadingIndicator =
-    anyOperationInProgress && storedImages.length === 0;
-  const showEmptyState =
-    !anyOperationInProgress && storedImages.length === 0 && !displayError;
+  const controlsAreLoading = isLoading || isProcessing || isBulkDeleting;
+  const showEmpty =
+    !isLoading && storedImages.length === 0 && !isProcessing && !isBulkDeleting;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        id="imageUploadHidden"
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        className="hidden"
-        disabled={anyOperationInProgress}
-        multiple
+      <StorageControls
+        isLoading={controlsAreLoading}
+        isDeleting={isBulkDeleting}
+        itemCount={storedImages.length}
+        currentLayout={layout}
+        selectedItemCount={selectedImageIds.size}
+        onAddClick={handleAddClick}
+        onClearAllClick={handleClearAll}
+        onLayoutChange={setLayout}
+        onDeleteSelectedClick={handleDeleteSelected}
+        itemNameSingular={'Image'}
+        itemNamePlural={'Images'}
       />
-
-      {/* Control Buttons */}
-      <div className="flex flex-wrap gap-4 items-center justify-between p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <button
-          type="button"
-          onClick={handleAddClick}
-          disabled={anyOperationInProgress}
-          className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-accent2-bg))] transition-colors duration-150 ease-in-out ${anyOperationInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <span>➕</span> {isProcessing ? 'Processing...' : 'Add Image(s)'}
-        </button>
-
-        {/* Bulk Delete Button */}
-        {selectedFileIds.size > 0 && (
-          <button
-            type="button"
-            onClick={handleBulkDeleteSelected}
-            disabled={anyOperationInProgress}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-danger-text))] bg-[rgb(var(--color-button-danger-bg))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-danger-bg))] transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span>🗑️</span> Delete Selected ({selectedFileIds.size})
-          </button>
-        )}
-
-        {/* Clear All Button */}
-        <button
-          type="button"
-          onClick={handleClearAll}
-          disabled={storedImages.length === 0 || anyOperationInProgress}
-          className={`inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400 transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${selectedFileIds.size > 0 ? 'hidden sm:inline-flex' : ''}`}
-        >
-          {' '}
-          {/* Hide when bulk delete is active, show on larger screens */}
-          <span>🧺</span> Clear All Images
-        </button>
-      </div>
-
-      {displayError && (
+      {error && (
         <div
           role="alert"
           className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm"
         >
-          {' '}
-          <strong>Error:</strong> {displayError}{' '}
+          <strong>Error:</strong> {error}
         </div>
       )}
 
-      {/* File Display Area (using DropZone as wrapper) */}
-      <FileDropZone
-        onFilesAdded={handleFilesAdded}
-        isLoading={anyOperationInProgress}
-        className="min-h-[300px]"
-      >
-        {/* Loading, Empty, or Content */}
-        {showLoadingIndicator && (
-          <p className="text-center p-4 text-gray-500 italic animate-pulse">
-            Loading Stored Images...
-          </p>
-        )}
-
-        {showEmptyState && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 italic py-16">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-16 w-16 mb-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth="1"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <p className="text-lg font-medium">No images stored yet.</p>
-            <p className="mt-2 text-sm">
-              Drag & drop images here, paste them from your clipboard, or click
-              "Add Image(s)" above.
+      <div className="border-2 border-dashed border-gray-300 rounded-md min-h-[200px] p-1">
+        {isLoading &&
+          !isProcessing &&
+          !isBulkDeleting &&
+          storedImages.length === 0 && (
+            <div className="flex items-center justify-center min-h-[200px]">
+              <p className="text-center p-4 text-gray-500 italic animate-pulse">
+                Loading stored images...
+              </p>
+            </div>
+          )}
+        {showEmpty && (
+          <div className="flex items-center justify-center min-h-[200px]">
+            <p className="text-center p-4 text-gray-500 italic">
+              Your image library is empty. Add images using the button above.
             </p>
           </div>
         )}
+        {!isLoading &&
+          !showEmpty &&
+          (layout === 'list' ? (
+            <FileListView
+              files={storedImages}
+              isLoading={controlsAreLoading}
+              isBulkDeleting={isBulkDeleting}
+              selectedIds={selectedImageIds}
+              feedbackState={feedbackState}
+              onCopy={handleCopyFileContent}
+              onDownload={handleDownloadFile}
+              onDelete={handleDeleteSingleImage}
+              onToggleSelection={handleToggleSelection}
+            />
+          ) : (
+            <FileGridView
+              files={storedImages}
+              isLoading={controlsAreLoading}
+              isBulkDeleting={isBulkDeleting}
+              selectedIds={selectedImageIds}
+              feedbackState={feedbackState}
+              onCopy={handleCopyFileContent}
+              onDownload={handleDownloadFile}
+              onDelete={handleDeleteSingleImage}
+              renderPreview={renderDefaultPreview}
+              onToggleSelection={handleToggleSelection}
+            />
+          ))}
+      </div>
 
-        {!showLoadingIndicator && !showEmptyState && (
-          <FileGridView
-            files={storedImages}
-            isLoading={anyOperationInProgress} // Pass combined loading/processing state
-            isBulkDeleting={isBulkDeleting}
-            selectedIds={selectedFileIds}
-            feedbackState={feedbackState}
-            onSendTo={handleSendTo}
-            onCopy={handleCopyFileContent}
-            onDownload={handleDownloadFile}
-            onDelete={handleDeleteSingleImage} // Single delete handler
-            renderPreview={renderDefaultPreview}
-            onToggleSelection={handleToggleSelection}
-          />
-        )}
-      </FileDropZone>
+      <FileSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onFilesSelected={handleModalFilesSelected}
+        mode="addNewFiles"
+        accept="image/*"
+        selectionMode="multiple"
+      />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { getClassWithColor } from 'file-icons-js';
 export const formatBytes = (bytes: number, decimals = 2): string => {
   if (bytes === 0) return '0 Bytes';
   if (bytes < 0) return 'Invalid Size';
-  // Handle sub-byte values which might occur in calculations
   if (bytes < 1) return parseFloat(bytes.toFixed(decimals)) + ' Bytes';
 
   const k = 1024;
@@ -95,10 +94,18 @@ export const getFileIconClassName = (fileName?: string): string => {
     return 'icon generic-file-icon'; // A generic fallback class you might style
   }
 
-  // Call the imported function directly
-  // getClassWithColor directly applies the color (typically colorMode 0 from the Icon instance)
   const iconClass = getClassWithColor(fileName);
 
-  // It returns null if no icon is found, or a string of classes.
   return iconClass || 'icon generic-file-icon'; // Provide a fallback class string
+};
+
+export const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
+  if (!mimeType) return false;
+  return (
+    mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/xml' ||
+    mimeType === 'application/javascript' ||
+    mimeType === 'application/csv'
+  );
 };
