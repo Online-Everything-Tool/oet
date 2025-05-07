@@ -100,7 +100,7 @@ export default function ToolHistorySettings({
               disabled={isDisabled}
               // Apply Tailwind classes for styling, focus, and accent color
               // CHANGED TO GREEN
-              className="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed accent-green-600"
+              className="h-4 w-4 border-gray-300 text-green-600 disabled:opacity-50 disabled:cursor-not-allowed accent-green-600"
             />
             <label
               htmlFor={`history-pref-${toolRoute}-on`}
@@ -125,7 +125,7 @@ export default function ToolHistorySettings({
               onChange={handlePreferenceChange}
               disabled={isDisabled}
               // CHANGED TO ORANGE
-              className="h-4 w-4 border-gray-300 text-orange-600 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
+              className="h-4 w-4 border-gray-300 text-orange-600 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
             />
             <label
               htmlFor={`history-pref-${toolRoute}-restrictive`}
@@ -150,7 +150,7 @@ export default function ToolHistorySettings({
               onChange={handlePreferenceChange}
               disabled={isDisabled}
               // KEPT AS RED
-              className="h-4 w-4 border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed accent-red-600"
+              className="h-4 w-4 border-gray-300 text-red-600 disabled:opacity-50 disabled:cursor-not-allowed accent-red-600"
             />
             <label
               htmlFor={`history-pref-${toolRoute}-off`}

@@ -1,13 +1,7 @@
 // FILE: app/tool/file-storage/_components/FileStorageClient.tsx
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  // ChangeEvent, // No longer needed here
-  useRef,
-  useEffect,
-} from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { useHistory, TriggerType } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -69,7 +63,6 @@ export default function FileStorageClient({
   }, []);
 
   const updatePreviewUrlsForFilesClient = useCallback(
-    // Renamed to avoid conflict if FileSelectionModal is ever merged here
     (filesToDisplay: StoredFile[]) => {
       setPreviewUrls((prevPreviewMap) => {
         const newPreviewMap = new Map<string, string>();
@@ -109,7 +102,6 @@ export default function FileStorageClient({
               break;
             }
           }
-          // Also check if any keys from prev map are missing in new map
           for (const key of prevPreviewMap.keys()) {
             if (!newPreviewMap.has(key)) {
               mapChanged = true;
@@ -120,7 +112,7 @@ export default function FileStorageClient({
         return mapChanged ? newPreviewMap : prevPreviewMap;
       });
     },
-    [] // setPreviewUrls is stable
+    []
   );
 
   useEffect(() => {
@@ -149,7 +141,6 @@ export default function FileStorageClient({
           managedUrlsRef.current.delete(id);
           newPreviewMap.delete(id);
         });
-        // Only return new map if it actually changed
         if (newPreviewMap.size !== prevPreviewUrls.size) return newPreviewMap;
         for (const [key, value] of newPreviewMap)
           if (prevPreviewUrls.get(key) !== value) return newPreviewMap;
@@ -186,7 +177,6 @@ export default function FileStorageClient({
     try {
       const files = await listFiles(limit, false);
       setStoredFiles(files);
-      // updatePreviewUrlsForFilesClient will be called by the useEffect watching storedFiles
     } catch (err: unknown) {
       console.error('[FileStorage] Error loading files:', err);
       setError('Failed to load stored files.');
@@ -209,7 +199,7 @@ export default function FileStorageClient({
         fileName: tempFile.name,
         fileType: tempFile.type,
         fileSize: tempFile.size,
-        source: trigger, // 'upload' if coming from modal's upload tab
+        source: trigger,
       };
 
       try {
@@ -254,7 +244,7 @@ export default function FileStorageClient({
     async (
       filesFromModal: StoredFile[],
       source: 'library' | 'upload',
-      saveToLibraryPreference?: boolean // This comes from modal's own checkbox
+      saveUploadedToLibrary?: boolean
     ) => {
       setIsModalOpen(false);
       if (!filesFromModal || filesFromModal.length === 0) return;
@@ -262,21 +252,18 @@ export default function FileStorageClient({
       setError(null);
       setIsProcessing(true);
 
-      if (source === 'upload') {
-        // If source is 'upload', filesFromModal contains StoredFile-like objects.
-        // If saveToLibraryPreference was true, the modal already called addFile via its own context.
-        // If saveToLibraryPreference was false, filesFromModal are temporary (isTemporary: true, blob is the File).
-        // FileStorageClient *always* wants to persist these.
+      if (source === 'upload' && !saveUploadedToLibrary) {
+        console.log(
+          '[FileStorageClient] Persisting temporary files from modal upload...'
+        );
         const filesToPersist = filesFromModal.filter((f) => f.isTemporary);
         if (filesToPersist.length > 0) {
-          const persistPromises = filesToPersist.map(
-            (tempFile) => persistTemporaryFile(tempFile, 'upload') // 'upload' is the trigger type
+          const persistPromises = filesToPersist.map((tempFile) =>
+            persistTemporaryFile(tempFile, 'upload')
           );
           await Promise.all(persistPromises);
         }
       }
-      // If source === 'library', files are already in the library, nothing to do here for persistence.
-
       await loadAndDisplayFiles();
       setIsProcessing(false);
     },
@@ -296,8 +283,6 @@ export default function FileStorageClient({
       const fileName = fileToDelete?.name || `File ID ${fileId}`;
       try {
         await deleteFile(fileId);
-        // loadAndDisplayFiles will be called by the useEffect watching storedFiles if state changes
-        // For a more immediate update if loadAndDisplayFiles is slow:
         setStoredFiles((prev) => prev.filter((f) => f.id !== fileId));
         setSelectedFileIds((prev) => {
           const newSet = new Set(prev);
@@ -333,9 +318,8 @@ export default function FileStorageClient({
     [
       isBulkDeleting,
       selectedFileIds,
-      storedFiles, // Added storedFiles dependency
+      storedFiles,
       deleteFile,
-      // loadAndDisplayFiles, // loadAndDisplayFiles might be too slow for immediate UI feedback
       addHistoryEntry,
       toolRoute,
       toolTitle,
@@ -495,12 +479,8 @@ export default function FileStorageClient({
       }
     }
 
-    // Optimistically update UI before full reload if desired, then reload for consistency
     setStoredFiles((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
-    setSelectedFileIds(new Set()); // Clear selection
-
-    // Eventually consistent reload
-    // await loadAndDisplayFiles(); // Can be slow, optimistic update helps UX
+    setSelectedFileIds(new Set());
 
     let historyOutput: Record<string, unknown> | string = {};
     let finalStatus: 'success' | 'error' = 'success';
@@ -521,7 +501,7 @@ export default function FileStorageClient({
         errorCount: errorsEncountered.length,
         errors: errorsEncountered,
       };
-      await loadAndDisplayFiles(); // Force reload if there were errors to ensure UI consistency
+      await loadAndDisplayFiles();
     }
 
     addHistoryEntry({
@@ -542,7 +522,7 @@ export default function FileStorageClient({
     isBulkDeleting,
     storedFiles,
     deleteFile,
-    loadAndDisplayFiles, // Keep loadAndDisplayFiles for error cases or eventual consistency
+    loadAndDisplayFiles,
     addHistoryEntry,
     toolRoute,
     toolTitle,
@@ -558,7 +538,7 @@ export default function FileStorageClient({
           <Image
             src={objectUrl}
             alt={file.name || 'Stored image preview'}
-            width={120} // Adjust as needed for your preview container size
+            width={120}
             height={120}
             className="max-w-full max-h-full object-contain pointer-events-none"
             unoptimized
@@ -658,11 +638,10 @@ export default function FileStorageClient({
       <FileSelectionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onFilesSelected={handleModalFilesSelected} // This handler needs to understand the new onFilesSelected signature
-        mode="addNewFiles" // Essential for FileStorageClient's "Add" functionality
+        onFilesSelected={handleModalFilesSelected}
+        mode="addNewFiles"
         accept="*/*"
         selectionMode="multiple"
-        // initialTab="upload" // Not strictly needed if mode is 'addNewFiles' as it forces upload
       />
     </div>
   );

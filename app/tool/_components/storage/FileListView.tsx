@@ -139,7 +139,7 @@ export default function FileListView({
                     onChange={() => onToggleSelection(file.id)}
                     onClick={(e) => e.stopPropagation()}
                     disabled={isProcessing} // Disable checkbox if any operation is running
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 accent-blue-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     aria-label={`Select file ${file.name}`}
                   />
                 </td>
@@ -186,7 +186,7 @@ export default function FileListView({
                       title={
                         isTextFile ? 'Copy file content' : 'Cannot copy content'
                       }
-                      className={`p-1 rounded focus:outline-none focus:ring-1 disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700 ring-1 ring-green-300' : 'text-green-600 hover:bg-green-100 focus:ring-green-400'}`}
+                      className={`p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
                     >
                       {currentFeedback?.type === 'copy' ? '✔️' : '📄'}
                     </button>
@@ -199,7 +199,7 @@ export default function FileListView({
                         isProcessing || currentFeedback?.type === 'download'
                       }
                       title="Download this file"
-                      className={`p-1 rounded focus:outline-none focus:ring-1 disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'text-indigo-600 hover:bg-indigo-100 focus:ring-indigo-400'}`}
+                      className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
                     >
                       {currentFeedback?.type === 'download' ? '✔️' : '⬇️'}
                     </button>
@@ -214,7 +214,7 @@ export default function FileListView({
                           ? "Use 'Delete Selected' button"
                           : 'Delete this file'
                       }
-                      className="p-1 text-red-600 rounded hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-1 text-red-600 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ❌
                     </button>
