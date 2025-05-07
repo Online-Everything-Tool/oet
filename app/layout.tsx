@@ -5,14 +5,13 @@ import fs from 'fs/promises';
 import path from 'path';
 
 import './globals.css';
+
 import { HistoryProvider } from './context/HistoryContext';
 import { ImageLibraryProvider } from './context/ImageLibraryContext';
 import { FileLibraryProvider } from './context/FileLibraryContext'; // Import FileLibraryProvider
 import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
-import ShoelaceSetup from '@/app/_components/ShoelaceSetup';
 import ClientOnly from './_components/ClientOnly';
-import '@shoelace-style/shoelace/dist/themes/light.css';
 
 // Font setup
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
@@ -100,7 +99,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <ShoelaceSetup />
         <ClientOnly>
           {/* Wrap ImageLibraryProvider with FileLibraryProvider */}
           {/* Order might matter if one depends on the other, but they seem independent */}

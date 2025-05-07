@@ -93,9 +93,9 @@ export default function FileGridView({
         return (
           <div
             key={file.id}
-            className={`relative group border rounded-md shadow-sm overflow-hidden bg-white flex flex-col items-center gap-1 transition-all duration-150 ease-in-out focus-within:ring-2 focus-within:ring-blue-400 focus-within:ring-offset-1 ${
+            className={`relative group border rounded-md shadow-sm overflow-hidden bg-white flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${
               isSelected
-                ? 'border-blue-500 ring-2 ring-blue-400 ring-offset-0'
+                ? 'border-blue-500'
                 : 'hover:shadow-md hover:border-gray-300 border-gray-200'
             } ${isProcessing ? 'opacity-70 cursor-default' : 'cursor-pointer'}`}
             onClick={(e) => handleCardClick(e, file.id)}
@@ -113,7 +113,7 @@ export default function FileGridView({
                   onChange={() => onToggleSelection(file.id)}
                   onClick={(e) => e.stopPropagation()}
                   disabled={isProcessing}
-                  className={`h-4 w-4 rounded border-gray-300 focus:ring-blue-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-opacity duration-150 ${
+                  className={`h-4 w-4 rounded border-gray-300 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 transition-opacity duration-150 ${
                     isSelected
                       ? 'opacity-100 text-blue-600 accent-blue-600'
                       : 'opacity-0 group-hover:opacity-100 text-gray-600 accent-gray-600'
@@ -126,7 +126,7 @@ export default function FileGridView({
                 data-overlay="actions"
                 className={`justify-self-end ${
                   isSelected
-                    ? 'opacity-100'
+                    ? 'invisible'
                     : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
                 }`}
               >
@@ -141,7 +141,7 @@ export default function FileGridView({
                     currentFeedback?.type === 'copy'
                   }
                   title={isTextFile ? 'Copy content' : 'Cannot copy'}
-                  className={`p-1 rounded-full focus:outline-none focus:ring-1 disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700 ring-1 ring-green-300' : 'text-green-600 hover:bg-green-100 focus:ring-green-400'}`}
+                  className={`p-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
                 >
                   {currentFeedback?.type === 'copy' ? '✔️' : '📄'}
                 </button>
@@ -154,7 +154,7 @@ export default function FileGridView({
                     isProcessing || currentFeedback?.type === 'download'
                   }
                   title="Download file"
-                  className={`p-1 rounded-full focus:outline-none focus:ring-1 disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300' : 'text-indigo-600 hover:bg-indigo-100 focus:ring-indigo-400'}`}
+                  className={`p-1 rounded-full disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
                 >
                   {currentFeedback?.type === 'download' ? '✔️' : '⬇️'}
                 </button>
@@ -167,27 +167,37 @@ export default function FileGridView({
                   title={
                     isSelected ? "Use 'Delete Selected' button" : 'Delete file'
                   }
-                  className="p-1 text-red-600 rounded-full hover:bg-red-100 focus:outline-none focus:ring-1 focus:ring-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-1 text-red-600 rounded-full hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   ❌
                 </button>
               </div>
             </div>
 
-            <div className="w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
+            <div
+              className="
+                w-full flex-grow
+                flex items-center justify-center 
+                bg-gray-50 rounded
+                pointer-events-none overflow-hidden
+                min-h-[100px]
+            
+            "
+            >
               {renderPreview(file)}
             </div>
 
-            {/* File Info */}
-            <p
-              className="text-xs text-center font-medium text-gray-800 truncate w-full px-1 pointer-events-none"
-              title={file.name}
-            >
-              {file.name || 'Untitled'}
-            </p>
-            <p className="text-[10px] text-gray-500 pointer-events-none mb-1">
-              {formatBytes(file.size)}
-            </p>
+            <div className="w-full text-center">
+              <p
+                className="text-xs text-center font-medium text-gray-800 truncate w-full px-1 pointer-events-none"
+                title={file.name}
+              >
+                {file.name || 'Untitled'}
+              </p>
+              <p className="text-[10px] text-gray-500 pointer-events-none mb-1">
+                {formatBytes(file.size)}
+              </p>
+            </div>
 
             {/* Deleting Overlay */}
             {isBulkDeleting && isSelected && (

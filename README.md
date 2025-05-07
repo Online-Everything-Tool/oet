@@ -16,7 +16,6 @@ OET aims to provide a single, easy-to-use interface for various common (and mayb
 
 - **Extensive Tool Suite:** Access a growing collection of client-side utilities for text, data, image manipulation, and more.
 - **Privacy First:** All core tool operations run entirely in your browser.
-- **Simple & Clean UI:** Focuses on ease of use with a consistent interface powered by Shoelace components.
 - **AI-Assisted Tool Building:** Contribute new tools easily using our integrated AI build process (see Contributing below).
 - **PWA Enabled:** Many tools work offline after the initial visit.
 - **History Tracking:** Keep track of your previous operations within the tool.
@@ -28,7 +27,6 @@ OET aims to provide a single, easy-to-use interface for various common (and mayb
 ## 🛠️ Tech Stack
 
 - **Framework:** [Next.js](https://nextjs.org/) (App Router)
-- **UI Components:** [Shoelace](https://shoelace.style/)
 - **Language:** [TypeScript](https://www.typescriptlang.org/)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 - **AI Integration:** [Google Gemini](https://gemini.google.com/)
@@ -43,7 +41,7 @@ When developing or proposing new tools, please adhere to the following principle
     - Use lowercase kebab-case only.
     - Avoid articles ('a', 'an', 'the') and short prepositions ('to', 'for', 'with') in directives. Use `image-resize`, not `resize-an-image`.
 2.  **Client-Side Core Logic:** The primary functionality of the tool **must** run entirely within the user's browser using JavaScript/Web APIs. No external network calls should be required for the core operation. (Exceptions may exist for fetching non-essential data sources, like public word lists, if clearly justified).
-3.  **UI Simplicity:** Keep the user interface clean, focused, and intuitive. Leverage existing Shoelace components where possible for consistency. Avoid overly complex layouts or unnecessary visual clutter.
+3.  **UI Simplicity:** Keep the user interface clean, focused, and intuitive. Avoid overly complex layouts or unnecessary visual clutter.
 4.  **Security:** Do not handle sensitive user data in a way that requires server-side processing or external storage for the tool's main function.
 
 ## ⚙️ Getting Started (Development)

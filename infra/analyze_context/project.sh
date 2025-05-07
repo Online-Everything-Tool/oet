@@ -26,7 +26,7 @@ Based *only* on the information given:
 
 1.  Generate a catchy, concise `siteTagline` (string, max 15 words) reflecting the tool's overall value proposition.
 2.  Generate a `siteDescription` (string, exactly **2 sentences**) summarizing the application's purpose ("Online everything tool - largest assortment of free client-based utilities") and target audience.
-3.  Infer a list of user `siteBenefits` (array of strings). Focus on the *value* provided, not just listing features. Examples: "Access a wide variety of utilities in one place", "Transform data quickly using client-side processing", "Track your past operations with the History feature", "Contribute new tools easily via the AI-assisted build process", "Enjoy a consistent experience with Shoelace components", "Works offline for many tools due to PWA setup". Derive these from the purpose, included tools, PWA config, history, and build-tool features shown in the context.
+3.  Infer a list of user `siteBenefits` (array of strings). Focus on the *value* provided, not just listing features. Examples: "Access a wide variety of utilities in one place", "Transform data quickly using client-side processing", "Track your past operations with the History feature", "Contribute new tools easily via the AI-assisted build process", "Works offline for many tools due to PWA setup". Derive these from the purpose, included tools, PWA config, history, and build-tool features shown in the context.
 4.  **Brainstorm `suggestedNewToolDirectives` (array of strings): Based on the project's goal of being a comprehensive suite of *client-side utilities* and the *types* of tools already present (data transformation, generation, exploration - e.g., 'base64-converter', 'hash-generator', 'json-validator-formatter', 'emoji-explorer'), suggest exactly 5 potential *new* tool directives that would logically fit and expand the suite. Focus on common developer, data manipulation, or text utility tasks suitable for client-side implementation. Return these suggestions as an array of strings, using lowercase kebab-case. **Crucially, ensure the directives strictly follow the `<thing>-<operation>` or `<thing>-<operation>-<operation>` pattern (e.g., "diff-checker", "regex-tester", "color-picker", "jwt-debugger", "markdown-previewer") and explicitly avoid prepositions like 'to', 'for', 'with' or articles like 'a', 'an', 'the' within the directive name itself.**
 
 Respond ONLY with a single JSON object adhering strictly to the following structure (the 'modelNameUsed' field will be added by the calling script, do not generate it):
@@ -66,19 +66,15 @@ echo "Using Gemini Model: ${MODEL_NAME}" # Confirm which model is being used
 if [ ! -f "$BASE_CONTEXT_FILE" ]; then
     echo "Error: Base context file '$BASE_CONTEXT_FILE' not found." >&2; exit 1
 fi
-
-# --- Read Base Context ---
-echo "Reading base context (including History/Build-Tool) from $BASE_CONTEXT_FILE..."
-CONTEXT_CONTENT=$(<"$BASE_CONTEXT_FILE")
-if [ -z "$CONTEXT_CONTENT" ]; then echo "Error: Context file '$BASE_CONTEXT_FILE' is empty." >&2; exit 1; fi
-echo "Context read successfully (${#CONTEXT_CONTENT} characters)."
+echo "Base context file found: $BASE_CONTEXT_FILE"
 
 # --- Prepare API Request ---
 API_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}"
 
-# Use jq to safely construct the JSON payload
+# Use jq --rawfile to load the large context file directly into a jq variable
+# The content of $BASE_CONTEXT_FILE will be available as the jq variable $context
 JSON_PAYLOAD=$(jq -n \
-  --arg context "$CONTEXT_CONTENT" \
+  --rawfile context "$BASE_CONTEXT_FILE" \
   --arg question "$ANALYSIS_QUESTION" \
   '{
      "contents": [
@@ -86,7 +82,7 @@ JSON_PAYLOAD=$(jq -n \
          "role": "user",
          "parts": [
            { "text": "Here is the project context for analysis:\n\n" },
-           { "text": $context },
+           { "text": $context }, # Use the jq variable $context, populated by --rawfile
            { "text": "\n\nBased *only* on the context provided above, please fulfill the following request:\n\n" },
            { "text": $question }
          ]
@@ -104,6 +100,21 @@ JSON_PAYLOAD=$(jq -n \
         { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE" }
      ]
    }')
+
+# Check if jq failed (e.g., file not found error within jq itself)
+JQ_EXIT_CODE=$?
+if [ $JQ_EXIT_CODE -ne 0 ]; then
+    echo "Error: jq command failed to construct JSON payload. Exit code: $JQ_EXIT_CODE" >&2
+    # jq might have printed an error related to --rawfile if $BASE_CONTEXT_FILE was not found by jq
+    exit 1
+fi
+
+# Optional: Check if payload is empty (shouldn't happen if jq succeeded, but as a safeguard)
+if [ -z "$JSON_PAYLOAD" ]; then
+    echo "Error: JSON_PAYLOAD generation resulted in an empty string." >&2
+    exit 1
+fi
+
 
 # --- Call Gemini API ---
 echo "Sending context to Gemini (${MODEL_NAME}) for brainstorming JSON analysis..."

@@ -8,20 +8,20 @@
     "build": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && node scripts/generate-metadata-files.mjs && next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "prettier --write .",
-    "postinstall": "mkdir -p public/assets && cp -r node_modules/@shoelace-style/shoelace/dist/assets/. public/assets/"
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@heroicons/react": "^2.2.0",
     "@serwist/next": "^9.0.14",
     "@serwist/strategies": "^9.0.14",
-    "@shoelace-style/shoelace": "^2.20.1",
     "@solana/web3.js": "^1.98.2",
     "bitcoinjs-lib": "^6.1.7",
     "date-fns": "^4.1.0",
     "dexie": "^4.0.11",
     "ecpair": "^3.0.0",
     "ethers": "^6.13.7",
+    "file-icons-js": "^1.1.0",
     "js-md5": "^0.8.3",
     "jszip": "^3.10.1",
     "next": "15.3.1",

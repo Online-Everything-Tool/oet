@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# infra/analyze_context/tool.sh
+# infra/analyze_context/tools.sh
 # Reads .env file for API key, loads the base project context AND the tool context,
 # asks Gemini to analyze the tool code for LoC estimate and consistency metrics (1-100 scale),
 # adds the model name used, and saves the JSON to public/data/tool_analysis.json.

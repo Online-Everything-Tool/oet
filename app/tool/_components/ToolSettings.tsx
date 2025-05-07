@@ -126,7 +126,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
             isCurrentlyFavorite
               ? 'text-yellow-500 hover:bg-yellow-100'
               : 'text-gray-400 hover:text-yellow-500 hover:bg-[rgba(var(--color-border-base)/0.2)]' // Use consistent hover bg
-          } disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-border-focus))]`}
+          } disabled:opacity-50 disabled:cursor-not-allowed`}
           aria-label={
             isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'
           }
@@ -145,7 +145,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openFeedback}
         title="Provide Feedback or Report Issue"
         aria-label="Open Feedback Modal"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-border-focus))]"
+        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <span className="text-xl" aria-hidden="true">
           💬
@@ -158,7 +158,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openRecentPanel}
         title="View Recent Activity for this Tool"
         aria-label="Open Recent Activity Panel"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-border-focus))]"
+        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <span className="text-xl" aria-hidden="true">
           🕒
@@ -171,7 +171,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openSettings}
         title="History Logging Settings"
         aria-label="Open History Logging Settings"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-border-focus))]"
+        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <span className="text-xl" aria-hidden="true">
           ⚙️
@@ -229,7 +229,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(false)}
-                className="px-4 py-2 rounded-md text-sm font-medium bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-primary-bg))]"
+                className="px-4 py-2 rounded-md text-sm font-medium bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))]"
               >
                 Close
               </button>

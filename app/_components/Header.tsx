@@ -47,25 +47,23 @@ export default function Header() {
   return (
     <header className="bg-[rgb(var(--color-button-primary-bg))] text-white shadow-md sticky top-0 z-50">
       <nav className="container mx-auto max-w-6xl px-4 py-3 flex justify-between items-center">
-        {/* Logo/Home Link */}
-        <Link href="/" passHref legacyBehavior>
-          <a className="text-xl font-bold hover:text-indigo-200 transition-colors duration-200">
-            OET
-          </a>
+        <Link
+          href="/"
+          className="text-xl font-bold hover:text-indigo-200 transition-colors duration-200"
+        >
+          OET
         </Link>
-
-        {/* Navigation Links */}
         <div className="flex items-center space-x-2 md:space-x-4">
-          {/* Build Tool Link */}
           {isHome && (
-            <Link href="/build-tool" passHref legacyBehavior>
-              <a className="hidden sm:inline-block text-sm font-medium hover:text-indigo-200 transition-colors duration-200 px-3 py-1 rounded hover:bg-[rgba(255,255,255,0.1)]">
-                Build Tool
-              </a>
+            <Link
+              href="/build-tool"
+              className="hidden sm:inline-block text-sm font-medium hover:text-indigo-200 transition-colors duration-200 px-3 py-1 rounded hover:bg-[rgba(255,255,255,0.1)]"
+            >
+              Build Tool
             </Link>
           )}
-          {/* --- Conditional Favorites Dropdown Wrapper --- */}
-          {isToolPage && ( // Only render if on a /tool/ page
+
+          {isToolPage && (
             <div className="relative inline-block" ref={dropdownRef}>
               <button
                 type="button"
@@ -129,10 +127,7 @@ export default function Header() {
                 </div>
               )}
             </div>
-          )}{' '}
-          {/* End Conditional Rendering */}
-          {/* --- End Conditional Favorites Dropdown Wrapper --- */}
-          {/* History Link Wrapper */}
+          )}
           <div className="relative inline-block">
             <Link
               href="/history"
@@ -160,4 +155,3 @@ export default function Header() {
     </header>
   );
 }
-// --- END FILE: app/_components/Header.tsx ---

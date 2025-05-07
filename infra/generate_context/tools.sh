@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# infra/generate_context/tool.sh
+# infra/generate_context/tools.sh
 # Generates individual context files for each specific tool under app/tool/,
 # prepending the content of shared directories (app/tool/_*) to each.
 # Output: infra/data/tool_context/<directive_snake_case>_context.txt.

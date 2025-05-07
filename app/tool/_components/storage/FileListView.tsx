@@ -170,7 +170,9 @@ export default function FileListView({
                   className="px-4 py-2 whitespace-nowrap text-right text-sm font-medium"
                   data-cell="actions"
                 >
-                  <div className="flex items-center justify-end gap-1.5">
+                  <div
+                    className={`flex items-center justify-end gap-1.5 ${isSelected && 'invisible'}`}
+                  >
                     <button
                       onClick={(e) => {
                         handleActionClick(e);
