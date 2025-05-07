@@ -24,7 +24,7 @@ import {
   CheckIcon,
   ArrowPathIcon,
   ArchiveBoxArrowDownIcon,
-  CheckBadgeIcon, // For indicating permanence
+  CheckBadgeIcon,
 } from '@heroicons/react/20/solid';
 
 interface ImageFlipClientProps {
@@ -43,26 +43,25 @@ export default function ImageFlipClient({
   const [selectedFile, setSelectedFile] = useState<StoredFile | null>(null);
 
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  // --- Renamed State ---
+
   const [processedFileId, setProcessedFileId] = useState<string | null>(null);
-  // --- End Renamed State ---
+
   const [isProcessedFilePermanent, setIsProcessedFilePermanent] =
-    useState<boolean>(false); // Track permanence status
-  const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true); // Default based on common expectation?
+    useState<boolean>(false);
+  const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true);
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
 
   const [uiError, setUiError] = useState<string | null>(null);
 
   const { addHistoryEntry } = useHistory();
-  // --- Get makeImagePermanent ---
+
   const { getImage, makeImagePermanent } = useImageLibrary();
-  // --- End Get ---
 
   const {
     originalImageSrc,
     processedImageSrc,
     processedImageBlob,
-    // Use processedFileId from hook now
+
     processedFileId: hookProcessedFileId,
     fileName,
     isLoading: isProcessingImage,
@@ -72,17 +71,14 @@ export default function ImageFlipClient({
     clearProcessingOutput,
   } = useImageProcessing({ toolTitle, toolRoute });
 
-  // Sync local processedFileId state with the one from the hook
   useEffect(() => {
     setProcessedFileId(hookProcessedFileId);
-    // Check if the newly processed file is permanent (only relevant if autoSave is on)
+
     if (hookProcessedFileId && autoSaveProcessed) {
       setIsProcessedFilePermanent(true);
     } else if (!hookProcessedFileId) {
-      // Clear permanence state if hook clears its ID
       setIsProcessedFilePermanent(false);
     }
-    // We don't necessarily know the permanence if auto-save was off when it was processed
   }, [hookProcessedFileId, autoSaveProcessed]);
 
   const flipDrawFunction = useCallback(
@@ -107,8 +103,8 @@ export default function ImageFlipClient({
     let objectUrl: string | null = null;
     if (selectedFile?.blob && selectedFile.type?.startsWith('image/')) {
       try {
-        clearProcessingOutput(); // Clears processedFileId via hook state
-        setIsProcessedFilePermanent(false); // Reset permanence indicator
+        clearProcessingOutput();
+        setIsProcessedFilePermanent(false);
         setIsCopied(false);
         setUiError(null);
 
@@ -121,8 +117,8 @@ export default function ImageFlipClient({
       }
     } else {
       setOriginalImageSrc(null);
-      clearProcessingOutput(); // Clears processedFileId via hook state
-      setIsProcessedFilePermanent(false); // Reset permanence indicator
+      clearProcessingOutput();
+      setIsProcessedFilePermanent(false);
       if (selectedFile) {
         setUiError('Invalid file type. Please select an image.');
       }
@@ -130,7 +126,6 @@ export default function ImageFlipClient({
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-    // Ensure clearProcessingOutput is stable if included
   }, [selectedFile, setOriginalImageSrc, clearProcessingOutput, setUiError]);
 
   const processingEffectRunCount = useRef(0);
@@ -144,32 +139,22 @@ export default function ImageFlipClient({
     processingEffectRunCount.current += 1;
     const runId = processingEffectRunCount.current;
 
-    // console.log(
-    //   `[ImageFlipClient] PROC_EFFECT (#${runId}) Eval. Key: ${processingKey}, PrevKey: ${prevProcessingKey.current}, isProcessing: ${isProcessingImage}, AutoSave: ${autoSaveProcessed}`
-    // );
-
     if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
-      // console.log(`  (#${runId}) No valid selectedFile for processing. Current ID: ${selectedFile?.id}`);
       prevProcessingKey.current = processingKey;
       return;
     }
 
-    // Skip if same input/options and not currently processing (avoids loop)
     if (processingKey === prevProcessingKey.current && !isProcessingImage) {
-      // console.log(`  (#${runId}) Key ${processingKey} is same as previous and not processing. Skipping re-processing.`);
       return;
     }
 
-    // Skip if already processing this exact task
     if (isProcessingImage && processingKey === prevProcessingKey.current) {
-      // console.log(`  (#${runId}) isProcessingImage is TRUE for current key. Skipping duplicate process call for key ${processingKey}.`);
       return;
     }
 
-    // console.log(`  (#${runId}) New processing task or re-processing. Key: ${processingKey}, Prev: ${prevProcessingKey.current}, AutoSave: ${autoSaveProcessed}`);
-    prevProcessingKey.current = processingKey; // Update *before* async call
+    prevProcessingKey.current = processingKey;
 
-    const currentInputFileForAsync = selectedFile; // Capture current file for async op
+    const currentInputFileForAsync = selectedFile;
 
     const triggerProcessing = async () => {
       const baseName =
@@ -182,8 +167,6 @@ export default function ImageFlipClient({
         mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
       const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
 
-      // console.log(`    (#${runId}) Calling processImage for ${outputFileName} (CreatePerm: ${autoSaveProcessed}) (Input ID: ${currentInputFileForAsync.id})`);
-
       console.log(
         'process image:',
         currentInputFileForAsync,
@@ -193,24 +176,18 @@ export default function ImageFlipClient({
         { flipType },
         autoSaveProcessed
       );
-      // Pass autoSaveProcessed as createPermanentEntry flag
+
       await processImage(
         currentInputFileForAsync,
         flipDrawFunction,
         'auto',
         outputFileName,
         { flipType },
-        autoSaveProcessed // Pass the state value here
+        autoSaveProcessed
       );
-      // console.log(`    (#${runId}) processImage returned. Result ID: ${result.id}, Input ID: ${currentInputFileForAsync.id}, Perm: ${autoSaveProcessed}`);
 
-      // Check if selected file hasn't changed during async processing
       if (selectedFile && selectedFile.id === currentInputFileForAsync.id) {
-        // hook already sets processedFileId state via useEffect dependency
-        // setProcessedFileId(result.id);
-        // Update permanence based on what was actually done
         setIsProcessedFilePermanent(autoSaveProcessed);
-        // console.log(`    (#${runId}) Set processedFileId to: ${result.id}, Permanence: ${autoSaveProcessed}`);
       } else {
         console.warn(
           `    (#${runId}) Race condition: selectedFile changed while processing ${currentInputFileForAsync.id}. Current selectedFile is ${selectedFile?.id}. Not updating processedFileId/permanence for old run.`
@@ -218,27 +195,26 @@ export default function ImageFlipClient({
       }
     };
     triggerProcessing();
-    // Dependencies for the processing trigger
   }, [
-    processingKey, // Derived from selectedFile and flipType
+    processingKey,
     isProcessingImage,
-    selectedFile, // Direct dependency
-    processImage, // From the hook
-    flipDrawFunction, // Callback dep
-    autoSaveProcessed, // State dep
+    selectedFile,
+    processImage,
+    flipDrawFunction,
+    autoSaveProcessed,
   ]);
 
   const handleFilesSelectedFromModal = useCallback(
     (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
-      prevProcessingKey.current = null; // Reset processing key on new file
+      prevProcessingKey.current = null;
       if (files && files.length > 0) {
         const firstFile = files[0];
         if (firstFile.type?.startsWith('image/') && firstFile.blob) {
           setSelectedFile(firstFile);
-          clearProcessingOutput(); // Clear previous output
-          setIsProcessedFilePermanent(false); // Reset permanence
+          clearProcessingOutput();
+          setIsProcessedFilePermanent(false);
         } else {
           setUiError('Invalid file selected. Please select an image.');
           setSelectedFile(null);
@@ -251,28 +227,26 @@ export default function ImageFlipClient({
         setIsProcessedFilePermanent(false);
       }
     },
-    [setUiError, clearProcessingOutput] // Include clearProcessingOutput
+    [setUiError, clearProcessingOutput]
   );
 
   const handleFlipTypeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      prevProcessingKey.current = null; // Reset processing key on option change
+      prevProcessingKey.current = null;
       setFlipType(event.target.value as 'horizontal' | 'vertical');
       setIsCopied(false);
-      clearProcessingOutput(); // Clear output when options change
+      clearProcessingOutput();
       setIsProcessedFilePermanent(false);
     },
-    [clearProcessingOutput] // Include clearProcessingOutput
+    [clearProcessingOutput]
   );
 
-  // --- UPDATED: handleAutoSaveChange ---
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSaveState = e.target.checked;
-      setAutoSaveProcessed(newAutoSaveState); // Update state first
+      setAutoSaveProcessed(newAutoSaveState);
       setUiError(null);
 
-      // If toggled ON and there is a processed file that ISN'T permanent yet
       if (
         newAutoSaveState === true &&
         processedFileId &&
@@ -283,21 +257,21 @@ export default function ImageFlipClient({
         console.log(
           '[ImageFlipClient] Auto-save toggled ON. Attempting to make current processed image permanent.'
         );
-        setIsManuallySaving(true); // Use manual saving flag to prevent race conditions
+        setIsManuallySaving(true);
         try {
           await makeImagePermanent(processedFileId);
-          setIsProcessedFilePermanent(true); // Update permanence indicator
+          setIsProcessedFilePermanent(true);
           addHistoryEntry({
             toolName: toolTitle,
             toolRoute,
-            trigger: 'auto', // Or 'click' if we consider the toggle a click? 'auto' seems ok
+            trigger: 'auto',
             input: {
               originalFile: selectedFile?.name,
               processedFileId: processedFileId,
               operation: 'auto-save toggled on, making file permanent',
             },
             output: { message: `File ${processedFileId} made permanent.` },
-            outputFileIds: [processedFileId], // Link history to the now permanent file
+            outputFileIds: [processedFileId],
             status: 'success',
             eventTimestamp: Date.now(),
           });
@@ -307,16 +281,15 @@ export default function ImageFlipClient({
               ? err.message
               : 'Failed to make image permanent.';
           setUiError(`Auto-save failed: ${message}`);
-          // Should we toggle autoSaveProcessed back? Maybe not, let the user retry?
         } finally {
           setIsManuallySaving(false);
         }
       }
     },
     [
-      processedFileId, // Use current processed ID
-      isProcessedFilePermanent, // Check if already permanent
-      makeImagePermanent, // Use the new function
+      processedFileId,
+      isProcessedFilePermanent,
+      makeImagePermanent,
       addHistoryEntry,
       toolTitle,
       toolRoute,
@@ -326,23 +299,21 @@ export default function ImageFlipClient({
       setUiError,
     ]
   );
-  // --- END UPDATE ---
 
   const handleClear = useCallback(() => {
     setOriginalImageSrc(null);
-    clearProcessingOutput(); // Clears processed ID and blob/src
+    clearProcessingOutput();
     setFlipType('horizontal');
     setUiError(null);
     setSelectedFile(null);
     prevProcessingKey.current = null;
-    // setProcessedFileId(null); // Handled by clearProcessingOutput
+
     setIsCopied(false);
-    setAutoSaveProcessed(true); // Reset to default?
-    setIsProcessedFilePermanent(false); // Reset permanence
+    setAutoSaveProcessed(true);
+    setIsProcessedFilePermanent(false);
   }, [setOriginalImageSrc, clearProcessingOutput, setUiError]);
 
   const handleDownload = useCallback(() => {
-    // This remains largely the same, using processedImageSrc
     if (!processedImageSrc || !fileName) {
       setUiError('No image to download.');
       return;
@@ -362,18 +333,15 @@ export default function ImageFlipClient({
   }, [processedImageSrc, fileName, flipType, setUiError]);
 
   const handleCopyToClipboard = useCallback(async () => {
-    // Now prefers using the ID to get the definitive blob
     setIsCopied(false);
     setUiError(null);
     let blobToCopy: Blob | null = null;
 
     if (processedFileId) {
-      // Use the ID from state
       const fileData = await getImage(processedFileId);
       if (fileData?.blob && fileData.type?.startsWith('image/')) {
         blobToCopy = fileData.blob;
       } else {
-        // Fallback to state blob if fetch fails but we have it? Or just error?
         if (processedImageBlob) {
           console.warn(
             'Could not fetch file by ID for copy, falling back to state blob.'
@@ -385,7 +353,6 @@ export default function ImageFlipClient({
         }
       }
     } else if (processedImageBlob) {
-      // Fallback if ID somehow isn't set but blob is
       console.warn('No processedFileId set, attempting copy using state blob.');
       blobToCopy = processedImageBlob;
     } else {
@@ -411,14 +378,12 @@ export default function ImageFlipClient({
         `Copy failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
     }
-  }, [processedFileId, processedImageBlob, getImage, setUiError]); // Depend on ID and blob state
+  }, [processedFileId, processedImageBlob, getImage, setUiError]);
 
-  // --- UPDATED: handleSaveProcessedToLibrary ---
   const handleSaveProcessedToLibrary = useCallback(async () => {
-    // Check if there is a processed file ID and if it's NOT already permanent
     if (!processedFileId || isProcessedFilePermanent) {
       if (!processedFileId) setUiError('No processed image available to save.');
-      if (isProcessedFilePermanent) console.log('Image already permanent.'); // Or subtle feedback
+      if (isProcessedFilePermanent) console.log('Image already permanent.');
       return;
     }
 
@@ -426,13 +391,12 @@ export default function ImageFlipClient({
     setUiError(null);
     try {
       await makeImagePermanent(processedFileId);
-      setIsProcessedFilePermanent(true); // Update UI indicator
+      setIsProcessedFilePermanent(true);
 
-      // Add history entry for the manual "make permanent" action
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute,
-        trigger: 'click', // Manual click trigger
+        trigger: 'click',
         input: {
           originalFile: selectedFile?.name,
           processedFileId: processedFileId,
@@ -441,7 +405,7 @@ export default function ImageFlipClient({
         output: {
           message: `Made processed image ${processedFileId} permanent.`,
         },
-        outputFileIds: [processedFileId], // Link to the file
+        outputFileIds: [processedFileId],
         status: 'success',
         eventTimestamp: Date.now(),
       });
@@ -449,27 +413,25 @@ export default function ImageFlipClient({
       setUiError(
         `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
-      // Optionally reset isProcessedFilePermanent if save fails? Depends on desired UX.
     } finally {
       setIsManuallySaving(false);
     }
   }, [
-    processedFileId, // Use the current processed ID
-    isProcessedFilePermanent, // Check permanence state
-    makeImagePermanent, // Use the new function
+    processedFileId,
+    isProcessedFilePermanent,
+    makeImagePermanent,
     addHistoryEntry,
     toolTitle,
     toolRoute,
     selectedFile?.name,
     setUiError,
   ]);
-  // --- END UPDATE ---
 
   const imageFilter = useMemo(() => ({ category: 'image' }), []);
   const displayError = processingErrorHook || uiError;
   const canPerformActions =
     !!processedImageSrc && !isProcessingImage && !isManuallySaving;
-  // Show save button only if processed, not auto-saved, not already permanent, and not currently saving/processing
+
   const showSaveButton =
     processedImageBlob &&
     !autoSaveProcessed &&
@@ -494,7 +456,7 @@ export default function ImageFlipClient({
             className="flex gap-x-4 gap-y-2 items-center"
             disabled={
               isProcessingImage || isManuallySaving || !originalImageSrc
-            } // Disable if no image selected
+            }
           >
             <legend className="sr-only">Flip Direction</legend>
             <div className="flex items-center">
@@ -554,7 +516,7 @@ export default function ImageFlipClient({
                 variant="secondary"
                 iconLeft={<ArchiveBoxArrowDownIcon className="h-5 w-5" />}
                 onClick={handleSaveProcessedToLibrary}
-                disabled={isManuallySaving || isProcessingImage} // Redundant check, already in showSaveButton
+                disabled={isManuallySaving || isProcessingImage}
                 isLoading={isManuallySaving}
                 loadingText="Saving..."
               >
@@ -669,7 +631,7 @@ export default function ImageFlipClient({
             {processedFileId &&
               !isProcessedFilePermanent &&
               autoSaveProcessed && (
-                <span className="text-xs text-blue-600 ml-1">(Temporary)</span> // Should ideally become permanent quickly
+                <span className="text-xs text-blue-600 ml-1">(Temporary)</span>
               )}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">

@@ -14,7 +14,6 @@ export default function ColorConverterPage() {
   const toolRoute = '/tool/color-converter';
 
   return (
-    // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />

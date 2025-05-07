@@ -8,12 +8,11 @@ import './globals.css';
 
 import { HistoryProvider } from './context/HistoryContext';
 import { ImageLibraryProvider } from './context/ImageLibraryContext';
-import { FileLibraryProvider } from './context/FileLibraryContext'; // Import FileLibraryProvider
+import { FileLibraryProvider } from './context/FileLibraryContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
 import ClientOnly from './_components/ClientOnly';
 
-// Font setup
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
@@ -29,7 +28,6 @@ interface ProjectAnalysisData {
   siteDescription?: string;
 }
 
-// generateMetadata function (remains unchanged)
 export async function generateMetadata(): Promise<Metadata> {
   const analysisFilePath = path.join(
     process.cwd(),
@@ -119,4 +117,3 @@ export default function RootLayout({
     </html>
   );
 }
-// --- END FILE: app/layout.tsx ---

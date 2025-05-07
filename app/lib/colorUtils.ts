@@ -11,7 +11,6 @@ export function hexToRgb(
 ): { r: number; g: number; b: number } | null {
   if (!hex || typeof hex !== 'string') return null;
 
-  // Expand shorthand form (e.g., "03F") to full form ("0033FF")
   const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
   hex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
 
@@ -34,7 +33,6 @@ export function hexToRgb(
  */
 export function rgbToHex(r: number, g: number, b: number): string {
   const toHex = (c: number) => {
-    // Ensure value is integer, clamp between 0-255
     const clamped = Math.round(Math.max(0, Math.min(255, c)));
     const hex = clamped.toString(16);
     return hex.length === 1 ? '0' + hex : hex;
@@ -54,7 +52,6 @@ export function rgbToHsl(
   g: number,
   b: number
 ): { h: number; s: number; l: number } {
-  // Clamp and normalize RGB values
   r = Math.max(0, Math.min(255, r)) / 255;
   g = Math.max(0, Math.min(255, g)) / 255;
   b = Math.max(0, Math.min(255, b)) / 255;
@@ -66,7 +63,7 @@ export function rgbToHsl(
   const l = (max + min) / 2;
 
   if (max === min) {
-    h = s = 0; // achromatic
+    h = s = 0;
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -80,11 +77,10 @@ export function rgbToHsl(
       case b:
         h = (r - g) / d + 4;
         break;
-      // default: h = 0; // Not strictly needed as max will be one of r, g, b
     }
     h /= 6;
   }
-  // Return rounded integer values
+
   return {
     h: Math.round(h * 360),
     s: Math.round(s * 100),
@@ -104,15 +100,14 @@ export function hslToRgb(
   s: number,
   l: number
 ): { r: number; g: number; b: number } {
-  // Clamp and normalize HSL values
-  h = (((h % 360) + 360) % 360) / 360; // Normalize hue to 0-1, handling negative/large values
+  h = (((h % 360) + 360) % 360) / 360;
   s = Math.max(0, Math.min(100, s)) / 100;
   l = Math.max(0, Math.min(100, l)) / 100;
 
   let r, g, b;
 
   if (s === 0) {
-    r = g = b = l; // achromatic
+    r = g = b = l;
   } else {
     const hue2rgb = (p: number, q: number, t: number): number => {
       if (t < 0) t += 1;
@@ -128,7 +123,7 @@ export function hslToRgb(
     g = hue2rgb(p, q, h);
     b = hue2rgb(p, q, h - 1 / 3);
   }
-  // Return rounded integer values
+
   return {
     r: Math.round(r * 255),
     g: Math.round(g * 255),

@@ -21,7 +21,6 @@ export default function FileStorageClient({
   toolTitle,
   toolRoute,
 }: FileStorageClientProps) {
-  // State declarations...
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -48,7 +47,6 @@ export default function FileStorageClient({
   const { addHistoryEntry } = useHistory();
   const { listFiles, deleteFile, clearAllFiles, getFile } = useFileLibrary();
 
-  // --- URL Management ---
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     managedUrlsRef.current.clear();
@@ -124,7 +122,6 @@ export default function FileStorageClient({
       });
     }
   }, [storedFiles, updatePreviewUrlsForFilesClient]);
-  // --- End URL Management ---
 
   const setItemFeedback = useCallback(
     (
@@ -153,7 +150,7 @@ export default function FileStorageClient({
     setError(null);
     setIsLoading(true);
     try {
-      const files = await listFiles(500, false); // Load permanent files
+      const files = await listFiles(500, false);
       setStoredFiles(files);
     } catch (err) {
       setError(
@@ -188,38 +185,26 @@ export default function FileStorageClient({
       if (!filesFromModal || filesFromModal.length === 0) return;
 
       setError(null);
-      setIsProcessing(true); // Use isProcessing to indicate activity
+      setIsProcessing(true);
 
-      // 1. Reload the full list *first* to ensure new files are included
-      await loadAndDisplayFiles(); // This updates storedFiles state
+      await loadAndDisplayFiles();
 
-      // 2. Determine the IDs of the added files
       const addedFileIds = new Set(
         filesFromModal.map((f) => f.id).filter((id) => !!id)
       );
 
-      // 3. Set selection and filter state *after* reload is done
       if (filterToThese) {
-        // We need to make sure the filter uses the *updated* storedFiles.
-        // Since loadAndDisplayFiles updates state, React might not guarantee
-        // immediate consistency in the same callback.
-        // Let's update selection first, then rely on a subsequent render cycle
-        // for the filter to apply correctly based on the new selection.
-
-        setSelectedFileIds(addedFileIds); // Set the selection
-        setIsFilterSelectedActive(true); // Activate the filter toggle
+        setSelectedFileIds(addedFileIds);
+        setIsFilterSelectedActive(true);
         console.log(
           '[FileStorageClient] Filtering view to newly added files (triggering re-render).'
         );
-        // The actual filtering happens in the render logic using itemsToShow
       } else {
         setSelectedFileIds(new Set());
         setIsFilterSelectedActive(false);
       }
 
-      setIsProcessing(false); // Stop processing indicator
-      // Remove storedFiles from dependency array here, rely on loadAndDisplayFiles
-      // to update it before this callback finishes. Add listFiles if needed.
+      setIsProcessing(false);
     },
     [loadAndDisplayFiles, listFiles /* other stable dependencies if any */]
   );
@@ -291,8 +276,8 @@ export default function FileStorageClient({
     setIsProcessing(true);
     const count = storedFiles.length;
     try {
-      await clearAllFiles(false); // Clear permanent files
-      loadAndDisplayFiles(); // Reload
+      await clearAllFiles(false);
+      loadAndDisplayFiles();
       setSelectedFileIds(new Set());
       addHistoryEntry({
         toolName: toolTitle,
@@ -316,7 +301,7 @@ export default function FileStorageClient({
         status: 'error',
         eventTimestamp: Date.now(),
       });
-      await loadAndDisplayFiles(); // Re-fetch on error
+      await loadAndDisplayFiles();
     } finally {
       setIsProcessing(false);
     }
@@ -408,14 +393,14 @@ export default function FileStorageClient({
       const file = storedFiles.find((f) => f.id === id);
       const name = file?.name || `File ID ${id}`;
       try {
-        await deleteFile(id); // deleteFile handles history cleanup
+        await deleteFile(id);
         deletedNames.push(name);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         errorsEncountered.push(`Failed to delete "${name}": ${message}`);
       }
     }
-    setSelectedFileIds(new Set()); // Clear selection
+    setSelectedFileIds(new Set());
     let historyOutput: Record<string, unknown> | string = {};
     let finalStatus: 'success' | 'error' = 'success';
     if (errorsEncountered.length === 0) {
@@ -445,7 +430,7 @@ export default function FileStorageClient({
       status: finalStatus,
       eventTimestamp: Date.now(),
     });
-    await loadAndDisplayFiles(); // Reload list
+    await loadAndDisplayFiles();
     setIsBulkDeleting(false);
   }, [
     selectedFileIds,
@@ -460,7 +445,6 @@ export default function FileStorageClient({
     toolTitle,
   ]);
 
-  // --- Render preview (Removed temporary indicator) ---
   const renderDefaultPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewUrls.get(file.id);
@@ -491,7 +475,7 @@ export default function FileStorageClient({
   );
 
   const controlsAreLoading = isLoading || isProcessing || isBulkDeleting;
-  // Determine items to show based on filter state
+
   const itemsToShow = isFilterSelectedActive
     ? storedFiles.filter((file) => selectedFileIds.has(file.id))
     : storedFiles;
@@ -504,13 +488,11 @@ export default function FileStorageClient({
       <StorageControls
         isLoading={controlsAreLoading}
         isDeleting={isBulkDeleting}
-        itemCount={storedFiles.length} // Base count is total permanent
+        itemCount={storedFiles.length}
         currentLayout={layout}
         selectedItemCount={selectedFileIds.size}
-        // Filter props
         isFilterSelectedActive={isFilterSelectedActive}
         onToggleFilterSelected={handleToggleFilterSelected}
-        // Other props
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
         onLayoutChange={setLayout}
@@ -588,7 +570,7 @@ export default function FileStorageClient({
         mode="addNewFiles"
         accept="*/*"
         selectionMode="multiple"
-        showFilterAfterUploadCheckbox={true} // Enable checkbox
+        showFilterAfterUploadCheckbox={true}
       />
     </div>
   );

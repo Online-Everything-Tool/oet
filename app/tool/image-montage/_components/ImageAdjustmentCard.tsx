@@ -1,7 +1,6 @@
 // --- FILE: app/tool/image-montage/_components/ImageAdjustmentCard.tsx ---
 import React from 'react';
 
-// Types (import or define)
 interface MontageImage {
   id: number;
   image: HTMLImageElement;
@@ -15,14 +14,14 @@ interface ImageAdjustmentCardProps {
   index: number;
   isFirst: boolean;
   isLast: boolean;
-  isLoading: boolean; // Pass down loading state to disable controls
+  isLoading: boolean;
   onTiltChange: (id: number, value: number) => void;
   onOverlapChange: (id: number, value: number) => void;
   onMoveLeft: (index: number) => void;
   onMoveRight: (index: number) => void;
 }
 
-const MAX_TILT_DEG = 25; // Define or import constants
+const MAX_TILT_DEG = 25;
 const MAX_OVERLAP_PERCENT = 80;
 
 export default function ImageAdjustmentCard({
@@ -117,7 +116,7 @@ export default function ImageAdjustmentCard({
         />
       </div>
       {/* Overlap Control (Conditional) */}
-      {!isFirst && ( // Show overlap only for images after the first
+      {!isFirst && (
         <div className="w-full">
           <label
             htmlFor={`overlap-${image.id}`}
@@ -141,4 +140,3 @@ export default function ImageAdjustmentCard({
     </div>
   );
 }
-// --- END FILE: app/tool/image-montage/_components/ImageAdjustmentCard.tsx ---

@@ -24,7 +24,7 @@ import {
   CheckIcon,
   ArrowPathIcon,
   ArchiveBoxArrowDownIcon,
-  CheckBadgeIcon, // Added
+  CheckBadgeIcon,
 } from '@heroicons/react/20/solid';
 
 interface ImageGrayScaleClientProps {
@@ -40,26 +40,25 @@ export default function ImageGrayScaleClient({
   const [selectedFile, setSelectedFile] = useState<StoredFile | null>(null);
 
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  // --- Renamed and Added State ---
+
   const [processedFileId, setProcessedFileId] = useState<string | null>(null);
   const [isProcessedFilePermanent, setIsProcessedFilePermanent] =
     useState<boolean>(false);
-  // --- End Renamed and Added State ---
+
   const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true);
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
 
   const [uiError, setUiError] = useState<string | null>(null);
 
   const { addHistoryEntry } = useHistory();
-  // --- Get makeImagePermanent ---
+
   const { getImage, makeImagePermanent } = useImageLibrary();
-  // --- End Get ---
 
   const {
     originalImageSrc,
     processedImageSrc,
     processedImageBlob,
-    processedFileId: hookProcessedFileId, // Use ID from hook
+    processedFileId: hookProcessedFileId,
     fileName,
     isLoading: isProcessingImage,
     error: processingErrorHook,
@@ -68,7 +67,6 @@ export default function ImageGrayScaleClient({
     clearProcessingOutput,
   } = useImageProcessing({ toolTitle, toolRoute });
 
-  // --- Sync local state with hook ---
   useEffect(() => {
     setProcessedFileId(hookProcessedFileId);
     if (hookProcessedFileId && autoSaveProcessed) {
@@ -77,9 +75,7 @@ export default function ImageGrayScaleClient({
       setIsProcessedFilePermanent(false);
     }
   }, [hookProcessedFileId, autoSaveProcessed]);
-  // --- End Sync ---
 
-  // Grayscale conversion function (stable)
   const convertToGrayScale = useCallback(
     (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
       const { naturalWidth: w, naturalHeight: h } = img;
@@ -98,7 +94,6 @@ export default function ImageGrayScaleClient({
     []
   );
 
-  // Effect 1: Update original image preview (stable)
   useEffect(() => {
     let objectUrl: string | null = null;
     if (selectedFile?.blob && selectedFile.type?.startsWith('image/')) {
@@ -127,7 +122,6 @@ export default function ImageGrayScaleClient({
     };
   }, [selectedFile, setOriginalImageSrc, clearProcessingOutput, setUiError]);
 
-  // Effect 2: Trigger Processing (stable dependencies)
   const processingEffectRunCount = useRef(0);
   const processingKey = useMemo(() => selectedFile?.id || null, [selectedFile]);
   const prevProcessingKey = useRef<string | null>(null);
@@ -157,16 +151,14 @@ export default function ImageGrayScaleClient({
         mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
       const outputFileName = `grayscale-${baseName}.${extension}`;
 
-      // Pass autoSaveProcessed as createPermanentEntry flag
       await processImage(
         currentInputFileForAsync,
-        convertToGrayScale, // Pass grayscale function
+        convertToGrayScale,
         'auto',
         outputFileName,
-        {}, // No specific options needed for grayscale
-        autoSaveProcessed // Pass the state value here
+        {},
+        autoSaveProcessed
       );
-      // State update (processedFileId, isProcessedFilePermanent) is handled by the sync effect above
     };
     triggerProcessing();
   }, [
@@ -178,19 +170,17 @@ export default function ImageGrayScaleClient({
     autoSaveProcessed,
   ]);
 
-  // --- Event Handlers ---
-
   const handleFilesSelectedFromModal = useCallback(
     (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
-      prevProcessingKey.current = null; // Reset processing key
+      prevProcessingKey.current = null;
       if (files && files.length > 0) {
         const firstFile = files[0];
         if (firstFile.type?.startsWith('image/') && firstFile.blob) {
           setSelectedFile(firstFile);
-          clearProcessingOutput(); // Clear previous output
-          setIsProcessedFilePermanent(false); // Reset permanence
+          clearProcessingOutput();
+          setIsProcessedFilePermanent(false);
         } else {
           setUiError('Invalid file selected. Please select an image.');
           setSelectedFile(null);
@@ -203,17 +193,15 @@ export default function ImageGrayScaleClient({
         setIsProcessedFilePermanent(false);
       }
     },
-    [setUiError, clearProcessingOutput] // Include clearProcessingOutput
+    [setUiError, clearProcessingOutput]
   );
 
-  // --- UPDATED: handleAutoSaveChange ---
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSaveState = e.target.checked;
       setAutoSaveProcessed(newAutoSaveState);
       setUiError(null);
 
-      // If toggled ON and there is a processed file that ISN'T permanent yet
       if (
         newAutoSaveState === true &&
         processedFileId &&
@@ -227,7 +215,7 @@ export default function ImageGrayScaleClient({
         setIsManuallySaving(true);
         try {
           await makeImagePermanent(processedFileId);
-          setIsProcessedFilePermanent(true); // Update indicator
+          setIsProcessedFilePermanent(true);
           addHistoryEntry({
             toolName: toolTitle,
             toolRoute,
@@ -266,18 +254,17 @@ export default function ImageGrayScaleClient({
       setUiError,
     ]
   );
-  // --- END UPDATE ---
 
   const handleClear = useCallback(() => {
     setOriginalImageSrc(null);
-    clearProcessingOutput(); // Clears ID, blob, src
+    clearProcessingOutput();
     setUiError(null);
     setSelectedFile(null);
     prevProcessingKey.current = null;
-    // setProcessedFileId(null); // Handled by clear
+
     setIsCopied(false);
-    setAutoSaveProcessed(true); // Reset default
-    setIsProcessedFilePermanent(false); // Reset permanence
+    setAutoSaveProcessed(true);
+    setIsProcessedFilePermanent(false);
   }, [setOriginalImageSrc, clearProcessingOutput, setUiError]);
 
   const handleDownload = useCallback(() => {
@@ -292,12 +279,12 @@ export default function ImageGrayScaleClient({
     const mimeType =
       processedImageSrc.match(/data:(image\/\w+);base64,/)?.[1] || 'image/png';
     const extension = mimeType.split('/')[1] || 'png';
-    link.download = `grayscale-${baseName}.${extension}`; // Updated filename prefix
+    link.download = `grayscale-${baseName}.${extension}`;
     link.href = processedImageSrc;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [processedImageSrc, fileName, setUiError]); // Added setUiError dependency
+  }, [processedImageSrc, fileName, setUiError]);
 
   const handleCopyToClipboard = useCallback(async () => {
     setIsCopied(false);
@@ -308,15 +295,13 @@ export default function ImageGrayScaleClient({
       if (fileData?.blob && fileData.type?.startsWith('image/'))
         blobToCopy = fileData.blob;
       else {
-        if (processedImageBlob)
-          blobToCopy = processedImageBlob; // Fallback
+        if (processedImageBlob) blobToCopy = processedImageBlob;
         else {
           setUiError('Processed image data not found for copy.');
           return;
         }
       }
-    } else if (processedImageBlob)
-      blobToCopy = processedImageBlob; // Fallback
+    } else if (processedImageBlob) blobToCopy = processedImageBlob;
     else {
       setUiError('No image data available to copy.');
       return;
@@ -338,9 +323,8 @@ export default function ImageGrayScaleClient({
         `Copy failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
     }
-  }, [processedFileId, processedImageBlob, getImage, setUiError]); // Dependencies updated
+  }, [processedFileId, processedImageBlob, getImage, setUiError]);
 
-  // --- UPDATED: handleSaveProcessedToLibrary ---
   const handleSaveProcessedToLibrary = useCallback(async () => {
     if (!processedFileId || isProcessedFilePermanent) {
       if (!processedFileId) setUiError('No processed image available to save.');
@@ -350,7 +334,7 @@ export default function ImageGrayScaleClient({
     setUiError(null);
     try {
       await makeImagePermanent(processedFileId);
-      setIsProcessedFilePermanent(true); // Update indicator
+      setIsProcessedFilePermanent(true);
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute,
@@ -384,14 +368,12 @@ export default function ImageGrayScaleClient({
     selectedFile?.name,
     setUiError,
   ]);
-  // --- END UPDATE ---
 
-  // --- Render Logic ---
   const imageFilter = useMemo(() => ({ category: 'image' }), []);
   const displayError = processingErrorHook || uiError;
   const canPerformActions =
     !!processedImageSrc && !isProcessingImage && !isManuallySaving;
-  // Show save button only if processed, not auto-saved, not already permanent, and not currently saving/processing
+
   const showSaveButton =
     processedImageBlob &&
     !autoSaveProcessed &&

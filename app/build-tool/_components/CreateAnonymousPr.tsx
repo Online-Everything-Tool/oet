@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-// Import shared types
+
 import type {
   GenerationResult,
   ValidationResult,
@@ -12,14 +12,13 @@ import type {
   ApiPrSubmissionResponseData,
 } from '@/src/types/build';
 
-// --- UPDATE PROPS ---
 interface CreateAnonymousPrProps {
   toolDirective: string;
   generationResult: GenerationResult;
   validationResult: ValidationResult;
   additionalDescription: string;
   userSelectedDirectives: string[];
-  selectedModel: string; // <-- ADD selectedModel prop
+  selectedModel: string;
   onPrSubmissionSuccess: (result: PrSubmissionResult) => void;
   onBack: () => void;
 }
@@ -30,12 +29,10 @@ export default function CreateAnonymousPr({
   validationResult,
   additionalDescription,
   userSelectedDirectives,
-  selectedModel, // <-- ACCEPT selectedModel prop
+  selectedModel,
   onPrSubmissionSuccess,
   onBack,
 }: CreateAnonymousPrProps) {
-  // Use updated props type
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'error'>('idle');
@@ -88,7 +85,7 @@ export default function CreateAnonymousPr({
         '[PR Submit] Generative description missing, PR body might be less informative.'
       );
     }
-    // Add check for selectedModel
+
     if (!selectedModel) {
       setStatus('error');
       setFeedback('Error: AI Model selection information is missing.');
@@ -113,7 +110,7 @@ export default function CreateAnonymousPr({
           generativeRequestedDirectives:
             validationResult.generativeRequestedDirectives || [],
           userSelectedExampleDirectives: userSelectedDirectives,
-          selectedModel: selectedModel, // <-- ADD selectedModel to payload
+          selectedModel: selectedModel,
         }),
       });
 
@@ -145,7 +142,6 @@ export default function CreateAnonymousPr({
     );
   };
 
-  // Render Logic (Remains the same visually, just ensures data is passed correctly)
   return (
     <section
       className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isSubmitting ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-purple-300'}`}

@@ -3,10 +3,10 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useHistory } from '../context/HistoryContext'; // Uses updated HistoryContext
-import type { HistoryEntry } from '@/src/types/history'; // Uses updated HistoryEntry
+import { useHistory } from '../context/HistoryContext';
+import type { HistoryEntry } from '@/src/types/history';
 import RecentlyUsedItem from './RecentlyUsedItem';
-import type { ToolMetadata } from '@/src/types/tools'; // Correct import path
+import type { ToolMetadata } from '@/src/types/tools';
 
 interface RecentlyUsedWidgetProps {
   limit: number;
@@ -19,15 +19,14 @@ export default function RecentlyUsedWidget({
   filterToolRoute,
   displayMode,
 }: RecentlyUsedWidgetProps) {
-  const { history, isLoaded } = useHistory(); // Get history from the updated context
+  const { history, isLoaded } = useHistory();
   const [metadataCache, setMetadataCache] = useState<
     Record<string, ToolMetadata | null>
   >({});
 
   const filteredHistory = useMemo(() => {
-    // Sort by eventTimestamp (descending for newest first)
     const sorted = history.sort((a, b) => b.eventTimestamp - a.eventTimestamp);
-    // Filtering logic remains the same
+
     if (filterToolRoute) {
       return sorted
         .filter((entry) => entry.toolRoute === filterToolRoute)
@@ -37,7 +36,6 @@ export default function RecentlyUsedWidget({
       const uniqueRoutes = new Set<string>();
       const uniqueEntries: HistoryEntry[] = [];
       for (const entry of sorted) {
-        // Ensure unique tools are added based on toolRoute
         if (
           !uniqueRoutes.has(entry.toolRoute) &&
           uniqueEntries.length < limit
@@ -48,11 +46,10 @@ export default function RecentlyUsedWidget({
       }
       return uniqueEntries;
     }
-    // Default case: return sorted slice for toolpage or if no special mode
+
     return sorted.slice(0, limit);
   }, [history, limit, filterToolRoute, displayMode]);
 
-  // Metadata fetching logic remains the same
   const fetchMetadata = useCallback(
     async (toolRoute: string) => {
       if (metadataCache[toolRoute] !== undefined) return;
@@ -97,14 +94,12 @@ export default function RecentlyUsedWidget({
 
   useEffect(() => {
     filteredHistory.forEach((entry) => {
-      // Ensure toolRoute exists before fetching
       if (entry.toolRoute) {
         fetchMetadata(entry.toolRoute);
       }
     });
   }, [filteredHistory, fetchMetadata]);
 
-  // Loading State
   if (!isLoaded) {
     return (
       <div
@@ -120,7 +115,6 @@ export default function RecentlyUsedWidget({
     );
   }
 
-  // Empty State
   if (history.length === 0 || filteredHistory.length === 0) {
     if (displayMode === 'toolpage') {
       return (
@@ -134,11 +128,10 @@ export default function RecentlyUsedWidget({
         </div>
       );
     }
-    // Don't render anything on homepage if empty
+
     return null;
   }
 
-  // Render logic using RecentlyUsedItem
   const items = filteredHistory.map((entry) => (
     <RecentlyUsedItem
       key={entry.id}
@@ -166,7 +159,6 @@ export default function RecentlyUsedWidget({
         )}
       </div>
       {displayMode === 'homepage' ? (
-        // Use flex-wrap and allow items to wrap if needed, add padding for scrolling appearance
         <div className="flex flex-nowrap gap-2 overflow-x-auto pb-2 -mx-2 px-2">
           {items}
         </div>

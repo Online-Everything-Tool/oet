@@ -62,14 +62,11 @@ export default function FileGridView({
     onToggleSelection(fileId);
   };
 
-  // Specific handler for keyboard activation
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLDivElement>,
     fileId: string
   ) => {
-    // Trigger selection on Space or Enter
     if (e.key === ' ' || e.key === 'Enter') {
-      // Prevent default behavior like scrolling page on space
       e.preventDefault();
       handleCardClick(e, fileId);
     }
@@ -96,10 +93,9 @@ export default function FileGridView({
                 : 'hover:shadow-md hover:border-gray-300 border-gray-200'
             } ${isProcessing ? 'opacity-70 cursor-default' : 'cursor-pointer'}`}
             onClick={(e) => handleCardClick(e, file.id)}
-            onKeyDown={(e) => handleKeyDown(e, file.id)} // Use specific keyboard handler
-            // role="button" // REMOVED role="button"
+            onKeyDown={(e) => handleKeyDown(e, file.id)}
             tabIndex={0}
-            aria-selected={isSelected} // Keep aria-selected for semantics, even if not strictly supported by default div role
+            aria-selected={isSelected}
             aria-label={`File: ${file.name || 'Untitled'}`}
           >
             <div className="flex flex-row w-full justify-between items-center px-2">

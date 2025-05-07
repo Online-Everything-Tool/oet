@@ -1,11 +1,11 @@
 // --- FILE: app/tool/_components/ToolSettings.tsx ---
 'use client';
 
-import React, { useState, useRef, useEffect, useMemo } from 'react'; // Added useMemo
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ToolHistorySettings from './ToolHistorySettings';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import FeedbackModal from '@/app/_components/FeedbackModal';
-import { useFavorites } from '@/app/context/FavoritesContext'; // Import useFavorites
+import { useFavorites } from '@/app/context/FavoritesContext';
 
 interface ToolSettingsProps {
   toolRoute: string;
@@ -19,14 +19,12 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
   const recentPanelRef = useRef<HTMLDivElement>(null);
   const feedbackModalRef = useRef<HTMLDivElement>(null);
 
-  // --- Favorites Logic ---
   const {
     isFavorite,
     toggleFavorite,
     isLoaded: favoritesLoaded,
   } = useFavorites();
 
-  // Extract directive from toolRoute
   const directive = useMemo(() => {
     if (!toolRoute || !toolRoute.startsWith('/tool/')) return '';
     return toolRoute.substring('/tool/'.length).replace(/\/$/, '');
@@ -39,9 +37,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
   };
 
   const isCurrentlyFavorite = favoritesLoaded ? isFavorite(directive) : false;
-  // --- End Favorites Logic ---
 
-  // Combined click outside handler (remains the same)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -76,7 +72,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
     };
   }, [isSettingsOpen, isRecentPanelOpen, isFeedbackOpen]);
 
-  // Combined Escape key handler (remains the same)
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -95,7 +90,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
     };
   }, [isSettingsOpen, isRecentPanelOpen, isFeedbackOpen]);
 
-  // Functions to open modals (remain the same)
   const openSettings = () => {
     setIsRecentPanelOpen(false);
     setIsFeedbackOpen(false);
@@ -113,19 +107,17 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
   };
 
   return (
-    // Container for the icons
     <div className="absolute top-0 right-0 mt-1 mr-1 z-10 flex items-center gap-1">
       {/* --- Favorite Button --- */}
-      {directive && ( // Only show button if directive is valid
+      {directive && (
         <button
           type="button"
           onClick={handleFavoriteToggle}
           disabled={!favoritesLoaded}
           className={`p-1.5 rounded-full text-xl transition-colors duration-150 ${
-            // Matched size/styling of others
             isCurrentlyFavorite
               ? 'text-yellow-500 hover:bg-yellow-100'
-              : 'text-gray-400 hover:text-yellow-500 hover:bg-[rgba(var(--color-border-base)/0.2)]' // Use consistent hover bg
+              : 'text-gray-400 hover:text-yellow-500 hover:bg-[rgba(var(--color-border-base)/0.2)]'
           } disabled:opacity-50 disabled:cursor-not-allowed`}
           aria-label={
             isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'
@@ -301,4 +293,3 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
     </div>
   );
 }
-// --- END FILE: app/tool/_components/ToolSettings.tsx ---

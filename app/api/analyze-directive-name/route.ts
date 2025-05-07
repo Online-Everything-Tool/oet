@@ -9,12 +9,10 @@ import {
 import fs from 'fs/promises';
 import path from 'path';
 
-// --- Configuration ---
 const API_KEY = process.env.GEMINI_API_KEY;
 const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest'; // Use a reasonable default
+  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
 
-// --- Helper: Get App Purpose (Simplified) ---
 async function getAppPurpose(): Promise<string> {
   try {
     const packageJsonPath = path.resolve(process.cwd(), 'package.json');
@@ -31,13 +29,11 @@ async function getAppPurpose(): Promise<string> {
   }
 }
 
-// Initialize GenAI Client
 if (!API_KEY)
   console.error('FATAL ERROR (analyze-directive): GEMINI_API_KEY missing.');
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
-// --- Generation Config & Safety Settings ---
-const generationConfig = { temperature: 0.4, maxOutputTokens: 250 }; // Lower temp for focused analysis
+const generationConfig = { temperature: 0.4, maxOutputTokens: 250 };
 const safetySettings = [
   /* ... keep standard safety settings ... */
   {
@@ -75,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     proposedDirective = body.proposedDirective?.trim();
-    generativeDescription = body.generativeDescription?.trim(); // Get description from validation step
+    generativeDescription = body.generativeDescription?.trim();
 
     if (Array.isArray(body.existingDirectives)) {
       existingDirectives = body.existingDirectives.filter(
@@ -101,7 +97,6 @@ export async function POST(request: Request) {
 
   const appPurpose = await getAppPurpose();
 
-  // Construct Prompt for AI Analysis
   const prompt = `
 Analyze the proposed tool directive \`${proposedDirective}\` for a web application.
 
@@ -121,7 +116,7 @@ Respond ONLY with a single JSON object with the following structure:
 {
   "score": <A numerical score from 0.0 (very bad name / likely typo) to 1.0 (excellent name) representing the overall quality and appropriateness>,
   "is_likely_typo": <boolean - true if a typo is strongly suspected>,
-  "suggestions": ["<alternative_name_1>", "<alternative_name_2>"], // Array of strings, empty if no suggestions
+  "suggestions": ["<alternative_name_1>", "<alternative_name_2>"],
   "reasoning": "<A brief (1-2 sentence) explanation for the score and suggestions/typo assessment>"
 }
 \`\`\`
@@ -131,7 +126,7 @@ Respond ONLY with a single JSON object with the following structure:
     console.log(
       `[API analyze-directive-name] Calling Gemini (${DEFAULT_MODEL_NAME}) for analysis of: ${proposedDirective}`
     );
-    const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL_NAME }); // Use default or specific model
+    const model = genAI.getGenerativeModel({ model: DEFAULT_MODEL_NAME });
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -152,10 +147,9 @@ Respond ONLY with a single JSON object with the following structure:
       `[API analyze-directive-name] Gemini analysis raw response: ${rawResponseText}`
     );
 
-    // Try to parse the JSON response
     try {
       const analysisResult = JSON.parse(cleanedResponseText);
-      // Basic validation of expected fields (can be more thorough)
+
       if (
         typeof analysisResult.score !== 'number' ||
         typeof analysisResult.is_likely_typo !== 'boolean' ||
@@ -174,7 +168,7 @@ Respond ONLY with a single JSON object with the following structure:
         parseError,
         `Raw text: ${cleanedResponseText}`
       );
-      // Return a default "unable to analyze" response
+
       return NextResponse.json(
         {
           score: 0.5,
@@ -183,7 +177,7 @@ Respond ONLY with a single JSON object with the following structure:
           reasoning: 'Error: Could not parse analysis result from AI.',
         },
         { status: 200 }
-      ); // Return 200 but indicate parsing failure
+      );
     }
   } catch (error: unknown) {
     console.error(
@@ -196,7 +190,6 @@ Respond ONLY with a single JSON object with the following structure:
   }
 }
 
-// Optional GET handler
 export async function GET() {
   return NextResponse.json({
     message: 'API route /api/analyze-directive-name is active. Use POST.',

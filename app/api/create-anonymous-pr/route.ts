@@ -3,13 +3,10 @@ import { NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
 
-// --- Configuration ---
 const GITHUB_USER_OR_ORG = 'Online-Everything-Tool';
 const GITHUB_REPO = 'oet';
 const GITHUB_DEFAULT_BRANCH = 'main';
-// --- End Configuration ---
 
-// --- Load Environment Variables ---
 const appId = process.env.GITHUB_APP_ID;
 const privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
 if (!appId || !privateKeyBase64) {
@@ -21,29 +18,24 @@ if (!appId || !privateKeyBase64) {
     '[API STARTUP create-anonymous-pr] Required GitHub App credentials loaded.'
   );
 }
-// --- End Load Environment Variables ---
 
-// --- Interfaces ---
 interface LibraryDependency {
   packageName: string;
   reason?: string;
   importUsed?: string;
 }
 
-// --- UPDATED RequestBody Interface ---
 interface RequestBody {
   toolDirective: string;
-  generatedFiles: { [filePath: string]: string }; // Expecting an object map
-  identifiedDependencies?: LibraryDependency[]; // Optional array
+  generatedFiles: { [filePath: string]: string };
+  identifiedDependencies?: LibraryDependency[];
   generativeDescription?: string;
   additionalDescription?: string;
   generativeRequestedDirectives?: string[];
-  userSelectedExampleDirectives?: string[] | null; // Array type for user examples
-  selectedModel?: string; // <-- ADD selectedModel field
+  userSelectedExampleDirectives?: string[] | null;
+  selectedModel?: string;
 }
-// --- END UPDATED Interface ---
 
-// --- Type Guards ---
 const hasMessage = (e: unknown): e is { message: string } =>
   typeof e === 'object' &&
   e !== null &&
@@ -56,9 +48,7 @@ const isPotentialErrorObject = (
   message?: unknown;
   response?: { data?: { message?: string } };
 } => typeof e === 'object' && e !== null;
-// --- End Type Guards ---
 
-// --- Helper: Get Authenticated Octokit Instance ---
 async function getInstallationOctokit(): Promise<Octokit> {
   console.log('[API create-anonymous-pr] Attempting GitHub App auth...');
   if (!appId || !privateKeyBase64)
@@ -140,9 +130,7 @@ async function getInstallationOctokit(): Promise<Octokit> {
     throw wrappedError;
   }
 }
-// --- End Helper ---
 
-// --- Main POST Handler ---
 export async function POST(request: Request) {
   console.log(
     `[API create-anonymous-pr] -------- POST Start (${new Date().toISOString()}) --------`
@@ -156,9 +144,8 @@ export async function POST(request: Request) {
   let additionalDescription: string;
   let generativeRequestedDirectives: string[];
   let userSelectedExampleDirectives: string[];
-  let selectedModelName: string; // <-- ADD variable for model name
+  let selectedModelName: string;
 
-  // 1. Parse and Validate Request Body
   try {
     body = await request.json();
 
@@ -208,19 +195,16 @@ export async function POST(request: Request) {
       Array.isArray(body.userSelectedExampleDirectives)
         ? body.userSelectedExampleDirectives.filter(
             (d): d is string => typeof d === 'string' && d.trim() !== ''
-          ) // Filter out non-strings/empty
+          )
         : []
-    ) // Default to empty array if missing or not an array
-      .slice(0, 5); // Optional: Limit to 5
+    ).slice(0, 5);
 
-    // --- PARSE selectedModel ---
-    selectedModelName = body.selectedModel?.trim() || 'Unknown/Not Provided'; // Default if missing
-    // --- END PARSE ---
+    selectedModelName = body.selectedModel?.trim() || 'Unknown/Not Provided';
 
     console.log(
       `[API create-anonymous-pr] Processing PR for new tool: ${toolDirective}`
     );
-    console.log(`[API create-anonymous-pr] Model used: ${selectedModelName}`); // <-- LOG MODEL
+    console.log(`[API create-anonymous-pr] Model used: ${selectedModelName}`);
     console.log(
       `[API create-anonymous-pr] Files to commit: ${Object.keys(generatedFiles).length}`
     );
@@ -245,7 +229,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // 2. GitHub Interaction
   let octokit: Octokit;
   let newBranchName: string | null = null;
   try {
@@ -301,10 +284,8 @@ export async function POST(request: Request) {
       `[API create-anonymous-pr] All ${Object.keys(generatedFiles).length} files committed.`
     );
 
-    // --- Create Enhanced PR Body ---
     const prTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
 
-    // Helper functions
     const formatList = (
       items: string[],
       noneMessage: string,
@@ -326,7 +307,6 @@ export async function POST(request: Request) {
         .join('\n');
     };
 
-    // --- UPDATED PR BODY TEMPLATE ---
     const prBody = `
 Adds the new tool \`${toolDirective}\` generated via the AI Build Tool feature (submitted anonymously).
 
@@ -358,7 +338,6 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
 
 *Please review the attached code changes.*
 `;
-    // --- End PR Body Creation ---
 
     console.log(
       `[API create-anonymous-pr] Creating Pull Request: "${prTitle}"...`
@@ -427,7 +406,6 @@ ${formatList(Object.keys(generatedFiles), '_Error: No files listed._')}
   }
 }
 
-// GET handler
 export async function GET() {
   console.log(
     `[API create-anonymous-pr] -------- GET (${new Date().toISOString()}) --------`

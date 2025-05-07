@@ -15,11 +15,8 @@ export default function ClientOnly({ children }: ClientOnlyProps) {
   }, []);
 
   if (!hasMounted) {
-    // Render nothing or a placeholder on the server / before hydration
     return null;
-    // Or: return <div>Loading UI...</div>;
   }
 
-  // Render the actual children only on the client after mount
   return <>{children}</>;
 }

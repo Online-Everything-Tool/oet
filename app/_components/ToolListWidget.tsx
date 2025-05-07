@@ -4,7 +4,6 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 
-// Re-define or import the interface for the tool data
 interface ToolDisplayData {
   href: string;
   title: string;
@@ -12,7 +11,7 @@ interface ToolDisplayData {
 }
 
 interface ToolListWidgetProps {
-  initialTools: ToolDisplayData[]; // Receive the full list as a prop
+  initialTools: ToolDisplayData[];
 }
 
 export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
@@ -21,7 +20,7 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
   const filteredTools = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerCaseSearchTerm) {
-      return initialTools; // Return all if search is empty
+      return initialTools;
     }
     return initialTools.filter(
       (tool) =>
@@ -35,7 +34,6 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
   };
 
   return (
-    // Container matching the style of other sections
     <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm space-y-4">
       {/* Search Input Section */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">

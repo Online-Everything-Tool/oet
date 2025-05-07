@@ -12,7 +12,6 @@ import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 
-// Define the types for the reverse options
 type Reverse = 'character' | 'word';
 
 interface TextReverseClientProps {
@@ -44,7 +43,6 @@ const TextReverseClient = ({
   useToolUrlState(urlStateParams, stateSetters as StateSetters);
 
   useEffect(() => {
-    // Set initial refs *after* useToolUrlState has potentially set initial values
     if (!initialLoadComplete.current) {
       lastLoggedTextRef.current = text;
       lastLoggedReverseRef.current = reverse;
@@ -57,7 +55,6 @@ const TextReverseClient = ({
     if (reverse === 'character') {
       return text.split('').reverse().join('');
     } else {
-      // word
       return text.split(/\s+/).reverse().join(' ');
     }
   }, [text, reverse]);
@@ -76,7 +73,6 @@ const TextReverseClient = ({
     []
   );
 
-  // Logging and LocalStorage useEffect (Unchanged)
   const handleTextBlur = useCallback(() => {
     if (!initialLoadComplete.current) {
       return;
@@ -107,10 +103,10 @@ const TextReverseClient = ({
         },
         output: {
           reverseMethod: currentReverse,
-          limitedReversedText: limitedOutput, // Keep output short
+          limitedReversedText: limitedOutput,
         },
         status: 'success',
-        eventTimestamp: Date.now(), // ADD eventTimestamp
+        eventTimestamp: Date.now(),
       });
       lastLoggedTextRef.current = currentText;
       lastLoggedReverseRef.current = currentReverse;

@@ -38,14 +38,13 @@ export default function JsonValidateFormatClient({
     stateSetters as StateSetters
   );
 
-  // Updated handleFormatValidate
   const handleFormatValidate = useCallback(
     (triggerType: TriggerType, textToProcess = json) => {
       let currentIsValid: boolean | null = null;
       let currentError = '';
       let currentOutput = '';
       let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {}; // For structured output
+      let historyOutputObj: Record<string, unknown> = {};
 
       const trimmedInput = textToProcess.trim();
 
@@ -54,11 +53,10 @@ export default function JsonValidateFormatClient({
       setOutputValue('');
 
       if (!trimmedInput) {
-        return; // Don't log history for empty input
+        return;
       }
 
       const inputDetails = {
-        // Define input details for logging
         json:
           trimmedInput.length > 1000
             ? trimmedInput.substring(0, 1000) + '...'
@@ -71,8 +69,6 @@ export default function JsonValidateFormatClient({
         if (typeof parsedJson === 'object' && parsedJson !== null) {
           currentOutput = JSON.stringify(parsedJson, null, indent);
         } else {
-          // Handle valid non-object JSON (e.g., "true", 123, "\"string\"")
-          // We still consider it valid, but formatting doesn't change much
           currentOutput = JSON.stringify(parsedJson);
         }
         currentIsValid = true;
@@ -80,7 +76,6 @@ export default function JsonValidateFormatClient({
         setIsValid(currentIsValid);
         status = 'success';
         historyOutputObj = {
-          // Structure the success output
           validationStatus: 'Valid JSON',
           formattedJson:
             currentOutput.length > 1000
@@ -100,9 +95,8 @@ export default function JsonValidateFormatClient({
         setError(currentError);
         setIsValid(currentIsValid);
         status = 'error';
-        (inputDetails as Record<string, unknown>).error = currentError; // Add error details
+        (inputDetails as Record<string, unknown>).error = currentError;
         historyOutputObj = {
-          // Structure the error output
           validationStatus: 'Invalid JSON',
           errorMessage: currentError,
         };
@@ -113,13 +107,13 @@ export default function JsonValidateFormatClient({
         toolRoute: toolRoute,
         trigger: triggerType,
         input: inputDetails,
-        output: historyOutputObj, // Log the structured object
+        output: historyOutputObj,
         status: status,
-        eventTimestamp: Date.now(), // Add event timestamp
+        eventTimestamp: Date.now(),
       });
     },
     [json, indent, addHistoryEntry, toolTitle, toolRoute]
-  ); // Dependencies remain the same
+  );
 
   useEffect(() => {
     if (shouldRunOnLoad && json) {
@@ -143,10 +137,8 @@ export default function JsonValidateFormatClient({
     setIsValid(null);
     setError('');
     setIndent(2);
-    // No history log
   }, []);
 
-  // Updated handleIndentationChange
   const handleIndentationChange = (
     event: React.ChangeEvent<HTMLSelectElement>
   ) => {
@@ -169,8 +161,7 @@ export default function JsonValidateFormatClient({
         setOutputValue(output);
         setError('');
         historyOutputObj = {
-          // Structure the success output
-          validationStatus: 'Reformatted JSON', // Indicate action
+          validationStatus: 'Reformatted JSON',
           formattedJson:
             output.length > 1000 ? output.substring(0, 1000) + '...' : output,
         };
@@ -180,9 +171,8 @@ export default function JsonValidateFormatClient({
         setError(message);
         setIsValid(false);
         status = 'error';
-        inputError = message; // Capture error for input log
+        inputError = message;
         historyOutputObj = {
-          // Structure the error output
           validationStatus: 'Reformatting Error',
           errorMessage: message,
         };
@@ -192,13 +182,13 @@ export default function JsonValidateFormatClient({
           toolRoute: toolRoute,
           trigger: 'click',
           input: {
-            json: '[Current Valid JSON]', // Keep input short
+            json: '[Current Valid JSON]',
             indent: newIndentation,
-            ...(inputError && { error: inputError }), // Add error if it occurred
+            ...(inputError && { error: inputError }),
           },
-          output: historyOutputObj, // Log structured output
+          output: historyOutputObj,
           status: status,
-          eventTimestamp: Date.now(), // Add eventTimestamp
+          eventTimestamp: Date.now(),
         });
       }
     } else {

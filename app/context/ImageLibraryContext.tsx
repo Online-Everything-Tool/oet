@@ -4,18 +4,16 @@
 import React, {
   createContext,
   useContext,
-  // useState, // No longer needed for loading/error
   useEffect,
   useCallback,
   useMemo,
   useRef,
   ReactNode,
 } from 'react';
-import { useFileLibrary } from './FileLibraryContext'; // Use the base context
-import { getDbInstance, type OetDatabase } from '../lib/db'; // Keep for direct DB update if needed
+import { useFileLibrary } from './FileLibraryContext';
+import { getDbInstance, type OetDatabase } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 
-// Define the functions specific to image library or wrapping base functions
 interface ImageLibraryFunctions {
   listImages: (limit?: number) => Promise<StoredFile[]>;
   getImage: (id: string) => Promise<StoredFile | undefined>;
@@ -23,14 +21,13 @@ interface ImageLibraryFunctions {
     blob: Blob,
     name: string,
     type: string,
-    isTemporary?: boolean // Add isTemporary flag
+    isTemporary?: boolean
   ) => Promise<string>;
   deleteImage: (id: string) => Promise<void>;
   clearAllImages: () => Promise<void>;
   makeImagePermanent: (id: string) => Promise<void>;
 }
 
-// Context value now includes base loading/error and image functions
 interface ImageLibraryContextValue extends ImageLibraryFunctions {
   loading: boolean;
   error: string | null;
@@ -56,12 +53,10 @@ interface ImageLibraryProviderProps {
 export const ImageLibraryProvider = ({
   children,
 }: ImageLibraryProviderProps) => {
-  // Use the base context for core operations and state
   const fileLibrary = useFileLibrary();
-  // Get loading/error state directly from the base context value
+
   const { loading, error } = fileLibrary;
 
-  // Thumbnail worker logic remains the same
   const workerRef = useRef<Worker | null>(null);
   const requestPromisesRef = useRef<
     Map<
@@ -69,8 +64,6 @@ export const ImageLibraryProvider = ({
       { resolve: (value: unknown) => void; reject: (reason?: unknown) => void }
     >
   >(new Map());
-  // Local state for worker errors if needed, or rely on base context error
-  // const [workerError, setWorkerError] = useState<string | null>(null);
 
   const handleWorkerMessage = useCallback((msgEvent: MessageEvent) => {
     const { id, type, payload, error: workerError } = msgEvent.data;
@@ -88,15 +81,14 @@ export const ImageLibraryProvider = ({
 
   const handleWorkerError = useCallback((err: ErrorEvent) => {
     console.error('[ImageCtx] Worker Error:', err);
-    // setWorkerError(`Worker error: ${err.message}`); // Set local state if needed
+
     requestPromisesRef.current.forEach((p, id) => {
       p.reject(new Error(`Worker error: ${err.message}`));
       requestPromisesRef.current.delete(id);
     });
-  }, []); // No dependencies
+  }, []);
 
   useEffect(() => {
-    // Worker initialization remains the same
     let workerInstance: Worker | null = null;
     if (typeof window !== 'undefined' && !workerRef.current) {
       try {
@@ -142,20 +134,17 @@ export const ImageLibraryProvider = ({
         workerRef.current.postMessage({ id: requestId, blob });
       });
     },
-    [] // Stable callback
+    []
   );
-  // --- End Thumbnail Logic ---
 
-  // --- Wrapped/Specialized Functions ---
   const listImages = useCallback(
     async (limit: number = 50): Promise<StoredFile[]> => {
-      // Use the stable listFiles from the base context
-      const allFiles = await fileLibrary.listFiles(limit * 2, false); // Always get permanent files
+      const allFiles = await fileLibrary.listFiles(limit * 2, false);
       return allFiles
         .filter((file) => file.type?.startsWith('image/'))
         .slice(0, limit);
     },
-    [fileLibrary.listFiles] // Depends only on the stable listFiles function
+    [fileLibrary.listFiles]
   );
 
   const getImage = useCallback(
@@ -164,7 +153,7 @@ export const ImageLibraryProvider = ({
       if (file && file.type?.startsWith('image/')) return file;
       return undefined;
     },
-    [fileLibrary.getFile] // Depends only on the stable getFile function
+    [fileLibrary.getFile]
   );
 
   const addImage = useCallback(
@@ -172,16 +161,14 @@ export const ImageLibraryProvider = ({
       blob: Blob,
       name: string,
       type: string,
-      isTemporary: boolean = false // Added isTemporary
+      isTemporary: boolean = false
     ): Promise<string> => {
       console.log('addImage:', blob, name, type, isTemporary);
       if (!type?.startsWith('image/'))
         throw new Error(`addImage called with non-image type: ${type}`);
 
-      // Use the stable addFile from the base context
-      const id = await fileLibrary.addFile(blob, name, type, isTemporary); // Pass isTemporary flag
+      const id = await fileLibrary.addFile(blob, name, type, isTemporary);
 
-      // Generate thumbnail after adding (still needs separate update step)
       let thumbnailBlob: Blob | null = null;
       try {
         thumbnailBlob = await generateThumbnail(id, blob);
@@ -191,7 +178,6 @@ export const ImageLibraryProvider = ({
 
       if (thumbnailBlob) {
         try {
-          // Use direct DB access for thumbnail update as FileLibraryContext lacks specific method
           let db: OetDatabase | null = null;
           try {
             db = getDbInstance();
@@ -211,50 +197,43 @@ export const ImageLibraryProvider = ({
       }
       return id;
     },
-    [fileLibrary.addFile, generateThumbnail] // Depends on stable addFile and local generateThumbnail
+    [fileLibrary.addFile, generateThumbnail]
   );
 
   const deleteImage = useCallback(
     async (id: string): Promise<void> => {
-      // Optional: Check if it's an image first using getImage?
-      await fileLibrary.deleteFile(id); // Delegate to stable base deleteFile
+      await fileLibrary.deleteFile(id);
     },
-    [fileLibrary.deleteFile] // Depends only on stable deleteFile
+    [fileLibrary.deleteFile]
   );
 
-  const clearAllImages = useCallback(
-    async (): Promise<void> => {
-      const images = await listImages(10000); // Use the local listImages
-      const imageIds = images.map((img) => img.id);
-      if (imageIds.length > 0) {
-        // Using base deleteFile iteratively to ensure cleanup logic runs
-        for (const id of imageIds) {
-          try {
-            await fileLibrary.deleteFile(id);
-          } catch (delErr) {
-            console.error(
-              `Failed to delete image ${id} during clearAllImages:`,
-              delErr
-            );
-            // Potentially collect errors and throw at the end?
-          }
+  const clearAllImages = useCallback(async (): Promise<void> => {
+    const images = await listImages(10000);
+    const imageIds = images.map((img) => img.id);
+    if (imageIds.length > 0) {
+      for (const id of imageIds) {
+        try {
+          await fileLibrary.deleteFile(id);
+        } catch (delErr) {
+          console.error(
+            `Failed to delete image ${id} during clearAllImages:`,
+            delErr
+          );
         }
       }
-    },
-    [listImages, fileLibrary.deleteFile] // Depends on local listImages and base deleteFile
-  );
+    }
+  }, [listImages, fileLibrary.deleteFile]);
 
   const makeImagePermanent = useCallback(
     async (id: string): Promise<void> => {
-      const file = await fileLibrary.getFile(id); // Use base getFile
+      const file = await fileLibrary.getFile(id);
       if (!file || !file.type?.startsWith('image/'))
         throw new Error(`File ID ${id} is not an image.`);
-      await fileLibrary.makeFilePermanent(id); // Delegate to stable base function
+      await fileLibrary.makeFilePermanent(id);
     },
-    [fileLibrary.getFile, fileLibrary.makeFilePermanent] // Depends on stable base functions
+    [fileLibrary.getFile, fileLibrary.makeFilePermanent]
   );
 
-  // --- Memoize the specialized functions ---
   const imageFunctions = useMemo(
     () => ({
       listImages,
@@ -274,8 +253,6 @@ export const ImageLibraryProvider = ({
     ]
   );
 
-  // --- Create final context value ---
-  // Combine the stable image functions with the loading/error state from base context
   const contextValue = useMemo(
     () => ({
       ...imageFunctions,
@@ -283,7 +260,7 @@ export const ImageLibraryProvider = ({
       error,
     }),
     [imageFunctions, loading, error]
-  ); // Depends on stable functions object + loading/error
+  );
 
   return (
     <ImageLibraryContext.Provider value={contextValue}>

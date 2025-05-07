@@ -8,7 +8,7 @@ import ImageStorageClient from './_components/ImageStorageClient';
 
 export default function ImageStoragePage() {
   const toolTitle = metadata.title || 'Image Storage';
-  const toolRoute = '/tool/image-storage'; // Ensure this matches IDB key
+  const toolRoute = '/tool/image-storage';
 
   return (
     <div className="relative flex flex-col gap-6">

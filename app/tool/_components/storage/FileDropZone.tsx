@@ -4,10 +4,10 @@
 import React, { useState, useCallback, DragEvent } from 'react';
 
 interface FileDropZoneProps {
-  onFilesAdded: (files: File[]) => void; // Callback when files are dropped or pasted
-  children: React.ReactNode; // To render the actual content (list/grid) inside
-  className?: string; // Allow custom styling
-  isLoading: boolean; // To disable drop/paste during processing
+  onFilesAdded: (files: File[]) => void;
+  children: React.ReactNode;
+  className?: string;
+  isLoading: boolean;
 }
 
 export default function FileDropZone({
@@ -17,13 +17,13 @@ export default function FileDropZone({
   isLoading,
 }: FileDropZoneProps) {
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [isPasting, setIsPasting] = useState<boolean>(false); // Track pasting state for visual feedback
+  const [isPasting, setIsPasting] = useState<boolean>(false);
 
   const handleDragOver = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!isLoading) setIsDragging(true); // Only allow drag indication if not loading
+      if (!isLoading) setIsDragging(true);
     },
     [isLoading]
   );
@@ -40,11 +40,11 @@ export default function FileDropZone({
       event.preventDefault();
       event.stopPropagation();
       setIsDragging(false);
-      if (isLoading) return; // Don't process if already loading
+      if (isLoading) return;
 
       const files = event.dataTransfer?.files;
       if (files && files.length > 0) {
-        onFilesAdded(Array.from(files)); // Pass FileList converted to Array
+        onFilesAdded(Array.from(files));
       } else {
         console.warn('[FileDropZone] No files found in drop event.');
       }
@@ -54,7 +54,7 @@ export default function FileDropZone({
 
   const handlePaste = useCallback(
     async (event: React.ClipboardEvent<HTMLDivElement>) => {
-      if (isLoading) return; // Don't process if already loading
+      if (isLoading) return;
 
       const items = event.clipboardData?.items;
       if (!items) return;
@@ -88,7 +88,7 @@ export default function FileDropZone({
       } else {
         console.warn('[FileDropZone] No file data found in paste event.');
       }
-      // Reset pasting state after a short delay to allow processing feedback
+
       setTimeout(() => setIsPasting(false), 500);
     },
     [isLoading, onFilesAdded]
@@ -104,8 +104,8 @@ export default function FileDropZone({
         isDragging
           ? 'border-blue-500 bg-blue-50'
           : 'border-gray-300 hover:border-blue-400'
-      } ${isPasting ? 'border-blue-500 bg-blue-100' : ''} ${className}`} // Added className prop merge
-      tabIndex={0} // Make it focusable for paste
+      } ${isPasting ? 'border-blue-500 bg-blue-100' : ''} ${className}`}
+      tabIndex={0}
       aria-label="File list and drop/paste zone"
     >
       {isDragging && (

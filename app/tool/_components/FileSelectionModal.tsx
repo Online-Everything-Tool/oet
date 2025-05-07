@@ -30,7 +30,7 @@ interface FileSelectionModalProps {
     files: StoredFile[],
     source: 'library' | 'upload',
     saveUploadedToLibrary?: boolean,
-    filterToThese?: boolean // New optional flag
+    filterToThese?: boolean
   ) => void;
 
   className?: string;
@@ -39,7 +39,7 @@ interface FileSelectionModalProps {
   mode: ModalMode;
   libraryFilter?: { category?: string; type?: string };
   initialTab?: 'library' | 'upload';
-  showFilterAfterUploadCheckbox?: boolean; // Prop to control checkbox visibility
+  showFilterAfterUploadCheckbox?: boolean;
 }
 
 const mapTypeToCategory = (mimeType: string | undefined): string => {
@@ -65,7 +65,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   selectionMode = 'multiple',
   mode,
   initialTab,
-  showFilterAfterUploadCheckbox = false, // Default to false
+  showFilterAfterUploadCheckbox = false,
 }) => {
   const {
     listFiles,
@@ -88,10 +88,8 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   );
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
-  // --- New State for Upload Filter ---
   const [filterAfterUploadChecked, setFilterAfterUploadChecked] =
-    useState(true); // Default to checked
-  // --- End New State ---
+    useState(true);
 
   const showLibraryTabActive = useMemo(
     () => mode === 'selectExistingOrUploadNew' || mode === 'selectExistingOnly',
@@ -135,7 +133,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalError(null);
       setSelectedIds(new Set());
 
-      listFiles(200, false) // Always fetch permanent for library view
+      listFiles(200, false)
         .then((allPermanentFiles) => {
           let filteredFiles = allPermanentFiles;
           if (categoryFilterValue) {
@@ -161,10 +159,8 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           setModalLoading(false);
         });
     } else if (isOpen) {
-      // Clear library files if switching to upload tab or mode doesn't allow library
       setLibraryFiles([]);
     } else {
-      // Clear everything on close
       setLibraryFiles([]);
       setSelectedIds(new Set());
     }
@@ -177,42 +173,35 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     showLibraryTabActive,
   ]);
 
-  // --- Preview URL generation effect ---
   useEffect(() => {
-    if (!isOpen) return; // Don't run if closed
+    if (!isOpen) return;
 
     const currentFileIds = new Set(libraryFiles.map((f) => f.id));
     const urlsToRevokeFromManaged = new Map<string, string>();
 
-    // Identify URLs for files no longer in the list
     managedUrlsRef.current.forEach((url, id) => {
       if (!currentFileIds.has(id)) {
         urlsToRevokeFromManaged.set(id, url);
       }
     });
 
-    // Revoke and remove from managed list
     urlsToRevokeFromManaged.forEach((url, id) => {
       URL.revokeObjectURL(url);
       managedUrlsRef.current.delete(id);
     });
 
-    // Create new map and generate/reuse URLs
     const newPreviewMap = new Map<string, string>();
     libraryFiles.forEach((file) => {
-      if (!file.id) return; // Skip if file has no ID (shouldn't happen)
+      if (!file.id) return;
 
-      // Prioritize thumbnail, fallback to main blob for images
       const blobToUse =
         file.thumbnailBlob ||
         (file.type?.startsWith('image/') ? file.blob : null);
 
       if (blobToUse) {
         if (managedUrlsRef.current.has(file.id)) {
-          // Reuse existing URL if still managed
           newPreviewMap.set(file.id, managedUrlsRef.current.get(file.id)!);
         } else {
-          // Generate new URL and add to managed list
           try {
             const url = URL.createObjectURL(blobToUse);
             newPreviewMap.set(file.id, url);
@@ -222,24 +211,22 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               `[Modal] Error creating Object URL for file ID ${file.id}:`,
               e
             );
-            // Optionally set an error state for this specific preview
           }
         }
       }
     });
 
-    // Update the state only if the map content has actually changed
     setPreviewObjectUrls((prevMap) => {
       if (prevMap.size === newPreviewMap.size) {
         let mapsIdentical = true;
-        // Check if all keys and values match
+
         for (const [key, value] of newPreviewMap) {
           if (prevMap.get(key) !== value) {
             mapsIdentical = false;
             break;
           }
         }
-        // Double check if any keys were removed (though handled above)
+
         if (mapsIdentical) {
           for (const key of prevMap.keys()) {
             if (!newPreviewMap.has(key)) {
@@ -248,26 +235,23 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             }
           }
         }
-        // If identical, return the previous map to prevent re-render
+
         if (mapsIdentical) return prevMap;
       }
-      // Otherwise, return the new map
+
       return newPreviewMap;
     });
-  }, [libraryFiles, isOpen]); // Re-run when library files change or modal opens
-  // --- End Preview URL generation ---
+  }, [libraryFiles, isOpen]);
 
   useEffect(() => {
-    // Cleanup on close
     if (!isOpen) {
       revokeAndClearManagedUrls();
       setModalError(null);
-      setFilterAfterUploadChecked(true); // Reset checkbox state
+      setFilterAfterUploadChecked(true);
     }
   }, [isOpen, revokeAndClearManagedUrls]);
 
   useEffect(() => {
-    // Ensure cleanup on unmount
     return () => {
       revokeAndClearManagedUrls();
     };
@@ -302,7 +286,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           if (file) selectedFilesArray.push(file);
         });
         if (selectedFilesArray.length > 0) {
-          // Pass filter flag as false for library selection
           onFilesSelected(selectedFilesArray, 'library', true, false);
           onClose();
         } else {
@@ -325,7 +308,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalLoading(true);
       setModalError(null);
       const processedFiles: StoredFile[] = [];
-      // Correction: Files added via the modal in file-storage/image-storage should likely be permanent
+
       const makePermanent =
         mode === 'addNewFiles' ||
         (mode === 'selectExistingOrUploadNew' && savePreference);
@@ -334,13 +317,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         const processPromises = addedFiles.map(async (file) => {
           let storedFile: StoredFile | undefined;
           try {
-            // Call addFile, explicitly setting isTemporary based on makePermanent logic
             const fileId = await addFile(
               file,
               file.name,
               file.type,
               !makePermanent
-            ); // !makePermanent -> isTemporary
+            );
             storedFile = await getFile(fileId);
             if (!storedFile)
               throw new Error(`Failed to retrieve saved file: ${file.name}`);
@@ -356,7 +338,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         await Promise.all(processPromises);
 
         if (processedFiles.length > 0) {
-          // Pass the state of the filter checkbox
           onFilesSelected(
             processedFiles,
             'upload',
@@ -427,7 +408,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             title={file.type || 'File'}
           ></span>{' '}
         </span>
-      ); // Increased icon size
+      );
     },
     [previewObjectUrls]
   );

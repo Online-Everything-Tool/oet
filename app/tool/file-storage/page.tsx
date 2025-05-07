@@ -2,13 +2,13 @@
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
 import ToolSettings from '../_components/ToolSettings';
-import metadata from './metadata.json'; // Import this tool's metadata
+import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
-import FileStorageClient from './_components/FileStorageClient'; // Import the client component
+import FileStorageClient from './_components/FileStorageClient';
 
 export default function FileStoragePage() {
   const toolTitle = metadata.title || 'File Storage';
-  const toolRoute = '/tool/file-storage/'; // Use trailing slash consistently
+  const toolRoute = '/tool/file-storage/';
 
   return (
     <div className="relative flex flex-col gap-6">

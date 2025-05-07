@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
+import { useHistory } from '../../../context/HistoryContext';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import ECPairFactory from 'ecpair';
@@ -39,9 +39,8 @@ export default function CryptoWalletGeneratorClient({
   const [generating, setGenerating] = useState<boolean>(false);
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
 
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
-  // toggleSpecificPrivateKeyVisibility remains the same
   const toggleSpecificPrivateKeyVisibility = (id: string) => {
     setGeneratedWallets((prevWallets) =>
       prevWallets.map((wallet) =>
@@ -52,7 +51,6 @@ export default function CryptoWalletGeneratorClient({
     );
   };
 
-  // handleGenerateWallet: Added eventTimestamp
   const handleGenerateWallet = useCallback(async () => {
     setGenerating(true);
     setError(null);
@@ -110,7 +108,7 @@ export default function CryptoWalletGeneratorClient({
       (inputDetails as Record<string, unknown>).error = errorMessage;
     } finally {
       setGenerating(false);
-      // Add eventTimestamp to the history entry object
+
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -121,19 +119,17 @@ export default function CryptoWalletGeneratorClient({
             ? `Generated ${walletType}: ${generatedPublicKey}`
             : errorMessage,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     }
-  }, [walletType, addHistoryEntry, toolTitle, toolRoute]); // Dependencies remain the same
+  }, [walletType, addHistoryEntry, toolTitle, toolRoute]);
 
-  // handleTypeChange remains the same
   const handleTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newType = event.target.value as WalletType;
     setWalletType(newType);
     setError(null);
   };
 
-  // copyToClipboard remains the same (no history logging)
   const copyToClipboard = useCallback(
     async (
       textToCopy: string,
@@ -156,13 +152,11 @@ export default function CryptoWalletGeneratorClient({
     []
   );
 
-  // handleClearAllWallets remains the same
   const handleClearAllWallets = useCallback(() => {
     setGeneratedWallets([]);
     setError(null);
   }, []);
 
-  // JSX Render logic remains the same
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
       <div

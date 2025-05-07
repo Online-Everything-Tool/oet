@@ -2,13 +2,9 @@
 
 import React from 'react';
 
-// Define the props the component expects
 interface ToolHeaderProps {
   title: string;
   description: string;
-  // Optional: Add iconName, status, etc. later if needed
-  // iconName?: string | null;
-  // status?: string;
 }
 
 /**
@@ -25,14 +21,8 @@ export default function ToolHeader({ title, description }: ToolHeaderProps) {
         {title || '[Tool Title Missing]'} {/* Fallback text */}
       </h1>
       {/* Description Paragraph */}
-      {description && ( // Only render paragraph if description exists
-        <p className="text-lg text-gray-600">{description}</p>
-      )}
+      {description && <p className="text-lg text-gray-600">{description}</p>}
       {/* TODO: Optionally render status badges or icons here later */}
     </div>
   );
 }
-
-// Note: This component is intentionally simple and presentational.
-// The parent page (e.g., /app/tool/base64-encode-decode/page.tsx) is responsible
-// for importing its own ./metadata.json and passing the values as props.

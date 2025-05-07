@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 interface BuildToolWidgetProps {
   suggestedDirectives: string[];
-  modelNameUsed?: string | null; // Make optional
+  modelNameUsed?: string | null;
 }
 
 export default function BuildToolWidget({
@@ -23,7 +23,7 @@ export default function BuildToolWidget({
           assistance!
         </p>
         <Link
-          href="/build-tool/" // Ensure trailing slash matches config
+          href="/build-tool/"
           className="inline-block px-5 py-2 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors"
         >
           Build a Tool

@@ -8,7 +8,7 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
-// Removed unused TriggerType import
+
 import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
@@ -55,8 +55,6 @@ export default function TextCounterClient({
       lastLoggedTextRef.current = text;
       lastLoggedSearchRef.current = search;
       initialLoadComplete.current = true;
-      // console.log('[TextCounter] Initial refs set:', { text: text, search: search }); // Keep for debug if needed
-      // No history log for initial load state setting
     }
   }, [text, search]);
 
@@ -102,9 +100,7 @@ export default function TextCounterClient({
     const searchChanged = currentSearch !== lastLoggedSearchRef.current;
 
     if (textChanged || searchChanged) {
-      // console.log('[TextCounter] Blur detected with changes, logging history.', { textChanged, searchChanged }); // Keep for debug if needed
-
-      const latestCounts = allCounts; // Use the memoized value
+      const latestCounts = allCounts;
 
       addHistoryEntry({
         toolName: toolTitle,
@@ -130,21 +126,17 @@ export default function TextCounterClient({
       lastLoggedTextRef.current = currentText;
       lastLoggedSearchRef.current = currentSearch;
     }
-    // else { console.log('[TextCounter] Blur detected, but no changes to log.'); } // Keep for debug if needed
   }, [text, search, allCounts, addHistoryEntry, toolTitle, toolRoute]);
 
   const handleClearSearch = useCallback(() => {
     setSearch('');
-    // No history log
   }, []);
 
   const handleClearText = useCallback(() => {
     setText('');
-    // No history log
   }, []);
 
   return (
-    // --- JSX Unchanged ---
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div>
         <label

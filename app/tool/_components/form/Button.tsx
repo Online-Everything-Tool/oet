@@ -1,6 +1,6 @@
 // FILE: app/tool/_components/form/Button.tsx
 import React from 'react';
-import { ArrowPathIcon } from '@heroicons/react/20/solid'; // Or /24/solid if preferred
+import { ArrowPathIcon } from '@heroicons/react/20/solid';
 
 type ButtonVariant =
   | 'primary'

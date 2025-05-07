@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import JSZip from 'jszip';
 import Image from 'next/image';
-import { useHistory } from '../../../context/HistoryContext'; // Keep import
+import { useHistory } from '../../../context/HistoryContext';
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
@@ -81,7 +81,6 @@ export default function ZipFileExplorerClient({
     new Set()
   );
 
-  // --- UPDATED processZipFile ---
   const processZipFile = useCallback(
     async (file: File) => {
       setIsLoading(true);
@@ -95,7 +94,7 @@ export default function ZipFileExplorerClient({
 
       let rawEntriesCount = 0;
       let historyStatus: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {}; // For structured output
+      let historyOutputObj: Record<string, unknown> = {};
       const historyInput: Record<string, unknown> = {
         fileName: file.name,
         fileSize: file.size,
@@ -115,13 +114,12 @@ export default function ZipFileExplorerClient({
             });
           }
         });
-        rawEntriesCount = rawEntries.filter((e) => !e.isDirectory).length; // Count only files
+        rawEntriesCount = rawEntries.filter((e) => !e.isDirectory).length;
 
         const treeData = buildFileTree(rawEntries);
         setFileTree(treeData);
         historyOutputObj = {
-          // Structure success output
-          fileCount: rawEntriesCount, // Summary field
+          fileCount: rawEntriesCount,
           message: `${rawEntriesCount} files found in ${file.name}`,
         };
       } catch (err: unknown) {
@@ -132,8 +130,7 @@ export default function ZipFileExplorerClient({
         zipRef.current = null;
         historyStatus = 'error';
         historyOutputObj = {
-          // Structure error output
-          fileCount: 'Error', // Summary field for error
+          fileCount: 'Error',
           errorMessage: errorMessage,
         };
         historyInput.error = errorMessage;
@@ -144,16 +141,15 @@ export default function ZipFileExplorerClient({
           toolRoute: toolRoute,
           trigger: 'upload',
           input: historyInput,
-          output: historyOutputObj, // Log structured object
+          output: historyOutputObj,
           status: historyStatus,
-          eventTimestamp: Date.now(), // Add it here
+          eventTimestamp: Date.now(),
         });
       }
     },
     [addHistoryEntry, toolTitle, toolRoute]
-  ); // Dependencies remain the same
+  );
 
-  // --- handleClear --- No history log (Unchanged)
   const handleClear = useCallback(() => {
     setSelectedFile(null);
     setFileTree([]);
@@ -167,11 +163,10 @@ export default function ZipFileExplorerClient({
     setIsPreviewOpen(false);
   }, []);
 
-  // --- handleFileChange --- Only logs failure immediately (Unchanged)
   const handleFileChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      handleClear(); // Clear previous state first
+      handleClear();
       if (file) {
         if (
           file.type === 'application/zip' ||
@@ -179,28 +174,26 @@ export default function ZipFileExplorerClient({
           file.name.toLowerCase().endsWith('.zip')
         ) {
           setSelectedFile(file);
-          processZipFile(file); // processZipFile handles success/failure logging
+          processZipFile(file);
         } else {
           const errorMsg = 'Invalid file type. Please select a .zip file.';
           setError(errorMsg);
           addHistoryEntry({
-            // Log only the invalid file type error here
             toolName: toolTitle,
             toolRoute: toolRoute,
             trigger: 'upload',
             input: { fileName: file.name, error: 'Invalid file type' },
-            output: { fileCount: 'Error', errorMessage: errorMsg }, // Use structured output
+            output: { fileCount: 'Error', errorMessage: errorMsg },
             status: 'error',
-            eventTimestamp: Date.now(), // add it here
+            eventTimestamp: Date.now(),
           });
           if (fileInputRef.current) fileInputRef.current.value = '';
         }
       }
     },
     [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]
-  ); // Dependencies updated
+  );
 
-  // --- handleDownload --- No history log (Unchanged)
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {
     if (!entryData?._zipObject) {
       setError(`Download error: Zip object missing for ${entryData.name}`);
@@ -228,7 +221,6 @@ export default function ZipFileExplorerClient({
     }
   }, []);
 
-  // --- handlePreview --- No history log (Unchanged)
   const handlePreview = useCallback(async (entryData: ActionEntryData) => {
     if (!entryData?._zipObject) {
       setPreviewError(
@@ -276,7 +268,6 @@ export default function ZipFileExplorerClient({
     }
   }, []);
 
-  // useEffect for preview URL cleanup (Unchanged)
   useEffect(() => {
     let currentObjectUrl: string | null = null;
     if (previewType === 'image' && previewContent?.startsWith('blob:')) {
@@ -289,7 +280,6 @@ export default function ZipFileExplorerClient({
     };
   }, [previewType, previewContent]);
 
-  // closePreview (Unchanged)
   const closePreview = useCallback(() => {
     setIsPreviewOpen(false);
     setPreviewContent(null);
@@ -298,7 +288,6 @@ export default function ZipFileExplorerClient({
     setPreviewError(null);
   }, []);
 
-  // toggleFolder (Unchanged)
   const toggleFolder = useCallback((folderPath: string) => {
     setExpandedFolders((prev) => {
       const newSet = new Set(prev);

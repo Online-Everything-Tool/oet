@@ -1,7 +1,6 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageCanvas.ts ---
 import { useRef, useEffect, useCallback } from 'react';
 
-// Types (import or define)
 interface MontageImage {
   id: number;
   image: HTMLImageElement;
@@ -10,7 +9,6 @@ interface MontageImage {
   overlapPercent: number;
 }
 
-// Define the return type for bounds calculation explicitly
 type RenderedBounds = {
   minX: number;
   minY: number;
@@ -20,7 +18,6 @@ type RenderedBounds = {
   height: number;
 };
 
-// Constants (import or define)
 const POLAROID_WIDTH = 150;
 const POLAROID_HEIGHT = 150;
 const BORDER_PADDING = 10;
@@ -29,7 +26,6 @@ const TOTAL_POLAROID_WIDTH = POLAROID_WIDTH + BORDER_PADDING * 2;
 const TOTAL_POLAROID_HEIGHT = POLAROID_HEIGHT + BORDER_PADDING + BOTTOM_PADDING;
 const MAX_OVERLAP_PERCENT = 80;
 
-// Local Helper Functions
 const calculateMaxBoundsLocal = (
   width: number,
   height: number
@@ -88,23 +84,17 @@ const calculateRenderedBoundsLocal = (
   };
 };
 
-// --- CORRECTED INTERFACE ---
 interface UseMontageCanvasReturn {
-  // Allow null for the .current property of the ref
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   generateMontageBlob: () => Promise<Blob | null>;
 }
-// --- END CORRECTION ---
 
 export function useMontageCanvas(
   montageImages: MontageImage[]
 ): UseMontageCanvasReturn {
-  // Initialize ref with null, type is RefObject<HTMLCanvasElement | null>
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Effect to draw the montage
   useEffect(() => {
-    // Check for null before using .current
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -117,7 +107,7 @@ export function useMontageCanvas(
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       return;
     }
-    // ... (rest of drawing logic) ...
+
     const computedStyle = getComputedStyle(document.documentElement);
     const subtleBgColor =
       computedStyle.getPropertyValue('--color-bg-subtle').trim() ||
@@ -197,11 +187,9 @@ export function useMontageCanvas(
         nextImageStartX += TOTAL_POLAROID_WIDTH - nextOverlapPixels;
       }
     });
-  }, [montageImages]); // Dependency array
+  }, [montageImages]);
 
-  // Function to generate the cropped blob
   const generateMontageBlob = useCallback(async (): Promise<Blob | null> => {
-    // Check for null before using .current
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) {
       console.warn('generateMontageBlob called with no canvas or images.');
@@ -216,7 +204,7 @@ export function useMontageCanvas(
       if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
         throw new Error('Failed to calculate image bounds.');
       }
-      // ... (rest of blob generation logic) ...
+
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = bounds.width;
       tempCanvas.height = bounds.height;
@@ -235,11 +223,11 @@ export function useMontageCanvas(
         bounds.minX,
         bounds.minY,
         bounds.width,
-        bounds.height, // Source rect
+        bounds.height,
         0,
         0,
         bounds.width,
-        bounds.height // Destination rect
+        bounds.height
       );
       const blob = await new Promise<Blob | null>((resolve) =>
         tempCanvas.toBlob(resolve, 'image/png', 0.95)
@@ -250,11 +238,9 @@ export function useMontageCanvas(
       return blob;
     } catch (err) {
       console.error('Error generating montage blob:', err);
-      return null; // Return null on error
+      return null;
     }
-  }, [montageImages]); // Dependency array
+  }, [montageImages]);
 
-  // Return the ref (which is RefObject<HTMLCanvasElement | null>)
   return { canvasRef, generateMontageBlob };
 }
-// --- END FILE: app/tool/image-montage/_hooks/useMontageCanvas.ts ---

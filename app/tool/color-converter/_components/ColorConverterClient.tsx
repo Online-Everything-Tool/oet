@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Use updated context
-import type { TriggerType } from '@/src/types/history'; // Use updated types
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb } from '@/app/lib/colorUtils';
@@ -17,7 +17,6 @@ interface ColorConverterClientProps {
 type InputMode = 'hex' | 'rgb' | 'hsl';
 type CopiedFormat = 'hex' | 'rgb' | 'hsl' | null;
 
-// --- Component ---
 export default function ColorConverterClient({
   urlStateParams,
   toolTitle,
@@ -34,7 +33,7 @@ export default function ColorConverterClient({
   const [lastEditedField, setLastEditedField] = useState<InputMode>('hex');
   const [copiedFormat, setCopiedFormat] = useState<CopiedFormat>(null);
 
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
   const stateSetters = useMemo(
     () => ({
@@ -54,7 +53,6 @@ export default function ColorConverterClient({
     stateSetters as StateSetters
   );
 
-  // --- Conversion Handler: Added eventTimestamp ---
   const handleConvert = useCallback(
     (triggerType: TriggerType, sourceFieldOverride?: InputMode) => {
       const source = sourceFieldOverride || lastEditedField;
@@ -90,7 +88,7 @@ export default function ColorConverterClient({
               rgb: `rgb(${currentR}, ${currentG}, ${currentB})`,
               hsl: `hsl(${currentH}, ${currentS}%, ${currentL}%)`,
               hex: currentHex,
-            }; // Include hex in output too
+            };
           } else {
             throw new Error('Invalid Hex code format. Use #RRGGBB or RRGGBB.');
           }
@@ -203,7 +201,6 @@ export default function ColorConverterClient({
         }
       }
 
-      // Add eventTimestamp to the history entry object
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -211,7 +208,7 @@ export default function ColorConverterClient({
         input: inputDetails,
         output: status === 'success' ? outputDetails : `Error: ${currentError}`,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     },
     [
@@ -227,9 +224,8 @@ export default function ColorConverterClient({
       toolTitle,
       toolRoute,
     ]
-  ); // Dependencies remain the same
+  );
 
-  // --- URL Load Effect (remains the same) ---
   useEffect(() => {
     if (shouldRunOnLoad) {
       let sourceToUse: InputMode | null = null;
@@ -247,10 +243,8 @@ export default function ColorConverterClient({
       }
       setShouldRunOnLoad(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRunOnLoad]);
 
-  // --- Input Handlers (remain the same) ---
   const handleHexChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setHex(event.target.value);
@@ -334,7 +328,6 @@ export default function ColorConverterClient({
     [hex, r, g, b, h, s, l]
   );
 
-  // --- Color Swatch Style (remains the same) ---
   const colorSwatchStyle = useMemo(() => {
     let backgroundColor = 'transparent';
     let borderColor = 'rgb(var(--color-input-border))';
@@ -367,7 +360,6 @@ export default function ColorConverterClient({
     };
   }, [r, g, b, error]);
 
-  // --- Render JSX (remains the same) ---
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       {/* Input Fields */}

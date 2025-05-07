@@ -3,8 +3,7 @@ import Dexie, { type EntityTable } from 'dexie';
 import type { StoredFile } from '@/src/types/storage';
 import type { HistoryEntry } from '@/src/types/history';
 
-// Increment schema version to trigger upgrade/creation
-const CURRENT_SCHEMA_VERSION = 10; // <-- Incremented from 9
+const CURRENT_SCHEMA_VERSION = 10;
 
 export class OetDatabase extends Dexie {
   files!: EntityTable<StoredFile, 'id'>;
@@ -14,15 +13,11 @@ export class OetDatabase extends Dexie {
     super('OetDatabase');
 
     this.version(CURRENT_SCHEMA_VERSION).stores({
-      // Updated 'files' schema: Added 'toolRoute' index.
-      // Existing indices: id, createdAt, isTemporary, type
       files: 'id, createdAt, isTemporary, type, toolRoute',
 
-      // Updated 'history' schema: Added '*outputFileIds' multi-entry index.
       history: 'id, toolRoute, eventTimestamp, *outputFileIds',
     });
 
-    // Map classes (no change needed here unless using actual classes)
     this.files.mapToClass(Object as unknown as { new (): StoredFile });
     this.history.mapToClass(Object as unknown as { new (): HistoryEntry });
 

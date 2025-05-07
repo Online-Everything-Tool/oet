@@ -115,7 +115,7 @@ export default function PasswordGeneratorClient({
         input: historyInput,
         output: generatedPassword || `Error: ${currentError}`,
         status: status,
-        eventTimestamp: Date.now(), // ADD eventTimestamp
+        eventTimestamp: Date.now(),
       });
     },
     [
@@ -140,11 +140,6 @@ export default function PasswordGeneratorClient({
       return;
     }
     setError('');
-    // Removed unused history variables
-    // let status: 'success' | 'error' = 'success';
-    // let historyOutput = '[Password copied to clipboard]';
-    // const inputDetails = { copiedPasswordLength: password.length };
-    // let historyError = undefined;
 
     try {
       await navigator.clipboard.writeText(password);
@@ -154,12 +149,8 @@ export default function PasswordGeneratorClient({
       console.error('Failed to copy password: ', err);
       const message = 'Failed to copy password.';
       setError(message);
-      // status = 'error';
-      // historyOutput = `Error: ${message}`;
-      // historyError = historyOutput;
     }
-    // History logging removed
-  }, [password]); // Dependencies updated
+  }, [password]);
 
   const handleCheckboxChange = (
     setter: React.Dispatch<React.SetStateAction<boolean>>,
@@ -205,7 +196,6 @@ export default function PasswordGeneratorClient({
     length <= 256 &&
     (includeLowercase || includeUppercase || includeNumbers || includeSymbols);
 
-  // --- Render function ---
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       {/* Settings button DIV removed from here */}

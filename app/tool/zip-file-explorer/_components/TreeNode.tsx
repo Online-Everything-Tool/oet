@@ -33,15 +33,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       ? { name: node.path, id: node.id, _zipObject: node._zipObject }
       : null;
 
-  // Determine icon based on type and state
   const icon =
     node.type === 'folder'
       ? isExpandable
         ? isExpanded
           ? '▼'
           : '►'
-        : '📁' // Use folder icon if not expandable
-      : '📄'; // File icon
+        : '📁'
+      : '📄';
 
   return (
     <div>

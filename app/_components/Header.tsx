@@ -17,9 +17,8 @@ export default function Header() {
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
   const pathname = usePathname();
   const isHome = pathname === '/';
-  const isToolPage = pathname.startsWith('/tool/'); // Check if it's a tool page
+  const isToolPage = pathname.startsWith('/tool/');
 
-  // Close dropdown if clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -37,7 +36,6 @@ export default function Header() {
     setShowFavoritesDropdown((prev) => !prev);
   };
 
-  // Function to generate simple link title from directive
   const formatDirectiveTitle = (directive: string): string => {
     return directive
       .replace(/-/g, ' ')
@@ -113,7 +111,7 @@ export default function Header() {
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate"
                           role="menuitem"
                           tabIndex={-1}
-                          onClick={() => setShowFavoritesDropdown(false)} // Close on click
+                          onClick={() => setShowFavoritesDropdown(false)}
                         >
                           {formatDirectiveTitle(directive)}
                         </Link>

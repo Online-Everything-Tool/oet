@@ -2,7 +2,7 @@
 
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
+import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import UrlEncodeDecodeClient from './_components/UrlEncodeDecodeClient';
@@ -12,10 +12,9 @@ export default function UrlEncodeDecodePage() {
   const typedMetadata = metadata as ToolMetadata;
   const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
   const toolTitle = metadata.title || 'URL Encode Decode';
-  const toolRoute = '/tool/url-encode-decode'; // Corrected route
+  const toolRoute = '/tool/url-encode-decode';
 
   return (
-    // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />

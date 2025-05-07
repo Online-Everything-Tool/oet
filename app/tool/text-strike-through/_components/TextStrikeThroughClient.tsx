@@ -8,7 +8,7 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Removed TriggerType as it's only 'auto' here
+import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 
@@ -43,18 +43,16 @@ export default function TextStrikeThroughClient({
     []
   );
 
-  // This hook sets initial state based on URL if params are present
   useToolUrlState(urlStateParams, stateSetters as StateSetters);
 
   useEffect(() => {
-    // Set initial refs *after* useToolUrlState has potentially set initial values
     if (!initialLoadComplete.current) {
       lastLoggedTextRef.current = text;
       lastLoggedSkipSpacesRef.current = skipSpaces;
       lastLoggedColorRef.current = color;
       initialLoadComplete.current = true;
     }
-  }, [text, skipSpaces, color]); // Run when these change, but only sets refs once
+  }, [text, skipSpaces, color]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -80,7 +78,6 @@ export default function TextStrikeThroughClient({
     []
   );
 
-  // Updated handleTextBlur
   const handleTextBlur = useCallback(() => {
     if (!initialLoadComplete.current) {
       return;
@@ -95,18 +92,15 @@ export default function TextStrikeThroughClient({
       currentSkipSpaces !== lastLoggedSkipSpacesRef.current;
     const colorChanged = currentColor !== lastLoggedColorRef.current;
 
-    // Only log if text has content and something changed
     if (currentText && (textChanged || skipSpacesChanged || colorChanged)) {
-      // Construct the structured output object
       const historyOutputObj = {
-        formattingStatus: 'Formatting Updated', // Summary field
-        // We don't store the formatted HTML/JSX here, just the status
+        formattingStatus: 'Formatting Updated',
       };
 
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        trigger: 'auto', // Always 'auto' for blur event
+        trigger: 'auto',
         input: {
           text:
             currentText.length > 500
@@ -115,12 +109,11 @@ export default function TextStrikeThroughClient({
           skipSpaces: currentSkipSpaces,
           color: currentColor,
         },
-        output: historyOutputObj, // Log the structured object
-        status: 'success', // Assume formatting update is always successful visually
+        output: historyOutputObj,
+        status: 'success',
         eventTimestamp: Date.now(),
       });
 
-      // Update refs only after logging
       lastLoggedTextRef.current = currentText;
       lastLoggedSkipSpacesRef.current = currentSkipSpaces;
       lastLoggedColorRef.current = currentColor;
@@ -134,15 +127,15 @@ export default function TextStrikeThroughClient({
     setSkipSpaces(false);
     setColor('#dc2626');
     setIsCopied(false);
-    // Log only if state was actually changed by the clear action
+
     if (wasChanged && initialLoadComplete.current) {
-      handleTextBlur(); // Trigger blur logic to potentially log the 'cleared' state
+      handleTextBlur();
     }
-    // Also manually update refs after clearing state
+
     lastLoggedTextRef.current = '';
     lastLoggedSkipSpacesRef.current = false;
     lastLoggedColorRef.current = '#dc2626';
-  }, [text, skipSpaces, color, handleTextBlur]); // Added dependencies
+  }, [text, skipSpaces, color, handleTextBlur]);
 
   const handleCopy = useCallback(() => {
     if (!text || !navigator.clipboard) return;
@@ -151,16 +144,13 @@ export default function TextStrikeThroughClient({
       () => {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 1500);
-        // No history log for copy
       },
       (err) => {
         console.error('Failed to copy text: ', err);
-        // No history log for copy
       }
     );
   }, [text]);
 
-  // renderOutput logic remains the same
   const renderedOutput = useMemo(() => {
     if (!text) {
       return (
@@ -174,26 +164,22 @@ export default function TextStrikeThroughClient({
       textDecorationColor: color,
       textDecorationStyle:
         'solid' as React.CSSProperties['textDecorationStyle'],
-      // Optional: Add thickness if desired later: textDecorationThickness: '2px'
     };
     if (!skipSpaces) {
       return <span style={strikeStyle}>{text}</span>;
     } else {
-      // Split preserving spaces, apply style only to non-space segments
       const segments = text.split(/(\s+)/);
       return segments.map((segment, index) => {
         if (segment.match(/\s+/)) {
-          // Keep spaces as they are
           return <React.Fragment key={index}>{segment}</React.Fragment>;
         } else if (segment) {
-          // Apply style to non-space text segments
           return (
             <span key={index} style={strikeStyle}>
               {segment}
             </span>
           );
         }
-        return null; // Should not happen with this regex
+        return null;
       });
     }
   }, [text, skipSpaces, color]);
@@ -214,7 +200,7 @@ export default function TextStrikeThroughClient({
             rows={8}
             value={text}
             onChange={handleInputChange}
-            onBlur={handleTextBlur} // Log changes on blur
+            onBlur={handleTextBlur}
             className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base placeholder:text-[rgb(var(--color-input-placeholder))] flex-grow"
             placeholder="Paste or type your text here..."
             aria-label="Input text for strikethrough formatting"
@@ -246,7 +232,7 @@ export default function TextStrikeThroughClient({
               name="skipSpaces"
               checked={skipSpaces}
               onChange={handleSkipSpacesChange}
-              onBlur={handleTextBlur} // Log changes on blur
+              onBlur={handleTextBlur}
               className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
               style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
             />
@@ -270,7 +256,7 @@ export default function TextStrikeThroughClient({
               name="color"
               value={color}
               onChange={handleColorChange}
-              onBlur={handleTextBlur} // Log changes on blur
+              onBlur={handleTextBlur}
               className="h-7 w-10 border border-[rgb(var(--color-input-border))] rounded cursor-pointer p-0.5 bg-[rgb(var(--color-input-bg))]"
               aria-label="Strikethrough color picker"
             />
@@ -294,7 +280,7 @@ export default function TextStrikeThroughClient({
           <button
             type="button"
             onClick={handleClear}
-            disabled={!text && !skipSpaces && color === '#dc2626'} // Disable clear only if all defaults are set
+            disabled={!text && !skipSpaces && color === '#dc2626'}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Clear

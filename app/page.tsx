@@ -2,7 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
-import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget'; // Import the new widget
+import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget';
 import { ToolMetadata } from '@/src/types/tools';
@@ -21,7 +21,6 @@ interface ProjectAnalysisData {
   modelNameUsed: string;
 }
 
-// --- Helper function getAvailableTools (Unchanged) ---
 async function getAvailableTools(): Promise<ToolDisplayData[]> {
   const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
   const dynamicTools: ToolDisplayData[] = [];
@@ -82,7 +81,6 @@ async function getAvailableTools(): Promise<ToolDisplayData[]> {
   return dynamicTools;
 }
 
-// --- Helper function getProjectAnalysisData (Unchanged) ---
 async function getProjectAnalysisData(): Promise<ProjectAnalysisData | null> {
   const analysisFilePath = path.join(
     process.cwd(),
@@ -126,7 +124,6 @@ async function getProjectAnalysisData(): Promise<ProjectAnalysisData | null> {
   }
 }
 
-// --- The Page Component (async) ---
 export default async function Home() {
   const [availableTools, analysisData] = await Promise.all([
     getAvailableTools(),

@@ -3,7 +3,7 @@ import React from 'react';
 import EmojiSearchClient from './_components/EmojiExplorerClient';
 import type { RichEmojiData } from './_components/EmojiExplorerClient';
 import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
+import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 
 async function fetchAndParseEmojis(): Promise<RichEmojiData[]> {
@@ -61,7 +61,7 @@ async function fetchAndParseEmojis(): Promise<RichEmojiData[]> {
         const emoji = match[3];
         const version = match[4];
         const name = match[5].trim();
-        // No UUID needed here, client will handle keys if necessary
+
         emojis.push({
           emoji,
           name,
@@ -100,7 +100,6 @@ export default async function EmojiExplorerPage() {
   const toolRoute = '/tool/emoji-explorer';
 
   return (
-    // Add relative positioning
     <div className="relative p-0">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />

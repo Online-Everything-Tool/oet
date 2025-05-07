@@ -13,7 +13,6 @@ import { getDbInstance, type OetDatabase } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
 
-// Separate functions from state in the context value type
 interface FileLibraryFunctions {
   listFiles: (
     limit?: number,
@@ -38,7 +37,6 @@ interface FileLibraryContextValue extends FileLibraryFunctions {
   loading: boolean;
   error: string | null;
 }
-// End type separation
 
 const FileLibraryContext = createContext<FileLibraryContextValue | undefined>(
   undefined
@@ -59,7 +57,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Define Callbacks (stable identities due to useCallback([])) ---
   const listFiles = useCallback(
     async (
       limit: number = 50,
@@ -72,12 +69,12 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         setError(
           `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
         );
-        // setLoading(false); // No need to set loading false here, finally block handles it
-        return []; // Return empty on DB error
+
+        return [];
       }
 
       setLoading(true);
-      setError(null); // Reset error at start of attempt
+      setError(null);
       try {
         if (!db?.files)
           throw new Error("Database 'files' table is not available.");
@@ -92,17 +89,17 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
         setError(`Failed to list files: ${message}`);
-        return []; // Return empty on specific fetch error
+        return [];
       } finally {
-        setLoading(false); // Set loading false regardless of success/error
+        setLoading(false);
       }
     },
-    [] // Empty dependency array ensures stable function reference
+    []
   );
 
   const getFile = useCallback(
     async (id: string): Promise<StoredFile | undefined> => {
-      setError(null); // Reset error for this specific action
+      setError(null);
       let db: OetDatabase | null = null;
       try {
         db = getDbInstance();
@@ -156,7 +153,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
         setError(`Failed to add file: ${message}`);
-        throw err; // Re-throw so caller knows it failed
+        throw err;
       } finally {
         setLoading(false);
       }
@@ -237,7 +234,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       if (!db?.files || !db?.history)
         throw new Error("DB 'files' or 'history' table not available.");
 
-      // State File Reference Cleanup
       const stateFiles = await db.files
         .where({ type: 'application/x-oet-tool-state+json' })
         .toArray();
@@ -275,10 +271,8 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         }
       }
 
-      // Delete the target file
       await db.files.delete(id);
 
-      // History Cleanup
       const deletedHistoryCount = await db.history
         .where('outputFileIds')
         .equals(id)
@@ -406,7 +400,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     }
   }, []);
 
-  // --- Memoize the functions object separately ---
   const functions = useMemo(
     () => ({
       listFiles,
@@ -430,9 +423,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     ]
   );
 
-  // --- Create the final context value ---
-  // This object's identity *will* change when loading/error changes,
-  // but the functions object inside it remains stable.
   const contextValue = useMemo(
     () => ({
       ...functions,

@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import type { RichEntityData } from '../page';
-import { useHistory } from '../../../context/HistoryContext'; // Use updated context
+import { useHistory } from '../../../context/HistoryContext';
 
 interface EntitySearchClientProps {
   initialEntities: RichEntityData[];
@@ -16,9 +16,8 @@ export default function HtmlEntityExplorerClient({
 }: EntitySearchClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
-  // useMemo hooks remain the same
   const filteredEntities = useMemo(() => {
     const categoryFiltered = selectedCategory
       ? initialEntities.filter((entity) => entity.category === selectedCategory)
@@ -45,7 +44,6 @@ export default function HtmlEntityExplorerClient({
     []
   );
 
-  // handleCopy: Added eventTimestamp to all addHistoryEntry calls
   const handleCopy = useCallback(
     (
       textToCopy: string,
@@ -70,15 +68,15 @@ export default function HtmlEntityExplorerClient({
       if (!navigator.clipboard) {
         console.error('Clipboard API not available.');
         historyInput.error = 'Clipboard API not available';
-        // Add eventTimestamp here
+
         addHistoryEntry({
           toolName: 'HTML Entity Explorer',
           toolRoute: '/tool/html-entity-explorer',
-          trigger: `click`, // Use specific trigger, not template literal
+          trigger: `click`,
           input: historyInput,
           output: historyOutput,
           status: 'error',
-          eventTimestamp: Date.now(), // Add timestamp
+          eventTimestamp: Date.now(),
         });
         return;
       }
@@ -86,36 +84,34 @@ export default function HtmlEntityExplorerClient({
       navigator.clipboard
         .writeText(textToCopy)
         .then(() => {
-          // Add eventTimestamp here
           addHistoryEntry({
             toolName: 'HTML Entity Explorer',
             toolRoute: '/tool/html-entity-explorer',
-            trigger: `click`, // Use specific trigger
+            trigger: `click`,
             input: historyInput,
             output: historyOutput,
             status: 'success',
-            eventTimestamp: Date.now(), // Add timestamp
+            eventTimestamp: Date.now(),
           });
         })
         .catch((err) => {
           console.error('Failed to copy:', err);
           historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-          // Add eventTimestamp here too
+
           addHistoryEntry({
             toolName: 'HTML Entity Explorer',
             toolRoute: '/tool/html-entity-explorer',
-            trigger: `click`, // Use specific trigger
+            trigger: `click`,
             input: historyInput,
             output: historyOutput,
             status: 'error',
-            eventTimestamp: Date.now(), // Add timestamp
+            eventTimestamp: Date.now(),
           });
         });
     },
     [addHistoryEntry, searchTerm, selectedCategory]
-  ); // Dependencies remain the same
+  );
 
-  // JSX Render logic remains the same
   return (
     <div className="flex flex-col gap-6 text-[rgb(var(--color-text-base))]">
       <div className="flex flex-col sm:flex-row gap-3 items-center">

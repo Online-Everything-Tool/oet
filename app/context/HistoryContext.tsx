@@ -14,7 +14,7 @@ import React, {
 import { v4 as uuidv4 } from 'uuid';
 import { getDbInstance, type OetDatabase } from '../lib/db';
 import type { LoggingPreference, ToolMetadata } from '@/src/types/tools';
-import type { StoredFile } from '@/src/types/storage'; // Import StoredFile
+import type { StoredFile } from '@/src/types/storage';
 import type {
   TriggerType,
   HistoryEntry,
@@ -132,7 +132,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   >({});
   const fetchingDefaultsRef = useRef<Set<string>>(new Set());
 
-  // --- Settings Management (Unchanged) ---
   useEffect(() => {
     let loadedEnabledState = true;
     let loadedPrefs: Record<string, LoggingPreference> = {};
@@ -279,9 +278,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     if (!isSettingsLoaded) return;
     setIsHistoryEnabled((prev) => !prev);
   }, [isSettingsLoaded]);
-  // --- End Settings Management ---
 
-  // --- History DB Operations ---
   const loadHistoryFromDb = useCallback(async () => {
     let db: OetDatabase | null = null;
     try {
@@ -435,16 +432,13 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
           const potentialFiles = await db.files.bulkGet(
             entryToDelete.outputFileIds
           );
-          // --- CORRECTED FILTER ---
+
           associatedTempFileIds = potentialFiles
             .filter(
-              (
-                file
-              ): file is StoredFile => // Use correct type predicate
+              (file): file is StoredFile =>
                 file !== undefined && file.isTemporary === true
             )
-            .map((file) => file.id); // Map after filtering non-undefined
-          // --- END CORRECTION ---
+            .map((file) => file.id);
         }
 
         await db.history.delete(idToDelete);
@@ -501,16 +495,13 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
       if (uniqueOutputFileIds.length > 0) {
         const potentialFiles = await db.files.bulkGet(uniqueOutputFileIds);
-        // --- CORRECTED FILTER ---
+
         const tempFilesToDelete = potentialFiles
           .filter(
-            (
-              file
-            ): file is StoredFile => // Use correct type predicate
+            (file): file is StoredFile =>
               file !== undefined && file.isTemporary === true
           )
-          .map((file) => file.id); // Map after filtering non-undefined
-        // --- END CORRECTION ---
+          .map((file) => file.id);
 
         if (tempFilesToDelete.length > 0) {
           await db.files.bulkDelete(tempFilesToDelete);
@@ -564,16 +555,13 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
         if (uniqueOutputFileIds.length > 0) {
           const potentialFiles = await db.files.bulkGet(uniqueOutputFileIds);
-          // --- CORRECTED FILTER ---
+
           const tempFilesToDelete = potentialFiles
             .filter(
-              (
-                file
-              ): file is StoredFile => // Use correct type predicate
+              (file): file is StoredFile =>
                 file !== undefined && file.isTemporary === true
             )
-            .map((file) => file.id); // Map after filtering non-undefined
-          // --- END CORRECTION ---
+            .map((file) => file.id);
 
           if (tempFilesToDelete.length > 0) {
             await db.files.bulkDelete(tempFilesToDelete);

@@ -23,11 +23,8 @@ export default function ToolHistorySettings({
     isLoaded,
   } = useHistory();
 
-  // Initialize with a sensible default before loading, like the global default
   const [currentToolPreference, setCurrentToolPreference] =
     useState<LoggingPreference>(() => {
-      // Temporarily read from localStorage directly ONLY for initial render
-      // This avoids flicker but duplicates logic slightly. HistoryContext handles the 'real' state.
       try {
         const storedSettings = localStorage.getItem('oetSettings_v1');
         if (storedSettings) {
@@ -39,12 +36,10 @@ export default function ToolHistorySettings({
       } catch {
         /* Ignore errors during initial read */
       }
-      // If nothing found or error, fallback to global default
-      // NOTE: This does NOT fetch the metadata default on initial render, HistoryContext handles that later.
-      return 'on'; // Assuming global default is 'on'
+
+      return 'on';
     });
 
-  // Effect to sync with the actual preference from HistoryContext once loaded
   useEffect(() => {
     if (isLoaded) {
       setCurrentToolPreference(getToolLoggingPreference(toolRoute));
@@ -56,8 +51,8 @@ export default function ToolHistorySettings({
   ) => {
     const newPref = event.target.value as LoggingPreference;
     if (isLoaded && ['on', 'restrictive', 'off'].includes(newPref)) {
-      setCurrentToolPreference(newPref); // Update local state immediately for responsiveness
-      setToolLoggingPreference(toolRoute, newPref); // Let HistoryContext handle saving/logic
+      setCurrentToolPreference(newPref);
+      setToolLoggingPreference(toolRoute, newPref);
     }
   };
 
@@ -69,7 +64,6 @@ export default function ToolHistorySettings({
       : '';
 
   return (
-    // Add title attribute for tooltip effect when disabled
     <div
       className={`space-y-4 ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}
       title={disabledReason}
@@ -92,14 +86,12 @@ export default function ToolHistorySettings({
           <div className="flex items-center">
             <input
               id={`history-pref-${toolRoute}-on`}
-              name={`history-pref-${toolRoute}`} // Group radios
+              name={`history-pref-${toolRoute}`}
               type="radio"
               value="on"
               checked={currentToolPreference === 'on'}
               onChange={handlePreferenceChange}
               disabled={isDisabled}
-              // Apply Tailwind classes for styling, focus, and accent color
-              // CHANGED TO GREEN
               className="h-4 w-4 border-gray-300 text-green-600 disabled:opacity-50 disabled:cursor-not-allowed accent-green-600"
             />
             <label
@@ -124,7 +116,6 @@ export default function ToolHistorySettings({
               checked={currentToolPreference === 'restrictive'}
               onChange={handlePreferenceChange}
               disabled={isDisabled}
-              // CHANGED TO ORANGE
               className="h-4 w-4 border-gray-300 text-orange-600 disabled:opacity-50 disabled:cursor-not-allowed accent-orange-600"
             />
             <label
@@ -149,7 +140,6 @@ export default function ToolHistorySettings({
               checked={currentToolPreference === 'off'}
               onChange={handlePreferenceChange}
               disabled={isDisabled}
-              // KEPT AS RED
               className="h-4 w-4 border-gray-300 text-red-600 disabled:opacity-50 disabled:cursor-not-allowed accent-red-600"
             />
             <label

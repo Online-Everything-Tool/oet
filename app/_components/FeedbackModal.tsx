@@ -6,7 +6,7 @@ import React from 'react';
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // --- UPDATED TYPE --- Allow RefObject to potentially hold null
+
   dialogRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -23,7 +23,6 @@ export default function FeedbackModal({
   }
 
   return (
-    // Modal Backdrop (Fixed position, covers screen)
     <div
       className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4"
       aria-labelledby="feedback-dialog-title"
@@ -33,7 +32,7 @@ export default function FeedbackModal({
       {/* Modal Content Container (Centered, styled) */}
       {/* --- Cast to specific type here as we know it's HTMLDivElement when rendered --- */}
       <div
-        ref={dialogRef as React.RefObject<HTMLDivElement>} // Cast here is safe within the rendered modal
+        ref={dialogRef as React.RefObject<HTMLDivElement>}
         className="bg-[rgb(var(--color-bg-component))] rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col"
       >
         {/* Modal Header */}

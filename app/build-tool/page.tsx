@@ -21,7 +21,6 @@ interface DirectivesListData {
 type BuildStep = 'validation' | 'generation' | 'submission' | 'complete';
 
 export default function BuildToolPage() {
-  // State definitions
   const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
   const [toolDirective, setToolDirective] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
@@ -38,7 +37,7 @@ export default function BuildToolPage() {
   const [additionalDescription, setAdditionalDescription] = useState('');
   const [userSelectedDirectives, setUserSelectedDirectives] = useState<
     string[]
-  >([]); // Array state
+  >([]);
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);
   const [prSubmissionResult, setPrSubmissionResult] =
@@ -47,7 +46,6 @@ export default function BuildToolPage() {
   const [apiUnavailableMessage, setApiUnavailableMessage] =
     useState<string>('');
 
-  // useEffect for fetching models
   useEffect(() => {
     const fetchModels = async () => {
       setModelsLoading(true);
@@ -105,7 +103,6 @@ export default function BuildToolPage() {
     fetchModels();
   }, []);
 
-  // useEffect for fetching directives
   useEffect(() => {
     if (isApiUnavailable) {
       setDirectivesLoading(false);
@@ -148,7 +145,6 @@ export default function BuildToolPage() {
     fetchDirectives();
   }, [isApiUnavailable]);
 
-  // Callbacks
   const handleValidationSuccess = useCallback((result: ValidationResult) => {
     console.log('Validation Success:', result);
     setValidationResult(result);
@@ -180,11 +176,8 @@ export default function BuildToolPage() {
     setUserSelectedDirectives([]);
     setGenerationResult(null);
     setPrSubmissionResult(null);
-    // Optionally reset model selection if needed, or keep the last used one
-    // if (availableModels.length > 0) setSelectedModel(availableModels[0].name);
   }, []);
 
-  // Render Logic
   const renderCurrentStep = () => {
     if (isApiUnavailable) {
       return (
@@ -250,11 +243,11 @@ export default function BuildToolPage() {
               availableModels,
               modelsLoading,
               modelsError,
-            }} // Pass needed props
+            }}
             setToolDirective={setToolDirective}
             setSelectedModel={setSelectedModel}
             onValidationSuccess={handleValidationSuccess}
-            onReset={handleReset} // Pass reset if needed inside ValidateDirective
+            onReset={handleReset}
           />
         );
       case 'generation':
@@ -279,7 +272,6 @@ export default function BuildToolPage() {
           />
         );
       case 'submission':
-        // Ensure all necessary data exists before rendering submission step
         if (
           !generationResult?.generatedFiles ||
           !toolDirective ||
@@ -300,7 +292,7 @@ export default function BuildToolPage() {
               validationResult,
               additionalDescription,
               userSelectedDirectives,
-              selectedModel, // <-- PASS selectedModel HERE
+              selectedModel,
             }}
             onPrSubmissionSuccess={handlePrSubmissionSuccess}
             onBack={() => setCurrentStep('generation')}
@@ -345,7 +337,6 @@ export default function BuildToolPage() {
     }
   };
 
-  // Main Return
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">

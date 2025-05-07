@@ -2,7 +2,7 @@
 
 import React from 'react';
 import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings'; // Import ToolSettings
+import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
 import Base64EncodeDecodeClient from './_components/Base64EncodeDecodeClient';
@@ -15,7 +15,6 @@ export default function Base64EncodeDecodePage() {
   const toolRoute = '/tool/base64-encode-decode';
 
   return (
-    // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />

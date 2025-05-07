@@ -4,7 +4,7 @@ import {
   useHistory,
   TriggerType,
   NewHistoryData,
-} from '../../context/HistoryContext'; // Import NewHistoryData
+} from '../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
@@ -20,7 +20,7 @@ type ProcessingFunction = (
 ) => void;
 
 export interface ProcessImageResult {
-  id: string | null; // Will now always be populated if blob generated
+  id: string | null;
   dataUrl: string | null;
   blob: Blob | null;
 }
@@ -28,8 +28,8 @@ export interface ProcessImageResult {
 interface UseImageProcessingReturn {
   originalImageSrc: string | null;
   processedImageSrc: string | null;
-  processedImageBlob: Blob | null; // Keep this for potential direct use? Or rely solely on ID? Let's keep for now.
-  processedFileId: string | null; // Store the ID of the processed file (temp or perm)
+  processedImageBlob: Blob | null;
+  processedFileId: string | null;
   fileName: string | null;
   isLoading: boolean;
   error: string | null;
@@ -40,7 +40,7 @@ interface UseImageProcessingReturn {
     trigger: TriggerType,
     outputFileName: string,
     options?: Record<string, unknown>,
-    saveOutputToLibrary?: boolean // Now dictates the isTemporary flag for addImage
+    saveOutputToLibrary?: boolean
   ) => Promise<ProcessImageResult>;
   clearProcessingOutput: () => void;
 }
@@ -56,20 +56,19 @@ const useImageProcessing = ({
   const [processedImageBlob, setProcessedImageBlob] = useState<Blob | null>(
     null
   );
-  const [processedFileId, setProcessedFileId] = useState<string | null>(null); // New state for the ID
+  const [processedFileId, setProcessedFileId] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const { addHistoryEntry } = useHistory();
-  // Assuming useImageLibrary now correctly handles adding temporary/permanent files
-  // and potentially generating thumbnails before calling the base addFile.
+
   const { addImage } = useImageLibrary();
 
   const clearProcessingOutput = useCallback(() => {
     setProcessedImageSrc(null);
     setProcessedImageBlob(null);
-    setProcessedFileId(null); // Clear the ID too
+    setProcessedFileId(null);
     setError(null);
   }, []);
 
@@ -80,7 +79,7 @@ const useImageProcessing = ({
       trigger: TriggerType,
       outputFileName: string,
       options: Record<string, unknown> = {},
-      // Renamed for clarity: this flag determines if the saved file is permanent
+
       createPermanentEntry: boolean = true
     ): Promise<ProcessImageResult> => {
       console.log(
@@ -93,36 +92,35 @@ const useImageProcessing = ({
         createPermanentEntry
       );
 
-      // Reset state for the new operation
-      setOriginalImageSrc(null); // Reset original preview
-      clearProcessingOutput(); // Clear previous processed results
-      setFileName(inputFile.name); // Set the original filename context
+      setOriginalImageSrc(null);
+      clearProcessingOutput();
+      setFileName(inputFile.name);
 
       if (!inputFile.blob || !inputFile.type?.startsWith('image/')) {
         const errMsg = `Invalid input file: ID ${inputFile.id || 'unknown'}, Type ${inputFile.type || 'unknown'}`;
         setError(errMsg);
-        setIsLoading(false); // Ensure loading is stopped
+        setIsLoading(false);
         return { id: null, dataUrl: null, blob: null };
       }
 
       setIsLoading(true);
-      setError(null); // Clear previous errors
+      setError(null);
 
       let tempOriginalObjectUrl: string | null = null;
-      // Initialize result structure
+
       const result: ProcessImageResult = {
         id: null,
         dataUrl: null,
         blob: null,
       };
       let historyStatus: 'success' | 'error' = 'success';
-      let historyOutputDetails: Record<string, unknown> = {}; // Use object for details
+      let historyOutputDetails: Record<string, unknown> = {};
       const historyInputDetails: Record<string, unknown> = {
         inputFileId: inputFile.id,
         fileName: inputFile.name,
         originalSize: inputFile.size,
         originalType: inputFile.type,
-        requestedSavePreference: createPermanentEntry, // Log user's intent
+        requestedSavePreference: createPermanentEntry,
         ...options,
       };
       let fileIdForHistory: string | null = null;
@@ -130,13 +128,12 @@ const useImageProcessing = ({
       try {
         const img = new window.Image();
         tempOriginalObjectUrl = URL.createObjectURL(inputFile.blob);
-        setOriginalImageSrc(tempOriginalObjectUrl); // Show original image
+        setOriginalImageSrc(tempOriginalObjectUrl);
 
         if (tempOriginalObjectUrl === null)
           throw new Error('Object URL creation failed.');
         const urlForImgElement: string = tempOriginalObjectUrl;
 
-        // Load image from blob URL
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
           img.onerror = (errEvent) =>
@@ -152,7 +149,6 @@ const useImageProcessing = ({
           );
         }
 
-        // Process image on canvas
         const canvas = document.createElement('canvas');
         canvas.width = img.naturalWidth;
         canvas.height = img.naturalHeight;
@@ -160,7 +156,6 @@ const useImageProcessing = ({
         if (!ctx) throw new Error('Failed to get canvas context.');
         processingFunction(ctx, img, options);
 
-        // Get processed blob
         const outputMimeType =
           inputFile.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
         const quality = outputMimeType === 'image/jpeg' ? 0.9 : undefined;
@@ -170,12 +165,11 @@ const useImageProcessing = ({
         if (!processedBlobFromCanvas) throw new Error('Canvas toBlob failed.');
 
         result.blob = processedBlobFromCanvas;
-        // Generate data URL *after* blob confirmation for consistency
+
         result.dataUrl = canvas.toDataURL(outputMimeType, quality);
 
         const isTemporary = !createPermanentEntry;
         const newFileId = await addImage(
-          // Using useImageLibrary's addImage
           result.blob,
           outputFileName,
           outputMimeType,
@@ -188,18 +182,16 @@ const useImageProcessing = ({
           );
 
         result.id = newFileId;
-        fileIdForHistory = newFileId; // Use this ID for history entry
+        fileIdForHistory = newFileId;
 
-        // Update local state
         setProcessedImageSrc(result.dataUrl);
         setProcessedImageBlob(result.blob);
         setProcessedFileId(result.id);
 
-        // Prepare history output details
         historyStatus = 'success';
         historyOutputDetails = {
           message: `Image processed ${isTemporary ? '(temporary)' : '(saved permanently)'}.`,
-          outputFileId: result.id, // Use consistent field name maybe?
+          outputFileId: result.id,
           outputType: outputMimeType,
           outputSize: result.blob.size,
           isTemporary: isTemporary,
@@ -209,49 +201,41 @@ const useImageProcessing = ({
           err instanceof Error ? err.message : 'Unknown processing error.';
         console.error('Image Processing Error:', err);
         setError(message);
-        // Clear potentially partially set states on error
-        setOriginalImageSrc(null); // Maybe keep original? Depends on UX. Let's clear.
-        clearProcessingOutput(); // Clear all processed states including ID
+
+        setOriginalImageSrc(null);
+        clearProcessingOutput();
         historyStatus = 'error';
         historyOutputDetails = { error: message };
-        historyInputDetails.error = message; // Add error to input details for history context
+        historyInputDetails.error = message;
       } finally {
         setIsLoading(false);
         if (tempOriginalObjectUrl) {
-          URL.revokeObjectURL(tempOriginalObjectUrl); // Clean up original blob URL
+          URL.revokeObjectURL(tempOriginalObjectUrl);
         }
 
-        // --- Log to History ---
         const historyEntryData: NewHistoryData = {
           toolName: toolTitle,
           toolRoute: toolRoute,
           trigger: trigger,
           input: historyInputDetails,
-          output: historyOutputDetails, // Contains non-file metadata
+          output: historyOutputDetails,
           status: historyStatus,
           eventTimestamp: Date.now(),
-          // Pass the file ID (temp or perm) to be linked
+
           outputFileIds: fileIdForHistory ? [fileIdForHistory] : [],
         };
-        await addHistoryEntry(historyEntryData); // Let HistoryContext handle logging
+        await addHistoryEntry(historyEntryData);
       }
       return result;
     },
-    [
-      toolTitle,
-      toolRoute,
-      addImage, // From useImageLibrary
-      addHistoryEntry, // From useHistory
-      clearProcessingOutput, // Local callback
-      // No dependency on fileLibrary functions directly
-    ]
+    [toolTitle, toolRoute, addImage, addHistoryEntry, clearProcessingOutput]
   );
 
   return {
     originalImageSrc,
     processedImageSrc,
     processedImageBlob,
-    processedFileId, // Return the ID
+    processedFileId,
     fileName,
     isLoading,
     error,

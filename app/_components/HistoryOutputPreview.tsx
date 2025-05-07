@@ -3,11 +3,11 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext'; // Stays the same
+import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { HistoryEntry } from '@/src/types/history';
 import type { ToolMetadata } from '@/src/types/tools';
 import { safeStringify } from '@/app/lib/utils';
-// Import StoredFile type if needed for explicit typing, though inference might work
+
 import type { StoredFile } from '@/src/types/storage';
 
 interface HistoryOutputPreviewProps {
@@ -20,7 +20,7 @@ export default function HistoryOutputPreview({
   metadata,
 }: HistoryOutputPreviewProps) {
   const outputConfig = metadata?.outputConfig;
-  const { getImage } = useImageLibrary(); // Hook usage stays the same
+  const { getImage } = useImageLibrary();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -39,7 +39,6 @@ export default function HistoryOutputPreview({
     return typeof id === 'string' ? id : null;
   }, [outputConfig, output]);
 
-  // Summary text logic remains the same
   const summaryText = useMemo(() => {
     const text =
       outputConfig?.summaryField &&
@@ -51,9 +50,6 @@ export default function HistoryOutputPreview({
     return text;
   }, [outputConfig, output]);
 
-  // --- Image Loading useEffect ---
-  // The core logic remains the same, but the type of `imageData` retrieved
-  // from `getImage` is now implicitly `StoredFile | undefined`.
   useEffect(() => {
     let isActive = true;
     let objectUrlToRevoke: string | null = null;
@@ -73,8 +69,7 @@ export default function HistoryOutputPreview({
       setImageUrl(null);
 
       try {
-        // getImage now returns Promise<StoredFile | undefined>
-        const imageData: StoredFile | undefined = await getImage(imageId); // Type annotation added for clarity
+        const imageData: StoredFile | undefined = await getImage(imageId);
 
         if (!isActive) return;
 
@@ -90,11 +85,9 @@ export default function HistoryOutputPreview({
           return;
         }
 
-        // Access properties from StoredFile type
         if (imageData.thumbnailBlob) {
           objectUrlToRevoke = URL.createObjectURL(imageData.thumbnailBlob);
         } else if (imageData.blob) {
-          // Fallback to original blob
           objectUrlToRevoke = URL.createObjectURL(imageData.blob);
         } else {
           throw new Error(
@@ -121,16 +114,14 @@ export default function HistoryOutputPreview({
 
     loadAndSetImage();
 
-    // Cleanup
     return () => {
       isActive = false;
       if (objectUrlToRevoke) {
         URL.revokeObjectURL(objectUrlToRevoke);
       }
     };
-  }, [imageId, getImage]); // Dependencies remain the same
+  }, [imageId, getImage]);
 
-  // Fallback display logic (unchanged)
   const renderFallbackOutput = useCallback(() => {
     if (entry.status === 'error') {
       return <span className="text-red-600 text-xs italic">Error</span>;
@@ -149,11 +140,10 @@ export default function HistoryOutputPreview({
         </span>
       );
     }
-    // Use safeStringify for better fallback display
+
     return <span className="text-xs italic">{safeStringify(output, 0)}</span>;
   }, [entry.status, output, summaryText]);
 
-  // Render logic (unchanged, as it relies on derived state like imageUrl/isLoading/imageError)
   if (imageId) {
     if (isLoading) {
       return (
@@ -190,7 +180,5 @@ export default function HistoryOutputPreview({
     );
   }
 
-  // If no imageId, render the non-image fallback output
   return renderFallbackOutput();
 }
-// --- END FILE: app/_components/HistoryOutputPreview.tsx ---

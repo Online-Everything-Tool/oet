@@ -2,11 +2,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { AiModel, ValidationResult } from '@/src/types/build'; // Import shared types from parent page
+import type { AiModel, ValidationResult } from '@/src/types/build';
 
-// Props expected by this component
 interface ValidateDirectiveProps {
-  // Renamed Props Interface
   toolDirective: string;
   setToolDirective: (value: string) => void;
   selectedModel: string;
@@ -14,19 +12,17 @@ interface ValidateDirectiveProps {
   availableModels: AiModel[];
   modelsLoading: boolean;
   modelsError: string | null;
-  onValidationSuccess: (result: ValidationResult) => void; // Callback remains the same
+  onValidationSuccess: (result: ValidationResult) => void;
   onReset: () => void;
 }
 
-// Interface for the expected API response structure
 interface ApiValidationResponseData {
   success: boolean;
   message: string;
-  generativeDescription: string | null; // Field name from API
-  generativeRequestedDirectives: string[]; // Field name from API
+  generativeDescription: string | null;
+  generativeRequestedDirectives: string[];
 }
 
-// Component renamed to match the core action/API
 export default function ValidateDirective({
   toolDirective,
   setToolDirective,
@@ -36,16 +32,11 @@ export default function ValidateDirective({
   modelsLoading,
   modelsError,
   onValidationSuccess,
-  // onReset, // Include if used
 }: ValidateDirectiveProps) {
-  // Use renamed Props Interface
-
-  // Local state for component's operation
   const [isValidating, setIsValidating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'error'>('idle');
 
-  // Helper to format slug
   const formatSlug = (value: string): string => {
     if (typeof value !== 'string') return '';
     return value
@@ -56,7 +47,6 @@ export default function ValidateDirective({
       .replace(/-+/g, '-');
   };
 
-  // Handler for the button click - initiates the validation API call
   const handleValidateClick = async () => {
     setStatus('idle');
     setFeedback(null);
@@ -78,7 +68,6 @@ export default function ValidateDirective({
     }
 
     try {
-      // API endpoint name matches component purpose
       const response = await fetch('/api/validate-directive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,9 +85,7 @@ export default function ValidateDirective({
         );
       }
 
-      // Validation Successful
       if (data.generativeDescription) {
-        // Pass results up using the agreed structure
         onValidationSuccess({
           generativeDescription: data.generativeDescription,
           generativeRequestedDirectives:
@@ -122,7 +109,6 @@ export default function ValidateDirective({
     }
   };
 
-  // JSX remains structurally the same, just uses the new component name context
   return (
     <section
       className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isValidating ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-gray-200'}`}

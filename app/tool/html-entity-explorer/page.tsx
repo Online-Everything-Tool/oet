@@ -7,7 +7,6 @@ import ToolHeader from '../_components/ToolHeader';
 import ToolSettings from '../_components/ToolSettings';
 import metadata from './metadata.json';
 
-// Interfaces remain the same
 interface RawEntityItem {
   name?: string;
   character?: string;
@@ -29,7 +28,6 @@ export interface RichEntityData {
   category: string;
 }
 
-// Server-side data fetching function corrected
 async function loadAndProcessEntities(): Promise<{
   entities: RichEntityData[];
   categories: string[];
@@ -81,7 +79,7 @@ async function loadAndProcessEntities(): Promise<{
         totalSkipped++;
         continue;
       }
-      // *** FIXED Typo: 'stringSearch' -> 'string' ***
+
       const code =
         (typeof item.hex === 'string' && item.hex.trim()) ||
         (typeof item.dec === 'string' && item.dec.trim()) ||
@@ -93,17 +91,14 @@ async function loadAndProcessEntities(): Promise<{
         continue;
       }
 
-      // Handle NBSP specifically using hex/dec codes
       const isNBSPCode = code === ' ' || code === ' ' || code === '\u00A0';
 
       if (isNBSPCode) {
-        if (char === null || char === '') char = '\u00A0'; // Ensure NBSP character if code matches
+        if (char === null || char === '') char = '\u00A0';
       } else {
-        // Ensure char is not empty/whitespace for non-NBSP codes
         char = char === null || char.trim() === '' ? null : char;
       }
 
-      // If char is still null after processing, skip the entity
       if (char === null) {
         totalSkipped++;
         continue;
@@ -155,7 +150,6 @@ export default async function HtmlEntityPage() {
   }
 
   return (
-    // Add relative positioning
     <div className="relative flex flex-col gap-6">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />

@@ -18,22 +18,20 @@ export default function useToolUrlState(
 
   useEffect(() => {
     if (!paramConfigs || paramConfigs.length === 0) {
-      // If no params are defined, never signal to run on load based on URL
       setShouldRunOnLoad(false);
       return;
     }
 
     console.log('[useToolUrlState] Effect running due to searchParams change.');
-    let urlProvidedAnyValue = false; // Flag to track if ANY param had a value in the URL
+    let urlProvidedAnyValue = false;
 
     paramConfigs.forEach((config) => {
       const urlValue = searchParams.get(config.paramName);
       let valueToSet: unknown = config.defaultValue;
-      let isValid = false; // Flag to track if parsing succeeded for this param
+      let isValid = false;
 
       if (urlValue !== null) {
-        // Found a value for this param in the URL
-        let parsedValue: unknown; // Keep default until successfully parsed
+        let parsedValue: unknown;
         try {
           switch (config.type) {
             case 'string':
@@ -66,7 +64,6 @@ export default function useToolUrlState(
               }
               break;
             case 'json':
-              // Only consider JSON valid if it parses AND isn't just the string "null" or "undefined"
               try {
                 const potentialJson = JSON.parse(urlValue);
                 if (potentialJson !== null && potentialJson !== undefined) {
@@ -92,13 +89,10 @@ export default function useToolUrlState(
 
           if (isValid) {
             valueToSet = parsedValue;
-            // --- REVISED LOGIC ---
-            // Check if the value is meaningfully different from the default
-            // Simple string conversion handles primitives, null, undefined adequately for this check.
-            const defaultValueAsString = String(config.defaultValue ?? ''); // Handle null/undefined default
-            const valueToSetAsString = String(valueToSet ?? ''); // Handle null/undefined value
 
-            // Consider empty string ('') as equivalent to null/undefined for triggering check
+            const defaultValueAsString = String(config.defaultValue ?? '');
+            const valueToSetAsString = String(valueToSet ?? '');
+
             const isDefaultEffectivelyEmpty =
               defaultValueAsString === '' ||
               defaultValueAsString === 'null' ||
@@ -108,8 +102,6 @@ export default function useToolUrlState(
               valueToSetAsString === 'null' ||
               valueToSetAsString === 'undefined';
 
-            // Trigger if value is not effectively empty AND it's different from default
-            // OR if value IS effectively empty but default was NOT
             if (
               !isValueEffectivelyEmpty &&
               valueToSetAsString !== defaultValueAsString
@@ -119,26 +111,22 @@ export default function useToolUrlState(
                 `[useToolUrlState] Param '${config.paramName}' has non-default value '${valueToSetAsString}' from URL.`
               );
             } else if (isValueEffectivelyEmpty && !isDefaultEffectivelyEmpty) {
-              // If URL explicitly clears a value that had a default, still consider it a trigger?
-              // Let's say yes for now, as it's an explicit URL action.
               urlProvidedAnyValue = true;
               console.log(
                 `[useToolUrlState] Param '${config.paramName}' was explicitly cleared in URL (default was '${defaultValueAsString}').`
               );
             }
-            // --- END REVISED LOGIC ---
           }
         } catch (parseError) {
           console.warn(
             `[useToolUrlState] Error processing param '${config.paramName}' with value '${urlValue}'`,
             parseError
           );
-          // Ensure valueToSet remains defaultValue on error
+
           valueToSet = config.defaultValue;
         }
       }
 
-      // Update state regardless of whether it came from URL or is default
       if (stateSetters[config.paramName]) {
         stateSetters[config.paramName](valueToSet);
       } else {
@@ -148,8 +136,6 @@ export default function useToolUrlState(
       }
     });
 
-    // --- REVISED LOGIC ---
-    // Signal to run if *any* parameter had a valid, non-default value provided in the URL
     if (urlProvidedAnyValue) {
       console.log(
         '[useToolUrlState] Signaling calculation should run because at least one non-default or explicitly cleared parameter value was found in the URL.'
@@ -161,10 +147,7 @@ export default function useToolUrlState(
       );
       setShouldRunOnLoad(false);
     }
-    // --- END REVISED LOGIC ---
-
-    // stateSetters should be stable due to useMemo in parent components
-  }, [searchParams, paramConfigs, stateSetters]); // Dependencies remain the same
+  }, [searchParams, paramConfigs, stateSetters]);
 
   return { shouldRunOnLoad, setShouldRunOnLoad };
 }

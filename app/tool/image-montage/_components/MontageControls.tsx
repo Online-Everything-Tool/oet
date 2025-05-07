@@ -2,8 +2,8 @@
 import React, { ChangeEvent } from 'react';
 
 interface MontageControlsProps {
-  isLoading: boolean; // Loading state for actions (save/copy/download) + file add
-  isProcessingFiles: boolean; // Specific loading state for file adding
+  isLoading: boolean;
+  isProcessingFiles: boolean;
   isSaved: boolean;
   isCopied: boolean;
   imageCount: number;
@@ -89,4 +89,3 @@ export default function MontageControls({
     </div>
   );
 }
-// --- END FILE: app/tool/image-montage/_components/MontageControls.tsx ---

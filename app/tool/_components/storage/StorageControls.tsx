@@ -3,27 +3,27 @@
 
 import React from 'react';
 import Button from '@/app/tool/_components/form/Button';
-// Removed Checkbox import
+
 import {
   PlusIcon,
   TrashIcon,
   ViewColumnsIcon,
   Bars3Icon,
-  FunnelIcon, // Import FunnelIcon for filter toggle
+  FunnelIcon,
 } from '@heroicons/react/20/solid';
 
 interface StorageControlsProps {
   isLoading: boolean;
   isDeleting: boolean;
-  itemCount: number; // Count of permanent items
+  itemCount: number;
   itemNameSingular: string;
   itemNamePlural: string;
   currentLayout: 'list' | 'grid';
   selectedItemCount: number;
-  // --- Filter Props ---
+
   isFilterSelectedActive: boolean;
   onToggleFilterSelected: () => void;
-  // --- End Filter Props ---
+
   onAddClick: () => void;
   onClearAllClick: () => void;
   onLayoutChange: (newLayout: 'list' | 'grid') => void;
@@ -38,10 +38,10 @@ export default function StorageControls({
   itemNamePlural,
   currentLayout,
   selectedItemCount,
-  // --- Filter Props ---
+
   isFilterSelectedActive,
   onToggleFilterSelected,
-  // --- End Filter Props ---
+
   onAddClick,
   onClearAllClick,
   onLayoutChange,
@@ -129,17 +129,17 @@ export default function StorageControls({
         {/* --- Filter Selected Toggle Button --- */}
         <div className="border-l pl-3 ml-1">
           <Button
-            variant={isFilterSelectedActive ? 'accent' : 'neutral'} // Use accent color when active
+            variant={isFilterSelectedActive ? 'accent' : 'neutral'}
             size="sm"
             onClick={onToggleFilterSelected}
-            disabled={isLoading || !hasSelection} // Disable if loading or nothing selected
+            disabled={isLoading || !hasSelection}
             title={
               isFilterSelectedActive
                 ? 'Show all files'
                 : 'Show only selected files'
             }
             iconLeft={<FunnelIcon className="h-5 w-5" />}
-            className={`${isFilterSelectedActive ? 'shadow' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`} // Dim if no selection
+            className={`${isFilterSelectedActive ? 'shadow' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
           >
             {isFilterSelectedActive
               ? `Filtered (${selectedItemCount})`

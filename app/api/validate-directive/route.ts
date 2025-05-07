@@ -9,32 +9,26 @@ import {
 } from '@google/generative-ai';
 import fs from 'fs/promises';
 import path from 'path';
-// Import the shared API response type
+
 import type { ApiValidationResponseData } from '@/src/types/build';
 
-// Interface for the request body remains the same
 interface RequestBody {
   toolDirective: string;
   modelName?: string;
 }
 
-// Interface for the expected *internal* structure parsed from Gemini's JSON response
 interface GeminiValidationResponse {
-  // isValid field expected from AI
   isValid: boolean;
-  // Using validationMessage as expected field name from AI based on prompt
+
   validationMessage: string;
   generativeDescription: string;
   generativeRequestedDirectives: string[];
-  directive?: string; // Optional: AI might return the directive it processed
+  directive?: string;
 }
-// --- END INTERFACES ---
 
-// --- Constants ---
 const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
-// --- Helper: Get available tool directives ---
 async function getAvailableDirectives(): Promise<string[]> {
   const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
   const directives: string[] = [];
@@ -53,9 +47,7 @@ async function getAvailableDirectives(): Promise<string[]> {
   }
   return directives.sort();
 }
-// --- End Helper ---
 
-// --- Main API Handler ---
 export async function POST(req: NextRequest) {
   if (!API_KEY) {
     console.error(
@@ -99,10 +91,9 @@ export async function POST(req: NextRequest) {
           message: `Directive "${toolDirective}" already exists.`,
         },
         { status: 409 }
-      ); // 409 Conflict
+      );
     }
 
-    // --- Gemini Interaction ---
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({ model: modelName });
 
@@ -133,7 +124,6 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // --- UPDATED PROMPT --- (Already updated in previous step to ask for 10)
     const prompt = `
 Analyze the proposed tool directive "${toolDirective}" for the "Online Everything Tool" project.
 
@@ -153,13 +143,12 @@ Based on the proposed directive "${toolDirective}":
 Return the response ONLY as a valid JSON object with the following structure:
 {
   "directive": "${toolDirective}",
-  "isValid": boolean, // true if it seems like a valid, unique, client-side tool idea according to the rules, false otherwise
-  "validationMessage": "string", // Brief reason if invalid, or "Directive appears valid." if valid.
-  "generativeDescription": "string", // One-sentence description for metadata. Can be empty string if invalid.
-  "generativeRequestedDirectives": ["string"] // Array containing 0 to 10 suggested existing directive names.
+  "isValid": boolean,
+  "validationMessage": "string",
+  "generativeDescription": "string",
+  "generativeRequestedDirectives": ["string"]
 }
         `;
-    // --- END UPDATED PROMPT ---
 
     const parts = [{ text: prompt }];
     console.log(
@@ -181,7 +170,6 @@ Return the response ONLY as a valid JSON object with the following structure:
     const responseText = result.response.text();
     console.log('[API validate-directive] Raw Gemini Response:', responseText);
 
-    // --- Parse and Validate Gemini Response ---
     let parsedAiResponse: GeminiValidationResponse;
     try {
       parsedAiResponse = JSON.parse(responseText) as GeminiValidationResponse;
@@ -215,9 +203,7 @@ Return the response ONLY as a valid JSON object with the following structure:
       throw new Error('Received malformed validation data structure from AI.');
     }
 
-    // --- Construct Final API Response using shared type ---
     const finalResponse: ApiValidationResponseData = {
-      // *** Use 'success' field based on AI's 'isValid' ***
       success: parsedAiResponse.isValid,
       message: parsedAiResponse.validationMessage,
       generativeDescription: parsedAiResponse.isValid
@@ -229,18 +215,16 @@ Return the response ONLY as a valid JSON object with the following structure:
           .slice(0, 10),
     };
 
-    // Final check against current directives list
     if (finalResponse.success && availableDirectives.includes(toolDirective)) {
       console.warn(
         `[API validate-directive] AI validated "${toolDirective}" but it exists. Overriding.`
       );
-      finalResponse.success = false; // Change success field
+      finalResponse.success = false;
       finalResponse.message = `Directive "${toolDirective}" already exists (validation override).`;
       finalResponse.generativeDescription = null;
       finalResponse.generativeRequestedDirectives = [];
     }
 
-    // *** Return the finalResponse object which now has the 'success' field ***
     return NextResponse.json(finalResponse, { status: 200 });
   } catch (error: unknown) {
     console.error('[API validate-directive] Overall Error:', error);
@@ -256,13 +240,13 @@ Return the response ONLY as a valid JSON object with the following structure:
       console.warn(
         '[API validate-directive] Response blocked by safety settings.'
       );
-      // Use success: false in the response payload
+
       return NextResponse.json(
         { success: false, message: 'Request blocked due to safety settings.' },
         { status: 400 }
       );
     }
-    // Use success: false in the response payload
+
     return NextResponse.json(
       { success: false, message: `Internal Server Error: ${message}` },
       { status: 500 }

@@ -10,7 +10,7 @@ import StorageControls from '../../_components/storage/StorageControls';
 import FileListView from '../../_components/storage/FileListView';
 import FileGridView from '../../_components/storage/FileGridView';
 import FileSelectionModal from '../../_components/FileSelectionModal';
-// Import necessary icons
+
 import { PhotoIcon } from '@heroicons/react/20/solid';
 
 interface ImageStorageClientProps {
@@ -22,8 +22,7 @@ export default function ImageStorageClient({
   toolTitle,
   toolRoute,
 }: ImageStorageClientProps) {
-  // --- State ---
-  const [storedImages, setStoredImages] = useState<StoredFile[]>([]); // Will only hold permanent images
+  const [storedImages, setStoredImages] = useState<StoredFile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,9 +40,9 @@ export default function ImageStorageClient({
   const managedUrlsRef = useRef<Map<string, string>>(new Map());
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(
     new Set()
-  ); // Renamed for clarity
+  );
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  // --- New State for Filtering ---
+
   const [isFilterSelectedActive, setIsFilterSelectedActive] =
     useState<boolean>(false);
 
@@ -51,7 +50,6 @@ export default function ImageStorageClient({
   const { listImages, deleteImage, clearAllImages, getImage } =
     useImageLibrary();
 
-  // --- URL Management ---
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach(URL.revokeObjectURL);
     managedUrlsRef.current.clear();
@@ -63,7 +61,7 @@ export default function ImageStorageClient({
         let changed = false;
         imagesToDisplay.forEach((image) => {
           if (!image.id) return;
-          const blob = image.thumbnailBlob || image.blob; // Prioritize thumbnail
+          const blob = image.thumbnailBlob || image.blob;
           if (blob && image.type?.startsWith('image/')) {
             if (managedUrlsRef.current.has(image.id)) {
               newMap.set(image.id, managedUrlsRef.current.get(image.id)!);
@@ -82,7 +80,7 @@ export default function ImageStorageClient({
             }
           }
         });
-        // Check if map actually changed
+
         if (prevMap.size !== newMap.size) changed = true;
         else {
           for (const [k, v] of newMap)
@@ -126,7 +124,6 @@ export default function ImageStorageClient({
       });
     }
   }, [storedImages, updatePreviewUrlsForImagesClient]);
-  // --- End URL Management ---
 
   const setItemFeedback = useCallback(
     (
@@ -151,12 +148,11 @@ export default function ImageStorageClient({
     []
   );
 
-  // --- Load function - always permanent images ---
   const loadAndDisplayImages = useCallback(async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const images = await listImages(100); // listImages already filters for permanent
+      const images = await listImages(100);
       setStoredImages(images);
     } catch (err) {
       setError(
@@ -172,7 +168,6 @@ export default function ImageStorageClient({
     loadAndDisplayImages();
   }, [loadAndDisplayImages]);
 
-  // --- Handlers ---
   const handleAddClick = () => {
     setIsModalOpen(true);
   };
@@ -181,16 +176,15 @@ export default function ImageStorageClient({
     setIsFilterSelectedActive((prev) => !prev);
   }, []);
 
-  // --- CORRECTED handleModalFilesSelected ---
   const handleModalFilesSelected = useCallback(
     async (
       filesFromModal: StoredFile[],
       _source: 'library' | 'upload',
       _saveUploadedToLibrary?: boolean,
-      filterToThese?: boolean // Receive the filter flag
+      filterToThese?: boolean
     ) => {
       setIsModalOpen(false);
-      // Filter for actual images just in case modal passed something else
+
       const imageFilesToAdd = filesFromModal.filter((f) =>
         f.type?.startsWith('image/')
       );
@@ -199,15 +193,13 @@ export default function ImageStorageClient({
       setError(null);
       setIsProcessing(true);
 
-      // Files from modal in 'addNewFiles' mode are permanent
-      await loadAndDisplayImages(); // Reload to include newly added images
+      await loadAndDisplayImages();
 
-      // Apply filtering/selection based on the flag
       if (filterToThese) {
         const addedImageIds = new Set(
           imageFilesToAdd.map((f) => f.id).filter((id) => !!id)
         );
-        const currentImageIdSet = new Set(storedImages.map((f) => f.id)); // Use reloaded images
+        const currentImageIdSet = new Set(storedImages.map((f) => f.id));
         const validAddedIds = new Set<string>();
         addedImageIds.forEach((id) => {
           if (currentImageIdSet.has(id)) validAddedIds.add(id);
@@ -221,7 +213,7 @@ export default function ImageStorageClient({
       setIsProcessing(false);
     },
     [loadAndDisplayImages, storedImages]
-  ); // Added storedImages dependency
+  );
 
   const handleDeleteSingleImage = useCallback(
     async (imageId: string) => {
@@ -290,8 +282,8 @@ export default function ImageStorageClient({
     setIsProcessing(true);
     const count = storedImages.length;
     try {
-      await clearAllImages(); // Clears only images
-      loadAndDisplayImages(); // Reload
+      await clearAllImages();
+      loadAndDisplayImages();
       setSelectedImageIds(new Set());
       addHistoryEntry({
         toolName: toolTitle,
@@ -315,7 +307,7 @@ export default function ImageStorageClient({
         status: 'error',
         eventTimestamp: Date.now(),
       });
-      await loadAndDisplayImages(); // Re-fetch on error
+      await loadAndDisplayImages();
     } finally {
       setIsProcessing(false);
     }
@@ -457,9 +449,7 @@ export default function ImageStorageClient({
     toolRoute,
     toolTitle,
   ]);
-  // --- End Handlers ---
 
-  // --- Render preview - Specific for images ---
   const renderPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewUrls.get(file.id);
@@ -483,7 +473,7 @@ export default function ImageStorageClient({
   );
 
   const controlsAreLoading = isLoading || isProcessing || isBulkDeleting;
-  // Determine images to show based on filter state
+
   const itemsToShow = isFilterSelectedActive
     ? storedImages.filter((img) => selectedImageIds.has(img.id))
     : storedImages;
@@ -496,19 +486,17 @@ export default function ImageStorageClient({
       <StorageControls
         isLoading={controlsAreLoading}
         isDeleting={isBulkDeleting}
-        itemCount={storedImages.length} // Pass permanent image count
+        itemCount={storedImages.length}
         currentLayout={layout}
         selectedItemCount={selectedImageIds.size}
-        // Filter props
         isFilterSelectedActive={isFilterSelectedActive}
         onToggleFilterSelected={handleToggleFilterSelected}
-        // Other props
         onAddClick={handleAddClick}
-        onClearAllClick={handleClearAll} // Clears only images
+        onClearAllClick={handleClearAll}
         onLayoutChange={setLayout}
         onDeleteSelectedClick={handleDeleteSelected}
-        itemNameSingular={'Image'} // Specific item name
-        itemNamePlural={'Images'} // Specific item name
+        itemNameSingular={'Image'}
+        itemNamePlural={'Images'}
       />
       {error && (
         <div
@@ -546,30 +534,28 @@ export default function ImageStorageClient({
         {!isLoading &&
           !showEmpty &&
           (layout === 'list' ? (
-            // Pass image-specific handlers and props to FileListView
             <FileListView
               files={itemsToShow}
               isLoading={controlsAreLoading}
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedImageIds}
               feedbackState={feedbackState}
-              onCopy={handleCopyFileContent} // Use image copy handler
+              onCopy={handleCopyFileContent}
               onDownload={handleDownloadFile}
               onDelete={handleDeleteSingleImage}
               onToggleSelection={handleToggleSelection}
             />
           ) : (
-            // Pass image-specific handlers and props to FileGridView
             <FileGridView
               files={itemsToShow}
               isLoading={controlsAreLoading}
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedImageIds}
               feedbackState={feedbackState}
-              onCopy={handleCopyFileContent} // Use image copy handler
+              onCopy={handleCopyFileContent}
               onDownload={handleDownloadFile}
               onDelete={handleDeleteSingleImage}
-              renderPreview={renderPreview} // Use image-specific preview
+              renderPreview={renderPreview}
               onToggleSelection={handleToggleSelection}
             />
           ))}
@@ -580,11 +566,11 @@ export default function ImageStorageClient({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onFilesSelected={handleModalFilesSelected}
-        mode="addNewFiles" // Correct mode
-        accept="image/*" // Specific accept type
+        mode="addNewFiles"
+        accept="image/*"
         selectionMode="multiple"
-        libraryFilter={{ category: 'image' }} // Filter library view within modal
-        showFilterAfterUploadCheckbox={true} // Enable checkbox
+        libraryFilter={{ category: 'image' }}
+        showFilterAfterUploadCheckbox={true}
       />
     </div>
   );

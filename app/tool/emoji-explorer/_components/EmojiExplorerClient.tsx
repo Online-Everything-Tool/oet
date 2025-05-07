@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
+import { useHistory } from '../../../context/HistoryContext';
 import { getUniqueSortedValues } from '@/app/lib/utils';
 
 export interface RichEmojiData {
@@ -27,9 +27,8 @@ export default function EmojiSearchClient({
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [selectedSubgroup, setSelectedSubgroup] = useState<string>('');
   const [selectedVersion, setSelectedVersion] = useState<string>('');
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
-  // useEffect and useMemos remain the same
   useEffect(() => {
     if (!initialEmojis || initialEmojis.length === 0) {
       console.warn(
@@ -88,7 +87,6 @@ export default function EmojiSearchClient({
     selectedVersion,
   ]);
 
-  // Handlers remain the same
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) =>
     setSearchTerm(event.target.value);
   const toggleFilterPanel = () => setIsFilterPanelOpen((prev) => !prev);
@@ -106,7 +104,6 @@ export default function EmojiSearchClient({
     setSelectedVersion('');
   }, []);
 
-  // handleEmojiClick: Added eventTimestamp to both addHistoryEntry calls
   const handleEmojiClick = useCallback(
     (emojiData: RichEmojiData) => {
       const historyInput: Record<string, unknown> = {
@@ -125,7 +122,6 @@ export default function EmojiSearchClient({
         navigator.clipboard
           .writeText(emojiData.emoji)
           .then(() => {
-            // Add eventTimestamp here
             addHistoryEntry({
               toolName: 'Emoji Explorer',
               toolRoute: '/tool/emoji-explorer',
@@ -133,14 +129,14 @@ export default function EmojiSearchClient({
               input: historyInput,
               output: historyOutput,
               status: 'success',
-              eventTimestamp: Date.now(), // Add timestamp
+              eventTimestamp: Date.now(),
             });
             console.log(`Copied ${emojiData.emoji} to clipboard.`);
           })
           .catch((err) => {
             console.error('Failed to copy emoji:', err);
             historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-            // Add eventTimestamp here too
+
             addHistoryEntry({
               toolName: 'Emoji Explorer',
               toolRoute: '/tool/emoji-explorer',
@@ -148,13 +144,13 @@ export default function EmojiSearchClient({
               input: historyInput,
               output: historyOutput,
               status: 'error',
-              eventTimestamp: Date.now(), // Add timestamp
+              eventTimestamp: Date.now(),
             });
           });
       } else {
         console.warn('Clipboard API not available.');
         historyInput.error = 'Clipboard API not available';
-        // Add eventTimestamp here as well
+
         addHistoryEntry({
           toolName: 'Emoji Explorer',
           toolRoute: '/tool/emoji-explorer',
@@ -162,7 +158,7 @@ export default function EmojiSearchClient({
           input: historyInput,
           output: historyOutput,
           status: 'error',
-          eventTimestamp: Date.now(), // Add timestamp
+          eventTimestamp: Date.now(),
         });
       }
     },
@@ -173,9 +169,8 @@ export default function EmojiSearchClient({
       selectedSubgroup,
       selectedVersion,
     ]
-  ); // Dependencies remain the same
+  );
 
-  // JSX Render logic remains the same
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div className="flex gap-3 items-center">

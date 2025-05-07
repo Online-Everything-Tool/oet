@@ -6,17 +6,16 @@ import Link from 'next/link';
 import { useFavorites } from '../context/FavoritesContext';
 import type { ToolMetadata } from '@/src/types/tools';
 
-// Component to display a single favorite item
 interface FavoriteItemProps {
   directive: string;
-  metadata: ToolMetadata | null | undefined; // Allow undefined during loading
+  metadata: ToolMetadata | null | undefined;
 }
 
 const FavoriteItem = React.memo(
   ({ directive, metadata }: FavoriteItemProps) => {
     const title =
       metadata?.title ??
-      directive.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()); // Fallback title
+      directive.replace(/-/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
     const href = `/tool/${directive}/`;
 
     return (
@@ -48,7 +47,6 @@ const FavoriteItem = React.memo(
 );
 FavoriteItem.displayName = 'FavoriteItem';
 
-// Main Widget Component
 export default function FavoriteToolsWidget() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const [metadataCache, setMetadataCache] = useState<
@@ -56,12 +54,10 @@ export default function FavoriteToolsWidget() {
   >({});
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
-  // Fetch metadata for favorited tools
   const fetchMetadata = useCallback(
     async (directive: string) => {
-      if (metadataCache[directive] !== undefined) return; // Already fetched or fetching
+      if (metadataCache[directive] !== undefined) return;
 
-      // Mark as fetching/pending by setting to null initially
       setMetadataCache((prev) => ({ ...prev, [directive]: null }));
 
       try {
@@ -76,20 +72,19 @@ export default function FavoriteToolsWidget() {
             console.error(
               `[FavWidget] Failed to fetch metadata for ${directive} (${response.status})`
             );
-          setMetadataCache((prev) => ({ ...prev, [directive]: null })); // Indicate fetch failed
+          setMetadataCache((prev) => ({ ...prev, [directive]: null }));
         }
       } catch (fetchError: unknown) {
         console.error(
           `[FavWidget] Error fetching metadata for ${directive}:`,
           fetchError
         );
-        setMetadataCache((prev) => ({ ...prev, [directive]: null })); // Indicate fetch failed
+        setMetadataCache((prev) => ({ ...prev, [directive]: null }));
       }
     },
     [metadataCache]
-  ); // Dependency on metadataCache to prevent re-fetching triggered by its own update
+  );
 
-  // Effect to trigger metadata fetching when favorites list changes
   useEffect(() => {
     if (!favoritesLoaded || favorites.length === 0) return;
 
@@ -100,19 +95,16 @@ export default function FavoriteToolsWidget() {
     if (directivesToFetch.length > 0) {
       setIsLoadingMetadata(true);
       Promise.all(directivesToFetch.map(fetchMetadata)).finally(() => {
-        // Check if still loading after fetches complete (some might have failed)
         const stillLoading = favorites.some(
           (dir) => metadataCache[dir] === undefined
         );
         setIsLoadingMetadata(stillLoading);
       });
     } else {
-      // No new directives to fetch, ensure loading state is false
       setIsLoadingMetadata(false);
     }
   }, [favorites, favoritesLoaded, metadataCache, fetchMetadata]);
 
-  // Loading State for the whole widget
   if (!favoritesLoaded) {
     return (
       <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8">
@@ -126,7 +118,6 @@ export default function FavoriteToolsWidget() {
     );
   }
 
-  // Empty State
   if (favorites.length === 0) {
     return (
       <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8">
@@ -141,12 +132,11 @@ export default function FavoriteToolsWidget() {
     );
   }
 
-  // Render the list/grid of favorites
   const favoriteItems = favorites.map((directive) => (
     <FavoriteItem
       key={directive}
       directive={directive}
-      metadata={metadataCache[directive]} // Pass cached metadata (could be null or ToolMetadata)
+      metadata={metadataCache[directive]}
     />
   ));
 
@@ -171,4 +161,3 @@ export default function FavoriteToolsWidget() {
     </div>
   );
 }
-// --- END FILE: app/_components/FavoriteToolsWidget.tsx ---

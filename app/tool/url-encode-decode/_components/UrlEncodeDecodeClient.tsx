@@ -40,13 +40,12 @@ export default function UrlEncodeDecodeClient({
     stateSetters as StateSetters
   );
 
-  // Updated handleEncode
   const handleEncode = useCallback(
     (triggerType: TriggerType, textToProcess = text) => {
       let currentOutput = '';
       let currentError = '';
       let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {}; // For structured output
+      let historyOutputObj: Record<string, unknown> = {};
 
       setError('');
       setOutputValue('');
@@ -56,8 +55,7 @@ export default function UrlEncodeDecodeClient({
         currentOutput = encodeURIComponent(textToProcess);
         setOutputValue(currentOutput);
         historyOutputObj = {
-          // Structure success output
-          operationResult: 'Encoded URL', // Summary field
+          operationResult: 'Encoded URL',
           resultValue:
             currentOutput.length > 500
               ? currentOutput.substring(0, 500) + '...'
@@ -69,7 +67,6 @@ export default function UrlEncodeDecodeClient({
         setError(currentError);
         status = 'error';
         historyOutputObj = {
-          // Structure error output
           operationResult: 'Encoding Error',
           errorMessage: currentError,
         };
@@ -86,33 +83,30 @@ export default function UrlEncodeDecodeClient({
               : textToProcess,
           operation: 'encode',
         },
-        output: historyOutputObj, // Log structured object
+        output: historyOutputObj,
         status: status,
         eventTimestamp: Date.now(),
       });
     },
     [text, addHistoryEntry, toolTitle, toolRoute]
-  ); // Added text dependency
+  );
 
-  // Updated handleDecode
   const handleDecode = useCallback(
     (triggerType: TriggerType, textToProcess = text) => {
       let currentOutput = '';
       let currentError = '';
       let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {}; // For structured output
+      let historyOutputObj: Record<string, unknown> = {};
 
       setError('');
       setOutputValue('');
       if (!textToProcess) return;
 
       try {
-        // Replace '+' with space *before* decoding for form-encoded compatibility
         currentOutput = decodeURIComponent(textToProcess.replace(/\+/g, ' '));
         setOutputValue(currentOutput);
         historyOutputObj = {
-          // Structure success output
-          operationResult: 'Decoded Text', // Summary field
+          operationResult: 'Decoded Text',
           resultValue:
             currentOutput.length > 500
               ? currentOutput.substring(0, 500) + '...'
@@ -128,7 +122,6 @@ export default function UrlEncodeDecodeClient({
         setError(currentError);
         status = 'error';
         historyOutputObj = {
-          // Structure error output
           operationResult: 'Decoding Error',
           errorMessage: currentError,
         };
@@ -145,20 +138,20 @@ export default function UrlEncodeDecodeClient({
               : textToProcess,
           operation: 'decode',
         },
-        output: historyOutputObj, // Log structured object
+        output: historyOutputObj,
         status: status,
         eventTimestamp: Date.now(),
       });
     },
     [text, addHistoryEntry, toolTitle, toolRoute]
-  ); // Added text dependency
+  );
 
   useEffect(() => {
     if (shouldRunOnLoad && text) {
       if (operation === 'encode') {
-        handleEncode('query', text); // Pass trigger type
+        handleEncode('query', text);
       } else if (operation === 'decode') {
-        handleDecode('query', text); // Pass trigger type
+        handleDecode('query', text);
       }
       setShouldRunOnLoad(false);
     } else if (shouldRunOnLoad && !text) {
@@ -171,7 +164,7 @@ export default function UrlEncodeDecodeClient({
     operation,
     handleEncode,
     handleDecode,
-  ]); // Dependencies remain same
+  ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(event.target.value);
@@ -184,7 +177,6 @@ export default function UrlEncodeDecodeClient({
     setOutputValue('');
     setError('');
     setOperation('encode');
-    // No history log
   };
 
   return (
@@ -210,7 +202,7 @@ export default function UrlEncodeDecodeClient({
       <div className="flex flex-wrap gap-3 items-center">
         <button
           type="button"
-          onClick={() => handleEncode('click', text)} // Pass trigger type
+          onClick={() => handleEncode('click', text)}
           disabled={!text}
           className="px-5 py-2 rounded-md text-[rgb(var(--color-button-primary-text))] font-medium bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
         >
@@ -218,7 +210,7 @@ export default function UrlEncodeDecodeClient({
         </button>
         <button
           type="button"
-          onClick={() => handleDecode('click', text)} // Pass trigger type
+          onClick={() => handleDecode('click', text)}
           disabled={!text}
           className="px-5 py-2 rounded-md text-[rgb(var(--color-button-secondary-text))] font-medium bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
         >

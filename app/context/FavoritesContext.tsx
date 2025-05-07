@@ -12,14 +12,14 @@ import React, {
 } from 'react';
 
 const FAVORITES_LOCAL_STORAGE_KEY = 'oetFavorites_v1';
-const MAX_FAVORITES = 50; // Optional limit
+const MAX_FAVORITES = 50;
 
 interface FavoritesContextValue {
-  favorites: string[]; // Array of tool directives (e.g., 'base64-encode-decode')
+  favorites: string[];
   isFavorite: (directive: string) => boolean;
   addFavorite: (directive: string) => void;
   removeFavorite: (directive: string) => void;
-  toggleFavorite: (directive: string) => void; // Convenience toggle
+  toggleFavorite: (directive: string) => void;
   isLoaded: boolean;
 }
 
@@ -54,7 +54,6 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
 
-  // Load favorites from localStorage on mount
   useEffect(() => {
     try {
       const storedFavorites = localStorage.getItem(FAVORITES_LOCAL_STORAGE_KEY);
@@ -64,7 +63,6 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
           Array.isArray(parsedFavorites) &&
           parsedFavorites.every((item) => typeof item === 'string')
         ) {
-          // Ensure uniqueness and limit
           const uniqueFavorites = Array.from(new Set(parsedFavorites)).slice(
             0,
             MAX_FAVORITES
@@ -85,13 +83,12 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
         '[FavoritesCtx] Error loading favorites from localStorage:',
         error
       );
-      setFavorites([]); // Reset on error
+      setFavorites([]);
     } finally {
       setIsLoaded(true);
     }
   }, []);
 
-  // Save favorites to localStorage whenever they change
   useEffect(() => {
     if (isLoaded) {
       try {
@@ -120,9 +117,9 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
         prevFavorites.includes(directive) ||
         prevFavorites.length >= MAX_FAVORITES
       ) {
-        return prevFavorites; // Already exists or limit reached
+        return prevFavorites;
       }
-      // Add to the beginning for potential recency bias if needed, or end
+
       return [directive, ...prevFavorites].slice(0, MAX_FAVORITES);
     });
   }, []);
@@ -138,10 +135,8 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
     if (!directive) return;
     setFavorites((prevFavorites) => {
       if (prevFavorites.includes(directive)) {
-        // Remove
         return prevFavorites.filter((fav) => fav !== directive);
       } else {
-        // Add (if limit not reached)
         if (prevFavorites.length >= MAX_FAVORITES) {
           console.warn(
             `[FavoritesCtx] Max favorites limit (${MAX_FAVORITES}) reached.`
@@ -178,4 +173,3 @@ export const FavoritesProvider = ({ children }: FavoritesProviderProps) => {
     </FavoritesContext.Provider>
   );
 };
-// --- END FILE: app/context/FavoritesContext.tsx ---

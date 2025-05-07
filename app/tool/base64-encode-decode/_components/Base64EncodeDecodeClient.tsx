@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Uses updated HistoryContext
-import type { TriggerType } from '@/src/types/history'; // Use updated types
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 
@@ -28,7 +28,7 @@ export default function Base64EncodeDecodeClient({
   const [base64Likelihood, setBase64Likelihood] =
     useState<Base64Likelihood>('unknown');
 
-  const { addHistoryEntry } = useHistory(); // Use updated context hook
+  const { addHistoryEntry } = useHistory();
   const stateSetters = useMemo(
     () => ({
       text: setText,
@@ -41,7 +41,6 @@ export default function Base64EncodeDecodeClient({
     stateSetters as StateSetters
   );
 
-  // Likelihood detection useEffect (remains the same)
   useEffect(() => {
     if (!text) {
       setBase64Likelihood('unknown');
@@ -67,7 +66,6 @@ export default function Base64EncodeDecodeClient({
     }
   }, [text]);
 
-  // handleEncode: Added eventTimestamp to addHistoryEntry call
   const handleEncode = useCallback(
     (triggerType: TriggerType, textToProcess = text) => {
       let currentOutput = '';
@@ -101,7 +99,6 @@ export default function Base64EncodeDecodeClient({
         };
       }
 
-      // Add eventTimestamp to the history entry object
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -115,13 +112,12 @@ export default function Base64EncodeDecodeClient({
         },
         output: historyOutputObj,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     },
     [addHistoryEntry, text, toolTitle, toolRoute]
-  ); // Dependencies remain the same
+  );
 
-  // handleDecode: Added eventTimestamp to addHistoryEntry call
   const handleDecode = useCallback(
     (triggerType: TriggerType, textToProcess = text) => {
       let currentOutput = '';
@@ -168,7 +164,6 @@ export default function Base64EncodeDecodeClient({
         };
       }
 
-      // Add eventTimestamp to the history entry object
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -182,13 +177,12 @@ export default function Base64EncodeDecodeClient({
         },
         output: historyOutputObj,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     },
     [addHistoryEntry, text, toolTitle, toolRoute]
-  ); // Dependencies remain the same
+  );
 
-  // useEffect for URL state loading (remains the same)
   useEffect(() => {
     if (shouldRunOnLoad && text) {
       if (operation === 'encode') {
@@ -209,7 +203,6 @@ export default function Base64EncodeDecodeClient({
     handleDecode,
   ]);
 
-  // Other handlers (handleInputChange, handleClear) remain the same
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(event.target.value);
     setOutputValue('');
@@ -224,7 +217,6 @@ export default function Base64EncodeDecodeClient({
     setBase64Likelihood('unknown');
   };
 
-  // Likelihood bar logic (remains the same)
   const getLikelihoodBarState = () => {
     switch (base64Likelihood) {
       case 'likely_text':
@@ -258,7 +250,6 @@ export default function Base64EncodeDecodeClient({
     valueNow,
   } = getLikelihoodBarState();
 
-  // JSX Render Logic (remains the same)
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div>

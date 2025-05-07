@@ -3,8 +3,6 @@ import React, { Suspense } from 'react';
 
 interface ToolSuspenseWrapperProps {
   children: React.ReactNode;
-  // Optional: Add a prop for custom fallback if needed later
-  // fallback?: React.ReactNode;
 }
 
 /**
@@ -14,7 +12,6 @@ interface ToolSuspenseWrapperProps {
 export default function ToolSuspenseWrapper({
   children,
 }: ToolSuspenseWrapperProps) {
-  // Define the standard fallback UI
   const defaultFallback = (
     <div className="text-center p-4 text-gray-500 italic animate-pulse">
       Loading Tool...

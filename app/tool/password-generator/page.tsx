@@ -8,10 +8,8 @@ import PasswordGeneratorClient from './_components/PasswordGeneratorClient';
 import type { ToolMetadata } from '@/src/types/tools';
 
 export default function PasswordGeneratorPage() {
-  // Cast the metadata to the defined ToolMetadata type
   const typedMetadata = metadata as ToolMetadata;
 
-  // Now access urlStateParams safely
   const toolTitle = typedMetadata.title || 'Password Generator';
   const toolRoute = '/tool/password-generator';
 

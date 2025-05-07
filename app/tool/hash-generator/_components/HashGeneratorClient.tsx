@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
-import type { TriggerType } from '@/src/types/history'; // Use updated types
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 import { bufferToHex } from '@/app/lib/utils';
@@ -27,7 +27,7 @@ export default function HashGeneratorClient({
   const [outputValue, setOutputValue] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
   const stateSetters = useMemo(
     () => ({
@@ -42,7 +42,6 @@ export default function HashGeneratorClient({
     stateSetters as StateSetters
   );
 
-  // Updated handleGenerateHash: Added eventTimestamp
   const handleGenerateHash = useCallback(
     async (triggerType: TriggerType, textToProcess = text) => {
       setError('');
@@ -106,7 +105,6 @@ export default function HashGeneratorClient({
         setIsLoading(false);
       }
 
-      // Add eventTimestamp to the history entry object
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -114,13 +112,12 @@ export default function HashGeneratorClient({
         input: inputDetails,
         output: historyOutputObj,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     },
     [text, algorithm, addHistoryEntry, toolTitle, toolRoute]
-  ); // Dependencies remain the same
+  );
 
-  // useEffect for URL load (remains the same)
   useEffect(() => {
     if (shouldRunOnLoad && text) {
       const runAsync = async () => {
@@ -139,7 +136,6 @@ export default function HashGeneratorClient({
     handleGenerateHash,
   ]);
 
-  // Other handlers remain the same
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(event.target.value);
     setOutputValue('');
@@ -164,7 +160,6 @@ export default function HashGeneratorClient({
     setIsLoading(false);
   }, []);
 
-  // JSX Render logic remains the same
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
       <div>

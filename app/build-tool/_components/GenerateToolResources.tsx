@@ -3,14 +3,13 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-// Import necessary types, including the new API response type if needed
+
 import type {
   ValidationResult,
   GenerationResult,
   ApiGenerationResponseData,
 } from '@/src/types/build';
 
-// --- Updated Props expected by this component ---
 interface GenerateToolResourcesProps {
   toolDirective: string;
   validationResult: ValidationResult;
@@ -18,13 +17,11 @@ interface GenerateToolResourcesProps {
   setAdditionalDescription: (value: string) => void;
   selectedModel: string;
   allAvailableToolDirectives: string[];
-  userSelectedDirectives: string[]; // Changed from string | null
-  setUserSelectedDirectives: React.Dispatch<React.SetStateAction<string[]>>; // Changed setter type
+  userSelectedDirectives: string[];
+  setUserSelectedDirectives: React.Dispatch<React.SetStateAction<string[]>>;
   onGenerationSuccess: (result: GenerationResult) => void;
   onBack: () => void;
 }
-
-// ApiGenerationResponseData removed (defined in types/build.ts)
 
 export default function GenerateToolResources({
   toolDirective,
@@ -33,24 +30,21 @@ export default function GenerateToolResources({
   setAdditionalDescription,
   selectedModel,
   allAvailableToolDirectives,
-  userSelectedDirectives, // Use array prop
-  setUserSelectedDirectives, // Use array setter prop
+  userSelectedDirectives,
+  setUserSelectedDirectives,
   onGenerationSuccess,
   onBack,
 }: GenerateToolResourcesProps) {
-  // Use updated props type
-
   const [isGenerating, setIsGenerating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'error'>('idle');
   const MAX_USER_EXAMPLES = 5;
 
-  // Calculate available choices for the user (tools NOT suggested by AI)
   const availableUserChoices = useMemo(() => {
     const aiDirectives = new Set(
       validationResult.generativeRequestedDirectives || []
     );
-    // Filter out AI suggestions and sort alphabetically
+
     return allAvailableToolDirectives
       .filter((dir) => !aiDirectives.has(dir))
       .sort((a, b) => a.localeCompare(b));
@@ -59,33 +53,28 @@ export default function GenerateToolResources({
     validationResult.generativeRequestedDirectives,
   ]);
 
-  // Handler for checkbox changes
   const handleUserExampleSelectionChange = useCallback(
     (directive: string, isChecked: boolean) => {
       setUserSelectedDirectives((prevSelected) => {
         const currentSet = new Set(prevSelected);
         if (isChecked) {
-          // Add only if limit not reached
           if (currentSet.size < MAX_USER_EXAMPLES) {
             currentSet.add(directive);
           } else {
-            // Optional: Provide feedback that the limit is reached
             console.warn(`User example limit (${MAX_USER_EXAMPLES}) reached.`);
-            // Return previous state unmodified to prevent adding more
+
             return prevSelected;
           }
         } else {
-          // Remove if unchecked
           currentSet.delete(directive);
         }
-        // Return the array version of the updated set
+
         return Array.from(currentSet);
       });
     },
     [setUserSelectedDirectives]
   );
 
-  // Handle Generation API Call - Updated payload
   const handleGenerateClick = async () => {
     setStatus('idle');
     setFeedback(null);
@@ -115,9 +104,9 @@ export default function GenerateToolResources({
           additionalDescription: additionalDescription.trim(),
           modelName: selectedModel,
           generativeRequestedDirectives:
-            validationResult.generativeRequestedDirectives || [], // Ensure array
-          // Pass the array of user-selected directives
-          userSelectedExampleDirectives: userSelectedDirectives, // Use array state
+            validationResult.generativeRequestedDirectives || [],
+
+          userSelectedExampleDirectives: userSelectedDirectives,
         }),
       });
 
@@ -160,7 +149,6 @@ export default function GenerateToolResources({
     }
   };
 
-  // JSX Render Logic - Modified User Example Selection
   return (
     <section
       className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isGenerating ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-indigo-300'}`}

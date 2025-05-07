@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Use updated hook
-import { useImageLibrary } from '@/app/context/ImageLibraryContext'; // Use updated hook
+import { useHistory } from '../../../context/HistoryContext';
+import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useMontageState } from '../_hooks/useMontageState';
 import { useMontageCanvas } from '../_hooks/useMontageCanvas';
 import ImageAdjustmentCard from './ImageAdjustmentCard';
@@ -29,7 +29,7 @@ export default function ImageMontageClient({
     isLoading: isProcessingFiles,
     error: fileProcessingError,
     setError: setFileProcessingError,
-  } = useMontageState(toolTitle, toolRoute); // Uses updated hook
+  } = useMontageState(toolTitle, toolRoute);
 
   const { canvasRef, generateMontageBlob } = useMontageCanvas(montageImages);
 
@@ -38,8 +38,8 @@ export default function ImageMontageClient({
   const [isCopied, setIsCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const { addHistoryEntry } = useHistory(); // Use updated hook
-  const { addImage } = useImageLibrary(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
+  const { addImage } = useImageLibrary();
 
   const isLoading = isProcessingFiles || isActionLoading;
   const error = actionError || fileProcessingError;
@@ -49,7 +49,6 @@ export default function ImageMontageClient({
     setFileProcessingError(null);
   }, [setFileProcessingError]);
 
-  // handleSaveToLibrary: Added eventTimestamp
   const handleSaveToLibrary = useCallback(async () => {
     setIsActionLoading(true);
     clearError();
@@ -87,7 +86,7 @@ export default function ImageMontageClient({
     }
 
     setIsActionLoading(false);
-    // Add eventTimestamp here
+
     addHistoryEntry({
       toolName: toolTitle,
       toolRoute: toolRoute,
@@ -95,7 +94,7 @@ export default function ImageMontageClient({
       input: { action: 'save', imageCount: montageImages.length },
       output: historyOutput,
       status: status,
-      eventTimestamp: Date.now(), // Add timestamp
+      eventTimestamp: Date.now(),
     });
   }, [
     generateMontageBlob,
@@ -107,7 +106,6 @@ export default function ImageMontageClient({
     clearError,
   ]);
 
-  // handleDownload: Added eventTimestamp
   const handleDownload = useCallback(async () => {
     setIsActionLoading(true);
     clearError();
@@ -159,7 +157,7 @@ export default function ImageMontageClient({
     }
 
     setIsActionLoading(false);
-    // Add eventTimestamp here
+
     addHistoryEntry({
       toolName: toolTitle,
       toolRoute: toolRoute,
@@ -167,7 +165,7 @@ export default function ImageMontageClient({
       input: { action: 'download', imageCount: montageImages.length },
       output: historyOutput,
       status: status,
-      eventTimestamp: Date.now(), // Add timestamp
+      eventTimestamp: Date.now(),
     });
   }, [
     generateMontageBlob,
@@ -179,11 +177,10 @@ export default function ImageMontageClient({
     clearError,
   ]);
 
-  // handleCopyToClipboard: Added eventTimestamp
   const handleCopyToClipboard = useCallback(async () => {
     if (!navigator.clipboard?.write) {
       setActionError('Clipboard API (write) not available or not permitted.');
-      // Add eventTimestamp here
+
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -191,7 +188,7 @@ export default function ImageMontageClient({
         input: { action: 'copy', imageCount: montageImages.length },
         output: { message: 'Copy failed: Clipboard API not available.' },
         status: 'error',
-        eventTimestamp: Date.now(), // Add timestamp
+        eventTimestamp: Date.now(),
       });
       return;
     }
@@ -256,7 +253,7 @@ export default function ImageMontageClient({
     }
 
     setIsActionLoading(false);
-    // Add eventTimestamp here
+
     addHistoryEntry({
       toolName: toolTitle,
       toolRoute: toolRoute,
@@ -264,7 +261,7 @@ export default function ImageMontageClient({
       input: { action: 'copy', imageCount: montageImages.length },
       output: historyOutput,
       status: status,
-      eventTimestamp: Date.now(), // Add timestamp
+      eventTimestamp: Date.now(),
     });
   }, [
     generateMontageBlob,
@@ -276,11 +273,8 @@ export default function ImageMontageClient({
     clearError,
   ]);
 
-  // handleAdjustment remains the same
   const handleAdjustment = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (action: (...args: any[]) => void) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (...args: any[]) => {
         setIsSaved(false);
         setIsCopied(false);
@@ -289,7 +283,6 @@ export default function ImageMontageClient({
     []
   );
 
-  // JSX Render logic remains the same
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <MontageControls

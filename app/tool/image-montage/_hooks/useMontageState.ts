@@ -1,6 +1,6 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageState.ts ---
 import { useState, useCallback, ChangeEvent } from 'react';
-import { useHistory } from '@/app/context/HistoryContext'; // Use updated hook
+import { useHistory } from '@/app/context/HistoryContext';
 
 const DEFAULT_OVERLAP_PERCENT = 20;
 const MAX_OVERLAP_PERCENT = 80;
@@ -41,9 +41,8 @@ export function useMontageState(
   const [montageImages, setMontageImages] = useState<MontageImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { addHistoryEntry } = useHistory(); // Use updated hook
+  const { addHistoryEntry } = useHistory();
 
-  // addImagesFromFiles: Added eventTimestamp
   const addImagesFromFiles = useCallback(
     async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
       const files = event.target.files;
@@ -65,7 +64,7 @@ export function useMontageState(
                 const img = new Image();
                 img.onload = () =>
                   resolve({
-                    id: Date.now() + Math.random(), // Use more robust ID later if needed
+                    id: Date.now() + Math.random(),
                     image: img,
                     alt: file.name,
                     tilt: getRandomTilt(),
@@ -99,7 +98,7 @@ export function useMontageState(
 
         const updatedImageList = [...montageImages, ...newImages];
         setMontageImages(updatedImageList);
-        // Add eventTimestamp here
+
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
@@ -112,13 +111,13 @@ export function useMontageState(
             message: `Added ${newImages.length} image(s). Total: ${updatedImageList.length}.`,
           },
           status: 'success',
-          eventTimestamp: Date.now(), // Add timestamp
+          eventTimestamp: Date.now(),
         });
       } catch (err) {
         console.error('Error loading one or more images:', err);
         const errorMsg = `Error processing files: ${err instanceof Error ? err.message : 'Unknown error'}`;
         setError(errorMsg);
-        // Add eventTimestamp here too
+
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
@@ -129,7 +128,7 @@ export function useMontageState(
           },
           output: { message: errorMsg },
           status: 'error',
-          eventTimestamp: Date.now(), // Add timestamp
+          eventTimestamp: Date.now(),
         });
       } finally {
         setIsLoading(false);
@@ -139,13 +138,11 @@ export function useMontageState(
     [addHistoryEntry, montageImages, toolTitle, toolRoute]
   );
 
-  // clearMontage: Added eventTimestamp
   const clearMontage = useCallback(() => {
     const previousCount = montageImages.length;
     setMontageImages([]);
     setError(null);
     if (previousCount > 0) {
-      // Add eventTimestamp here
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -153,12 +150,11 @@ export function useMontageState(
         input: { action: 'clear', previousCount: previousCount },
         output: { message: `Cleared ${previousCount} image(s).` },
         status: 'success',
-        eventTimestamp: Date.now(), // Add timestamp
+        eventTimestamp: Date.now(),
       });
     }
   }, [montageImages.length, addHistoryEntry, toolTitle, toolRoute]);
 
-  // Other handlers remain the same
   const handleTiltChange = useCallback((imageId: number, newTilt: number) => {
     setMontageImages((prevImages) =>
       prevImages.map((img) =>

@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext'; // Uses updated context
-import type { TriggerType } from '@/src/types/history'; // Use updated types
+import { useHistory } from '../../../context/HistoryContext';
+import type { TriggerType } from '@/src/types/history';
 import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
 import type { ParamConfig } from '@/src/types/tools';
 import { CASE_TYPES } from '@/src/constants/text';
@@ -70,7 +70,6 @@ export default function CaseConverterClient({
     stateSetters as StateSetters
   );
 
-  // Updated handleConvertCase: Added eventTimestamp
   const handleConvertCase = useCallback(
     (triggerType: TriggerType, targetCase: Case, textToProcess = text) => {
       let result = '';
@@ -155,7 +154,6 @@ export default function CaseConverterClient({
         };
       }
 
-      // Add eventTimestamp to the history entry object
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -169,13 +167,12 @@ export default function CaseConverterClient({
         },
         output: historyOutputObj,
         status: status,
-        eventTimestamp: Date.now(), // Add timestamp here
+        eventTimestamp: Date.now(),
       });
     },
     [text, addHistoryEntry, toolTitle, toolRoute]
   );
 
-  // useEffect for URL state loading (remains the same)
   useEffect(() => {
     if (shouldRunOnLoad && text) {
       handleConvertCase('query', caseType, text);
@@ -185,7 +182,6 @@ export default function CaseConverterClient({
     }
   }, [shouldRunOnLoad, setShouldRunOnLoad, text, caseType, handleConvertCase]);
 
-  // Other handlers remain the same
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(event.target.value);
     setOutputValue('');
@@ -213,7 +209,6 @@ export default function CaseConverterClient({
     return CASE_TYPES.find((ct) => ct.value === caseType)?.label || caseType;
   }, [caseType]);
 
-  // JSX Render logic remains the same
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div>

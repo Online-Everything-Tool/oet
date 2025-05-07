@@ -2,15 +2,14 @@
 'use client';
 
 import React from 'react';
-import { useHistory } from '../context/HistoryContext'; // Uses updated context
-import type { HistoryEntry, TriggerType } from '@/src/types/history'; // Uses updated types
+import { useHistory } from '../context/HistoryContext';
+import type { HistoryEntry, TriggerType } from '@/src/types/history';
 import { useRouter } from 'next/navigation';
-import type { ParamConfig, ToolMetadata } from '@/src/types/tools'; // Keep ToolMetadata type
-// Removed safeStringify import if not used, but let's keep JSON.stringify for preview
+import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 
 export default function HistoryPage() {
   const {
-    history, // History state now contains updated HistoryEntry objects
+    history,
     deleteHistoryEntry,
     clearHistory,
     isLoaded,
@@ -19,7 +18,6 @@ export default function HistoryPage() {
   } = useHistory();
   const router = useRouter();
 
-  // Format single event timestamp
   const formatEventTimestamp = (timestamp: number): string => {
     return new Intl.DateTimeFormat(undefined, {
       dateStyle: 'short',
@@ -27,11 +25,10 @@ export default function HistoryPage() {
     }).format(new Date(timestamp));
   };
 
-  // Format single trigger type
   const formatTriggerType = (trigger: TriggerType): string => {
     switch (trigger) {
       case 'click':
-        return 'Manual Click'; // Slightly more descriptive
+        return 'Manual Click';
       case 'query':
         return 'URL Load';
       case 'auto':
@@ -41,11 +38,10 @@ export default function HistoryPage() {
       case 'upload':
         return 'File Upload';
       default:
-        return trigger; // Fallback for any future types
+        return trigger;
     }
   };
 
-  // handleReload logic remains the same, fetching metadata and building URL
   const handleReload = async (entry: HistoryEntry) => {
     if (!entry.toolRoute || !entry.toolRoute.startsWith('/tool/')) {
       console.error(
@@ -88,7 +84,6 @@ export default function HistoryPage() {
 
     const urlParamsConfig = metadata?.urlStateParams ?? [];
     if (urlParamsConfig.length === 0) {
-      // Check if input is a simple string and tool supports it implicitly (less ideal)
       const firstStringParam = urlParamsConfig.find((p) => p.type === 'string');
       if (typeof entry.input === 'string' && firstStringParam) {
         const queryParams = new URLSearchParams();
@@ -96,7 +91,7 @@ export default function HistoryPage() {
         const finalUrl = `${entry.toolRoute}?${queryParams.toString()}`;
         console.log('[Reload] Navigating (simple string input):', finalUrl);
         router.push(finalUrl);
-        return; // Exit after handling simple string case
+        return;
       } else {
         alert(
           `Reloading state is not supported for this tool or the history entry's input format.`
@@ -105,7 +100,6 @@ export default function HistoryPage() {
       }
     }
 
-    // Proceed with object input logic
     const queryParams = new URLSearchParams();
     if (typeof entry.input !== 'object' || entry.input === null) {
       alert(
@@ -150,7 +144,6 @@ export default function HistoryPage() {
     router.push(finalUrl);
   };
 
-  // --- Render Logic ---
   return (
     <div className="space-y-6">
       {/* Header section with toggle and clear button remains the same */}

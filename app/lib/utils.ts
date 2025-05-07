@@ -10,8 +10,8 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
 
-  const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k)); // Ensure log input >= 1
-  // Clamp index to the highest defined unit
+  const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k));
+
   const index = Math.min(i, sizes.length - 1);
 
   return (
@@ -29,7 +29,7 @@ export function safeStringify(value: unknown, space: number = 2): string {
     if (typeof value === 'object') {
       try {
         const str = JSON.stringify(value, null, space);
-        const limit = space === 0 ? 100 : 500; // Shorter limit for compact view
+        const limit = space === 0 ? 100 : 500;
         return str.length > limit
           ? str.substring(0, limit) + '... [truncated]'
           : str;
@@ -91,12 +91,12 @@ export const getUniqueSortedValues = <T extends object>(
 
 export const getFileIconClassName = (fileName?: string): string => {
   if (!fileName) {
-    return 'icon generic-file-icon'; // A generic fallback class you might style
+    return 'icon generic-file-icon';
   }
 
   const iconClass = getClassWithColor(fileName);
 
-  return iconClass || 'icon generic-file-icon'; // Provide a fallback class string
+  return iconClass || 'icon generic-file-icon';
 };
 
 export const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
