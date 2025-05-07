@@ -15,8 +15,6 @@ echo "Generating context from project root: $PROJECT_ROOT"
 SPECIFIC_FILES=(
   "README.md"
   "package.json"
-  "CONTRIBUTING.md"
-  "LICENSE"
   "TODO.md"
   "eslint.config.mjs"
   "next.config.ts"

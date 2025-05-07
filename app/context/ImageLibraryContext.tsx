@@ -4,23 +4,34 @@
 import React, {
   createContext,
   useContext,
-  useState,
+  // useState, // No longer needed for loading/error
   useEffect,
   useCallback,
   useMemo,
   useRef,
   ReactNode,
 } from 'react';
-import { getDbInstance, type OetDatabase } from '../lib/db';
+import { useFileLibrary } from './FileLibraryContext'; // Use the base context
+import { getDbInstance, type OetDatabase } from '../lib/db'; // Keep for direct DB update if needed
 import type { StoredFile } from '@/src/types/storage';
-import { v4 as uuidv4 } from 'uuid';
 
-interface ImageLibraryContextValue {
+// Define the functions specific to image library or wrapping base functions
+interface ImageLibraryFunctions {
   listImages: (limit?: number) => Promise<StoredFile[]>;
   getImage: (id: string) => Promise<StoredFile | undefined>;
-  addImage: (blob: Blob, name: string, type: string) => Promise<string>;
+  addImage: (
+    blob: Blob,
+    name: string,
+    type: string,
+    isTemporary?: boolean // Add isTemporary flag
+  ) => Promise<string>;
   deleteImage: (id: string) => Promise<void>;
   clearAllImages: () => Promise<void>;
+  makeImagePermanent: (id: string) => Promise<void>;
+}
+
+// Context value now includes base loading/error and image functions
+interface ImageLibraryContextValue extends ImageLibraryFunctions {
   loading: boolean;
   error: string | null;
 }
@@ -45,8 +56,12 @@ interface ImageLibraryProviderProps {
 export const ImageLibraryProvider = ({
   children,
 }: ImageLibraryProviderProps) => {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  // Use the base context for core operations and state
+  const fileLibrary = useFileLibrary();
+  // Get loading/error state directly from the base context value
+  const { loading, error } = fileLibrary;
+
+  // Thumbnail worker logic remains the same
   const workerRef = useRef<Worker | null>(null);
   const requestPromisesRef = useRef<
     Map<
@@ -54,45 +69,34 @@ export const ImageLibraryProvider = ({
       { resolve: (value: unknown) => void; reject: (reason?: unknown) => void }
     >
   >(new Map());
+  // Local state for worker errors if needed, or rely on base context error
+  // const [workerError, setWorkerError] = useState<string | null>(null);
 
   const handleWorkerMessage = useCallback((msgEvent: MessageEvent) => {
     const { id, type, payload, error: workerError } = msgEvent.data;
     const promiseFuncs = requestPromisesRef.current.get(id);
     if (promiseFuncs) {
-      if (type === 'thumbnailSuccess' && !workerError) {
+      if (type === 'thumbnailSuccess' && !workerError)
         promiseFuncs.resolve(payload);
-      } else if (type === 'thumbnailError' || workerError) {
+      else
         promiseFuncs.reject(
-          new Error(workerError || 'Thumbnail generation failed in worker')
+          new Error(workerError || 'Thumbnail generation failed')
         );
-      } else {
-        promiseFuncs.reject(
-          new Error(`Unexpected worker message type: ${type}`)
-        );
-      }
       requestPromisesRef.current.delete(id);
-    } else {
-      console.warn(
-        `[ImageCtx] Received worker message for unknown request ID: ${id}`
-      );
     }
   }, []);
 
-  const handleWorkerError = useCallback(
-    (err: ErrorEvent) => {
-      console.error('[ImageCtx] Worker Error:', err);
-      setError(`Worker error: ${err.message}. Thumbnails may not generate.`);
-      requestPromisesRef.current.forEach((promiseFuncs, id) => {
-        promiseFuncs.reject(
-          new Error(`Worker encountered an unrecoverable error: ${err.message}`)
-        );
-        requestPromisesRef.current.delete(id);
-      });
-    },
-    [setError] // setError is stable
-  );
+  const handleWorkerError = useCallback((err: ErrorEvent) => {
+    console.error('[ImageCtx] Worker Error:', err);
+    // setWorkerError(`Worker error: ${err.message}`); // Set local state if needed
+    requestPromisesRef.current.forEach((p, id) => {
+      p.reject(new Error(`Worker error: ${err.message}`));
+      requestPromisesRef.current.delete(id);
+    });
+  }, []); // No dependencies
 
   useEffect(() => {
+    // Worker initialization remains the same
     let workerInstance: Worker | null = null;
     if (typeof window !== 'undefined' && !workerRef.current) {
       try {
@@ -104,14 +108,10 @@ export const ImageLibraryProvider = ({
         workerInstance.addEventListener('error', handleWorkerError);
       } catch (initError: unknown) {
         console.error('[ImageCtx] Failed to initialize worker:', initError);
-        setError(
-          `Failed to load thumbnail generator: ${initError instanceof Error ? initError.message : 'Unknown worker error'}. Thumbnails unavailable.`
-        );
         workerRef.current = null;
       }
     }
-    const currentPromises = requestPromisesRef.current; // Capture ref value
-
+    const currentPromises = requestPromisesRef.current;
     return () => {
       if (workerRef.current) {
         workerRef.current.removeEventListener('message', handleWorkerMessage);
@@ -119,30 +119,19 @@ export const ImageLibraryProvider = ({
         workerRef.current.terminate();
         workerRef.current = null;
       }
-      currentPromises.forEach((promiseFuncs, id) => {
-        // Use captured ref value
-        promiseFuncs.reject(new Error('ImageLibraryProvider unmounted'));
+      currentPromises.forEach((p, id) => {
+        p.reject(new Error('Provider unmounted'));
         currentPromises.delete(id);
       });
     };
-  }, [handleWorkerMessage, handleWorkerError, setError]); // setError is stable
+  }, [handleWorkerMessage, handleWorkerError]);
 
   const generateThumbnail = useCallback(
     (id: string, blob: Blob): Promise<Blob | null> => {
       return new Promise((resolve, reject) => {
         if (!workerRef.current) {
-          if (
-            error?.includes('Worker error') ||
-            error?.includes('thumbnail generator')
-          ) {
-            console.warn(
-              '[ImageCtx] Thumbnail generation skipped because worker failed to initialize or encountered an error.'
-            );
-            resolve(null);
-          } else {
-            // Only reject if there isn't already a persistent worker error message
-            reject(new Error('Thumbnail worker not available.'));
-          }
+          console.warn('[ImageCtx] Thumbnail worker not available.');
+          resolve(null);
           return;
         }
         const requestId = `thumb-${id}-${Date.now()}`;
@@ -153,208 +142,127 @@ export const ImageLibraryProvider = ({
         workerRef.current.postMessage({ id: requestId, blob });
       });
     },
-    [error] // Depends on error state to decide if it should reject or resolve null
+    [] // Stable callback
   );
+  // --- End Thumbnail Logic ---
 
+  // --- Wrapped/Specialized Functions ---
   const listImages = useCallback(
     async (limit: number = 50): Promise<StoredFile[]> => {
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        console.error('[ImageCtx] listImages: Failed to get DB instance:', e);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        setLoading(false);
-        return [];
-      }
-      setLoading(true);
-      setError(null);
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-        return await db.files
-          .where('type')
-          .startsWith('image/')
-          .and((file) => file.isTemporary !== true)
-          .reverse()
-          .limit(limit)
-          .toArray();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to list images: ${message}`);
-        return [];
-      } finally {
-        setLoading(false);
-      }
+      // Use the stable listFiles from the base context
+      const allFiles = await fileLibrary.listFiles(limit * 2, false); // Always get permanent files
+      return allFiles
+        .filter((file) => file.type?.startsWith('image/'))
+        .slice(0, limit);
     },
-    [] // REMOVE [error] and [loading] dependencies. setLoading/setError are stable.
+    [fileLibrary.listFiles] // Depends only on the stable listFiles function
   );
 
   const getImage = useCallback(
     async (id: string): Promise<StoredFile | undefined> => {
-      setError(null);
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        return undefined;
-      }
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-        const file = await db.files.get(id);
-        if (file && !file.type?.startsWith('image/')) {
-          return undefined;
-        }
-        return file;
-      } catch (err: unknown) {
-        const m = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to get file: ${m}`);
-        return undefined;
-      }
+      const file = await fileLibrary.getFile(id);
+      if (file && file.type?.startsWith('image/')) return file;
+      return undefined;
     },
-    [] // REMOVE [error] dependency
+    [fileLibrary.getFile] // Depends only on the stable getFile function
   );
 
   const addImage = useCallback(
-    async (blob: Blob, name: string, type: string): Promise<string> => {
-      if (!type?.startsWith('image/')) {
-        const eMsg = `[ImageCtx] addImage called with non-image type: ${type}`;
-        console.error(eMsg);
-        setError(eMsg); // Set error
-        throw new Error(eMsg);
-      }
-      setLoading(true);
-      setError(null);
-      const id = uuidv4();
+    async (
+      blob: Blob,
+      name: string,
+      type: string,
+      isTemporary: boolean = false // Added isTemporary
+    ): Promise<string> => {
+      console.log('addImage:', blob, name, type, isTemporary);
+      if (!type?.startsWith('image/'))
+        throw new Error(`addImage called with non-image type: ${type}`);
+
+      // Use the stable addFile from the base context
+      const id = await fileLibrary.addFile(blob, name, type, isTemporary); // Pass isTemporary flag
+
+      // Generate thumbnail after adding (still needs separate update step)
       let thumbnailBlob: Blob | null = null;
       try {
         thumbnailBlob = await generateThumbnail(id, blob);
       } catch (thumbError: unknown) {
-        console.warn(
-          `[ImageCtx] Thumbnail generation failed for ${id}:`,
-          thumbError
-        );
-        thumbnailBlob = null;
+        console.warn(`[ImageCtx] Thumbnail gen failed for ${id}:`, thumbError);
       }
 
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        setLoading(false);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        throw e;
+      if (thumbnailBlob) {
+        try {
+          // Use direct DB access for thumbnail update as FileLibraryContext lacks specific method
+          let db: OetDatabase | null = null;
+          try {
+            db = getDbInstance();
+            await db.files.update(id, {
+              thumbnailBlob: thumbnailBlob,
+              lastModified: new Date(),
+            });
+          } catch (dbError) {
+            console.error('Error updating thumbnail directly:', dbError);
+          }
+        } catch (updateError) {
+          console.error(
+            `[ImageCtx] Failed to update file ${id} with thumbnail:`,
+            updateError
+          );
+        }
       }
-
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-        const newImageFile: StoredFile = {
-          id: id,
-          name: name,
-          type: type,
-          size: blob.size,
-          blob: blob,
-          thumbnailBlob: thumbnailBlob ?? undefined,
-          createdAt: new Date(),
-          isTemporary: false,
-        };
-        await db.files.add(newImageFile);
-        return id;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to add image: ${message}`); // Set error
-        throw err;
-      } finally {
-        setLoading(false);
-      }
+      return id;
     },
-    [generateThumbnail] // REMOVE [error]. generateThumbnail depends on error, that's fine.
+    [fileLibrary.addFile, generateThumbnail] // Depends on stable addFile and local generateThumbnail
   );
 
   const deleteImage = useCallback(
     async (id: string): Promise<void> => {
-      setLoading(true);
-      setError(null);
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        setLoading(false);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        throw e;
-      }
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-        const file = await db.files.get(id); // Optional: Check if it's an image
-        if (file && !file.type?.startsWith('image/')) {
-          throw new Error(
-            `Attempted to delete non-image (type: ${file.type}) via ImageLibrary.`
-          );
-        }
-        await db.files.delete(id);
-      } catch (err: unknown) {
-        const m = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to delete file: ${m}`);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
+      // Optional: Check if it's an image first using getImage?
+      await fileLibrary.deleteFile(id); // Delegate to stable base deleteFile
     },
-    [] // REMOVE [error] dependency
+    [fileLibrary.deleteFile] // Depends only on stable deleteFile
   );
 
   const clearAllImages = useCallback(
     async (): Promise<void> => {
-      setLoading(true);
-      setError(null);
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        setLoading(false);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        throw e;
-      }
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-        const keysToDelete = await db.files
-          .where('type')
-          .startsWith('image/')
-          .and((file) => file.isTemporary !== true)
-          .primaryKeys();
-        if (keysToDelete.length > 0) {
-          await db.files.bulkDelete(keysToDelete);
+      const images = await listImages(10000); // Use the local listImages
+      const imageIds = images.map((img) => img.id);
+      if (imageIds.length > 0) {
+        // Using base deleteFile iteratively to ensure cleanup logic runs
+        for (const id of imageIds) {
+          try {
+            await fileLibrary.deleteFile(id);
+          } catch (delErr) {
+            console.error(
+              `Failed to delete image ${id} during clearAllImages:`,
+              delErr
+            );
+            // Potentially collect errors and throw at the end?
+          }
         }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to clear image files: ${message}`);
-        throw err;
-      } finally {
-        setLoading(false);
       }
     },
-    [] // REMOVE [error] dependency
+    [listImages, fileLibrary.deleteFile] // Depends on local listImages and base deleteFile
   );
 
-  const contextValue = useMemo(
+  const makeImagePermanent = useCallback(
+    async (id: string): Promise<void> => {
+      const file = await fileLibrary.getFile(id); // Use base getFile
+      if (!file || !file.type?.startsWith('image/'))
+        throw new Error(`File ID ${id} is not an image.`);
+      await fileLibrary.makeFilePermanent(id); // Delegate to stable base function
+    },
+    [fileLibrary.getFile, fileLibrary.makeFilePermanent] // Depends on stable base functions
+  );
+
+  // --- Memoize the specialized functions ---
+  const imageFunctions = useMemo(
     () => ({
       listImages,
       getImage,
       addImage,
       deleteImage,
       clearAllImages,
-      loading,
-      error,
+      makeImagePermanent,
     }),
     [
       listImages,
@@ -362,10 +270,20 @@ export const ImageLibraryProvider = ({
       addImage,
       deleteImage,
       clearAllImages,
-      loading,
-      error, // `loading` and `error` state values ARE dependencies for the context object itself
+      makeImagePermanent,
     ]
   );
+
+  // --- Create final context value ---
+  // Combine the stable image functions with the loading/error state from base context
+  const contextValue = useMemo(
+    () => ({
+      ...imageFunctions,
+      loading,
+      error,
+    }),
+    [imageFunctions, loading, error]
+  ); // Depends on stable functions object + loading/error
 
   return (
     <ImageLibraryContext.Provider value={contextValue}>

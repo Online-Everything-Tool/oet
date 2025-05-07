@@ -12,10 +12,9 @@ import React, {
   ReactNode,
 } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-// Import the db instance NO LONGER db, but the getDbInstance function
-import { getDbInstance, type OetDatabase } from '../lib/db'; // Import the getter function and DB class type
+import { getDbInstance, type OetDatabase } from '../lib/db';
 import type { LoggingPreference, ToolMetadata } from '@/src/types/tools';
-// Import the specific History types needed
+import type { StoredFile } from '@/src/types/storage'; // Import StoredFile
 import type {
   TriggerType,
   HistoryEntry,
@@ -29,7 +28,6 @@ import {
 
 const GLOBAL_DEFAULT_LOGGING: LoggingPreference = 'on';
 
-// --- Interfaces ---
 interface HistorySettings {
   isHistoryEnabled: boolean;
   toolPreferences?: Record<string, LoggingPreference>;
@@ -52,7 +50,6 @@ interface HistoryContextValue {
     preference: LoggingPreference
   ) => Promise<void>;
 }
-// --- End Interfaces ---
 
 const HistoryContext = createContext<HistoryContextValue>({
   history: [],
@@ -95,7 +92,6 @@ export const useHistory = (): HistoryContextValue => {
   return context;
 };
 
-// Comparison function needed for finding duplicate inputs
 function areInputsEqual(input1: unknown, input2: unknown): boolean {
   if (input1 === null || input1 === undefined) {
     return input2 === null || input2 === undefined;
@@ -104,16 +100,16 @@ function areInputsEqual(input1: unknown, input2: unknown): boolean {
     return false;
   }
   try {
-    if (typeof input1 === 'object' && typeof input2 === 'object') {
-      return JSON.stringify(input1) === JSON.stringify(input2);
+    if (typeof input1 !== 'object' || typeof input2 !== 'object') {
+      return String(input1) === String(input2);
     }
-    return String(input1) === String(input2);
+    return JSON.stringify(input1) === JSON.stringify(input2);
   } catch (e) {
     console.warn(
       '[HistoryCtx] Error comparing history inputs via JSON.stringify:',
       e
     );
-    return input1 === input2;
+    return input1 === input2 || String(input1) === String(input2);
   }
 }
 
@@ -135,7 +131,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     Record<string, LoggingPreference>
   >({});
   const fetchingDefaultsRef = useRef<Set<string>>(new Set());
-  // Removed dbRef needed, just import and use `db` directly
 
   // --- Settings Management (Unchanged) ---
   useEffect(() => {
@@ -169,10 +164,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
               const pref = parsedSettings.toolPreferences[route];
               if (validPrefValues.includes(pref)) {
                 validPrefs[route] = pref;
-              } else {
-                console.warn(
-                  `[HistoryCtx] Ignoring invalid stored preference for ${route}: ${pref}`
-                );
               }
             }
           }
@@ -188,10 +179,6 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     setIsHistoryEnabled(loadedEnabledState);
     setToolPreferences(loadedPrefs);
     setIsSettingsLoaded(true);
-    console.log('[HistoryCtx] Settings loaded from localStorage.', {
-      isHistoryEnabled: loadedEnabledState,
-      toolPreferences: loadedPrefs,
-    });
   }, []);
 
   useEffect(() => {
@@ -237,14 +224,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
           const metadataDefault = data?.defaultLogging as LoggingPreference;
           if (metadataDefault && validPrefs.includes(metadataDefault))
             fetchedDefault = metadataDefault;
-          else
-            console.warn(
-              `[HistoryCtx] Metadata for ${directive} missing or has invalid defaultLogging. Using global default.`
-            );
-        } else
-          console.warn(
-            `[HistoryCtx] Metadata not found or failed for ${directive} (Status: ${response.status}). Using global default.`
-          );
+        }
       } catch (error) {
         console.error(
           `[HistoryCtx] Error fetching/parsing default preference for ${toolRoute}:`,
@@ -287,17 +267,8 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       defaultPreference = defaultPreference || GLOBAL_DEFAULT_LOGGING;
       setToolPreferences((prev) => {
         const newPrefs = { ...prev };
-        if (preference === defaultPreference) {
-          delete newPrefs[toolRoute];
-          console.log(
-            `[HistoryCtx] Preference for ${toolRoute} matches default (${defaultPreference}). Removing override.`
-          );
-        } else {
-          newPrefs[toolRoute] = preference;
-          console.log(
-            `[HistoryCtx] Setting preference for ${toolRoute} to ${preference} (default: ${defaultPreference}).`
-          );
-        }
+        if (preference === defaultPreference) delete newPrefs[toolRoute];
+        else newPrefs[toolRoute] = preference;
         return newPrefs;
       });
     },
@@ -312,98 +283,73 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   // --- History DB Operations ---
   const loadHistoryFromDb = useCallback(async () => {
-    // Use the imported `getDbInstance` function here
     let db: OetDatabase | null = null;
     try {
-      db = getDbInstance(); // Get instance client-side
+      db = getDbInstance();
     } catch (e) {
-      console.error(
-        '[HistoryCtx] loadHistoryFromDb: Failed to get DB instance client-side:',
-        e
-      );
       setHistoryError(
         `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
       );
       setIsLoadingHistory(false);
-      setIsHistoryLoaded(true); // Mark as loaded even on failure to avoid infinite loading
+      setIsHistoryLoaded(true);
       return;
     }
 
     setIsLoadingHistory(true);
     setHistoryError(null);
     try {
-      // Query the renamed 'history' table
-      const loadedHistory = await db.history // Access table from instance
-        .orderBy('eventTimestamp') // Sort by event time
-        .reverse() // Newest first
-        .limit(MAX_HISTORY_ENTRIES + 50) // Load slightly more for pruning check
+      const loadedHistory = await db.history
+        .orderBy('eventTimestamp')
+        .reverse()
+        .limit(MAX_HISTORY_ENTRIES + 50)
         .toArray();
       setHistory(loadedHistory);
-      console.log(
-        `[HistoryCtx] Loaded ${loadedHistory.length} history entries from 'history' table.`
-      );
       setIsHistoryLoaded(true);
     } catch (error) {
-      console.error(
-        "[HistoryCtx] Error loading history from Dexie 'history' table:",
-        error
-      );
       const message =
         error instanceof Error ? error.message : 'Unknown database error';
       setHistoryError(`Failed to load history: ${message}`);
       setHistory([]);
-      setIsHistoryLoaded(true); // Still mark as loaded, even if empty due to error
+      setIsHistoryLoaded(true);
     } finally {
       setIsLoadingHistory(false);
     }
-  }, []); // No dependencies needed here
+  }, []);
 
-  // Load history on mount
   useEffect(() => {
-    // db instance is initialized synchronously now in db.ts if on client
     loadHistoryFromDb();
-  }, [loadHistoryFromDb]); // Depend on the memoized load function
+  }, [loadHistoryFromDb]);
 
   const addHistoryEntry = useCallback(
     async (entryData: NewHistoryData): Promise<void> => {
-      // Get DB instance client-side
       let db: OetDatabase | null = null;
       try {
         db = getDbInstance();
       } catch (e) {
-        console.error(
-          '[HistoryCtx] addHistoryEntry: Failed to get DB instance client-side:',
-          e
-        );
         setHistoryError(
           `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
         );
-        return; // Cannot proceed without DB
+        return;
       }
-
-      if (!isSettingsLoaded || !isHistoryEnabled) return; // Check settings loaded and history enabled
+      if (!isSettingsLoaded || !isHistoryEnabled) return;
 
       const toolRoute = entryData.toolRoute;
       const preference = getToolLoggingPreference(toolRoute);
 
-      if (preference === 'off') {
-        console.log(
-          `[HistoryCtx] Skipping history add for ${toolRoute} due to 'off' preference.`
-        );
-        return; // Don't log if preference is off
-      }
+      if (preference === 'off') return;
 
       let outputToStore = entryData.output;
       if (preference === 'restrictive') {
-        outputToStore = REDACTED_OUTPUT_PLACEHOLDER; // Redact if restrictive
+        outputToStore = REDACTED_OUTPUT_PLACEHOLDER;
       }
 
-      const now = Date.now(); // Use a single timestamp for the event
+      const now = Date.now();
       setIsLoadingHistory(true);
       setHistoryError(null);
 
       try {
-        // Check if an entry with the same toolRoute and input already exists
+        if (!db?.history) throw new Error("DB 'history' table not available.");
+
         const existingEntriesForTool = await db.history
           .where('toolRoute')
           .equals(toolRoute)
@@ -413,54 +359,39 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
         );
 
         if (existingEntry) {
-          // Update existing entry: Just update output, status, trigger and timestamp
           await db.history.update(existingEntry.id, {
             output: outputToStore,
             status: entryData.status,
-            trigger: entryData.trigger, // Overwrite with the latest trigger
-            eventTimestamp: now, // Update timestamp to now (makes it most recent)
-          });
-          console.log(
-            `[HistoryCtx] Updated existing history entry ${existingEntry.id} for tool ${toolRoute}.`
-          );
-        } else {
-          // Add new entry
-          const newEntry: HistoryEntry = {
-            ...entryData, // Spread fields from NewHistoryData (toolName, toolRoute, input, output, status, trigger)
-            id: uuidv4(),
-            output: outputToStore, // Ensure potentially redacted output is used
+            trigger: entryData.trigger,
             eventTimestamp: now,
-            // Removed timestamps, triggers array, lastUsed
+            outputFileIds: entryData.outputFileIds || [],
+          });
+        } else {
+          const newEntry: HistoryEntry = {
+            id: uuidv4(),
+            toolName: entryData.toolName,
+            toolRoute: entryData.toolRoute,
+            input: entryData.input,
+            output: outputToStore,
+            status: entryData.status,
+            trigger: entryData.trigger,
+            eventTimestamp: now,
+            outputFileIds: entryData.outputFileIds || [],
           };
           await db.history.add(newEntry);
-          console.log(
-            `[HistoryCtx] Added new history entry ${newEntry.id} for tool ${toolRoute}.`
-          );
 
-          // Pruning logic (check after adding)
           const currentCount = await db.history.count();
           if (currentCount > MAX_HISTORY_ENTRIES) {
             const excessCount = currentCount - MAX_HISTORY_ENTRIES;
-            // Find the oldest entries based on eventTimestamp
             const oldestEntries = await db.history
               .orderBy('eventTimestamp')
               .limit(excessCount)
               .primaryKeys();
             await db.history.bulkDelete(oldestEntries);
-            console.log(
-              `[HistoryCtx] Pruned ${oldestEntries.length} oldest history entries.`
-            );
           }
         }
-        // Reload history state after add/update
-        // Note: This might cause flickering if updates are very frequent.
-        // An alternative is to optimistically update the local state and handle sync errors.
         await loadHistoryFromDb();
       } catch (error) {
-        console.error(
-          '[HistoryCtx] Error adding/updating history entry:',
-          error
-        );
         const message =
           error instanceof Error ? error.message : 'Unknown database error';
         setHistoryError(`Failed to save history: ${message}`);
@@ -474,73 +405,123 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
       getToolLoggingPreference,
       loadHistoryFromDb,
     ]
-  ); // Dependencies
+  );
 
   const deleteHistoryEntry = useCallback(
     async (idToDelete: string): Promise<void> => {
-      // Get DB instance client-side
       let db: OetDatabase | null = null;
       try {
         db = getDbInstance();
       } catch (e) {
-        console.error(
-          '[HistoryCtx] deleteHistoryEntry: Failed to get DB instance client-side:',
-          e
-        );
         setHistoryError(
           `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
         );
-        return; // Cannot proceed without DB
+        return;
       }
 
       setIsLoadingHistory(true);
       setHistoryError(null);
+      let associatedTempFileIds: string[] = [];
+
       try {
+        if (!db?.history || !db?.files)
+          throw new Error("DB 'history' or 'files' table not available.");
+
+        const entryToDelete = await db.history.get(idToDelete);
+        if (
+          entryToDelete?.outputFileIds &&
+          entryToDelete.outputFileIds.length > 0
+        ) {
+          const potentialFiles = await db.files.bulkGet(
+            entryToDelete.outputFileIds
+          );
+          // --- CORRECTED FILTER ---
+          associatedTempFileIds = potentialFiles
+            .filter(
+              (
+                file
+              ): file is StoredFile => // Use correct type predicate
+                file !== undefined && file.isTemporary === true
+            )
+            .map((file) => file.id); // Map after filtering non-undefined
+          // --- END CORRECTION ---
+        }
+
         await db.history.delete(idToDelete);
-        // Update local state optimistically or reload
-        setHistory((prev) => prev.filter((entry) => entry.id !== idToDelete));
         console.log(`[HistoryCtx] Deleted history entry ${idToDelete}.`);
+
+        if (associatedTempFileIds.length > 0) {
+          await db.files.bulkDelete(associatedTempFileIds);
+          console.log(
+            `[HistoryCtx] Deleted ${associatedTempFileIds.length} associated temporary files: ${associatedTempFileIds.join(', ')}`
+          );
+        }
+
+        setHistory((prev) => prev.filter((entry) => entry.id !== idToDelete));
       } catch (error) {
-        console.error(
-          `[HistoryCtx] Error deleting history entry ${idToDelete}:`,
-          error
-        );
         const message =
-          error instanceof Error ? error.message : 'Unknown DB error';
-        setHistoryError(`Failed to delete entry: ${message}`);
-        await loadHistoryFromDb(); // Reload on error
+          error instanceof Error ? error.message : 'Unknown database error';
+        setHistoryError(`Failed to delete entry ${idToDelete}: ${message}`);
+        await loadHistoryFromDb();
       } finally {
         setIsLoadingHistory(false);
       }
     },
     [loadHistoryFromDb]
-  ); // Added loadHistoryFromDb dependency
+  );
 
   const clearHistory = useCallback(async (): Promise<void> => {
-    // Get DB instance client-side
     let db: OetDatabase | null = null;
     try {
       db = getDbInstance();
     } catch (e) {
-      console.error(
-        '[HistoryCtx] clearHistory: Failed to get DB instance client-side:',
-        e
-      );
       setHistoryError(
         `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
       );
-      return; // Cannot proceed without DB
+      return;
     }
     setIsLoadingHistory(true);
     setHistoryError(null);
+    let allOutputFileIds: string[] = [];
+
     try {
+      if (!db?.history || !db?.files)
+        throw new Error("DB 'history' or 'files' table not available.");
+
+      await db.history.each((entry) => {
+        if (entry.outputFileIds) {
+          allOutputFileIds.push(...entry.outputFileIds);
+        }
+      });
+      const uniqueOutputFileIds = [...new Set(allOutputFileIds)];
+
       await db.history.clear();
-      setHistory([]); // Clear local state
+      setHistory([]);
       console.log(`[HistoryCtx] Cleared all history entries.`);
+
+      if (uniqueOutputFileIds.length > 0) {
+        const potentialFiles = await db.files.bulkGet(uniqueOutputFileIds);
+        // --- CORRECTED FILTER ---
+        const tempFilesToDelete = potentialFiles
+          .filter(
+            (
+              file
+            ): file is StoredFile => // Use correct type predicate
+              file !== undefined && file.isTemporary === true
+          )
+          .map((file) => file.id); // Map after filtering non-undefined
+        // --- END CORRECTION ---
+
+        if (tempFilesToDelete.length > 0) {
+          await db.files.bulkDelete(tempFilesToDelete);
+          console.log(
+            `[HistoryCtx] Cleared ${tempFilesToDelete.length} associated temporary files.`
+          );
+        }
+      }
     } catch (error) {
-      console.error('[HistoryCtx] Error clearing history:', error);
       const message =
-        error instanceof Error ? error.message : 'Unknown DB error';
+        error instanceof Error ? error.message : 'Unknown database error';
       setHistoryError(`Failed to clear history: ${message}`);
     } finally {
       setIsLoadingHistory(false);
@@ -549,49 +530,77 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
   const clearHistoryForTool = useCallback(
     async (toolRoute: string): Promise<void> => {
-      // Get DB instance client-side
       let db: OetDatabase | null = null;
       try {
         db = getDbInstance();
       } catch (e) {
-        console.error(
-          '[HistoryCtx] clearHistoryForTool: Failed to get DB instance client-side:',
-          e
-        );
         setHistoryError(
           `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
         );
-        return; // Cannot proceed without DB
+        return;
       }
 
       setIsLoadingHistory(true);
       setHistoryError(null);
+      let toolOutputFileIds: string[] = [];
+
       try {
-        // Query and delete entries for the specific toolRoute
+        if (!db?.history || !db?.files)
+          throw new Error("DB 'history' or 'files' table not available.");
+
+        const entriesToDelete = await db.history
+          .where('toolRoute')
+          .equals(toolRoute)
+          .toArray();
+        entriesToDelete.forEach((entry) => {
+          if (entry.outputFileIds) {
+            toolOutputFileIds.push(...entry.outputFileIds);
+          }
+        });
+        const uniqueOutputFileIds = [...new Set(toolOutputFileIds)];
+
         await db.history.where('toolRoute').equals(toolRoute).delete();
-        // Update local state optimistically or reload
+        console.log(`[HistoryCtx] Cleared history for tool ${toolRoute}.`);
+
+        if (uniqueOutputFileIds.length > 0) {
+          const potentialFiles = await db.files.bulkGet(uniqueOutputFileIds);
+          // --- CORRECTED FILTER ---
+          const tempFilesToDelete = potentialFiles
+            .filter(
+              (
+                file
+              ): file is StoredFile => // Use correct type predicate
+                file !== undefined && file.isTemporary === true
+            )
+            .map((file) => file.id); // Map after filtering non-undefined
+          // --- END CORRECTION ---
+
+          if (tempFilesToDelete.length > 0) {
+            await db.files.bulkDelete(tempFilesToDelete);
+            console.log(
+              `[HistoryCtx] Cleared ${tempFilesToDelete.length} associated temporary files for tool ${toolRoute}.`
+            );
+          }
+        }
+
         setHistory((prev) =>
           prev.filter((entry) => entry.toolRoute !== toolRoute)
         );
-        console.log(`[HistoryCtx] Cleared history for tool ${toolRoute}.`);
       } catch (error) {
-        console.error(
-          `[HistoryCtx] Error clearing history for tool ${toolRoute}:`,
-          error
-        );
         const message =
-          error instanceof Error ? error.message : 'Unknown DB error';
-        setHistoryError(`Failed to clear history for tool: ${message}`);
-        await loadHistoryFromDb(); // Reload on error
+          error instanceof Error ? error.message : 'Unknown database error';
+        setHistoryError(
+          `Failed to clear history for tool ${toolRoute}: ${message}`
+        );
+        await loadHistoryFromDb();
       } finally {
         setIsLoadingHistory(false);
       }
     },
     [loadHistoryFromDb]
-  ); // Added loadHistoryFromDb dependency
+  );
 
-  // --- Combined loaded state & Memoized context value ---
-  const isLoaded = isSettingsLoaded && isHistoryLoaded; // Both settings and DB history must be loaded
+  const isLoaded = isSettingsLoaded && isHistoryLoaded;
 
   const value = useMemo(
     () => ({
@@ -629,5 +638,4 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
   );
 };
 
-// Re-export relevant types if needed by consumers
 export type { HistoryEntry, NewHistoryData, TriggerType };

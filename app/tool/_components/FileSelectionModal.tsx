@@ -13,7 +13,7 @@ import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import FileDropZone from './storage/FileDropZone';
-import { formatBytes, getFileIconClassName } from '@/app/lib/utils'; // IMPORT getFileIconClassName
+import { formatBytes, getFileIconClassName } from '@/app/lib/utils';
 import Button from './form/Button';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import Checkbox from './form/Checkbox';
@@ -29,16 +29,17 @@ interface FileSelectionModalProps {
   onFilesSelected: (
     files: StoredFile[],
     source: 'library' | 'upload',
-    saveUploadedToLibrary?: boolean
+    saveUploadedToLibrary?: boolean,
+    filterToThese?: boolean // New optional flag
   ) => void;
 
   className?: string;
   accept?: string;
   selectionMode?: 'single' | 'multiple';
-
   mode: ModalMode;
   libraryFilter?: { category?: string; type?: string };
   initialTab?: 'library' | 'upload';
+  showFilterAfterUploadCheckbox?: boolean; // Prop to control checkbox visibility
 }
 
 const mapTypeToCategory = (mimeType: string | undefined): string => {
@@ -64,6 +65,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   selectionMode = 'multiple',
   mode,
   initialTab,
+  showFilterAfterUploadCheckbox = false, // Default to false
 }) => {
   const {
     listFiles,
@@ -81,11 +83,15 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   >(new Map());
   const managedUrlsRef = useRef<Map<string, string>>(new Map());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   const [savePreference, setSavePreference] = useState<boolean>(
-    mode === 'addNewFiles' ? true : false
+    mode === 'addNewFiles'
   );
   const uploadInputRef = useRef<HTMLInputElement>(null);
+
+  // --- New State for Upload Filter ---
+  const [filterAfterUploadChecked, setFilterAfterUploadChecked] =
+    useState(true); // Default to checked
+  // --- End New State ---
 
   const showLibraryTabActive = useMemo(
     () => mode === 'selectExistingOrUploadNew' || mode === 'selectExistingOnly',
@@ -129,7 +135,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalError(null);
       setSelectedIds(new Set());
 
-      listFiles(200, false)
+      listFiles(200, false) // Always fetch permanent for library view
         .then((allPermanentFiles) => {
           let filteredFiles = allPermanentFiles;
           if (categoryFilterValue) {
@@ -155,8 +161,10 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           setModalLoading(false);
         });
     } else if (isOpen) {
+      // Clear library files if switching to upload tab or mode doesn't allow library
       setLibraryFiles([]);
     } else {
+      // Clear everything on close
       setLibraryFiles([]);
       setSelectedIds(new Set());
     }
@@ -169,33 +177,42 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     showLibraryTabActive,
   ]);
 
+  // --- Preview URL generation effect ---
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return; // Don't run if closed
 
     const currentFileIds = new Set(libraryFiles.map((f) => f.id));
     const urlsToRevokeFromManaged = new Map<string, string>();
 
+    // Identify URLs for files no longer in the list
     managedUrlsRef.current.forEach((url, id) => {
       if (!currentFileIds.has(id)) {
         urlsToRevokeFromManaged.set(id, url);
       }
     });
 
+    // Revoke and remove from managed list
     urlsToRevokeFromManaged.forEach((url, id) => {
       URL.revokeObjectURL(url);
       managedUrlsRef.current.delete(id);
     });
 
+    // Create new map and generate/reuse URLs
     const newPreviewMap = new Map<string, string>();
     libraryFiles.forEach((file) => {
-      if (!file.id) return;
+      if (!file.id) return; // Skip if file has no ID (shouldn't happen)
+
+      // Prioritize thumbnail, fallback to main blob for images
       const blobToUse =
         file.thumbnailBlob ||
         (file.type?.startsWith('image/') ? file.blob : null);
+
       if (blobToUse) {
         if (managedUrlsRef.current.has(file.id)) {
+          // Reuse existing URL if still managed
           newPreviewMap.set(file.id, managedUrlsRef.current.get(file.id)!);
         } else {
+          // Generate new URL and add to managed list
           try {
             const url = URL.createObjectURL(blobToUse);
             newPreviewMap.set(file.id, url);
@@ -205,20 +222,24 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               `[Modal] Error creating Object URL for file ID ${file.id}:`,
               e
             );
+            // Optionally set an error state for this specific preview
           }
         }
       }
     });
 
+    // Update the state only if the map content has actually changed
     setPreviewObjectUrls((prevMap) => {
       if (prevMap.size === newPreviewMap.size) {
         let mapsIdentical = true;
+        // Check if all keys and values match
         for (const [key, value] of newPreviewMap) {
           if (prevMap.get(key) !== value) {
             mapsIdentical = false;
             break;
           }
         }
+        // Double check if any keys were removed (though handled above)
         if (mapsIdentical) {
           for (const key of prevMap.keys()) {
             if (!newPreviewMap.has(key)) {
@@ -227,20 +248,26 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             }
           }
         }
+        // If identical, return the previous map to prevent re-render
         if (mapsIdentical) return prevMap;
       }
+      // Otherwise, return the new map
       return newPreviewMap;
     });
-  }, [libraryFiles, isOpen]);
+  }, [libraryFiles, isOpen]); // Re-run when library files change or modal opens
+  // --- End Preview URL generation ---
 
   useEffect(() => {
+    // Cleanup on close
     if (!isOpen) {
       revokeAndClearManagedUrls();
       setModalError(null);
+      setFilterAfterUploadChecked(true); // Reset checkbox state
     }
   }, [isOpen, revokeAndClearManagedUrls]);
 
   useEffect(() => {
+    // Ensure cleanup on unmount
     return () => {
       revokeAndClearManagedUrls();
     };
@@ -275,7 +302,8 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           if (file) selectedFilesArray.push(file);
         });
         if (selectedFilesArray.length > 0) {
-          onFilesSelected(selectedFilesArray, 'library', true);
+          // Pass filter flag as false for library selection
+          onFilesSelected(selectedFilesArray, 'library', true, false);
           onClose();
         } else {
           throw new Error('No valid files found for the selected IDs.');
@@ -297,44 +325,51 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalLoading(true);
       setModalError(null);
       const processedFiles: StoredFile[] = [];
-
+      // Determine if files added here should be saved permanently based on mode/preference
+      // For addNewFiles mode (like in file-storage), we always save permanently.
       const shouldSaveToLibrary =
+        mode === 'addNewFiles' ||
+        (mode === 'selectExistingOrUploadNew' && savePreference);
+      const isTemporary = !shouldSaveToLibrary; // This seems reversed based on our discussion, should be false for addNewFiles?
+
+      // Correction: Files added via the modal in file-storage/image-storage should likely be permanent
+      const makePermanent =
         mode === 'addNewFiles' ||
         (mode === 'selectExistingOrUploadNew' && savePreference);
 
       try {
         const processPromises = addedFiles.map(async (file) => {
           let storedFile: StoredFile | undefined;
-          if (shouldSaveToLibrary) {
-            try {
-              const fileId = await addFile(file, file.name, file.type, false);
-              storedFile = await getFile(fileId);
-              if (!storedFile)
-                throw new Error(`Failed to retrieve saved file: ${file.name}`);
-            } catch (saveError) {
-              console.error(
-                `[Modal] Error saving uploaded file "${file.name}" to library:`,
-                saveError
-              );
-              throw new Error(`Failed to save "${file.name}" to library.`);
-            }
-          } else {
-            storedFile = {
-              id: `temp-${Date.now()}-${Math.random().toString(16).substring(2)}`,
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              blob: file,
-              createdAt: new Date(),
-              isTemporary: true,
-            };
+          try {
+            // Call addFile, explicitly setting isTemporary based on makePermanent logic
+            const fileId = await addFile(
+              file,
+              file.name,
+              file.type,
+              !makePermanent
+            ); // !makePermanent -> isTemporary
+            storedFile = await getFile(fileId);
+            if (!storedFile)
+              throw new Error(`Failed to retrieve saved file: ${file.name}`);
+          } catch (saveError) {
+            console.error(
+              `[Modal] Error saving uploaded file "${file.name}" to library:`,
+              saveError
+            );
+            throw new Error(`Failed to save "${file.name}" to library.`);
           }
           if (storedFile) processedFiles.push(storedFile);
         });
         await Promise.all(processPromises);
 
         if (processedFiles.length > 0) {
-          onFilesSelected(processedFiles, 'upload', shouldSaveToLibrary);
+          // Pass the state of the filter checkbox
+          onFilesSelected(
+            processedFiles,
+            'upload',
+            makePermanent,
+            filterAfterUploadChecked
+          );
           onClose();
         } else if (addedFiles.length > 0) {
           throw new Error('No files were successfully processed from upload.');
@@ -347,7 +382,15 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         setModalLoading(false);
       }
     },
-    [mode, savePreference, addFile, getFile, onFilesSelected, onClose]
+    [
+      mode,
+      savePreference,
+      addFile,
+      getFile,
+      onFilesSelected,
+      onClose,
+      filterAfterUploadChecked,
+    ]
   );
 
   const handleUploadInputChange = useCallback(
@@ -365,12 +408,10 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     uploadInputRef.current?.click();
   };
 
-  // UPDATED renderDefaultPreview
   const renderDefaultPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewObjectUrls.get(file.id);
       const fileType = file.type || '';
-
       if (objectUrl && fileType.startsWith('image/')) {
         return (
           <Image
@@ -383,26 +424,24 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           />
         );
       }
-
       const iconClassName = getFileIconClassName(file.name);
       return (
         <span className="flex items-center justify-center h-full w-full">
+          {' '}
           <span
             aria-hidden="true"
-            className={`${iconClassName}`}
+            className={`${iconClassName} text-4xl`}
             title={file.type || 'File'}
-          ></span>
+          ></span>{' '}
         </span>
-      );
+      ); // Increased icon size
     },
     [previewObjectUrls]
   );
 
   if (!isOpen) return null;
-
   const combinedLoading = modalLoading || libraryLoading;
   const combinedError = modalError || libraryError;
-
   const canShowSavePreferenceCheckbox =
     mode === 'selectExistingOrUploadNew' && activeTab === 'upload';
 
@@ -430,10 +469,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('library')}
-                className={`
-                  ${showUploadTabActive ? 'rounded-r-none' : 'rounded-md'}
-                  ${activeTab === 'library' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}
-                `}
+                className={`${showUploadTabActive ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Select from Library
               </Button>
@@ -445,10 +481,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('upload')}
-                className={`
-                  ${showLibraryTabActive ? 'rounded-l-none -ml-px' : 'rounded-md'}
-                  ${activeTab === 'upload' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}
-                `}
+                className={`${showLibraryTabActive ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Upload New
               </Button>
@@ -481,24 +514,21 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               </p>
             </div>
           )}
-
           {activeTab === 'library' &&
             showLibraryTabActive &&
             !combinedLoading &&
             !combinedError && (
               <>
+                {' '}
                 {libraryFiles.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-center text-gray-500 italic py-8">
-                      Your file library{' '}
-                      {libraryFilterProp?.category
-                        ? `for category '${libraryFilterProp.category}' `
-                        : ''}
-                      is empty or no files match the filter.
+                      Your file library {/* filter message */} is empty...
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {' '}
                     {libraryFiles.map((file) => {
                       const isSelected = selectedIds.has(file.id);
                       return (
@@ -506,22 +536,23 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                           key={file.id}
                           type="button"
                           onClick={() => handleFileClick(file)}
-                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500' : 'border-gray-200 hover:border-blue-400'}`}
+                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 hover:border-blue-400'}`}
                           aria-pressed={isSelected}
                           aria-label={`Select file: ${file.name || 'Untitled'}`}
                         >
+                          {' '}
                           <div className="aspect-square w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
                             {renderDefaultPreview(file)}
-                          </div>
+                          </div>{' '}
                           <p
                             className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none"
                             title={file.name}
                           >
                             {file.name || 'Untitled'}
-                          </p>
+                          </p>{' '}
                           <p className="text-[10px] text-gray-500 pointer-events-none">
                             {formatBytes(file.size)}
-                          </p>
+                          </p>{' '}
                           {isSelected && (
                             <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center pointer-events-none">
                               <svg
@@ -535,12 +566,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                                 ></path>
                               </svg>
                             </div>
-                          )}
+                          )}{' '}
                         </button>
                       );
-                    })}
+                    })}{' '}
                   </div>
-                )}
+                )}{' '}
               </>
             )}
 
@@ -564,13 +595,15 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                     disabled={combinedLoading}
                   />
                   <div className="mb-4 pointer-events-auto">
+                    {' '}
                     <Button
                       variant="primary"
                       onClick={triggerUploadInput}
                       disabled={combinedLoading}
                     >
-                      Select File(s)
-                    </Button>
+                      {' '}
+                      Select File(s){' '}
+                    </Button>{' '}
                   </div>
                   <p className="text-sm text-gray-500 mb-4">or Drag & Drop</p>
                   <svg
@@ -587,6 +620,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                       d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                     />
                   </svg>
+                  {/* --- Conditionally render checkboxes based on props --- */}
                   {canShowSavePreferenceCheckbox && (
                     <div className="mt-6 flex items-center justify-center pointer-events-auto">
                       <Checkbox
@@ -597,6 +631,19 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                       />
                     </div>
                   )}
+                  {showFilterAfterUploadCheckbox && (
+                    <div className="mt-4 flex items-center justify-center pointer-events-auto">
+                      <Checkbox
+                        label="Filter view to show only added file(s)"
+                        id="modalFilterAfterUploadCheckbox"
+                        checked={filterAfterUploadChecked}
+                        onChange={(e) =>
+                          setFilterAfterUploadChecked(e.target.checked)
+                        }
+                      />
+                    </div>
+                  )}
+                  {/* --- End conditional render --- */}
                 </div>
               </FileDropZone>
             )}
@@ -605,18 +652,19 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         {/* Footer */}
         <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center gap-3 flex-shrink-0">
           <div>
+            {' '}
             {activeTab === 'library' &&
               showLibraryTabActive &&
               selectionMode === 'multiple' && (
                 <span className="text-sm text-gray-600">
                   {selectedIds.size} selected
                 </span>
-              )}
+              )}{' '}
             {!(
               activeTab === 'library' &&
               showLibraryTabActive &&
               selectionMode === 'multiple'
-            ) && <span> </span>}
+            ) && <span> </span>}{' '}
           </div>
           <div className="flex gap-3">
             <Button variant="neutral" onClick={onClose}>
@@ -632,6 +680,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 Confirm Selection
               </Button>
             )}
+            {/* Maybe add confirm button for upload tab too? No, action happens on upload */}
           </div>
         </div>
       </div>

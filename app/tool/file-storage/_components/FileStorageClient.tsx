@@ -9,7 +9,7 @@ import type { StoredFile } from '@/src/types/storage';
 import StorageControls from '../../_components/storage/StorageControls';
 import FileListView from '../../_components/storage/FileListView';
 import FileGridView from '../../_components/storage/FileGridView';
-import FileSelectionModal from '../../_components/FileSelectionModal'; // Import the modal
+import FileSelectionModal from '../../_components/FileSelectionModal';
 import { getFileIconClassName, isTextBasedMimeType } from '@/app/lib/utils';
 
 interface FileStorageClientProps {
@@ -21,6 +21,7 @@ export default function FileStorageClient({
   toolTitle,
   toolRoute,
 }: FileStorageClientProps) {
+  // State declarations...
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -41,11 +42,13 @@ export default function FileStorageClient({
     new Set()
   );
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isFilterSelectedActive, setIsFilterSelectedActive] =
+    useState<boolean>(false);
 
   const { addHistoryEntry } = useHistory();
-  const { listFiles, addFile, deleteFile, clearAllFiles, getFile } =
-    useFileLibrary();
+  const { listFiles, deleteFile, clearAllFiles, getFile } = useFileLibrary();
 
+  // --- URL Management ---
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     managedUrlsRef.current.clear();
@@ -53,52 +56,44 @@ export default function FileStorageClient({
 
   const updatePreviewUrlsForFilesClient = useCallback(
     (filesToDisplay: StoredFile[]) => {
-      setPreviewUrls((prevPreviewMap) => {
-        const newPreviewMap = new Map<string, string>();
-        let mapChanged = false;
-
+      setPreviewUrls((prevMap) => {
+        const newMap = new Map<string, string>();
+        let changed = false;
         filesToDisplay.forEach((file) => {
           if (!file.id) return;
-          const blobToUse =
+          const blob =
             file.thumbnailBlob ||
             (file.type?.startsWith('image/') ? file.blob : null);
-
-          if (blobToUse) {
+          if (blob) {
             if (managedUrlsRef.current.has(file.id)) {
-              newPreviewMap.set(file.id, managedUrlsRef.current.get(file.id)!);
+              newMap.set(file.id, managedUrlsRef.current.get(file.id)!);
             } else {
               try {
-                const url = URL.createObjectURL(blobToUse);
-                newPreviewMap.set(file.id, url);
+                const url = URL.createObjectURL(blob);
+                newMap.set(file.id, url);
                 managedUrlsRef.current.set(file.id, url);
-                mapChanged = true;
+                changed = true;
               } catch (e) {
-                console.error(
-                  `[FileStorageClient] Error creating Object URL for file ID ${file.id}:`,
-                  e
-                );
+                console.error(`Error creating URL for ${file.id}:`, e);
               }
             }
           }
         });
-
-        if (prevPreviewMap.size !== newPreviewMap.size) {
-          mapChanged = true;
-        } else {
-          for (const [key, value] of newPreviewMap) {
-            if (prevPreviewMap.get(key) !== value) {
-              mapChanged = true;
+        if (prevMap.size !== newMap.size) changed = true;
+        else {
+          for (const [k, v] of newMap)
+            if (prevMap.get(k) !== v) {
+              changed = true;
               break;
             }
-          }
-          for (const key of prevPreviewMap.keys()) {
-            if (!newPreviewMap.has(key)) {
-              mapChanged = true;
-              break;
-            }
-          }
+          if (!changed)
+            for (const k of prevMap.keys())
+              if (!newMap.has(k)) {
+                changed = true;
+                break;
+              }
         }
-        return mapChanged ? newPreviewMap : prevPreviewMap;
+        return changed ? newMap : prevMap;
       });
     },
     []
@@ -112,31 +107,24 @@ export default function FileStorageClient({
 
   useEffect(() => {
     updatePreviewUrlsForFilesClient(storedFiles);
-
-    const currentFileIds = new Set(storedFiles.map((f) => f.id));
-    const urlsToRevokeAndRemove = new Map<string, string>();
-
+    const currentIds = new Set(storedFiles.map((f) => f.id));
+    const toRevoke = new Map<string, string>();
     managedUrlsRef.current.forEach((url, id) => {
-      if (!currentFileIds.has(id)) {
-        urlsToRevokeAndRemove.set(id, url);
-      }
+      if (!currentIds.has(id)) toRevoke.set(id, url);
     });
-
-    if (urlsToRevokeAndRemove.size > 0) {
-      setPreviewUrls((prevPreviewUrls) => {
-        const newPreviewMap = new Map(prevPreviewUrls);
-        urlsToRevokeAndRemove.forEach((url, id) => {
+    if (toRevoke.size > 0) {
+      setPreviewUrls((prev) => {
+        const newMap = new Map(prev);
+        toRevoke.forEach((url, id) => {
           URL.revokeObjectURL(url);
           managedUrlsRef.current.delete(id);
-          newPreviewMap.delete(id);
+          newMap.delete(id);
         });
-        if (newPreviewMap.size !== prevPreviewUrls.size) return newPreviewMap;
-        for (const [key, value] of newPreviewMap)
-          if (prevPreviewUrls.get(key) !== value) return newPreviewMap;
-        return prevPreviewUrls;
+        return newMap;
       });
     }
   }, [storedFiles, updatePreviewUrlsForFilesClient]);
+  // --- End URL Management ---
 
   const setItemFeedback = useCallback(
     (
@@ -149,25 +137,25 @@ export default function FileStorageClient({
         [id]: type ? { type, message } : null,
       }));
       if (type && type !== 'error') {
-        setTimeout(() => {
-          setFeedbackState((prev) =>
-            prev[id]?.type === type ? { ...prev, [id]: null } : prev
-          );
-        }, 2000);
+        setTimeout(
+          () =>
+            setFeedbackState((prev) =>
+              prev[id]?.type === type ? { ...prev, [id]: null } : prev
+            ),
+          2000
+        );
       }
     },
     []
   );
 
   const loadAndDisplayFiles = useCallback(async () => {
-    const limit = 100;
     setError(null);
     setIsLoading(true);
     try {
-      const files = await listFiles(limit, false);
+      const files = await listFiles(500, false); // Load permanent files
       setStoredFiles(files);
     } catch (err: unknown) {
-      console.error('[FileStorage] Error loading files:', err);
       setError('Failed to load stored files.');
       setStoredFiles([]);
     } finally {
@@ -179,89 +167,60 @@ export default function FileStorageClient({
     loadAndDisplayFiles();
   }, [loadAndDisplayFiles]);
 
-  const persistTemporaryFile = useCallback(
-    async (tempFile: StoredFile, trigger: TriggerType) => {
-      let historyOutput: string | Record<string, unknown> = '';
-      let status: 'success' | 'error' = 'success';
-      let fileId: string | undefined = undefined;
-      const inputDetails: Record<string, unknown> = {
-        fileName: tempFile.name,
-        fileType: tempFile.type,
-        fileSize: tempFile.size,
-        source: trigger,
-      };
+  const handleAddClick = () => {
+    setIsModalOpen(true);
+  };
 
-      try {
-        fileId = await addFile(
-          tempFile.blob,
-          tempFile.name || `file-${Date.now()}`,
-          tempFile.type,
-          false
-        );
-        historyOutput = {
-          message: `File "${tempFile.name}" added successfully to library.`,
-          fileId: fileId,
-        };
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Unknown error saving file.';
-        setError((prev) =>
-          prev
-            ? `${prev}; Failed to save "${tempFile.name}"`
-            : `Failed to save "${tempFile.name}"`
-        );
-        status = 'error';
-        historyOutput = `Error saving "${tempFile.name}": ${message}`;
-        inputDetails.error = message;
-      } finally {
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: trigger,
-          input: inputDetails,
-          output: historyOutput,
-          status: status,
-          eventTimestamp: Date.now(),
-        });
-      }
-      return fileId;
-    },
-    [addFile, addHistoryEntry, toolRoute, toolTitle]
-  );
+  const handleToggleFilterSelected = useCallback(() => {
+    setIsFilterSelectedActive((prev) => !prev);
+  }, []);
 
   const handleModalFilesSelected = useCallback(
     async (
       filesFromModal: StoredFile[],
-      source: 'library' | 'upload',
-      saveUploadedToLibrary?: boolean
+      _source: 'library' | 'upload',
+      _saveUploadedToLibrary?: boolean,
+      filterToThese?: boolean
     ) => {
       setIsModalOpen(false);
       if (!filesFromModal || filesFromModal.length === 0) return;
 
       setError(null);
-      setIsProcessing(true);
+      setIsProcessing(true); // Use isProcessing to indicate activity
 
-      if (source === 'upload' && !saveUploadedToLibrary) {
+      // 1. Reload the full list *first* to ensure new files are included
+      await loadAndDisplayFiles(); // This updates storedFiles state
+
+      // 2. Determine the IDs of the added files
+      const addedFileIds = new Set(
+        filesFromModal.map((f) => f.id).filter((id) => !!id)
+      );
+
+      // 3. Set selection and filter state *after* reload is done
+      if (filterToThese) {
+        // We need to make sure the filter uses the *updated* storedFiles.
+        // Since loadAndDisplayFiles updates state, React might not guarantee
+        // immediate consistency in the same callback.
+        // Let's update selection first, then rely on a subsequent render cycle
+        // for the filter to apply correctly based on the new selection.
+
+        setSelectedFileIds(addedFileIds); // Set the selection
+        setIsFilterSelectedActive(true); // Activate the filter toggle
         console.log(
-          '[FileStorageClient] Persisting temporary files from modal upload...'
+          '[FileStorageClient] Filtering view to newly added files (triggering re-render).'
         );
-        const filesToPersist = filesFromModal.filter((f) => f.isTemporary);
-        if (filesToPersist.length > 0) {
-          const persistPromises = filesToPersist.map((tempFile) =>
-            persistTemporaryFile(tempFile, 'upload')
-          );
-          await Promise.all(persistPromises);
-        }
+        // The actual filtering happens in the render logic using itemsToShow
+      } else {
+        setSelectedFileIds(new Set());
+        setIsFilterSelectedActive(false);
       }
-      await loadAndDisplayFiles();
-      setIsProcessing(false);
-    },
-    [persistTemporaryFile, loadAndDisplayFiles]
-  );
 
-  const handleAddClick = () => {
-    setIsModalOpen(true);
-  };
+      setIsProcessing(false); // Stop processing indicator
+      // Remove storedFiles from dependency array here, rely on loadAndDisplayFiles
+      // to update it before this callback finishes. Add listFiles if needed.
+    },
+    [loadAndDisplayFiles, listFiles /* other stable dependencies if any */]
+  );
 
   const handleDeleteSingleFile = useCallback(
     async (fileId: string) => {
@@ -284,6 +243,7 @@ export default function FileStorageClient({
           trigger: 'click',
           input: { deletedFileId: fileId, deletedFileName: fileName },
           output: { message: `Deleted "${fileName}"` },
+          outputFileIds: [],
           status: 'success',
           eventTimestamp: Date.now(),
         });
@@ -297,6 +257,7 @@ export default function FileStorageClient({
           trigger: 'click',
           input: { deletedFileId: fileId, error: message },
           output: `Error deleting "${fileName}": ${message}`,
+          outputFileIds: [],
           status: 'error',
           eventTimestamp: Date.now(),
         });
@@ -328,28 +289,28 @@ export default function FileStorageClient({
     setIsProcessing(true);
     const count = storedFiles.length;
     try {
-      await clearAllFiles(false);
-      setStoredFiles([]); // Optimistic update
+      await clearAllFiles(false); // Clear permanent files
+      loadAndDisplayFiles(); // Reload
       setSelectedFileIds(new Set());
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
         trigger: 'click',
         input: { clearAllCount: count },
-        output: `Cleared all ${count} user files.`,
+        output: `Cleared all ${count} permanent user files.`,
         status: 'success',
         eventTimestamp: Date.now(),
       });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Unknown error clearing files.';
-      setError(`Failed to clear all files. ${message}`);
+      setError(`Failed to clear permanent files. ${message}`);
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
         trigger: 'click',
         input: { clearAllCount: count, error: message },
-        output: `Error clearing files: ${message}`,
+        output: `Error clearing permanent files: ${message}`,
         status: 'error',
         eventTimestamp: Date.now(),
       });
@@ -421,11 +382,8 @@ export default function FileStorageClient({
   const handleToggleSelection = useCallback((fileId: string) => {
     setSelectedFileIds((prevSelected) => {
       const newSelected = new Set(prevSelected);
-      if (newSelected.has(fileId)) {
-        newSelected.delete(fileId);
-      } else {
-        newSelected.add(fileId);
-      }
+      if (newSelected.has(fileId)) newSelected.delete(fileId);
+      else newSelected.add(fileId);
       return newSelected;
     });
   }, []);
@@ -438,32 +396,26 @@ export default function FileStorageClient({
       isBulkDeleting
     )
       return;
-
     const count = selectedFileIds.size;
     setIsBulkDeleting(true);
     setError(null);
     const idsToDelete = Array.from(selectedFileIds);
     const deletedNames: string[] = [];
     const errorsEncountered: string[] = [];
-
     for (const id of idsToDelete) {
       const file = storedFiles.find((f) => f.id === id);
       const name = file?.name || `File ID ${id}`;
       try {
-        await deleteFile(id);
+        await deleteFile(id); // deleteFile handles history cleanup
         deletedNames.push(name);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         errorsEncountered.push(`Failed to delete "${name}": ${message}`);
       }
     }
-
-    setStoredFiles((prev) => prev.filter((f) => !idsToDelete.includes(f.id)));
-    setSelectedFileIds(new Set());
-
+    setSelectedFileIds(new Set()); // Clear selection
     let historyOutput: Record<string, unknown> | string = {};
     let finalStatus: 'success' | 'error' = 'success';
-
     if (errorsEncountered.length === 0) {
       historyOutput = {
         message: `Deleted ${count} selected file(s).`,
@@ -480,19 +432,18 @@ export default function FileStorageClient({
         errorCount: errorsEncountered.length,
         errors: errorsEncountered,
       };
-      await loadAndDisplayFiles();
     }
-
     addHistoryEntry({
       toolName: toolTitle,
       toolRoute: toolRoute,
       trigger: 'click',
       input: { deletedFileIds: idsToDelete, requestedCount: count },
       output: historyOutput,
+      outputFileIds: [],
       status: finalStatus,
       eventTimestamp: Date.now(),
     });
-
+    await loadAndDisplayFiles(); // Reload list
     setIsBulkDeleting(false);
   }, [
     selectedFileIds,
@@ -507,51 +458,57 @@ export default function FileStorageClient({
     toolTitle,
   ]);
 
+  // --- Render preview (Removed temporary indicator) ---
   const renderDefaultPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewUrls.get(file.id);
       const fileType = file.type || '';
-
-      if (objectUrl && fileType.startsWith('image/')) {
-        return (
-          <Image
-            src={objectUrl}
-            alt={file.name || 'Stored image preview'}
-            width={120}
-            height={120}
-            className="max-w-full max-h-full object-contain pointer-events-none"
-            unoptimized
-          />
-        );
-      }
-
-      const iconClassName = getFileIconClassName(file.name);
-
       return (
-        <span className="flex items-center justify-center h-full w-full">
-          <span
-            aria-hidden="true"
-            className={`${iconClassName}`}
-            title={file.type || 'File'}
-          ></span>
-        </span>
+        <div className="relative w-full h-full flex items-center justify-center">
+          {objectUrl && fileType.startsWith('image/') ? (
+            <Image
+              src={objectUrl}
+              alt={file.name || 'Preview'}
+              layout="fill"
+              objectFit="contain"
+              unoptimized
+            />
+          ) : (
+            <span className="flex items-center justify-center h-full w-full text-3xl">
+              <span
+                aria-hidden="true"
+                className={getFileIconClassName(file.name)}
+                title={file.type || 'File'}
+              ></span>
+            </span>
+          )}
+        </div>
       );
     },
     [previewUrls]
   );
 
   const controlsAreLoading = isLoading || isProcessing || isBulkDeleting;
+  // Determine items to show based on filter state
+  const itemsToShow = isFilterSelectedActive
+    ? storedFiles.filter((file) => selectedFileIds.has(file.id))
+    : storedFiles;
   const showEmpty =
-    !isLoading && storedFiles.length === 0 && !isProcessing && !isBulkDeleting;
+    !isLoading && itemsToShow.length === 0 && !controlsAreLoading;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
+      {/* Pass filter props to StorageControls */}
       <StorageControls
         isLoading={controlsAreLoading}
         isDeleting={isBulkDeleting}
-        itemCount={storedFiles.length}
+        itemCount={storedFiles.length} // Base count is total permanent
         currentLayout={layout}
         selectedItemCount={selectedFileIds.size}
+        // Filter props
+        isFilterSelectedActive={isFilterSelectedActive}
+        onToggleFilterSelected={handleToggleFilterSelected}
+        // Other props
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
         onLayoutChange={setLayout}
@@ -564,7 +521,8 @@ export default function FileStorageClient({
           role="alert"
           className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm"
         >
-          <strong>Error:</strong> {error}
+          {' '}
+          <strong>Error:</strong> {error}{' '}
         </div>
       )}
 
@@ -574,23 +532,28 @@ export default function FileStorageClient({
           !isBulkDeleting &&
           storedFiles.length === 0 && (
             <div className="flex items-center justify-center min-h-[200px]">
+              {' '}
               <p className="text-center p-4 text-gray-500 italic animate-pulse">
-                Loading stored files...
-              </p>
+                {' '}
+                Loading stored files...{' '}
+              </p>{' '}
             </div>
           )}
         {showEmpty && (
           <div className="flex items-center justify-center min-h-[200px]">
             <p className="text-center p-4 text-gray-500 italic">
-              Your file library is empty. Add files using the button above.
+              {isFilterSelectedActive
+                ? 'No files currently selected.'
+                : 'Your file library is empty. Add files using the button above.'}
             </p>
           </div>
         )}
+        {/* Pass itemsToShow */}
         {!isLoading &&
           !showEmpty &&
           (layout === 'list' ? (
             <FileListView
-              files={storedFiles}
+              files={itemsToShow}
               isLoading={controlsAreLoading}
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedFileIds}
@@ -602,7 +565,7 @@ export default function FileStorageClient({
             />
           ) : (
             <FileGridView
-              files={storedFiles}
+              files={itemsToShow}
               isLoading={controlsAreLoading}
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedFileIds}
@@ -623,6 +586,7 @@ export default function FileStorageClient({
         mode="addNewFiles"
         accept="*/*"
         selectionMode="multiple"
+        showFilterAfterUploadCheckbox={true} // Enable checkbox
       />
     </div>
   );
