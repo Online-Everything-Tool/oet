@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+import { useHistory } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import StorageControls from '../../_components/storage/StorageControls';
@@ -155,8 +155,10 @@ export default function FileStorageClient({
     try {
       const files = await listFiles(500, false); // Load permanent files
       setStoredFiles(files);
-    } catch (err: unknown) {
-      setError('Failed to load stored files.');
+    } catch (err) {
+      setError(
+        `Failed to load stored files: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
       setStoredFiles([]);
     } finally {
       setIsLoading(false);

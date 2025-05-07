@@ -482,7 +482,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
     }
     setIsLoadingHistory(true);
     setHistoryError(null);
-    let allOutputFileIds: string[] = [];
+    const allOutputFileIds: string[] = [];
 
     try {
       if (!db?.history || !db?.files)
@@ -542,7 +542,7 @@ export const HistoryProvider = ({ children }: HistoryProviderProps) => {
 
       setIsLoadingHistory(true);
       setHistoryError(null);
-      let toolOutputFileIds: string[] = [];
+      const toolOutputFileIds: string[] = [];
 
       try {
         if (!db?.history || !db?.files)

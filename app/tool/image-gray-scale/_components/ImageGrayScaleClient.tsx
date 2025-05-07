@@ -13,9 +13,7 @@ import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useHistory } from '../../../context/HistoryContext';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/FileSelectionModal';
-import useImageProcessing, {
-  ProcessImageResult,
-} from '@/app/tool/_hooks/useImageProcessing';
+import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
 import {
@@ -112,7 +110,9 @@ export default function ImageGrayScaleClient({
         objectUrl = URL.createObjectURL(selectedFile.blob);
         setOriginalImageSrc(objectUrl);
       } catch (e) {
-        setUiError('Could not create preview for selected image.');
+        setUiError(
+          `Could not create preview for selected image: ${e instanceof Error ? e.message : 'Unknown error'}`
+        );
         setOriginalImageSrc(null);
       }
     } else {
@@ -134,8 +134,6 @@ export default function ImageGrayScaleClient({
 
   useEffect(() => {
     processingEffectRunCount.current += 1;
-    const runId = processingEffectRunCount.current;
-
     if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
       prevProcessingKey.current = processingKey;
       return;

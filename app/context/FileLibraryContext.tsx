@@ -400,7 +400,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Unknown DB error';
-      console.error('[Cleanup] Error during temporary file cleanup:', err);
+      console.error('[Cleanup] Error during temporary file cleanup:', message);
     } finally {
       setLoading(false);
     }

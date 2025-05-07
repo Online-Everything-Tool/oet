@@ -3,14 +3,13 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+import { useHistory } from '../../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import StorageControls from '../../_components/storage/StorageControls';
 import FileListView from '../../_components/storage/FileListView';
 import FileGridView from '../../_components/storage/FileGridView';
 import FileSelectionModal from '../../_components/FileSelectionModal';
-import { getFileIconClassName } from '@/app/lib/utils'; // Needed for fallback preview
 // Import necessary icons
 import { PhotoIcon } from '@heroicons/react/20/solid';
 
@@ -49,7 +48,7 @@ export default function ImageStorageClient({
     useState<boolean>(false);
 
   const { addHistoryEntry } = useHistory();
-  const { listImages, addImage, deleteImage, clearAllImages, getImage } =
+  const { listImages, deleteImage, clearAllImages, getImage } =
     useImageLibrary();
 
   // --- URL Management ---
@@ -159,8 +158,10 @@ export default function ImageStorageClient({
     try {
       const images = await listImages(100); // listImages already filters for permanent
       setStoredImages(images);
-    } catch (err: unknown) {
-      setError('Failed to load stored images.');
+    } catch (err) {
+      setError(
+        `Failed to load stored files: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
       setStoredImages([]);
     } finally {
       setIsLoading(false);
@@ -462,19 +463,21 @@ export default function ImageStorageClient({
   const renderPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewUrls.get(file.id);
-      if (objectUrl && file.type?.startsWith('image/')) {
-        return (
-          <Image
-            src={objectUrl}
-            alt={file.name || 'Preview'}
-            layout="fill"
-            objectFit="contain"
-            unoptimized
-          />
-        );
-      }
-      // Fallback for non-image types (shouldn't happen here) or if URL fails
-      return <PhotoIcon className="w-16 h-16 text-gray-300" />;
+      return (
+        <div className="relative w-full h-full flex items-center justify-center">
+          {objectUrl && file.type?.startsWith('image/') ? (
+            <Image
+              src={objectUrl}
+              alt={file.name || 'Preview'}
+              layout="fill"
+              objectFit="contain"
+              unoptimized
+            />
+          ) : (
+            <PhotoIcon className="w-16 h-16 text-gray-300" />
+          )}
+        </div>
+      );
     },
     [previewUrls]
   );

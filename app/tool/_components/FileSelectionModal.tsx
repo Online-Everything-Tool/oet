@@ -325,13 +325,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalLoading(true);
       setModalError(null);
       const processedFiles: StoredFile[] = [];
-      // Determine if files added here should be saved permanently based on mode/preference
-      // For addNewFiles mode (like in file-storage), we always save permanently.
-      const shouldSaveToLibrary =
-        mode === 'addNewFiles' ||
-        (mode === 'selectExistingOrUploadNew' && savePreference);
-      const isTemporary = !shouldSaveToLibrary; // This seems reversed based on our discussion, should be false for addNewFiles?
-
       // Correction: Files added via the modal in file-storage/image-storage should likely be permanent
       const makePermanent =
         mode === 'addNewFiles' ||
