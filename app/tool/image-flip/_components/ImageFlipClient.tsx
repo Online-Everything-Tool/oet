@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { useHistory, TriggerType } from '../../../context/HistoryContext';
+import { useHistory } from '../../../context/HistoryContext';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/FileSelectionModal';
 import useImageProcessing, {
