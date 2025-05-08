@@ -274,9 +274,9 @@ export default function ImageMontageClient({
   ]);
 
   const handleAdjustment = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     (action: (...args: any[]) => void) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       (...args: any[]) => {
         setIsSaved(false);
         setIsCopied(false);

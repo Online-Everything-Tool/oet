@@ -1,4 +1,4 @@
-// --- FILE: app/tool/_components/ToolSettings.tsx ---
+// FILE: app/tool/_components/ToolSettings.tsx
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -6,6 +6,14 @@ import ToolHistorySettings from './ToolHistorySettings';
 import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import FeedbackModal from '@/app/_components/FeedbackModal';
 import { useFavorites } from '@/app/context/FavoritesContext';
+
+import {
+  StarIcon as StarIconSolid,
+  ChatBubbleBottomCenterTextIcon,
+  ListBulletIcon,
+  Cog6ToothIcon,
+} from '@heroicons/react/24/solid';
+import { StarIcon as StarIconOutline } from '@heroicons/react/24/outline';
 
 interface ToolSettingsProps {
   toolRoute: string;
@@ -24,70 +32,56 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
     toggleFavorite,
     isLoaded: favoritesLoaded,
   } = useFavorites();
-
   const directive = useMemo(() => {
     if (!toolRoute || !toolRoute.startsWith('/tool/')) return '';
     return toolRoute.substring('/tool/'.length).replace(/\/$/, '');
   }, [toolRoute]);
-
   const handleFavoriteToggle = () => {
-    if (directive && favoritesLoaded) {
-      toggleFavorite(directive);
-    }
+    if (directive && favoritesLoaded) toggleFavorite(directive);
   };
-
   const isCurrentlyFavorite = favoritesLoaded ? isFavorite(directive) : false;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      /* ... */
       if (
         isSettingsOpen &&
         settingsDialogRef.current &&
         !settingsDialogRef.current.contains(event.target as Node)
-      ) {
+      )
         setIsSettingsOpen(false);
-      }
       if (
         isRecentPanelOpen &&
         recentPanelRef.current &&
         !recentPanelRef.current.contains(event.target as Node)
-      ) {
+      )
         setIsRecentPanelOpen(false);
-      }
       if (
         isFeedbackOpen &&
         feedbackModalRef.current &&
         !feedbackModalRef.current.contains(event.target as Node)
-      ) {
+      )
         setIsFeedbackOpen(false);
-      }
     };
-    if (isSettingsOpen || isRecentPanelOpen || isFeedbackOpen) {
+    if (isSettingsOpen || isRecentPanelOpen || isFeedbackOpen)
       document.addEventListener('mousedown', handleClickOutside);
-    } else {
-      document.removeEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    else document.removeEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isSettingsOpen, isRecentPanelOpen, isFeedbackOpen]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      /* ... */
       if (event.key === 'Escape') {
         if (isSettingsOpen) setIsSettingsOpen(false);
         if (isRecentPanelOpen) setIsRecentPanelOpen(false);
         if (isFeedbackOpen) setIsFeedbackOpen(false);
       }
     };
-    if (isSettingsOpen || isRecentPanelOpen || isFeedbackOpen) {
+    if (isSettingsOpen || isRecentPanelOpen || isFeedbackOpen)
       window.addEventListener('keydown', handleKeyDown);
-    } else {
-      window.removeEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    else window.removeEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSettingsOpen, isRecentPanelOpen, isFeedbackOpen]);
 
   const openSettings = () => {
@@ -107,6 +101,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
   };
 
   return (
+
     <div className="absolute top-0 right-0 mt-1 mr-1 z-10 flex items-center gap-1">
       {/* --- Favorite Button --- */}
       {directive && (
@@ -114,11 +109,12 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
           type="button"
           onClick={handleFavoriteToggle}
           disabled={!favoritesLoaded}
-          className={`p-1.5 rounded-full text-xl transition-colors duration-150 ${
+
+          className={`p-1.5 rounded-full transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${
             isCurrentlyFavorite
               ? 'text-yellow-500 hover:bg-yellow-100'
               : 'text-gray-400 hover:text-yellow-500 hover:bg-[rgba(var(--color-border-base)/0.2)]'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          }`}
           aria-label={
             isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'
           }
@@ -126,51 +122,56 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
             isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'
           }
         >
-          {isCurrentlyFavorite ? '★' : '☆'}
+          {/* Conditional Icon */}
+          {isCurrentlyFavorite ? (
+            <StarIconSolid className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <StarIconOutline className="h-5 w-5" aria-hidden="true" />
+          )}
         </button>
       )}
       {/* --- End Favorite Button --- */}
 
-      {/* Feedback Button (remains the same) */}
+      {/* Feedback Button */}
       <button
         type="button"
         onClick={openFeedback}
         title="Provide Feedback or Report Issue"
         aria-label="Open Feedback Modal"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
+
+        className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
-        <span className="text-xl" aria-hidden="true">
-          💬
-        </span>
+        <ChatBubbleBottomCenterTextIcon
+          className="h-5 w-5"
+          aria-hidden="true"
+        />
       </button>
 
-      {/* Recent Activity Button (remains the same) */}
+      {/* Recent Activity Button */}
       <button
         type="button"
         onClick={openRecentPanel}
         title="View Recent Activity for this Tool"
         aria-label="Open Recent Activity Panel"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
+
+        className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
-        <span className="text-xl" aria-hidden="true">
-          🕒
-        </span>
+        <ListBulletIcon className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Settings Button (remains the same) */}
+      {/* Settings Button */}
       <button
         type="button"
         onClick={openSettings}
         title="History Logging Settings"
         aria-label="Open History Logging Settings"
-        className="p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
+
+        className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
-        <span className="text-xl" aria-hidden="true">
-          ⚙️
-        </span>
+        <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Settings Modal (remains the same) */}
+      {/* Settings Modal (Structure unchanged) */}
       {isSettingsOpen && (
         <div
           className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4"
@@ -230,7 +231,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         </div>
       )}
 
-      {/* Recent Activity Panel/Modal (remains the same) */}
+      {/* Recent Activity Panel/Modal (Structure unchanged) */}
       {isRecentPanelOpen && (
         <div
           className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4"
@@ -284,7 +285,7 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         </div>
       )}
 
-      {/* Feedback Modal (remains the same) */}
+      {/* Feedback Modal (Structure unchanged) */}
       <FeedbackModal
         isOpen={isFeedbackOpen}
         onClose={() => setIsFeedbackOpen(false)}

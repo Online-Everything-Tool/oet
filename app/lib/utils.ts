@@ -109,3 +109,24 @@ export const isTextBasedMimeType = (mimeType: string | undefined): boolean => {
     mimeType === 'application/csv'
   );
 };
+
+export function safeParseState<T>(
+  jsonString: string | null | undefined,
+  defaultValue: T
+): T {
+  if (!jsonString) return defaultValue;
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (typeof parsed === 'object' && parsed !== null) {
+
+      return { ...defaultValue, ...parsed };
+    }
+    console.warn(
+      '[useToolState] Parsed state is not a valid object structure, returning default.'
+    );
+    return defaultValue;
+  } catch (e) {
+    console.error('[useToolState] Error parsing tool state JSON:', e);
+    return defaultValue;
+  }
+}
