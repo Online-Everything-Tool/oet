@@ -118,7 +118,6 @@ export function safeParseState<T>(
   try {
     const parsed = JSON.parse(jsonString);
     if (typeof parsed === 'object' && parsed !== null) {
-
       return { ...defaultValue, ...parsed };
     }
     console.warn(

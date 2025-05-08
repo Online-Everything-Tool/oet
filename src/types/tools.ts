@@ -9,16 +9,16 @@ export interface ParamConfig {
 
 // --- Input Configuration ---
 interface BaseInputConfig {
-    id: string;
-    description: string;
-    type: 'file' | 'text' | 'json_object' | 'url_params_object';
-    required: boolean;
+  id: string;
+  description: string;
+  type: 'file' | 'text' | 'json_object' | 'url_params_object';
+  required: boolean;
 }
 
 interface FileInputDetails {
-    accept?: string;
-    maxCount?: number;
-    sourceRestriction?: 'libraryOnly' | 'uploadOnly' | 'any';
+  accept?: string;
+  maxCount?: number;
+  sourceRestriction?: 'libraryOnly' | 'uploadOnly' | 'any';
 }
 
 // Replace empty interface with Record<string, unknown> or keep empty if truly intended as placeholder for future specifics
@@ -28,24 +28,28 @@ type TextInputDetails = Record<string, unknown>; // Was: interface TextInputDeta
 type JsonObjectInputDetails = Record<string, unknown>; // Was: interface JsonObjectInputDetails {}
 type UrlParamsInputDetails = Record<string, unknown>; // Was: interface UrlParamsInputDetails {}
 
-
 export type ToolInputConfig =
   | (BaseInputConfig & { type: 'file'; details?: FileInputDetails })
   | (BaseInputConfig & { type: 'text'; details?: TextInputDetails }) // Uses type alias
-  | (BaseInputConfig & { type: 'json_object'; details?: JsonObjectInputDetails }) // Uses type alias
-  | (BaseInputConfig & { type: 'url_params_object'; details?: UrlParamsInputDetails }); // Uses type alias
+  | (BaseInputConfig & {
+      type: 'json_object';
+      details?: JsonObjectInputDetails;
+    }) // Uses type alias
+  | (BaseInputConfig & {
+      type: 'url_params_object';
+      details?: UrlParamsInputDetails;
+    }); // Uses type alias
 // --- END: Input Configuration ---
-
 
 // --- Output Configuration ---
 interface BaseOutputConfig {
-    summaryField?: string;
-    outputType: 'file' | 'text' | 'json_object' | 'url' | 'none';
+  summaryField?: string;
+  outputType: 'file' | 'text' | 'json_object' | 'url' | 'none';
 }
 
 interface FileOutputDetails {
-     mimeType: string;
-     disposition?: 'inline' | 'attachment';
+  mimeType: string;
+  disposition?: 'inline' | 'attachment';
 }
 
 // Replace empty interfaces with Record<string, unknown>
@@ -53,15 +57,16 @@ type TextOutputDetails = Record<string, unknown>; // Was: interface TextOutputDe
 type JsonObjectOutputDetails = Record<string, unknown>; // Was: interface JsonObjectOutputDetails {}
 type UrlOutputDetails = Record<string, unknown>; // Was: interface UrlOutputDetails {}
 
-
 export type ToolOutputConfig =
   | (BaseOutputConfig & { outputType: 'file'; details: FileOutputDetails })
   | (BaseOutputConfig & { outputType: 'text'; details?: TextOutputDetails }) // Uses type alias
-  | (BaseOutputConfig & { outputType: 'json_object'; details?: JsonObjectOutputDetails }) // Uses type alias
+  | (BaseOutputConfig & {
+      outputType: 'json_object';
+      details?: JsonObjectOutputDetails;
+    }) // Uses type alias
   | (BaseOutputConfig & { outputType: 'url'; details?: UrlOutputDetails }) // Uses type alias
   | (BaseOutputConfig & { outputType: 'none' });
 // --- END: Output Configuration ---
-
 
 // --- Main ToolMetadata Interface ---
 export interface ToolMetadata {

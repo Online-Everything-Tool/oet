@@ -43,9 +43,7 @@ export default function useToolUrlState(
           let parsedValue: unknown = undefined;
           let isValid = false;
           try {
-            switch (
-              config.type
-            ) {
+            switch (config.type) {
               case 'string':
               case 'enum':
                 parsedValue = urlValue;

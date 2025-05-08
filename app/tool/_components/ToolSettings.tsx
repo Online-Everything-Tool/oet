@@ -101,7 +101,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
   };
 
   return (
-
     <div className="absolute top-0 right-0 mt-1 mr-1 z-10 flex items-center gap-1">
       {/* --- Favorite Button --- */}
       {directive && (
@@ -109,7 +108,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
           type="button"
           onClick={handleFavoriteToggle}
           disabled={!favoritesLoaded}
-
           className={`p-1.5 rounded-full transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${
             isCurrentlyFavorite
               ? 'text-yellow-500 hover:bg-yellow-100'
@@ -138,7 +136,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openFeedback}
         title="Provide Feedback or Report Issue"
         aria-label="Open Feedback Modal"
-
         className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <ChatBubbleBottomCenterTextIcon
@@ -153,7 +150,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openRecentPanel}
         title="View Recent Activity for this Tool"
         aria-label="Open Recent Activity Panel"
-
         className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <ListBulletIcon className="h-5 w-5" aria-hidden="true" />
@@ -165,7 +161,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         onClick={openSettings}
         title="History Logging Settings"
         aria-label="Open History Logging Settings"
-
         className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />

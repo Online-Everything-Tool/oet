@@ -42,7 +42,6 @@ export default function RadioGroup<T extends string | number>({
   const effectiveIdBase = providedId || autoIdBase;
 
   const handleRadioChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-
     onChange(event.target.value as T);
   };
 

@@ -1,5 +1,8 @@
 // --- FILE: app/tool/image-montage/_components/MontageControls.tsx ---
 import React, { ChangeEvent } from 'react';
+// *** ADDED Button import ***
+import Button from '../../_components/form/Button';
+// ***************************
 
 interface MontageControlsProps {
   isLoading: boolean;
@@ -7,7 +10,8 @@ interface MontageControlsProps {
   isSaved: boolean;
   isCopied: boolean;
   imageCount: number;
-  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  // *** REMOVED: onFileChange ***
+  onAddClick: () => void; // *** ADDED: Handler for Add button ***
   onClear: () => void;
   onSave: () => void;
   onDownload: () => void;
@@ -20,7 +24,8 @@ export default function MontageControls({
   isSaved,
   isCopied,
   imageCount,
-  onFileChange,
+  // *** REMOVED: onFileChange ***
+  onAddClick, // *** ADDED ***
   onClear,
   onSave,
   onDownload,
@@ -32,58 +37,52 @@ export default function MontageControls({
     <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          {/* Add Images Button */}
-          <label
-            htmlFor="imageUpload"
-            className={`cursor-pointer inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-accent2-text))] bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out ${isProcessingFiles ? 'opacity-50 cursor-not-allowed' : ''}`}
+          {/* *** UPDATED: Use Button component and onAddClick *** */}
+          <Button
+            variant="accent2"
+            onClick={onAddClick}
+            isLoading={isProcessingFiles}
+            loadingText="Processing..."
+            disabled={isLoading} // Disable if any loading is happening
           >
-            {isProcessingFiles ? 'Processing...' : 'Add Images'}
-          </label>
-          <input
-            id="imageUpload"
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={onFileChange}
-            className="hidden"
-            disabled={isProcessingFiles}
-          />
+            Add Images
+          </Button>
+          {/* *** REMOVED: label and input *** */}
+
           {/* Clear Button */}
-          <button
-            type="button"
+          <Button
+            variant="neutral"
             onClick={onClear}
             disabled={imageCount === 0 || isLoading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Clear
-          </button>
+          </Button>
           {/* Save Button */}
-          <button
-            type="button"
+          <Button
+            variant={isSaved ? 'secondary' : 'primary-outline'} // Use outline style for primary actions
             onClick={onSave}
             disabled={disableActions}
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${isSaved ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+            // Apply specific teal color if needed, or use existing variants
+            // className={!isSaved ? 'bg-teal-600 hover:bg-teal-700 text-white' : ''}
           >
             {isSaved ? 'Saved!' : 'Save to Library'}
-          </button>
+          </Button>
           {/* Download Button */}
-          <button
-            type="button"
+          <Button
+            variant="primary" // Make Download the primary action visually
             onClick={onDownload}
             disabled={disableActions}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-primary-text))] bg-[rgb(var(--color-button-primary-bg))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Download
-          </button>
+          </Button>
           {/* Copy Button */}
-          <button
-            type="button"
+          <Button
+            variant={isCopied ? 'secondary' : 'accent-outline'} // Use outline style
             onClick={onCopy}
             disabled={disableActions}
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed ${isCopied ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]' : 'bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-[rgb(var(--color-button-accent-text))]'}`}
           >
             {isCopied ? 'Copied!' : 'Copy'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

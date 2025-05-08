@@ -48,7 +48,6 @@ export default function UrlEncodeDecodeClient({
   toolTitle,
   toolRoute,
 }: UrlEncodeDecodeClientProps) {
-
   const [outputValue, setOutputValue] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -72,7 +71,6 @@ export default function UrlEncodeDecodeClient({
   const didInitialize = useRef(false);
 
   useEffect(() => {
-
     if (isLoadingUrlState || isLoadingState || isComponentInitialized) return;
 
     let initialState: UrlToolState = state;
@@ -128,7 +126,6 @@ export default function UrlEncodeDecodeClient({
   ]);
 
   useEffect(() => {
-
     if (!isComponentInitialized || isLoadingState) return;
 
     setError(null);
@@ -176,9 +173,7 @@ export default function UrlEncodeDecodeClient({
   }, STATE_SAVE_DEBOUNCE_MS);
 
   useEffect(() => {
-
     if (isComponentInitialized && !isLoadingState) {
-
       if (didInitialize.current) {
         didInitialize.current = false;
         console.log(
