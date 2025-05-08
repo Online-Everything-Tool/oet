@@ -23,18 +23,18 @@ interface MontageImage {
 
 interface ImageAdjustmentCardProps {
   image: MontageImage;
-  index: number; // Represents layout order
-  isFirst: boolean; // First in layout order
-  isLast: boolean; // Last in layout order
-  isTop: boolean; // Highest zIndex
-  isBottom: boolean; // Lowest zIndex
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+  isTop: boolean;
+  isBottom: boolean;
   isLoading: boolean;
   onTiltChange: (imageId: string, value: number) => void;
   onOverlapChange: (imageId: string, value: number) => void;
-  onMoveLeft: (imageId: string) => void; // Layout move
-  onMoveRight: (imageId: string) => void; // Layout move
-  onMoveUp: (imageId: string) => void; // zIndex move up
-  onMoveDown: (imageId: string) => void; // zIndex move down
+  onMoveLeft: (imageId: string) => void;
+  onMoveRight: (imageId: string) => void;
+  onMoveUp: (imageId: string) => void;
+  onMoveDown: (imageId: string) => void;
 }
 
 const MAX_TILT_DEG = 25;
@@ -63,7 +63,7 @@ export default function ImageAdjustmentCard({
         <Button
           variant="neutral-outline"
           size="sm"
-          className="!p-1 mb-0.5" // Added margin bottom
+          className="!p-1 mb-0.5"
           onClick={() => onMoveUp(image.imageId)}
           disabled={isTop || isLoading}
           aria-label="Move image forward (increase stacking order)"
@@ -91,7 +91,7 @@ export default function ImageAdjustmentCard({
 
           {/* Filename/Index */}
           <p
-            className="text-xs font-medium text-gray-600 text-center flex-grow truncate mx-1 px-1" // Added horizontal margin/padding
+            className="text-xs font-medium text-gray-600 text-center flex-grow truncate mx-1 px-1"
             title={`${image.alt} (Z:${image.zIndex})`}
           >
             {index + 1}. {image.alt}
@@ -116,7 +116,7 @@ export default function ImageAdjustmentCard({
         <Button
           variant="neutral-outline"
           size="sm"
-          className="!p-1 mt-0.5" // Added margin top
+          className="!p-1 mt-0.5"
           onClick={() => onMoveDown(image.imageId)}
           disabled={isBottom || isLoading}
           aria-label="Move image backward (decrease stacking order)"
@@ -138,7 +138,7 @@ export default function ImageAdjustmentCard({
         value={image.tilt}
         onChange={(e) => onTiltChange(image.imageId, Number(e.target.value))}
         disabled={isLoading}
-        containerClassName="w-full" // Removed margin top here
+        containerClassName="w-full"
       />
 
       {/* Overlap Control (Conditional) */}
@@ -154,7 +154,7 @@ export default function ImageAdjustmentCard({
             onOverlapChange(image.imageId, Number(e.target.value))
           }
           disabled={isLoading}
-          containerClassName="w-full" // Removed margin top here
+          containerClassName="w-full"
         />
       )}
 

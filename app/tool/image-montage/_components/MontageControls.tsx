@@ -1,8 +1,7 @@
 // --- FILE: app/tool/image-montage/_components/MontageControls.tsx ---
 import React, { ChangeEvent } from 'react';
-// *** ADDED Button import ***
+
 import Button from '../../_components/form/Button';
-// ***************************
 
 interface MontageControlsProps {
   isLoading: boolean;
@@ -10,8 +9,8 @@ interface MontageControlsProps {
   isSaved: boolean;
   isCopied: boolean;
   imageCount: number;
-  // *** REMOVED: onFileChange ***
-  onAddClick: () => void; // *** ADDED: Handler for Add button ***
+
+  onAddClick: () => void;
   onClear: () => void;
   onSave: () => void;
   onDownload: () => void;
@@ -24,8 +23,8 @@ export default function MontageControls({
   isSaved,
   isCopied,
   imageCount,
-  // *** REMOVED: onFileChange ***
-  onAddClick, // *** ADDED ***
+
+  onAddClick,
   onClear,
   onSave,
   onDownload,
@@ -43,7 +42,7 @@ export default function MontageControls({
             onClick={onAddClick}
             isLoading={isProcessingFiles}
             loadingText="Processing..."
-            disabled={isLoading} // Disable if any loading is happening
+            disabled={isLoading}
           >
             Add Images
           </Button>
@@ -59,17 +58,15 @@ export default function MontageControls({
           </Button>
           {/* Save Button */}
           <Button
-            variant={isSaved ? 'secondary' : 'primary-outline'} // Use outline style for primary actions
+            variant={isSaved ? 'secondary' : 'primary-outline'}
             onClick={onSave}
             disabled={disableActions}
-            // Apply specific teal color if needed, or use existing variants
-            // className={!isSaved ? 'bg-teal-600 hover:bg-teal-700 text-white' : ''}
           >
             {isSaved ? 'Saved!' : 'Save to Library'}
           </Button>
           {/* Download Button */}
           <Button
-            variant="primary" // Make Download the primary action visually
+            variant="primary"
             onClick={onDownload}
             disabled={disableActions}
           >
@@ -77,7 +74,7 @@ export default function MontageControls({
           </Button>
           {/* Copy Button */}
           <Button
-            variant={isCopied ? 'secondary' : 'accent-outline'} // Use outline style
+            variant={isCopied ? 'secondary' : 'accent-outline'}
             onClick={onCopy}
             disabled={disableActions}
           >

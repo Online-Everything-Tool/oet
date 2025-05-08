@@ -12,7 +12,7 @@ import FileSelectionModal from '../../_components/FileSelectionModal';
 import type { StoredFile } from '@/src/types/storage';
 import RadioGroup from '../../_components/form/RadioGroup';
 import type { MontageEffect } from '../_hooks/useMontageState';
-import { XCircleIcon } from '@heroicons/react/20/solid'; // Import for error display
+import { XCircleIcon } from '@heroicons/react/20/solid';
 
 interface ImageMontageClientProps {
   toolTitle: string;
@@ -84,7 +84,7 @@ export default function ImageMontageClient({
     if (blob) {
       const outputFileName = `oet-montage-${effect}-save-${Date.now()}.png`;
       try {
-        newImageId = await addImage(blob, outputFileName, 'image/png', false); // Permanent save
+        newImageId = await addImage(blob, outputFileName, 'image/png', false);
         historyOutput = {
           message: `Saved ${effect} montage (${montageImages.length} images) to library.`,
           imageId: newImageId,
@@ -158,7 +158,7 @@ export default function ImageMontageClient({
     if (blob) {
       const outputFileName = `oet-montage-${effect}-download-${Date.now()}.png`;
       try {
-        newImageId = await addImage(blob, outputFileName, 'image/png', true); // Temporary save for history
+        newImageId = await addImage(blob, outputFileName, 'image/png', true);
         outputFileIds = [newImageId];
       } catch (saveErr) {
         saveErrorMsg =
@@ -260,7 +260,7 @@ export default function ImageMontageClient({
     if (blob) {
       const outputFileName = `oet-montage-${effect}-copy-${Date.now()}.png`;
       try {
-        newImageId = await addImage(blob, outputFileName, 'image/png', true); // Temporary save for history
+        newImageId = await addImage(blob, outputFileName, 'image/png', true);
         outputFileIds = [newImageId];
       } catch (saveErr) {
         saveErrorMsg =
@@ -344,8 +344,10 @@ export default function ImageMontageClient({
   ]);
 
   const handleAdjustment = useCallback(
-    (action: (...args: unknown[]) => void) =>
-      (...args: unknown[]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (action: (...args: any[]) => void) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (...args: any[]) => {
         setIsSaved(false);
         setIsCopied(false);
         action(...args);
@@ -432,12 +434,12 @@ export default function ImageMontageClient({
           <div className="flex space-x-4 overflow-x-auto py-2 px-1">
             {montageImages
               .map((img, index) => ({ ...img, originalIndex: index }))
-              .sort((a, b) => a.originalIndex - b.originalIndex) // Render cards in layout order
+              .sort((a, b) => a.originalIndex - b.originalIndex)
               .map((img) => (
                 <ImageAdjustmentCard
-                  key={img.imageId} // Use temporary render key
+                  key={img.imageId}
                   image={img}
-                  index={img.originalIndex} // Display layout index
+                  index={img.originalIndex}
                   isFirst={img.originalIndex === 0}
                   isLast={img.originalIndex === montageImages.length - 1}
                   isTop={

@@ -5,7 +5,7 @@ import React, { useId } from 'react';
 
 interface RangeProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'id'> {
-  label: string; // Made label mandatory for accessibility context
+  label: string;
   value: number;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   id?: string;
@@ -13,7 +13,7 @@ interface RangeProps
   max: number;
   step?: number;
   disabled?: boolean;
-  showValue?: boolean; // Option to display the current value next to the label
+  showValue?: boolean;
   containerClassName?: string;
   labelClassName?: string;
   inputClassName?: string;
@@ -29,7 +29,7 @@ const Range: React.FC<RangeProps> = ({
   max,
   step = 1,
   disabled = false,
-  showValue = true, // Default to showing the value
+  showValue = true,
   containerClassName = '',
   labelClassName = '',
   inputClassName = '',
@@ -47,7 +47,7 @@ const Range: React.FC<RangeProps> = ({
         focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))]
         disabled:cursor-not-allowed disabled:opacity-50
         accent-[rgb(var(--color-checkbox-accent))]
-    `; // Using accent color for the thumb/track fill
+    `;
 
   return (
     <div

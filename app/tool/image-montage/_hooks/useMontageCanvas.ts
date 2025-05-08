@@ -1,12 +1,11 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageCanvas.ts ---
 import { useRef, useEffect, useCallback } from 'react';
-import type { MontageEffect } from './useMontageState'; // Import the effect type
+import type { MontageEffect } from './useMontageState';
 
-// Assume MontageImage is defined in useMontageState and imported or defined here identically
 interface MontageImage {
-  id: number; // Temporary unique ID for React keys during rendering cycle
-  imageId: string; // Persistent ID from FileLibrary
-  image: HTMLImageElement; // The actual loaded element
+  id: number;
+  imageId: string;
+  image: HTMLImageElement;
   alt: string;
   tilt: number;
   overlapPercent: number;
@@ -24,7 +23,6 @@ type RenderedBounds = {
   height: number;
 };
 
-// --- Constants ---
 const POLAROID_IMAGE_WIDTH = 150;
 const POLAROID_IMAGE_HEIGHT = 150;
 const POLAROID_BORDER_PADDING = 10;
@@ -36,9 +34,6 @@ const NATURAL_MAX_DIMENSION = 170;
 const MAX_OVERLAP_PERCENT = 80;
 const FINAL_OUTPUT_PADDING = 10;
 
-// --- Helper Functions ---
-
-// Calculates the maximum possible canvas dimensions needed based on potential rotation
 const calculateMaxBoundsNeeded = (
   width: number,
   height: number
@@ -47,7 +42,6 @@ const calculateMaxBoundsNeeded = (
   return { maxW: diagonal, maxH: diagonal };
 };
 
-// Calculates the dimensions for drawing an image while preserving aspect ratio
 const calculateAspectRatioFit = (
   srcWidth: number,
   srcHeight: number,
@@ -69,20 +63,17 @@ const calculateAspectRatioFit = (
   };
 };
 
-// --- Main Hook ---
-
 interface UseMontageCanvasReturn {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   generateMontageBlob: () => Promise<Blob | null>;
 }
 
 export function useMontageCanvas(
-  montageImages: MontageImage[], // Expects array in LAYOUT order from useMontageState
+  montageImages: MontageImage[],
   effect: MontageEffect
 ): UseMontageCanvasReturn {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Main drawing effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -104,7 +95,6 @@ export function useMontageCanvas(
       return;
     }
 
-    // --- Calculate required canvas dimensions based on LAYOUT order ---
     let totalContentWidth = 0;
     let maxItemHeight = 0;
     montageImages.forEach((imgData, index) => {
@@ -163,9 +153,7 @@ export function useMontageCanvas(
     canvas.height = Math.max(1, canvasHeight);
     ctx.fillStyle = `rgb(${subtleBgColor})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // --- End Dimension Calculation ---
 
-    // --- STEP 1: Calculate Center X Positions based on LAYOUT order ---
     const centerPositions = new Map<string, number>();
     let currentX = canvasPadding;
     montageImages.forEach((imgData, index) => {
@@ -217,13 +205,9 @@ export function useMontageCanvas(
           100);
       currentX += itemWidth - overlapPixelsForNext;
     });
-    // --- END STEP 1 ---
 
-    // --- STEP 2: Sort images by zIndex for DRAWING order ---
     const imagesToDraw = [...montageImages].sort((a, b) => a.zIndex - b.zIndex);
-    // --- END STEP 2 ---
 
-    // --- STEP 3: Draw images using pre-calculated positions ---
     const componentBgColor =
       computedStyle.getPropertyValue('--color-bg-component').trim() ||
       '255 255 255';
@@ -352,7 +336,6 @@ export function useMontageCanvas(
           ctx.fillRect(imgAreaX, imgAreaY, targetW, targetH);
         }
       } else {
-        // 'natural' effect
         if (hasValidImageElement && widthToUse > 0 && heightToUse > 0) {
           const fit = calculateAspectRatioFit(
             widthToUse,
@@ -388,15 +371,13 @@ export function useMontageCanvas(
         }
       }
       ctx.restore();
-    }); // End imagesToDraw.forEach loop
+    });
   }, [montageImages, effect]);
 
-  // generateMontageBlob (cropping logic still uses simplified bounds)
   const generateMontageBlob = useCallback(async (): Promise<Blob | null> => {
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) return null;
 
-    // Using simplified bounds (full canvas) until accurate calculation is implemented
     const bounds = {
       minX: 0,
       minY: 0,
@@ -454,10 +435,10 @@ export function useMontageCanvas(
       );
       const fullBlob = await new Promise<Blob | null>((resolve) =>
         mainCanvas.toBlob(resolve, 'image/png', 0.95)
-      ); // Fallback
+      );
       return fullBlob;
     }
-  }, [montageImages, effect]); // Depend on layout-ordered images and effect
+  }, [montageImages, effect]);
 
   return { canvasRef, generateMontageBlob };
 }

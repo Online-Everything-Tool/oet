@@ -9,13 +9,10 @@ const DEFAULT_OVERLAP_PERCENT = 20;
 const MAX_OVERLAP_PERCENT = 80;
 const MAX_TILT_DEG = 25;
 
-// --- Data Structures ---
-
-// UI Layer / Canvas Hook Data Structure
 export interface MontageImage {
-  id: number; // Temporary unique ID for React keys during rendering cycle
-  imageId: string; // Persistent ID from FileLibrary
-  image: HTMLImageElement; // The actual loaded element
+  id: number;
+  imageId: string;
+  image: HTMLImageElement;
   alt: string;
   tilt: number;
   overlapPercent: number;
@@ -24,7 +21,6 @@ export interface MontageImage {
   originalHeight: number;
 }
 
-// Data Structure for Persistent State (Serializable)
 interface PersistedMontageImage {
   imageId: string;
   name: string;
@@ -46,7 +42,6 @@ const DEFAULT_MONTAGE_STATE: PersistedMontageState = {
   images: [],
   effect: 'polaroid',
 };
-// **************************
 
 const getRandomTilt = (): number => {
   const deg = Math.floor(Math.random() * (MAX_TILT_DEG + 1));
@@ -54,23 +49,21 @@ const getRandomTilt = (): number => {
   return deg === 0 ? 0 : deg * sign;
 };
 
-// --- Hook Return Type ---
 interface UseMontageStateReturn {
-  montageImages: MontageImage[]; // Derived state for UI/Canvas
-  effect: MontageEffect; // Expose current effect
+  montageImages: MontageImage[];
+  effect: MontageEffect;
   addStoredFiles: (storedFiles: StoredFile[]) => Promise<void>;
-  clearMontage: () => Promise<void>; // Make async for clearState
+  clearMontage: () => Promise<void>;
   handleTiltChange: (imageId: string, newTilt: number) => void;
   handleOverlapChange: (imageId: string, newOverlap: number) => void;
-  handleMoveImageLeft: (imageId: string) => void; // Reorders layout
-  handleMoveImageRight: (imageId: string) => void; // Reorders layout
-  handleMoveUp: (imageId: string) => void; // Adjusts zIndex
-  handleMoveDown: (imageId: string) => void; // Adjusts zIndex
-  handleEffectChange: (effect: MontageEffect) => void; // Changes effect
-  isLoading: boolean; // Reflects combined loading (state + images)
-  error: string | null; // Reflects combined error
+  handleMoveImageLeft: (imageId: string) => void;
+  handleMoveImageRight: (imageId: string) => void;
+  handleMoveUp: (imageId: string) => void;
+  handleMoveDown: (imageId: string) => void;
+  handleEffectChange: (effect: MontageEffect) => void;
+  isLoading: boolean;
+  error: string | null;
 }
-// ***********************
 
 export function useMontageState(
   toolTitle: string,
@@ -101,7 +94,6 @@ export function useMontageState(
     Object.values(imageLoadingStatus).some((status) => status === 'loading');
   const error = errorLoadingState || localError;
 
-  // --- Sync Effect (Load/Unload Image Elements & Store Dimensions) ---
   useEffect(() => {
     if (isLoadingPersistentState) return;
     const currentImageIds = new Set(
@@ -110,7 +102,7 @@ export function useMontageState(
     const nextLoadingStatus = { ...imageLoadingStatus };
     let needsStatusUpdate = false;
     let localErrorOccurred: string | null = null;
-    let stateNeedsDimensionUpdate = false; // Flag to batch dimension updates
+    let stateNeedsDimensionUpdate = false;
     const dimensionUpdates: {
       imageId: string;
       width: number;
@@ -131,7 +123,7 @@ export function useMontageState(
             if (!storedFile?.blob)
               throw new Error(`Blob missing for image ID ${imageId}`);
             const objectURL = URL.createObjectURL(storedFile.blob);
-            objectUrlsRef.current.set(imageId, objectURL); // Track URL
+            objectUrlsRef.current.set(imageId, objectURL);
             const img = new Image();
             img.onload = () => {
               setLoadedImageElements((prevMap) =>
@@ -141,7 +133,7 @@ export function useMontageState(
                 ...prevStatus,
                 [imageId]: 'loaded',
               }));
-              // Check if dimensions are missing (specifically check for 0 or undefined)
+
               const existingPersisted = persistentState.images.find(
                 (pImg) => pImg.imageId === imageId
               );
@@ -188,7 +180,6 @@ export function useMontageState(
       }
     });
 
-    // --- Apply dimension updates after iterating ---
     if (stateNeedsDimensionUpdate) {
       setPersistentState((prev) => {
         const updatedImages = prev.images.map((pImg) => {
@@ -203,14 +194,13 @@ export function useMontageState(
               }
             : pImg;
         });
-        // Only update if the array content actually changed
+
         return JSON.stringify(prev.images) !== JSON.stringify(updatedImages)
           ? { ...prev, images: updatedImages }
           : prev;
       });
     }
 
-    // --- Clean up stale elements and URLs ---
     let needsElementCleanup = false;
     let needsStatusCleanup = false;
     loadedImageElements.forEach((_, imageId) => {
@@ -256,7 +246,6 @@ export function useMontageState(
     setPersistentState,
   ]);
 
-  // --- Cleanup Object URLs on Unmount ---
   useEffect(() => {
     const urls = objectUrlsRef.current;
     return () => {
@@ -265,13 +254,11 @@ export function useMontageState(
     };
   }, []);
 
-  // --- Derived State for UI/Canvas ---
   const montageImages = useMemo((): MontageImage[] => {
     console.log(
       '[MontageState useMemo] Calculating derived state. Persistent state image order:',
       persistentState.images.map((p) => ({ id: p.imageId, z: p.zIndex }))
     );
-    // ******************************
 
     const derived = persistentState.images
       .map((persistedImg, index): MontageImage | null => {
@@ -287,12 +274,12 @@ export function useMontageState(
             }
             for (let i = 0; i < str.length; i++) {
               const char = str.charCodeAt(i);
-              // Basic bitwise operation to combine hash and character code
+
               hash = (hash << 5) - hash + char;
-              // Convert to 32bit integer
+
               hash |= 0;
             }
-            // Make slightly more unique by mixing with length, ensure positive-ish
+
             hash = Math.abs(hash ^ (str.length * 13));
             return hash;
           };
@@ -312,16 +299,13 @@ export function useMontageState(
       })
       .filter((img): img is MontageImage => img !== null);
 
-    // *** LOG AFTER CALCULATION ***
     console.log(
       '[MontageState useMemo] Finished calculation. Derived state image order:',
       derived.map((d) => ({ id: d.imageId, z: d.zIndex }))
     );
-    // *****************************
+
     return derived;
   }, [persistentState.images, loadedImageElements, imageLoadingStatus]);
-
-  // --- Actions ---
 
   const addStoredFiles = useCallback(
     async (storedFiles: StoredFile[]): Promise<void> => {
