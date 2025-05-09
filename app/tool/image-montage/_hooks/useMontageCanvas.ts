@@ -1,11 +1,12 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageCanvas.ts ---
 import { useRef, useEffect, useCallback } from 'react';
-import type { MontageEffect } from './useMontageState';
+import type { MontageEffect } from './useMontageState'; // Import the effect type
 
+// Assume MontageImage is defined in useMontageState and imported or defined here identically
 interface MontageImage {
-  id: number;
-  imageId: string;
-  image: HTMLImageElement;
+  id: number; // Temporary unique ID for React keys during rendering cycle
+  imageId: string; // Persistent ID from FileLibrary
+  image: HTMLImageElement; // The actual loaded element
   alt: string;
   tilt: number;
   overlapPercent: number;
@@ -23,6 +24,7 @@ type RenderedBounds = {
   height: number;
 };
 
+// --- Constants ---
 const POLAROID_IMAGE_WIDTH = 150;
 const POLAROID_IMAGE_HEIGHT = 150;
 const POLAROID_BORDER_PADDING = 10;
@@ -34,6 +36,9 @@ const NATURAL_MAX_DIMENSION = 170;
 const MAX_OVERLAP_PERCENT = 80;
 const FINAL_OUTPUT_PADDING = 10;
 
+// --- Helper Functions ---
+
+// Calculates the maximum possible canvas dimensions needed based on potential rotation
 const calculateMaxBoundsNeeded = (
   width: number,
   height: number
@@ -42,6 +47,7 @@ const calculateMaxBoundsNeeded = (
   return { maxW: diagonal, maxH: diagonal };
 };
 
+// Calculates the dimensions for drawing an image while preserving aspect ratio
 const calculateAspectRatioFit = (
   srcWidth: number,
   srcHeight: number,
@@ -63,17 +69,20 @@ const calculateAspectRatioFit = (
   };
 };
 
+// --- Main Hook ---
+
 interface UseMontageCanvasReturn {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   generateMontageBlob: () => Promise<Blob | null>;
 }
 
 export function useMontageCanvas(
-  montageImages: MontageImage[],
+  montageImages: MontageImage[], // Expects array in LAYOUT order from useMontageState
   effect: MontageEffect
 ): UseMontageCanvasReturn {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Main drawing effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -95,8 +104,12 @@ export function useMontageCanvas(
       return;
     }
 
+    // --- Calculate required canvas dimensions AND Center Positions based on LAYOUT order ---
     let totalContentWidth = 0;
     let maxItemHeight = 0;
+    const centerPositions = new Map<string, number>(); // Map imageId to its final centerX (including padding)
+    let currentLayoutX = 0; // Tracks the starting X edge of the current image's content area, relative to start of content block (0)
+
     montageImages.forEach((imgData, index) => {
       let itemWidth = 0;
       let itemHeight = 0;
@@ -116,14 +129,18 @@ export function useMontageCanvas(
         } else {
           itemWidth = NATURAL_MAX_DIMENSION;
           itemHeight = NATURAL_MAX_DIMENSION;
-        }
+        } // Use fallback size
       }
       const { maxH: rotatedHeight } = calculateMaxBoundsNeeded(
         itemWidth,
         itemHeight
       );
       maxItemHeight = Math.max(maxItemHeight, rotatedHeight);
+
+      let currentImageCenterX = 0;
       if (index === 0) {
+        currentLayoutX = 0; // First image starts at the beginning
+        currentImageCenterX = currentLayoutX + itemWidth / 2;
         totalContentWidth = itemWidth;
       } else {
         const prevImgData = montageImages[index - 1];
@@ -138,76 +155,41 @@ export function useMontageCanvas(
                   NATURAL_MAX_DIMENSION
                 ).width
               : NATURAL_MAX_DIMENSION;
+        // Overlap percentage of the *current* image determines how much it overlaps the *previous* one
         const overlapPercent = Math.max(
           0,
           Math.min(MAX_OVERLAP_PERCENT, imgData.overlapPercent)
         );
         const overlapPixels = prevItemWidth * (overlapPercent / 100);
-        totalContentWidth += itemWidth - overlapPixels;
+
+        // The start edge of the current image is the start edge of the previous one + previous width - overlap
+        currentLayoutX = currentLayoutX + prevItemWidth - overlapPixels;
+        currentImageCenterX = currentLayoutX + itemWidth / 2; // Center relative to its start edge
+        totalContentWidth = currentLayoutX + itemWidth; // Update total width to the right edge of current image
       }
+      centerPositions.set(imgData.imageId, currentImageCenterX); // Store center relative to content block start
     });
+
+    // Determine padding and final canvas size
     const canvasPadding = maxItemHeight * 0.3;
     const canvasWidth = Math.ceil(totalContentWidth + canvasPadding * 2);
     const canvasHeight = Math.ceil(maxItemHeight + canvasPadding * 2);
     canvas.width = Math.max(1, canvasWidth);
     canvas.height = Math.max(1, canvasHeight);
-    ctx.fillStyle = `rgb(${subtleBgColor})`;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    const centerPositions = new Map<string, number>();
-    let currentX = canvasPadding;
-    montageImages.forEach((imgData, index) => {
-      let itemWidth = 0;
-      if (effect === 'polaroid') {
-        itemWidth = TOTAL_POLAROID_WIDTH;
-      } else {
-        if (imgData.originalWidth && imgData.originalHeight) {
-          const fit = calculateAspectRatioFit(
-            imgData.originalWidth,
-            imgData.originalHeight,
-            NATURAL_MAX_DIMENSION,
-            NATURAL_MAX_DIMENSION
-          );
-          itemWidth = fit.width;
-        } else {
-          itemWidth = NATURAL_MAX_DIMENSION;
-        }
-      }
-
-      let centerX = 0;
-      if (index === 0) {
-        centerX = currentX + itemWidth / 2;
-      } else {
-        const prevImgData = montageImages[index - 1];
-        const prevItemWidth =
-          effect === 'polaroid'
-            ? TOTAL_POLAROID_WIDTH
-            : prevImgData.originalWidth && prevImgData.originalHeight
-              ? calculateAspectRatioFit(
-                  prevImgData.originalWidth,
-                  prevImgData.originalHeight,
-                  NATURAL_MAX_DIMENSION,
-                  NATURAL_MAX_DIMENSION
-                ).width
-              : NATURAL_MAX_DIMENSION;
-        const overlapPercent = Math.max(
-          0,
-          Math.min(MAX_OVERLAP_PERCENT, imgData.overlapPercent)
-        );
-        const overlapPixels = prevItemWidth * (overlapPercent / 100);
-        centerX = currentX + itemWidth / 2;
-      }
-      centerPositions.set(imgData.imageId, centerX);
-
-      const overlapPixelsForNext =
-        itemWidth *
-        (Math.max(0, Math.min(MAX_OVERLAP_PERCENT, imgData.overlapPercent)) /
-          100);
-      currentX += itemWidth - overlapPixelsForNext;
+    // Apply final offset to all calculated positions to account for left padding
+    centerPositions.forEach((val, key) => {
+      centerPositions.set(key, val + canvasPadding);
     });
 
-    const imagesToDraw = [...montageImages].sort((a, b) => a.zIndex - b.zIndex);
+    // Fill background
+    ctx.fillStyle = `rgb(${subtleBgColor})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // --- End Dimension & Position Calculation ---
 
+    // --- Draw Images ---
+    // Sort by zIndex for drawing order
+    const imagesToDraw = [...montageImages].sort((a, b) => a.zIndex - b.zIndex);
     const componentBgColor =
       computedStyle.getPropertyValue('--color-bg-component').trim() ||
       '255 255 255';
@@ -224,13 +206,14 @@ export function useMontageCanvas(
         : originalHeight;
 
       const tiltRad = tilt * (Math.PI / 180);
-      const centerX = centerPositions.get(imageId);
+      const centerX = centerPositions.get(imageId); // Get pre-calculated final centerX
       if (centerX === undefined) {
         console.error(`[Canvas Draw] Position not found for ${imageId}`);
         return;
       }
-      const centerY = canvasHeight / 2;
+      const centerY = canvasHeight / 2; // Use final canvasHeight
 
+      // Determine the item's bounding box size for centering the draw operations
       let currentItemWidth = 0;
       let currentItemHeight = 0;
       if (effect === 'polaroid') {
@@ -251,11 +234,11 @@ export function useMontageCanvas(
           currentItemHeight = NATURAL_MAX_DIMENSION;
         }
       }
-      const drawX = -currentItemWidth / 2;
+      const drawX = -currentItemWidth / 2; // Top-left relative to center for drawing commands
       const drawY = -currentItemHeight / 2;
 
       ctx.save();
-      ctx.translate(centerX, centerY);
+      ctx.translate(centerX, centerY); // Translate to final position
       ctx.rotate(tiltRad);
 
       if (effect === 'polaroid') {
@@ -336,6 +319,7 @@ export function useMontageCanvas(
           ctx.fillRect(imgAreaX, imgAreaY, targetW, targetH);
         }
       } else {
+        // 'natural' effect
         if (hasValidImageElement && widthToUse > 0 && heightToUse > 0) {
           const fit = calculateAspectRatioFit(
             widthToUse,
@@ -371,13 +355,15 @@ export function useMontageCanvas(
         }
       }
       ctx.restore();
-    });
+    }); // End imagesToDraw.forEach loop
   }, [montageImages, effect]);
 
+  // generateMontageBlob (cropping logic still uses simplified bounds)
   const generateMontageBlob = useCallback(async (): Promise<Blob | null> => {
     const mainCanvas = canvasRef.current;
     if (!mainCanvas || montageImages.length === 0) return null;
 
+    // Using simplified bounds (full canvas) until accurate calculation is implemented
     const bounds = {
       minX: 0,
       minY: 0,
@@ -435,10 +421,10 @@ export function useMontageCanvas(
       );
       const fullBlob = await new Promise<Blob | null>((resolve) =>
         mainCanvas.toBlob(resolve, 'image/png', 0.95)
-      );
+      ); // Fallback
       return fullBlob;
     }
-  }, [montageImages, effect]);
+  }, [montageImages, effect]); // Depend on layout-ordered images and effect
 
   return { canvasRef, generateMontageBlob };
 }

@@ -6,10 +6,10 @@ import Image from 'next/image';
 import { useHistory } from '../../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
-import StorageControls from '../../_components/storage/StorageControls';
-import FileListView from '../../_components/storage/FileListView';
-import FileGridView from '../../_components/storage/FileGridView';
-import FileSelectionModal from '../../_components/FileSelectionModal';
+import StorageControls from '../../_components/file-storage/StorageControls';
+import FileListView from '../../_components/file-storage/FileListView';
+import FileGridView from '../../_components/file-storage/FileGridView';
+import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 
 import { PhotoIcon } from '@heroicons/react/20/solid';
 

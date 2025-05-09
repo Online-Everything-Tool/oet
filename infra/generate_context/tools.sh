@@ -12,12 +12,8 @@ cd "$(dirname "$0")/../.." || exit 1
 TOOL_BASE_DIR="app/tool"
 # Output directory for individual context files
 OUTPUT_BASE_DIR="infra/data/tool_context"
-# Explicitly define shared directories to include (relative to TOOL_BASE_DIR)
-# These will be prepended to each tool's context.
-SHARED_DIRS_RELATIVE=("_components" "_hooks" "_data")
-# Directories to completely exclude from processing (should match SHARED_DIRS_RELATIVE usually)
-EXCLUDE_DIRS=("_components" "_hooks" "_data")
-# --- End Configuration ---
+
+EXCLUDE_DIRS=("_components" "_hooks")
 
 # Ensure the base output directory exists
 mkdir -p "$OUTPUT_BASE_DIR" || { echo "Error: Could not create output directory '$OUTPUT_BASE_DIR'" >&2; exit 1; }
@@ -31,57 +27,6 @@ fi
 echo "Generating individual tool context files..."
 echo "Base Tool Directory: $TOOL_BASE_DIR"
 echo "Output Directory:    $OUTPUT_BASE_DIR"
-echo "Shared Dirs to Add: ${SHARED_DIRS_RELATIVE[*]}"
-echo "Excluded Dirs:      ${EXCLUDE_DIRS[*]}"
-
-# --- Step 1: Capture Shared Content ---
-SHARED_CONTEXT_CONTENT=""
-echo "--------------------------------------"
-echo "Capturing shared context from app/tool/_*..."
-SHARED_DIRS_FOUND=0
-for SHARED_REL_DIR in "${SHARED_DIRS_RELATIVE[@]}"; do
-    SHARED_DIR_ABS="$TOOL_BASE_DIR/$SHARED_REL_DIR"
-    if [ -d "$SHARED_DIR_ABS" ]; then
-        SHARED_DIRS_FOUND=$((SHARED_DIRS_FOUND + 1))
-        echo "  Processing shared dir: $SHARED_REL_DIR"
-        SHARED_CONTEXT_CONTENT+=$(cat <<-EOF
---- START SHARED DIRECTORY: $SHARED_REL_DIR ---
-
-EOF
-)
-        # Find files within this shared directory
-        while IFS= read -r FILE; do
-            # Get relative path from TOOL_BASE_DIR for header clarity
-            RELATIVE_PATH=${FILE#"$TOOL_BASE_DIR/"} # e.g., _components/SomeShared.tsx
-            echo "    Adding shared file: $RELATIVE_PATH"
-            SHARED_CONTEXT_CONTENT+=$(cat <<- EOF
---- FILE: $RELATIVE_PATH ---
-
-$(cat "$FILE" || echo "[ERROR READING SHARED FILE: $FILE]")
-
---- END FILE: $RELATIVE_PATH ---
-
-EOF
-)
-        done < <(find "$SHARED_DIR_ABS" -type f)
-        SHARED_CONTEXT_CONTENT+=$(cat <<-EOF
-
---- END SHARED DIRECTORY: $SHARED_REL_DIR ---
-
-EOF
-)
-    else
-        echo "  Warning: Shared directory not found: $SHARED_DIR_ABS"
-    fi
-done
-
-if [ $SHARED_DIRS_FOUND -eq 0 ]; then
-    echo "Warning: No shared directories (${SHARED_DIRS_RELATIVE[*]}) found to capture context from."
-    SHARED_CONTEXT_CONTENT="[No shared context found or captured]\n" # Placeholder
-fi
-echo "Shared context captured (${#SHARED_CONTEXT_CONTENT} characters)."
-echo "--------------------------------------"
-
 
 processed_count=0
 skipped_count=0

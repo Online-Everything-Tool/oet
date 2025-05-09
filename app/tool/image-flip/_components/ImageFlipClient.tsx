@@ -12,7 +12,7 @@ import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useHistory } from '../../../context/HistoryContext';
 import type { StoredFile } from '@/src/types/storage';
-import FileSelectionModal from '@/app/tool/_components/FileSelectionModal';
+import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';

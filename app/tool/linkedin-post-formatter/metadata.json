@@ -1,0 +1,13 @@
+{
+  "title": "LinkedIn Post Formatter",
+  "description": "Format your LinkedIn posts with bold, italics, lists, and more using Unicode characters for easy copy-pasting.",
+  "urlStateParams": [],
+  "outputConfig": {
+    "outputType": "none"
+  },
+  "defaultLogging": "on",
+  "tags": ["text", "formatting", "linkedin", "social media", "unicode"],
+  "iconName": null,
+  "includeInSitemap": true,
+  "status": "beta"
+}

@@ -4,16 +4,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
 import { getUniqueSortedValues } from '@/app/lib/utils';
-
-export interface RichEmojiData {
-  emoji: string;
-  name: string;
-  codePoints: string;
-  version: string;
-  status: string;
-  group: string;
-  subgroup: string;
-}
+import { RichEmojiData } from '@/src/constants/emojis';
 
 interface EmojiSearchClientProps {
   initialEmojis: RichEmojiData[];

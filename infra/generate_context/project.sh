@@ -24,21 +24,33 @@ SPECIFIC_FILES=(
   "app/globals.css"
 )
 
+# *** ADDED: Define files to explicitly exclude ***
+EXCLUDE_FILES=(
+  "src/constants/emojis-text.ts"
+  # Add other specific files to exclude here, e.g.,
+  # "app/some/other/file/to/exclude.ts"
+)
+# ***********************************************
+
 SCAN_DIRS=(
-  "src"        
+  "src"
   "app/api"
   "app/build-tool"
   "app/_components"
   "app/context"
   "app/lib"
   "app/history"
+  "app/tool/_components" # For shared tool components like Range, FileSelectionModal
+  "app/tool/_hooks"    # For shared tool hooks
   "infra/cloudformation"
   "infra/generate_context"
   "infra/analyze_context"
 )
 
+
 # Define directories/patterns to exclude from the 'tree' command
-TREE_EXCLUDE_PATTERNS='node_modules|.next|*.log|dist|out|build|assets|public/assets|infra/data|.git|.cache'
+TREE_EXCLUDE_PATTERNS='node_modules|.next|*.log|dist|out|build|assets|infra/data|.git|.cache'
+
 
 # Output file location (relative to project root)
 OUTPUT_DIR="infra/data"
@@ -56,25 +68,57 @@ echo "Gathering file list..."
 
 # --- Find files in specified directories ---
 FOUND_FILES=()
+files_to_exclude_count=0 # Counter for excluded files
+
+# Helper function to check if an element is in an array
+containsElement () {
+  local e match="$1"
+  shift
+  for e; do [[ "$e" == "$match" ]] && return 0; done
+  return 1
+}
+
 for dir in "${SCAN_DIRS[@]}"; do
   if [ -d "$dir" ]; then
     echo "Scanning directory: $dir"
-    # Use find to get all files (-type f) within the directory.
-    # -print0 and mapfile handle filenames with spaces/newlines safely.
     while IFS= read -r -d $'\0' file; do
-      FOUND_FILES+=("$file")
+      # *** MODIFIED: Check against EXCLUDE_FILES before adding ***
+      if containsElement "$file" "${EXCLUDE_FILES[@]}"; then
+        echo "  Excluding specific file: $file"
+        files_to_exclude_count=$((files_to_exclude_count + 1))
+      else
+        FOUND_FILES+=("$file")
+      fi
+      # *********************************************************
     done < <(find "$dir" -type f -print0)
   else
-    echo "Warning: Scatxtn directory not found: $dir"
+    echo "Warning: Scan directory not found: $dir" # Corrected typo
   fi
 done
-echo "Found ${#FOUND_FILES[@]} files in scanned directories."
+echo "Found ${#FOUND_FILES[@]} files in scanned directories (after excluding ${files_to_exclude_count} specific files)."
 
-# --- Combine specific files and found files, then deduplicate ---
-# Use printf and sort -u for robust deduplication
-ALL_FILES_RAW=("${SPECIFIC_FILES[@]}" "${FOUND_FILES[@]}")
+# --- Combine specific files and found files, then deduplicate and exclude again ---
+# The SPECIFIC_FILES might contain something that's also in EXCLUDE_FILES,
+# so we need to filter EXCLUDE_FILES from SPECIFIC_FILES too if that's the intent.
+# For now, assuming EXCLUDE_FILES primarily targets what's found by `find`.
+# If SPECIFIC_FILES should also be filtered by EXCLUDE_FILES, that's a more complex merge.
+
+# Create a temporary array for files that are truly specific and not in EXCLUDE_FILES
+TEMP_SPECIFIC_FILES=()
+for specific_file in "${SPECIFIC_FILES[@]}"; do
+    if ! containsElement "$specific_file" "${EXCLUDE_FILES[@]}"; then
+        TEMP_SPECIFIC_FILES+=("$specific_file")
+    else
+        echo "  Note: Specific file '$specific_file' is in EXCLUDE_FILES, it will not be included."
+        files_to_exclude_count=$((files_to_exclude_count + 1)) # Count it if specific file is excluded
+    fi
+done
+
+
+ALL_FILES_RAW=("${TEMP_SPECIFIC_FILES[@]}" "${FOUND_FILES[@]}")
 mapfile -t ALL_FILES < <(printf "%s\n" "${ALL_FILES_RAW[@]}" | sort -u)
-echo "Total unique files to include: ${#ALL_FILES[@]}"
+echo "Total unique files to include (after all exclusions and deduplication): ${#ALL_FILES[@]}"
+
 
 # --- Generate Header and Tree ---
 echo "Generating project context header and structure..."
@@ -90,7 +134,9 @@ echo "Generating project context header and structure..."
 
 # Add tree command output
 if command -v tree &> /dev/null; then
-  tree -L 4 -I "$TREE_EXCLUDE_PATTERNS" >> "$OUTPUT_FILE" 2>/dev/null || echo "  (tree command ran but failed)" >> "$OUTPUT_FILE"
+  # Update tree exclude pattern to include public/api and public/data
+  EFFECTIVE_TREE_EXCLUDE_PATTERNS="${TREE_EXCLUDE_PATTERNS}|public/api|public/data"
+  tree -L 4 -I "$EFFECTIVE_TREE_EXCLUDE_PATTERNS" >> "$OUTPUT_FILE" 2>/dev/null || echo "  (tree command ran but failed)" >> "$OUTPUT_FILE"
 else
   echo "  (tree command not found, skipping structure view)" >> "$OUTPUT_FILE"
 fi
@@ -105,24 +151,31 @@ fi
 # --- Append File Contents ---
 echo "Appending file contents..."
 processed_count=0
-skipped_count=0
-for FILE in "${ALL_FILES[@]}"; do
-  if [ -f "$FILE" ]; then
-    echo "  Appending: $FILE"
+skipped_count=0 # This counts files not found, not ones intentionally excluded by EXCLUDE_FILES
+for FILE_PATH in "${ALL_FILES[@]}"; do # Renamed loop variable to avoid conflict
+  # Double check if file is in EXCLUDE_FILES again, just in case it came from SPECIFIC_FILES and wasn't caught
+  # This check is redundant if TEMP_SPECIFIC_FILES logic correctly filters SPECIFIC_FILES
+  # but it's a safe guard.
+  # if containsElement "$FILE_PATH" "${EXCLUDE_FILES[@]}"; then
+  #   echo "  Skipping due to EXCLUDE_FILES (safeguard): $FILE_PATH"
+  #   continue
+  # fi
+
+  if [ -f "$FILE_PATH" ]; then
+    echo "  Appending: $FILE_PATH"
     {
-      echo "--- FILE: $FILE ---"
+      echo "--- FILE: $FILE_PATH ---"
       echo ""
-      # Using cat. Consider alternatives like head/tail for very large binary files if needed.
-      cat "$FILE"
-      echo "" # Add a newline after file content just in case file doesn't end with one
-      echo "--- END FILE: $FILE ---"
+      cat "$FILE_PATH"
+      echo ""
+      echo "--- END FILE: $FILE_PATH ---"
       echo ""
     } >> "$OUTPUT_FILE"
     processed_count=$((processed_count + 1))
   else
-      echo "  Skipping (Not Found): $FILE"
+      echo "  Skipping (Not Found): $FILE_PATH"
       {
-          echo "--- FILE: $FILE (Not Found during processing) ---"
+          echo "--- FILE: $FILE_PATH (Not Found during processing) ---"
           echo ""
       } >> "$OUTPUT_FILE"
       skipped_count=$((skipped_count + 1))
@@ -134,17 +187,8 @@ echo "--------------------------------------"
 echo "Project context generation complete."
 echo "Output file: $OUTPUT_FILE"
 echo "Files processed: $processed_count"
+echo "Specific files explicitly excluded: ${files_to_exclude_count}" # New summary line
 echo "Files skipped (not found): $skipped_count"
 echo "--------------------------------------"
 
-# Optional: Copy directly to clipboard (uncomment the relevant line)
-# echo "Attempting to copy to clipboard..."
-# if command -v pbcopy &> /dev/null; then # macOS
-#   pbcopy < "$OUTPUT_FILE" && echo "Copied to macOS clipboard."
-# elif command -v xclip &> /dev/null; then # Linux/X11
-#    xclip -selection clipboard < "$OUTPUT_FILE" && echo "Copied to X11 clipboard via xclip."
-# elif command -v wl-copy &> /dev/null; then # Linux/Wayland
-#    wl-copy < "$OUTPUT_FILE" && echo "Copied to Wayland clipboard via wl-copy."
-# else
-#   echo "Clipboard command (pbcopy, xclip, wl-copy) not found."
-# fi
+# ... (clipboard copy logic) ...
