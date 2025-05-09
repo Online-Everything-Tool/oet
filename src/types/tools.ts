@@ -39,6 +39,8 @@ export type ToolInputConfig =
 interface BaseOutputConfig {
   summaryField?: string;
   outputType: 'file' | 'text' | 'json_object' | 'url' | 'none';
+  referenceType?: 'imageLibraryId' | 'fileLibraryId' | 'none';
+  referenceField?: string;
 }
 
 interface FileOutputDetails {
