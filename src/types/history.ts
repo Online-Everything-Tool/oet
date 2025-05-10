@@ -1,6 +1,12 @@
 // FILE: src/types/history.ts
 
-export type TriggerType = 'click' | 'query' | 'auto' | 'transfer' | 'upload';
+export type TriggerType =
+  | 'click'
+  | 'query'
+  | 'auto'
+  | 'transfer'
+  | 'upload'
+  | 'library';
 
 export interface HistoryEntry {
   id: string;

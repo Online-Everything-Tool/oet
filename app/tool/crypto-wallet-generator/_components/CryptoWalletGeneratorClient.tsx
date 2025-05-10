@@ -1,7 +1,7 @@
 // FILE: app/tool/crypto-wallet-generator/_components/CryptoWalletGeneratorClient.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react'; // Added useEffect
 import { useHistory } from '../../../context/HistoryContext';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -9,6 +9,20 @@ import ECPairFactory from 'ecpair';
 import * as tinysecp from 'tiny-secp256k1';
 import { Keypair } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
+
+import Button from '../../_components/form/Button';
+import RadioGroup from '../../_components/form/RadioGroup';
+import useToolState from '../../_hooks/useToolState'; // Import useToolState
+import type { ParamConfig } from '@/src/types/tools'; // For urlStateParams if used
+import {
+  ArrowPathIcon,
+  TrashIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  ClipboardDocumentIcon,
+  CheckIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 
 const ECPair = ECPairFactory(tinysecp);
 
@@ -24,22 +38,65 @@ interface WalletEntry {
   privateKeyFormatNote?: string;
 }
 
+// Define state for useToolState
+interface CryptoWalletToolState {
+  walletType: WalletType;
+}
+
+const DEFAULT_CRYPTO_TOOL_STATE: CryptoWalletToolState = {
+  walletType: 'ethereum',
+};
+
 interface CryptoWalletGeneratorClientProps {
   toolTitle: string;
   toolRoute: string;
+  urlStateParams?: ParamConfig[]; // Make urlStateParams optional if not always used for this tool's state
 }
 
 export default function CryptoWalletGeneratorClient({
   toolTitle,
   toolRoute,
+  urlStateParams, // Added to props
 }: CryptoWalletGeneratorClientProps) {
-  const [walletType, setWalletType] = useState<WalletType>('ethereum');
+  const {
+    state: toolSettings, // Renamed to toolSettings for clarity
+    setState: setToolSettings,
+    isLoadingState: isLoadingToolSettings,
+  } = useToolState<CryptoWalletToolState>(toolRoute, DEFAULT_CRYPTO_TOOL_STATE);
+
+  // Local UI state for generated wallets and interaction feedback
   const [generatedWallets, setGeneratedWallets] = useState<WalletEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState<boolean>(false);
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
 
   const { addHistoryEntry } = useHistory();
+
+  // Effect for initial URL param load for walletType
+  useEffect(() => {
+    if (
+      !isLoadingToolSettings &&
+      urlStateParams &&
+      urlStateParams?.length > 0
+    ) {
+      const params = new URLSearchParams(window.location.search);
+      // Assuming 'type' or 'walletType' might be a URL parameter for default selection
+      const typeFromUrl =
+        (params.get('type') as WalletType) ||
+        (params.get('walletType') as WalletType);
+
+      if (
+        typeFromUrl &&
+        ['ethereum', 'bitcoin', 'solana'].includes(typeFromUrl)
+      ) {
+        if (typeFromUrl !== toolSettings.walletType) {
+          setToolSettings({ walletType: typeFromUrl });
+          // No automatic generation on URL type change, user must click "Generate"
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingToolSettings, urlStateParams, setToolSettings]); // toolSettings.walletType removed to avoid loop if URL matches initial default
 
   const toggleSpecificPrivateKeyVisibility = (id: string) => {
     setGeneratedWallets((prevWallets) =>
@@ -54,21 +111,21 @@ export default function CryptoWalletGeneratorClient({
   const handleGenerateWallet = useCallback(async () => {
     setGenerating(true);
     setError(null);
-
     let newWalletEntry: WalletEntry | null = null;
     let generatedPublicKey: string = '';
     let generatedPrivateKey: string = '';
     let privateKeyFormatNote: string | undefined = undefined;
     let status: 'success' | 'error' = 'success';
     let errorMessage = '';
-    const inputDetails = { walletType: walletType };
+    const currentWalletType = toolSettings.walletType; // Use from toolSettings
+    const inputDetails = { walletType: currentWalletType };
 
     try {
-      if (walletType === 'ethereum') {
+      if (currentWalletType === 'ethereum') {
         const wallet = ethers.Wallet.createRandom();
         generatedPrivateKey = wallet.privateKey;
         generatedPublicKey = wallet.address;
-      } else if (walletType === 'bitcoin') {
+      } else if (currentWalletType === 'bitcoin') {
         const keyPair = ECPair.makeRandom();
         generatedPrivateKey = keyPair.toWIF();
         const { address } = bitcoin.payments.p2pkh({
@@ -77,7 +134,7 @@ export default function CryptoWalletGeneratorClient({
         if (!address)
           throw new Error('Failed to generate Bitcoin P2PKH address.');
         generatedPublicKey = address;
-      } else if (walletType === 'solana') {
+      } else if (currentWalletType === 'solana') {
         const keypair = Keypair.generate();
         generatedPublicKey = keypair.publicKey.toBase58();
         generatedPrivateKey = ethers.encodeBase58(keypair.secretKey);
@@ -89,26 +146,23 @@ export default function CryptoWalletGeneratorClient({
 
       newWalletEntry = {
         id: uuidv4(),
-        type: walletType,
+        type: currentWalletType,
         privateKey: generatedPrivateKey,
         publicKey: generatedPublicKey,
         isPrivateKeyVisible: false,
         timestamp: Date.now(),
         privateKeyFormatNote: privateKeyFormatNote,
       };
-
-      setGeneratedWallets((prev) => [newWalletEntry!, ...prev]);
+      setGeneratedWallets((prev) => [newWalletEntry!, ...prev].slice(0, 10));
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'An unexpected error occurred.';
-      console.error('Error generating wallet:', err);
       errorMessage = `Error: ${message}`;
       setError(errorMessage);
       status = 'error';
       (inputDetails as Record<string, unknown>).error = errorMessage;
     } finally {
       setGenerating(false);
-
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
@@ -116,17 +170,16 @@ export default function CryptoWalletGeneratorClient({
         input: inputDetails,
         output:
           status === 'success'
-            ? `Generated ${walletType}: ${generatedPublicKey}`
+            ? `Generated ${currentWalletType}: ${generatedPublicKey.substring(0, 20)}...`
             : errorMessage,
         status: status,
         eventTimestamp: Date.now(),
       });
     }
-  }, [walletType, addHistoryEntry, toolTitle, toolRoute]);
+  }, [toolSettings.walletType, addHistoryEntry, toolTitle, toolRoute]);
 
-  const handleTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newType = event.target.value as WalletType;
-    setWalletType(newType);
+  const handleTypeChange = (newType: WalletType) => {
+    setToolSettings({ walletType: newType }); // Update persisted state
     setError(null);
   };
 
@@ -145,7 +198,6 @@ export default function CryptoWalletGeneratorClient({
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'Clipboard write failed.';
-        console.error(`Failed to copy ${copyType}:`, err);
         setError(`Failed to copy ${copyType}: ${message}`);
       }
     },
@@ -155,144 +207,110 @@ export default function CryptoWalletGeneratorClient({
   const handleClearAllWallets = useCallback(() => {
     setGeneratedWallets([]);
     setError(null);
-  }, []);
+    addHistoryEntry({
+      toolName: toolTitle,
+      toolRoute,
+      trigger: 'click',
+      input: { action: 'clearAllWallets' },
+      output: 'Cleared all generated wallets.',
+      status: 'success',
+      eventTimestamp: Date.now(),
+    });
+  }, [addHistoryEntry, toolTitle, toolRoute]);
+
+  const walletTypeOptions = useMemo(
+    () => [
+      { value: 'ethereum' as WalletType, label: 'Ethereum (EVM)' },
+      { value: 'bitcoin' as WalletType, label: 'Bitcoin (BTC)' },
+      { value: 'solana' as WalletType, label: 'Solana (SOL)' },
+    ],
+    []
+  );
+
+  if (isLoadingToolSettings) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Wallet Generator...
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
       <div
         role="alert"
-        className="p-4 text-sm rounded-lg bg-[rgb(var(--color-indicator-ambiguous)/0.1)] border border-[rgb(var(--color-indicator-ambiguous)/0.5)] text-[rgb(var(--color-text-muted))]"
+        className="p-4 text-sm rounded-lg bg-[rgb(var(--color-indicator-ambiguous)/0.1)] border border-[rgb(var(--color-indicator-ambiguous)/0.5)] text-[rgb(var(--color-text-muted))] flex items-start gap-2"
       >
-        <strong className="font-medium text-[rgb(var(--color-text-base))]">
-          ⚠️ Security Warning:
-        </strong>{' '}
-        Generating keys in a browser is **NOT** recommended for storing
-        significant value. Use dedicated hardware or software wallets for main
-        funds. These generated keys are best for testing or learning purposes
-        only. Always back up private keys securely offline and never share them.
+        <ExclamationTriangleIcon className="h-6 w-6 text-[rgb(var(--color-indicator-ambiguous))] flex-shrink-0 mt-0.5" />
+        <div>
+          <strong className="font-medium text-[rgb(var(--color-text-base))]">
+            Security Warning:
+          </strong>{' '}
+          Generating keys in a browser is <strong>NOT</strong> recommended for
+          storing significant value. Use dedicated hardware or software wallets
+          for main funds. These generated keys are best for testing or learning
+          purposes only. Always back up private keys securely offline and never
+          share them.
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <fieldset className="flex-grow">
-          <legend className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
-            Select Wallet Type:
-          </legend>
-          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap">
-            <div className="flex items-center">
-              <input
-                id="type-ethereum"
-                name="walletType"
-                type="radio"
-                value="ethereum"
-                checked={walletType === 'ethereum'}
-                onChange={handleTypeChange}
-                className="h-4 w-4 border-[rgb(var(--color-border-base))] text-[rgb(var(--color-button-primary-bg))] focus:outline-none accent-[rgb(var(--color-button-primary-bg))]"
+      <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-center p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
+        <RadioGroup
+          name="walletType"
+          legend="Select Wallet Type:"
+          options={walletTypeOptions}
+          selectedValue={toolSettings.walletType} // Use from toolSettings
+          onChange={handleTypeChange}
+          layout="horizontal"
+          radioClassName="text-sm"
+          labelClassName="font-medium cursor-pointer"
+          className="flex-shrink-0 mb-2 sm:mb-0"
+        />
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <Button
+            variant="primary"
+            onClick={handleGenerateWallet}
+            disabled={generating}
+            isLoading={generating}
+            loadingText="Generating..."
+            iconLeft={
+              <ArrowPathIcon
+                className={`h-5 w-5 ${generating ? 'animate-spin' : ''}`}
               />
-              <label
-                htmlFor="type-ethereum"
-                className="ml-2 block text-sm font-medium text-[rgb(var(--color-text-base))] cursor-pointer"
-              >
-                Ethereum (EVM)
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                id="type-bitcoin"
-                name="walletType"
-                type="radio"
-                value="bitcoin"
-                checked={walletType === 'bitcoin'}
-                onChange={handleTypeChange}
-                className="h-4 w-4 border-[rgb(var(--color-border-base))] text-[rgb(var(--color-button-primary-bg))] focus:outline-none accent-[rgb(var(--color-button-primary-bg))]"
-              />
-              <label
-                htmlFor="type-bitcoin"
-                className="ml-2 block text-sm font-medium text-[rgb(var(--color-text-base))] cursor-pointer"
-              >
-                Bitcoin (BTC)
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                id="type-solana"
-                name="walletType"
-                type="radio"
-                value="solana"
-                checked={walletType === 'solana'}
-                onChange={handleTypeChange}
-                className="h-4 w-4 border-[rgb(var(--color-border-base))] text-[rgb(var(--color-button-primary-bg))] focus:outline-none accent-[rgb(var(--color-button-primary-bg))]"
-              />
-              <label
-                htmlFor="type-solana"
-                className="ml-2 block text-sm font-medium text-[rgb(var(--color-text-base))] cursor-pointer"
-              >
-                Solana (SOL)
-              </label>
-            </div>
-          </div>
-        </fieldset>
-        <button
-          type="button"
-          onClick={handleGenerateWallet}
-          disabled={generating}
-          className="inline-flex items-center rounded-md bg-[rgb(var(--color-button-primary-bg))] px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-primary-text))] shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {generating ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-3 h-5 w-5"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Generating...
-            </>
-          ) : (
-            'Generate New Wallet'
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={handleClearAllWallets}
-          disabled={generating || generatedWallets.length === 0}
-          title="Clear all generated wallets"
-          className="inline-flex items-center rounded-md bg-[rgb(var(--color-button-neutral-bg))] px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-neutral-text))] shadow-sm hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-        >
-          {' '}
-          Clear All{' '}
-        </button>
+            }
+            className="w-full sm:w-auto"
+          >
+            Generate New Wallet
+          </Button>
+          <Button
+            variant="neutral"
+            onClick={handleClearAllWallets}
+            disabled={generating || generatedWallets.length === 0}
+            iconLeft={<TrashIcon className="h-5 w-5" />}
+            className="w-full sm:w-auto"
+          >
+            Clear All ({generatedWallets.length})
+          </Button>
+        </div>
       </div>
 
       {error && (
         <div
           role="alert"
-          className="p-4 text-sm rounded-lg bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]"
+          className="p-4 text-sm rounded-lg bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] flex items-start gap-2"
         >
-          {' '}
-          <strong className="font-medium">⛔ Error:</strong>{' '}
-          {error.replace('Error: ', '')}{' '}
+          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+          <div>
+            <strong className="font-medium">Error:</strong>{' '}
+            {error.replace('Error: ', '')}
+          </div>
         </div>
       )}
 
       <div className="space-y-4">
         {generatedWallets.length > 0 && (
           <h2 className="text-lg font-semibold text-[rgb(var(--color-text-muted))] border-b border-[rgb(var(--color-border-base))] pb-2">
-            {' '}
-            Generated Wallets ({generatedWallets.length}){' '}
+            Generated Wallets
           </h2>
         )}
         {generatedWallets.map((wallet) => {
@@ -311,45 +329,51 @@ export default function CryptoWalletGeneratorClient({
           return (
             <div
               key={wallet.id}
-              className="space-y-4 border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))] shadow-sm animate-slide-down"
+              className="space-y-3 border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))] shadow-sm animate-slide-down"
             >
               <h3 className="text-md font-medium text-[rgb(var(--color-text-base))] flex justify-between items-center">
-                {' '}
                 <span>
                   {wallet.type.charAt(0).toUpperCase() + wallet.type.slice(1)}{' '}
                   Wallet
-                </span>{' '}
+                </span>
                 <span className="text-xs font-normal text-gray-400">
                   Generated: {new Date(wallet.timestamp).toLocaleString()}
-                </span>{' '}
+                </span>
               </h3>
               <div>
                 <label
                   htmlFor={`publicKeyOutput-${wallet.id}`}
                   className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]"
                 >
-                  {' '}
-                  {addressLabel}{' '}
+                  {addressLabel}
                 </label>
-                <div className="mt-1 flex rounded-md shadow-sm border border-[rgb(var(--color-input-border))]">
+                <div className="mt-1 flex rounded-md shadow-sm">
                   <input
                     id={`publicKeyOutput-${wallet.id}`}
                     type="text"
                     value={wallet.publicKey}
                     readOnly
-                    className="block w-full flex-1 rounded-l-md py-1.5 px-2 text-[rgb(var(--color-input-text))] focus:outline-none sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
+                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 text-[rgb(var(--color-input-text))] ring-1 ring-inset ring-[rgb(var(--color-input-border))] focus:ring-2 focus:ring-inset focus:ring-[rgb(var(--color-input-focus-border))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    variant={isPublicKeyCopied ? 'secondary' : 'neutral'}
                     onClick={() =>
                       copyToClipboard(wallet.publicKey, 'Address', wallet.id)
                     }
-                    title="Copy public address"
-                    className={`relative inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold border-l border-[rgb(var(--color-input-border))] focus:outline-none focus:z-10 transition-colors duration-150 ${isPublicKeyCopied ? 'bg-green-500 text-white hover:bg-green-600' : 'text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))]'} `}
+                    className="rounded-l-none !py-1.5 px-3 border-l-0"
+                    iconLeft={
+                      isPublicKeyCopied ? (
+                        <CheckIcon className="h-4 w-4" />
+                      ) : (
+                        <ClipboardDocumentIcon className="h-4 w-4" />
+                      )
+                    }
+                    title={isPublicKeyCopied ? 'Copied!' : 'Copy Address'}
                   >
-                    {' '}
-                    {isPublicKeyCopied ? 'Copied!' : 'Copy'}{' '}
-                  </button>
+                    <span className="sr-only">
+                      {isPublicKeyCopied ? 'Copied Address' : 'Copy Address'}
+                    </span>
+                  </Button>
                 </div>
                 <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))]">
                   This is your public identifier, safe to share.
@@ -360,34 +384,39 @@ export default function CryptoWalletGeneratorClient({
                   htmlFor={`privateKeyOutput-${wallet.id}`}
                   className="block text-sm font-medium leading-6 text-[rgb(var(--color-text-base))]"
                 >
-                  {' '}
-                  {privateKeyLabel}{' '}
+                  {privateKeyLabel}
                 </label>
-                <div className="mt-1 flex rounded-md shadow-sm border border-[rgb(var(--color-input-border))]">
+                <div className="mt-1 flex rounded-md shadow-sm">
                   <input
                     id={`privateKeyOutput-${wallet.id}`}
                     type={wallet.isPrivateKeyVisible ? 'text' : 'password'}
                     value={wallet.privateKey}
                     readOnly
-                    className="block w-full flex-1 rounded-l-md py-1.5 px-2 font-mono text-[rgb(var(--color-input-text))] focus:outline-none sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
+                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 font-mono text-[rgb(var(--color-input-text))] ring-1 ring-inset ring-[rgb(var(--color-input-border))] focus:ring-2 focus:ring-inset focus:ring-[rgb(var(--color-input-focus-border))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
                   />
-                  <button
-                    type="button"
+                  <Button
+                    variant="neutral"
                     onClick={() =>
                       toggleSpecificPrivateKeyVisibility(wallet.id)
                     }
-                    title={
-                      wallet.isPrivateKeyVisible
-                        ? 'Hide Private Key'
-                        : 'Show Private Key'
+                    className="rounded-none !py-1.5 px-3 border-l-0"
+                    iconLeft={
+                      wallet.isPrivateKeyVisible ? (
+                        <EyeSlashIcon className="h-4 w-4" />
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )
                     }
-                    className="relative inline-flex items-center gap-x-1.5 rounded-none px-3 py-2 text-sm font-semibold text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] border-l border-[rgb(var(--color-input-border))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none focus:z-10"
+                    title={wallet.isPrivateKeyVisible ? 'Hide Key' : 'Show Key'}
                   >
-                    {' '}
-                    {wallet.isPrivateKeyVisible ? 'Hide' : 'Show'}{' '}
-                  </button>
-                  <button
-                    type="button"
+                    <span className="sr-only">
+                      {wallet.isPrivateKeyVisible
+                        ? 'Hide Private Key'
+                        : 'Show Private Key'}
+                    </span>
+                  </Button>
+                  <Button
+                    variant={isPrivateKeyCopied ? 'secondary' : 'neutral'}
                     onClick={() =>
                       copyToClipboard(
                         wallet.privateKey,
@@ -395,12 +424,22 @@ export default function CryptoWalletGeneratorClient({
                         wallet.id
                       )
                     }
-                    title="Copy private key (Use with extreme caution!)"
-                    className={`relative inline-flex items-center gap-x-1.5 rounded-r-md px-3 py-2 text-sm font-semibold border-l border-[rgb(var(--color-input-border))] focus:outline-none focus:z-10 transition-colors duration-150 ${isPrivateKeyCopied ? 'bg-green-500 text-white hover:bg-green-600' : 'text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))]'} `}
+                    className="rounded-r-md !py-1.5 px-3 border-l-0"
+                    iconLeft={
+                      isPrivateKeyCopied ? (
+                        <CheckIcon className="h-4 w-4" />
+                      ) : (
+                        <ClipboardDocumentIcon className="h-4 w-4" />
+                      )
+                    }
+                    title={isPrivateKeyCopied ? 'Copied!' : 'Copy Private Key'}
                   >
-                    {' '}
-                    {isPrivateKeyCopied ? 'Copied!' : 'Copy'}{' '}
-                  </button>
+                    <span className="sr-only">
+                      {isPrivateKeyCopied
+                        ? 'Copied Private Key'
+                        : 'Copy Private Key'}
+                    </span>
+                  </Button>
                 </div>
                 {wallet.privateKeyFormatNote && (
                   <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))] italic">

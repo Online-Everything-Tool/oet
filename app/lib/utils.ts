@@ -1,6 +1,42 @@
 // FILE: app/lib/utils.ts
 import { getClassWithColor } from 'file-icons-js';
 
+export const PREVIEWABLE_TEXT_EXTENSIONS: ReadonlyArray<string> = [
+  'txt',
+  'js',
+  'jsx',
+  'ts',
+  'tsx',
+  'css',
+  'html',
+  'htm',
+  'json',
+  'xml',
+  'md',
+  'csv',
+  'log',
+  'yaml',
+  'yml',
+  'ini',
+  'cfg',
+  'sh',
+  'py',
+  'rb',
+  'php',
+  'sql',
+] as const;
+
+export const PREVIEWABLE_IMAGE_EXTENSIONS: ReadonlyArray<string> = [
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'svg',
+  'bmp',
+  'ico',
+] as const;
+
 export const formatBytes = (bytes: number, decimals = 2): string => {
   if (bytes === 0) return '0 Bytes';
   if (bytes < 0) return 'Invalid Size';
@@ -11,7 +47,6 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
 
   const i = Math.floor(Math.log(Math.max(bytes, 1)) / Math.log(k));
-
   const index = Math.min(i, sizes.length - 1);
 
   return (
@@ -19,31 +54,66 @@ export const formatBytes = (bytes: number, decimals = 2): string => {
   );
 };
 
-export function safeStringify(value: unknown, space: number = 2): string {
+export const formatBytesCompact = (bytes: number): string => {
+  if (bytes < 0) return 'N/A';
+  if (bytes < 1024) return `${Math.round(bytes)}b`;
+
+  const k = 1024;
+  const sizes = ['', 'k', 'm', 'g'];
+  let i = Math.floor(Math.log(bytes) / Math.log(k));
+  i = Math.min(i, sizes.length - 1);
+
+  let num = bytes / Math.pow(k, i);
+
+  if (i > 0) {
+    if (num < 10 && (num * 10) % 10 !== 0) {
+      num = parseFloat(num.toFixed(1));
+    } else {
+      num = Math.round(num);
+    }
+  } else {
+    num = Math.round(num);
+  }
+
+  return `${num}${sizes[i]}`;
+};
+
+/**
+ * Safely stringifies a value, with optional indentation and truncation.
+ * @param value The value to stringify.
+ * @param space The number of spaces for JSON indentation (default: 2).
+ * @param truncate The maximum length before truncating. If 0 or undefined, NO truncation is applied (default: 0).
+ * @returns A string representation of the value.
+ */
+export function safeStringify(
+  value: unknown,
+  space: number = 2,
+  truncate: number = 0
+): string {
   try {
     if (value === undefined) return 'undefined';
     if (value === null) return 'null';
-    if (typeof value === 'string' && value.length > 500) {
-      return value.substring(0, 500) + '... [truncated]';
-    }
+
+    let stringifiedValue: string;
+
     if (typeof value === 'object') {
       try {
-        const str = JSON.stringify(value, null, space);
-        const limit = space === 0 ? 100 : 500;
-        return str.length > limit
-          ? str.substring(0, limit) + '... [truncated]'
-          : str;
+        stringifiedValue = JSON.stringify(value, null, space);
       } catch {
         return '[Could not stringify object]';
       }
+    } else {
+      stringifiedValue = String(value);
     }
-    const stringValue = String(value);
-    const limit = space === 0 ? 100 : 500;
-    return stringValue.length > limit
-      ? stringValue.substring(0, limit) + '... [truncated]'
-      : stringValue;
+
+    if (truncate > 0 && stringifiedValue.length > truncate) {
+      return stringifiedValue.substring(0, truncate) + '... [truncated]';
+    }
+
+    return stringifiedValue;
   } catch (stringifyError: unknown) {
-    console.error('Error stringifying value:', stringifyError);
+    // This catch is more for unexpected errors during the String() conversion or other logic
+    console.error('Error in safeStringify function:', stringifyError);
     return '[Error displaying value]';
   }
 }
@@ -93,9 +163,7 @@ export const getFileIconClassName = (fileName?: string): string => {
   if (!fileName) {
     return 'icon generic-file-icon';
   }
-
   const iconClass = getClassWithColor(fileName);
-
   return iconClass || 'icon generic-file-icon';
 };
 

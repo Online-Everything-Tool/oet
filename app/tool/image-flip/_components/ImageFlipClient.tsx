@@ -11,11 +11,13 @@ import React, {
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useHistory } from '../../../context/HistoryContext';
+import useToolState from '../../_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
+import type { ParamConfig } from '@/src/types/tools';
 import {
   PhotoIcon,
   ArrowDownTrayIcon,
@@ -27,42 +29,57 @@ import {
   CheckBadgeIcon,
 } from '@heroicons/react/20/solid';
 
+type FlipType = 'horizontal' | 'vertical';
+
+interface ImageFlipToolSettings {
+  flipType: FlipType;
+  autoSaveProcessed: boolean;
+}
+
+const DEFAULT_FLIP_TOOL_SETTINGS: ImageFlipToolSettings = {
+  flipType: 'horizontal',
+  autoSaveProcessed: true,
+};
+
 interface ImageFlipClientProps {
   toolTitle: string;
   toolRoute: string;
+  urlStateParams?: ParamConfig[];
 }
 
 export default function ImageFlipClient({
   toolTitle,
   toolRoute,
+  urlStateParams,
 }: ImageFlipClientProps) {
-  const [flipType, setFlipType] = useState<'horizontal' | 'vertical'>(
-    'horizontal'
+  const {
+    state: toolSettings,
+    setState: setToolSettings,
+    isLoadingState: isLoadingToolSettings,
+  } = useToolState<ImageFlipToolSettings>(
+    toolRoute,
+    DEFAULT_FLIP_TOOL_SETTINGS
   );
+
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<StoredFile | null>(null);
-
   const [isCopied, setIsCopied] = useState<boolean>(false);
-
-  const [processedFileId, setProcessedFileId] = useState<string | null>(null);
-
+  const [processedFileIdForUI, setProcessedFileIdForUI] = useState<
+    string | null
+  >(null);
   const [isProcessedFilePermanent, setIsProcessedFilePermanent] =
     useState<boolean>(false);
-  const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true);
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
-
   const [uiError, setUiError] = useState<string | null>(null);
 
   const { addHistoryEntry } = useHistory();
-
   const { getImage, makeImagePermanent } = useImageLibrary();
 
   const {
     originalImageSrc,
     processedImageSrc,
     processedImageBlob,
-
-    processedFileId: hookProcessedFileId,
+    processedFileId: hookGeneratedFileId,
     fileName,
     isLoading: isProcessingImage,
     error: processingErrorHook,
@@ -72,21 +89,56 @@ export default function ImageFlipClient({
   } = useImageProcessing({ toolTitle, toolRoute });
 
   useEffect(() => {
-    setProcessedFileId(hookProcessedFileId);
-
-    if (hookProcessedFileId && autoSaveProcessed) {
+    setProcessedFileIdForUI(hookGeneratedFileId);
+    if (hookGeneratedFileId && toolSettings.autoSaveProcessed) {
       setIsProcessedFilePermanent(true);
-    } else if (!hookProcessedFileId) {
+    } else if (!hookGeneratedFileId) {
       setIsProcessedFilePermanent(false);
     }
-  }, [hookProcessedFileId, autoSaveProcessed]);
+  }, [hookGeneratedFileId, toolSettings.autoSaveProcessed]);
+
+  useEffect(() => {
+    if (
+      !isLoadingToolSettings &&
+      urlStateParams &&
+      urlStateParams?.length > 0
+    ) {
+      const params = new URLSearchParams(window.location.search);
+      const newSettings: Partial<ImageFlipToolSettings> = {};
+      let changed = false;
+      const typeFromUrl =
+        (params.get('flip') as FlipType) ||
+        (params.get('flipType') as FlipType);
+      if (
+        typeFromUrl &&
+        ['horizontal', 'vertical'].includes(typeFromUrl) &&
+        typeFromUrl !== toolSettings.flipType
+      ) {
+        newSettings.flipType = typeFromUrl;
+        changed = true;
+      }
+      const autoSaveFromUrl = params.get('autoSave');
+      if (autoSaveFromUrl !== null) {
+        const autoSaveBool = autoSaveFromUrl.toLowerCase() === 'true';
+        if (autoSaveBool !== toolSettings.autoSaveProcessed) {
+          newSettings.autoSaveProcessed = autoSaveBool;
+          changed = true;
+        }
+      }
+      if (changed && Object.keys(newSettings).length > 0) {
+        // Check if newSettings is not empty
+        setToolSettings(newSettings);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingToolSettings, urlStateParams, setToolSettings]);
 
   const flipDrawFunction = useCallback(
     (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
       const { naturalWidth: w, naturalHeight: h } = img;
       ctx.clearRect(0, 0, w, h);
       ctx.save();
-      if (flipType === 'horizontal') {
+      if (toolSettings.flipType === 'horizontal') {
         ctx.scale(-1, 1);
         ctx.translate(-w, 0);
       } else {
@@ -96,7 +148,7 @@ export default function ImageFlipClient({
       ctx.drawImage(img, 0, 0, w, h);
       ctx.restore();
     },
-    [flipType]
+    [toolSettings.flipType]
   );
 
   useEffect(() => {
@@ -107,11 +159,9 @@ export default function ImageFlipClient({
         setIsProcessedFilePermanent(false);
         setIsCopied(false);
         setUiError(null);
-
         objectUrl = URL.createObjectURL(selectedFile.blob);
         setOriginalImageSrc(objectUrl);
       } catch (e) {
-        console.error('Error creating object URL for original image:', e);
         setUiError('Could not create preview for selected image.');
         setOriginalImageSrc(null);
       }
@@ -119,102 +169,95 @@ export default function ImageFlipClient({
       setOriginalImageSrc(null);
       clearProcessingOutput();
       setIsProcessedFilePermanent(false);
-      if (selectedFile) {
+      if (selectedFile)
         setUiError('Invalid file type. Please select an image.');
-      }
     }
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [selectedFile, setOriginalImageSrc, clearProcessingOutput, setUiError]);
 
-  const processingEffectRunCount = useRef(0);
   const processingKey = useMemo(() => {
     if (!selectedFile?.id) return null;
-    return `${selectedFile.id}-${flipType}`;
-  }, [selectedFile, flipType]);
+    return `${selectedFile.id}-${toolSettings.flipType}-${toolSettings.autoSaveProcessed}`;
+  }, [selectedFile, toolSettings.flipType, toolSettings.autoSaveProcessed]);
+
   const prevProcessingKey = useRef<string | null>(null);
 
   useEffect(() => {
-    processingEffectRunCount.current += 1;
-    const runId = processingEffectRunCount.current;
+    if (
+      !selectedFile?.blob ||
+      !selectedFile.type?.startsWith('image/') ||
+      isLoadingToolSettings
+    ) {
+      // If no valid file selected, or tool settings are still loading, don't process.
+      // Also, clear previous processing key to allow re-processing if file is re-selected later.
+      prevProcessingKey.current = null;
+      return;
+    }
 
-    if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
+    // Only re-process if key has changed OR if there's no processed image yet for the current key
+    if (
+      processingKey !== prevProcessingKey.current ||
+      (!processedImageSrc && !isProcessingImage)
+    ) {
+      if (isProcessingImage && processingKey === prevProcessingKey.current)
+        return; // Already processing this exact key
+
       prevProcessingKey.current = processingKey;
-      return;
-    }
+      const currentInputFileForAsync = selectedFile;
+      const currentFlipType = toolSettings.flipType;
+      const currentAutoSave = toolSettings.autoSaveProcessed;
 
-    if (processingKey === prevProcessingKey.current && !isProcessingImage) {
-      return;
-    }
+      const triggerProcessing = async () => {
+        const baseName =
+          currentInputFileForAsync.name.substring(
+            0,
+            currentInputFileForAsync.name.lastIndexOf('.')
+          ) || currentInputFileForAsync.name;
+        const mimeTypeParts = currentInputFileForAsync.type?.split('/');
+        const extension =
+          mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
+        const outputFileName = `flipped-${currentFlipType}-${baseName}.${extension}`;
 
-    if (isProcessingImage && processingKey === prevProcessingKey.current) {
-      return;
-    }
-
-    prevProcessingKey.current = processingKey;
-
-    const currentInputFileForAsync = selectedFile;
-
-    const triggerProcessing = async () => {
-      const baseName =
-        currentInputFileForAsync.name.substring(
-          0,
-          currentInputFileForAsync.name.lastIndexOf('.')
-        ) || currentInputFileForAsync.name;
-      const mimeTypeParts = currentInputFileForAsync.type?.split('/');
-      const extension =
-        mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
-      const outputFileName = `flipped-${flipType}-${baseName}.${extension}`;
-
-      console.log(
-        'process image:',
-        currentInputFileForAsync,
-        flipDrawFunction,
-        'auto',
-        outputFileName,
-        { flipType },
-        autoSaveProcessed
-      );
-
-      await processImage(
-        currentInputFileForAsync,
-        flipDrawFunction,
-        'auto',
-        outputFileName,
-        { flipType },
-        autoSaveProcessed
-      );
-
-      if (selectedFile && selectedFile.id === currentInputFileForAsync.id) {
-        setIsProcessedFilePermanent(autoSaveProcessed);
-      } else {
-        console.warn(
-          `    (#${runId}) Race condition: selectedFile changed while processing ${currentInputFileForAsync.id}. Current selectedFile is ${selectedFile?.id}. Not updating processedFileId/permanence for old run.`
+        await processImage(
+          currentInputFileForAsync,
+          flipDrawFunction,
+          'auto',
+          outputFileName,
+          { flipType: currentFlipType },
+          currentAutoSave
         );
-      }
-    };
-    triggerProcessing();
+      };
+      triggerProcessing();
+    }
   }, [
     processingKey,
-    isProcessingImage,
     selectedFile,
+    toolSettings.flipType,
+    toolSettings.autoSaveProcessed,
+    isLoadingToolSettings,
+    isProcessingImage,
     processImage,
     flipDrawFunction,
-    autoSaveProcessed,
+    processedImageSrc,
   ]);
 
   const handleFilesSelectedFromModal = useCallback(
     (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
-      prevProcessingKey.current = null;
+      // prevProcessingKey.current = null; // Resetting here might cause re-process even if same file selected
       if (files && files.length > 0) {
         const firstFile = files[0];
         if (firstFile.type?.startsWith('image/') && firstFile.blob) {
+          if (selectedFile?.id !== firstFile.id) {
+            // Only reset if it's a truly new file
+            prevProcessingKey.current = null;
+            clearProcessingOutput();
+            setIsProcessedFilePermanent(false);
+          }
           setSelectedFile(firstFile);
-          clearProcessingOutput();
-          setIsProcessedFilePermanent(false);
         } else {
           setUiError('Invalid file selected. Please select an image.');
           setSelectedFile(null);
@@ -222,80 +265,78 @@ export default function ImageFlipClient({
           setIsProcessedFilePermanent(false);
         }
       } else {
-        setSelectedFile(null);
-        clearProcessingOutput();
-        setIsProcessedFilePermanent(false);
+        // If no file selected (e.g. modal closed), and a file was previously selected, do nothing to current file
+        // If no file was previously selected, ensure clean state
+        if (!selectedFile) {
+          setSelectedFile(null);
+          clearProcessingOutput();
+          setIsProcessedFilePermanent(false);
+        }
       }
     },
-    [setUiError, clearProcessingOutput]
+    [setUiError, clearProcessingOutput, selectedFile] // Added selectedFile
   );
 
   const handleFlipTypeChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      prevProcessingKey.current = null;
-      setFlipType(event.target.value as 'horizontal' | 'vertical');
+      const newFlipType = event.target.value as FlipType;
+      setToolSettings((prev) => ({ ...prev, flipType: newFlipType }));
       setIsCopied(false);
-      clearProcessingOutput();
-      setIsProcessedFilePermanent(false);
+      // If a file is already selected, changing flip type will trigger re-processing via useEffect on processingKey
+      // If no file selected, output remains clear.
+      // No need to clearProcessingOutput() here as useEffect will handle it.
     },
-    [clearProcessingOutput]
+    [setToolSettings]
   );
 
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSaveState = e.target.checked;
-      setAutoSaveProcessed(newAutoSaveState);
+      setToolSettings({ autoSaveProcessed: newAutoSaveState });
       setUiError(null);
-
       if (
         newAutoSaveState === true &&
-        processedFileId &&
+        hookGeneratedFileId &&
         !isProcessedFilePermanent &&
         !isProcessingImage &&
         !isManuallySaving
       ) {
-        console.log(
-          '[ImageFlipClient] Auto-save toggled ON. Attempting to make current processed image permanent.'
-        );
         setIsManuallySaving(true);
         try {
-          await makeImagePermanent(processedFileId);
+          await makeImagePermanent(hookGeneratedFileId);
           setIsProcessedFilePermanent(true);
           addHistoryEntry({
             toolName: toolTitle,
             toolRoute,
             trigger: 'auto',
             input: {
-              originalFile: selectedFile?.name,
-              processedFileId: processedFileId,
-              operation: 'auto-save toggled on, making file permanent',
+              processedFileId: hookGeneratedFileId,
+              action: 'auto-save-on',
             },
-            output: { message: `File ${processedFileId} made permanent.` },
-            outputFileIds: [processedFileId],
+            output: { message: `File ${hookGeneratedFileId} made permanent.` },
+            outputFileIds: [hookGeneratedFileId],
             status: 'success',
             eventTimestamp: Date.now(),
           });
         } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : 'Failed to make image permanent.';
-          setUiError(`Auto-save failed: ${message}`);
+          setUiError(
+            `Auto-save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+          );
         } finally {
           setIsManuallySaving(false);
         }
       }
     },
     [
-      processedFileId,
+      hookGeneratedFileId,
       isProcessedFilePermanent,
       makeImagePermanent,
       addHistoryEntry,
       toolTitle,
       toolRoute,
-      selectedFile?.name,
       isProcessingImage,
       isManuallySaving,
+      setToolSettings,
       setUiError,
     ]
   );
@@ -303,15 +344,13 @@ export default function ImageFlipClient({
   const handleClear = useCallback(() => {
     setOriginalImageSrc(null);
     clearProcessingOutput();
-    setFlipType('horizontal');
-    setUiError(null);
     setSelectedFile(null);
-    prevProcessingKey.current = null;
-
+    setToolSettings(DEFAULT_FLIP_TOOL_SETTINGS); // Reset tool settings to default
+    setUiError(null);
     setIsCopied(false);
-    setAutoSaveProcessed(true);
     setIsProcessedFilePermanent(false);
-  }, [setOriginalImageSrc, clearProcessingOutput, setUiError]);
+    prevProcessingKey.current = null;
+  }, [setOriginalImageSrc, clearProcessingOutput, setToolSettings, setUiError]);
 
   const handleDownload = useCallback(() => {
     if (!processedImageSrc || !fileName) {
@@ -325,46 +364,37 @@ export default function ImageFlipClient({
     const mimeType =
       processedImageSrc.match(/data:(image\/\w+);base64,/)?.[1] || 'image/png';
     const extension = mimeType.split('/')[1] || 'png';
-    link.download = `flipped-${flipType}-${baseName}.${extension}`;
+    link.download = `flipped-${toolSettings.flipType}-${baseName}.${extension}`;
     link.href = processedImageSrc;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [processedImageSrc, fileName, flipType, setUiError]);
+  }, [processedImageSrc, fileName, toolSettings.flipType, setUiError]);
 
   const handleCopyToClipboard = useCallback(async () => {
     setIsCopied(false);
     setUiError(null);
     let blobToCopy: Blob | null = null;
-
-    if (processedFileId) {
-      const fileData = await getImage(processedFileId);
+    if (hookGeneratedFileId) {
+      const fileData = await getImage(hookGeneratedFileId);
       if (fileData?.blob && fileData.type?.startsWith('image/')) {
         blobToCopy = fileData.blob;
+      } else if (processedImageBlob) {
+        blobToCopy = processedImageBlob;
       } else {
-        if (processedImageBlob) {
-          console.warn(
-            'Could not fetch file by ID for copy, falling back to state blob.'
-          );
-          blobToCopy = processedImageBlob;
-        } else {
-          setUiError('Processed image data not found for copy.');
-          return;
-        }
+        setUiError('Processed image data not found for copy.');
+        return;
       }
     } else if (processedImageBlob) {
-      console.warn('No processedFileId set, attempting copy using state blob.');
       blobToCopy = processedImageBlob;
     } else {
       setUiError('No image data available to copy.');
       return;
     }
-
     if (!blobToCopy) {
       setUiError('Blob data missing for copy.');
       return;
     }
-
     try {
       if (!navigator.clipboard?.write)
         throw new Error('Clipboard API not available.');
@@ -378,34 +408,33 @@ export default function ImageFlipClient({
         `Copy failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
     }
-  }, [processedFileId, processedImageBlob, getImage, setUiError]);
+  }, [
+    hookGeneratedFileId,
+    processedImageBlob,
+    getImage,
+    setUiError,
+    setIsCopied,
+  ]);
 
   const handleSaveProcessedToLibrary = useCallback(async () => {
-    if (!processedFileId || isProcessedFilePermanent) {
-      if (!processedFileId) setUiError('No processed image available to save.');
-      if (isProcessedFilePermanent) console.log('Image already permanent.');
+    if (!hookGeneratedFileId || isProcessedFilePermanent) {
+      if (!hookGeneratedFileId) setUiError('No processed image to save.');
       return;
     }
-
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      await makeImagePermanent(processedFileId);
+      await makeImagePermanent(hookGeneratedFileId);
       setIsProcessedFilePermanent(true);
-
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute,
         trigger: 'click',
-        input: {
-          originalFile: selectedFile?.name,
-          processedFileId: processedFileId,
-          operation: 'manual save (make permanent)',
-        },
+        input: { processedFileId: hookGeneratedFileId, action: 'manual-save' },
         output: {
-          message: `Made processed image ${processedFileId} permanent.`,
+          message: `Processed image ${hookGeneratedFileId} saved permanently.`,
         },
-        outputFileIds: [processedFileId],
+        outputFileIds: [hookGeneratedFileId],
         status: 'success',
         eventTimestamp: Date.now(),
       });
@@ -417,13 +446,12 @@ export default function ImageFlipClient({
       setIsManuallySaving(false);
     }
   }, [
-    processedFileId,
+    hookGeneratedFileId,
     isProcessedFilePermanent,
     makeImagePermanent,
     addHistoryEntry,
     toolTitle,
     toolRoute,
-    selectedFile?.name,
     setUiError,
   ]);
 
@@ -431,18 +459,24 @@ export default function ImageFlipClient({
   const displayError = processingErrorHook || uiError;
   const canPerformActions =
     !!processedImageSrc && !isProcessingImage && !isManuallySaving;
-
   const showSaveButton =
-    processedImageBlob &&
-    !autoSaveProcessed &&
+    hookGeneratedFileId &&
+    !toolSettings.autoSaveProcessed &&
     !isProcessedFilePermanent &&
     !isProcessingImage &&
     !isManuallySaving;
 
+  if (isLoadingToolSettings && !selectedFile) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Image Flip Tool...
+      </p>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        {/* Row 1: Select Image & Flip Type */}
         <div className="flex flex-wrap gap-4 items-center">
           <Button
             variant="accent2"
@@ -452,60 +486,45 @@ export default function ImageFlipClient({
           >
             {originalImageSrc ? 'Change Image' : 'Select Image'}
           </Button>
+          {/* Flip Direction Fieldset - Now always enabled unless processing */}
           <fieldset
             className="flex gap-x-4 gap-y-2 items-center"
-            disabled={
-              isProcessingImage || isManuallySaving || !originalImageSrc
-            }
+            disabled={isProcessingImage || isManuallySaving}
           >
             <legend className="sr-only">Flip Direction</legend>
-            <div className="flex items-center">
-              <input
-                type="radio"
-                id="flip-h"
-                name="flipType"
-                value="horizontal"
-                checked={flipType === 'horizontal'}
-                onChange={handleFlipTypeChange}
-                disabled={
-                  isProcessingImage || isManuallySaving || !originalImageSrc
-                }
-                className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] accent-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <label
-                htmlFor="flip-h"
-                className={`ml-2 block text-sm ${isProcessingImage || isManuallySaving || !originalImageSrc ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
-              >
-                Horizontal
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="radio"
-                id="flip-v"
-                name="flipType"
-                value="vertical"
-                checked={flipType === 'vertical'}
-                onChange={handleFlipTypeChange}
-                disabled={
-                  isProcessingImage || isManuallySaving || !originalImageSrc
-                }
-                className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] accent-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <label
-                htmlFor="flip-v"
-                className={`ml-2 block text-sm ${isProcessingImage || isManuallySaving || !originalImageSrc ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
-              >
-                Vertical
-              </label>
-            </div>
+            {[
+              {
+                id: 'flip-h-radio-id',
+                value: 'horizontal',
+                label: 'Horizontal',
+              }, // Ensured unique ID
+              { id: 'flip-v-radio-id', value: 'vertical', label: 'Vertical' }, // Ensured unique ID
+            ].map((opt) => (
+              <div className="flex items-center" key={opt.id}>
+                <input
+                  type="radio"
+                  id={opt.id}
+                  name="flipTypeRadioGroup"
+                  value={opt.value} // name should be same for a radio group
+                  checked={toolSettings.flipType === opt.value}
+                  onChange={handleFlipTypeChange}
+                  disabled={isProcessingImage || isManuallySaving} // Only disabled during active processing
+                  className="h-4 w-4 border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] accent-[rgb(var(--color-checkbox-accent))] focus:ring-offset-0 focus:ring-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <label
+                  htmlFor={opt.id}
+                  className={`ml-2 block text-sm ${isProcessingImage || isManuallySaving ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'}`}
+                >
+                  {opt.label}
+                </label>
+              </div>
+            ))}
           </fieldset>
         </div>
-        {/* Row 2: Auto-Save & Actions */}
         <div className="flex flex-wrap gap-4 items-center pt-3 border-t border-gray-200 mt-2">
           <Checkbox
             label="Auto-save flipped image to Library"
-            checked={autoSaveProcessed}
+            checked={toolSettings.autoSaveProcessed}
             onChange={handleAutoSaveChange}
             disabled={isProcessingImage || isManuallySaving}
             id="autoSaveFlippedImage"
@@ -569,29 +588,26 @@ export default function ImageFlipClient({
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
+          {' '}
           <XCircleIcon
-            className="h-5 w-5 text-[rgb(var(--color-text-error))] "
+            className="h-5 w-5 text-[rgb(var(--color-text-error))]"
             aria-hidden="true"
-          />
+          />{' '}
           <div>
-            {' '}
-            <strong className="font-semibold">Error:</strong>{' '}
-            {displayError}{' '}
+            <strong className="font-semibold">Error:</strong> {displayError}
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Original Image Preview */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            {' '}
             Original Image{' '}
             {fileName && (
               <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">
                 ({fileName})
               </span>
-            )}{' '}
+            )}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {originalImageSrc ? (
@@ -610,34 +626,34 @@ export default function ImageFlipClient({
             )}
           </div>
         </div>
-        {/* Flipped Image Preview */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
             Flipped Image
-            {/* Updated Status Indicator */}
-            {processedFileId && isProcessedFilePermanent && (
+            {processedFileIdForUI && isProcessedFilePermanent && (
               <span className="text-xs text-green-600 ml-1 inline-flex items-center gap-1">
                 <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> (Saved
                 to Library)
               </span>
             )}
-            {processedFileId &&
+            {processedFileIdForUI &&
               !isProcessedFilePermanent &&
-              !autoSaveProcessed && (
+              !toolSettings.autoSaveProcessed && (
                 <span className="text-xs text-orange-600 ml-1">
                   (Not Saved)
                 </span>
               )}
-            {processedFileId &&
+            {processedFileIdForUI &&
               !isProcessedFilePermanent &&
-              autoSaveProcessed && (
-                <span className="text-xs text-blue-600 ml-1">(Temporary)</span>
+              toolSettings.autoSaveProcessed && (
+                <span className="text-xs text-blue-600 ml-1">
+                  (Temporary in Library)
+                </span>
               )}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {isProcessingImage && !processedImageSrc && (
               <div className="flex flex-col items-center text-sm text-[rgb(var(--color-text-link))] italic">
-                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2 text-[rgb(var(--color-text-link))]" />{' '}
+                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2 text-[rgb(var(--color-text-link))]" />
                 Flipping...
               </div>
             )}
@@ -660,8 +676,6 @@ export default function ImageFlipClient({
           </div>
         </div>
       </div>
-
-      {/* Modal remains the same */}
       <FileSelectionModal
         isOpen={isLibraryModalOpen}
         onClose={() => setIsLibraryModalOpen(false)}

@@ -4,9 +4,9 @@
 import React, {
   useState,
   useCallback,
-  ChangeEvent,
   useRef,
   useEffect,
+  useMemo,
 } from 'react';
 import JSZip from 'jszip';
 import Image from 'next/image';
@@ -14,62 +14,88 @@ import { useHistory } from '../../../context/HistoryContext';
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
-
-const MAX_TEXT_PREVIEW_SIZE = 1 * 1024 * 1024;
-const PREVIEWABLE_TEXT_EXTENSIONS = [
-  'txt',
-  'js',
-  'jsx',
-  'ts',
-  'tsx',
-  'css',
-  'html',
-  'htm',
-  'json',
-  'xml',
-  'md',
-  'csv',
-  'log',
-  'yaml',
-  'yml',
-  'ini',
-  'cfg',
-  'sh',
-  'py',
-  'rb',
-  'php',
-  'sql',
-];
-const PREVIEWABLE_IMAGE_EXTENSIONS = [
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'svg',
-  'bmp',
-  'ico',
-];
+import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import Button from '../../_components/form/Button';
+import Select from '../../_components/form/Select';
+import useToolState from '../../_hooks/useToolState';
+import type { StoredFile } from '@/src/types/storage';
+import {
+  PREVIEWABLE_TEXT_EXTENSIONS,
+  PREVIEWABLE_IMAGE_EXTENSIONS,
+  getFileIconClassName,
+  formatBytesCompact,
+} from '@/app/lib/utils';
+import {
+  ArrowUpTrayIcon,
+  TrashIcon,
+  XCircleIcon,
+  PaperAirplaneIcon,
+  ArrowDownTrayIcon as DownloadIcon,
+  FunnelIcon,
+  XMarkIcon as ClearFilterIcon,
+} from '@heroicons/react/24/outline';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 
 interface ZipFileExplorerClientProps {
   toolTitle: string;
   toolRoute: string;
 }
 
+interface PersistedZipExplorerState {
+  lastProcessedFileId: string | null;
+  lastProcessedFileName: string | null;
+  lastProcessedFileSize: number | null;
+  expandedFolderPaths: string[];
+  selectedPaths: string[];
+  filterName: string;
+  filterSelectedExtension: string;
+  filterMinDate: string;
+  filterMaxDate: string;
+  showOnlySelected: boolean;
+  hideEmptyFolders: boolean;
+}
+
+const DEFAULT_ZIP_EXPLORER_STATE: PersistedZipExplorerState = {
+  lastProcessedFileId: null,
+  lastProcessedFileName: null,
+  lastProcessedFileSize: null,
+  expandedFolderPaths: [],
+  selectedPaths: [],
+  filterName: '',
+  filterSelectedExtension: '',
+  filterMinDate: '',
+  filterMaxDate: '',
+  showOnlySelected: false,
+  hideEmptyFolders: true,
+};
+
+const MAX_TEXT_PREVIEW_SIZE: number = 0;
+
 export default function ZipFileExplorerClient({
   toolTitle,
   toolRoute,
 }: ZipFileExplorerClientProps) {
   const { addHistoryEntry } = useHistory();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileTree, setFileTree] = useState<TreeNodeData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const { getFile } = useFileLibrary();
+  const {
+    state: persistentState,
+    setState: setPersistentState,
+    isLoadingState: isLoadingToolState,
+    errorLoadingState,
+  } = useToolState<PersistedZipExplorerState>(
+    toolRoute,
+    DEFAULT_ZIP_EXPLORER_STATE
+  );
+
+  const [currentZipFile, setCurrentZipFile] = useState<StoredFile | null>(null);
+  const [rawFileTree, setRawFileTree] = useState<TreeNodeData[]>([]);
+  const [uniqueExtensionsInZip, setUniqueExtensionsInZip] = useState<
+    Array<{ value: string; label: string; count: number }>
+  >([]);
+  const [isLoadingZipProcessing, setIsLoadingZipProcessing] =
+    useState<boolean>(false);
+  const [clientError, setClientError] = useState<string | null>(null);
   const zipRef = useRef<JSZip | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [filterName, setFilterName] = useState<string>('');
-  const [filterMinDate, setFilterMinDate] = useState<string>('');
-  const [filterMaxDate, setFilterMaxDate] = useState<string>('');
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewContent, setPreviewContent] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<
@@ -77,36 +103,214 @@ export default function ZipFileExplorerClient({
   >(null);
   const [previewFilename, setPreviewFilename] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set()
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const isLoading = isLoadingToolState || isLoadingZipProcessing;
+  const error = clientError || errorLoadingState;
+
+  const expandedFoldersSet = useMemo(
+    () => new Set(persistentState.expandedFolderPaths),
+    [persistentState.expandedFolderPaths]
+  );
+  const selectedPathsSet = useMemo(
+    () => new Set(persistentState.selectedPaths),
+    [persistentState.selectedPaths]
   );
 
-  const processZipFile = useCallback(
-    async (file: File) => {
-      setIsLoading(true);
-      setError(null);
-      setFileTree([]);
-      setExpandedFolders(new Set());
-      zipRef.current = null;
-      setFilterName('');
-      setFilterMinDate('');
-      setFilterMaxDate('');
+  const areFiltersActive = useMemo(() => {
+    return !!(
+      persistentState.filterName ||
+      persistentState.filterSelectedExtension ||
+      persistentState.filterMinDate ||
+      persistentState.filterMaxDate
+    );
+  }, [
+    persistentState.filterName,
+    persistentState.filterSelectedExtension,
+    persistentState.filterMinDate,
+    persistentState.filterMaxDate,
+  ]);
 
+  const handleClearFilters = useCallback(() => {
+    setPersistentState((prev) => ({
+      ...prev,
+      filterName: '',
+      filterSelectedExtension: '',
+      filterMinDate: '',
+      filterMaxDate: '',
+    }));
+  }, [setPersistentState]);
+
+  const findNodeInTree = useCallback(
+    (nodes: TreeNodeData[], path: string): TreeNodeData | undefined => {
+      for (const node of nodes) {
+        if (node.path === path) return node;
+        if (node.children) {
+          const found = findNodeInTree(node.children, path);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    },
+    []
+  );
+
+  const getAllDescendantPaths = useCallback(
+    (folderPath: string, treeToSearch: TreeNodeData[]): string[] => {
+      const descendants: string[] = [];
+      const folderNode = findNodeInTree(treeToSearch, folderPath);
+      const collect = (node: TreeNodeData) => {
+        if (node.children) {
+          node.children.forEach((child) => {
+            descendants.push(child.path);
+            if (child.type === 'folder') {
+              collect(child);
+            }
+          });
+        }
+      };
+      if (folderNode && folderNode.type === 'folder') {
+        collect(folderNode);
+      }
+      return descendants;
+    },
+    [findNodeInTree]
+  );
+
+  const isPathIndeterminate = useCallback(
+    (folderPath: string): boolean => {
+      if (selectedPathsSet.has(folderPath)) return false;
+      const descendants = getAllDescendantPaths(folderPath, rawFileTree);
+      if (descendants.length === 0) return false;
+      let hasSelectedDescendant = false;
+      for (const descPath of descendants) {
+        if (selectedPathsSet.has(descPath)) {
+          hasSelectedDescendant = true;
+          break;
+        }
+      }
+      return hasSelectedDescendant;
+    },
+    [selectedPathsSet, getAllDescendantPaths, rawFileTree]
+  );
+
+  const handleToggleSelection = useCallback(
+    (path: string, isFolder: boolean) => {
+      setPersistentState((prev) => {
+        const currentSelectedPaths = new Set(prev.selectedPaths);
+        const isCurrentlySelected = currentSelectedPaths.has(path);
+        const updateDescendantsAndSelf = (
+          currentPath: string,
+          select: boolean
+        ) => {
+          const node = findNodeInTree(rawFileTree, currentPath);
+          if (!node) return;
+          if (select) currentSelectedPaths.add(currentPath);
+          else currentSelectedPaths.delete(currentPath);
+          if (node.type === 'folder') {
+            const descendants = getAllDescendantPaths(currentPath, rawFileTree);
+            descendants.forEach((descPath) => {
+              if (select) currentSelectedPaths.add(descPath);
+              else currentSelectedPaths.delete(descPath);
+            });
+          }
+        };
+        updateDescendantsAndSelf(path, !isCurrentlySelected);
+        let parentCandidatePath = path.substring(0, path.lastIndexOf('/'));
+        while (parentCandidatePath) {
+          const parentNode = findNodeInTree(rawFileTree, parentCandidatePath);
+          if (
+            !parentNode ||
+            parentNode.type !== 'folder' ||
+            !parentNode.children ||
+            parentNode.children.length === 0
+          ) {
+            parentCandidatePath = parentCandidatePath.substring(
+              0,
+              parentCandidatePath.lastIndexOf('/')
+            );
+            continue;
+          }
+          let allChildrenSelected = true;
+          for (const child of parentNode.children) {
+            if (!currentSelectedPaths.has(child.path)) {
+              allChildrenSelected = false;
+              break;
+            }
+          }
+          if (allChildrenSelected) {
+            currentSelectedPaths.add(parentCandidatePath);
+          } else {
+            currentSelectedPaths.delete(parentCandidatePath);
+          }
+          parentCandidatePath = parentCandidatePath.substring(
+            0,
+            parentCandidatePath.lastIndexOf('/')
+          );
+        }
+        return { ...prev, selectedPaths: Array.from(currentSelectedPaths) };
+      });
+    },
+    [setPersistentState, rawFileTree, getAllDescendantPaths, findNodeInTree]
+  );
+
+  useEffect(() => {
+    if (rawFileTree.length > 0 && currentZipFile) {
+      const extensionsMap: Record<string, number> = {};
+      const collectExtensions = (nodes: TreeNodeData[]) => {
+        nodes.forEach((node) => {
+          if (node.type === 'file') {
+            const parts = node.name.split('.');
+            if (parts.length > 1) {
+              const ext = parts.pop()!.toLowerCase();
+              extensionsMap[ext] = (extensionsMap[ext] || 0) + 1;
+            }
+          }
+          if (node.children) collectExtensions(node.children);
+        });
+      };
+      collectExtensions(rawFileTree);
+      const sortedExtArray = Object.entries(extensionsMap)
+        .map(([ext, count]) => ({
+          value: ext,
+          label: `${ext.toUpperCase()} (${count})`,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
+      setUniqueExtensionsInZip(sortedExtArray.slice(0, 30));
+    } else {
+      setUniqueExtensionsInZip([]);
+    }
+  }, [rawFileTree, currentZipFile]);
+
+  const processZipFile = useCallback(
+    async (fileToProcess: StoredFile) => {
+      if (!fileToProcess.blob) {
+        setClientError('Selected file is missing its content (blob).');
+        return;
+      }
+      setIsLoadingZipProcessing(true);
+      setClientError(null);
+      setRawFileTree([]);
+      zipRef.current = null;
+      const isNewFile =
+        persistentState.lastProcessedFileId !== fileToProcess.id;
       let rawEntriesCount = 0;
       let historyStatus: 'success' | 'error' = 'success';
       let historyOutputObj: Record<string, unknown> = {};
       const historyInput: Record<string, unknown> = {
-        fileName: file.name,
-        fileSize: file.size,
+        fileName: fileToProcess.name,
+        fileSize: fileToProcess.size,
+        fileId: fileToProcess.id,
       };
 
       try {
         const zip = new JSZip();
-        zipRef.current = await zip.loadAsync(file);
-        const rawEntries: RawZipEntry[] = [];
+        zipRef.current = await zip.loadAsync(fileToProcess.blob);
+        const rawEntriesData: RawZipEntry[] = [];
         zipRef.current.forEach((relativePath, zipEntry) => {
           if (zipEntry.name && !zipEntry.name.startsWith('__MACOSX/')) {
-            rawEntries.push({
+            rawEntriesData.push({
               name: zipEntry.name,
               isDirectory: zipEntry.dir,
               date: zipEntry.date,
@@ -114,28 +318,46 @@ export default function ZipFileExplorerClient({
             });
           }
         });
-        rawEntriesCount = rawEntries.filter((e) => !e.isDirectory).length;
-
-        const treeData = buildFileTree(rawEntries);
-        setFileTree(treeData);
+        rawEntriesCount = rawEntriesData.filter((e) => !e.isDirectory).length;
+        const treeData = buildFileTree(rawEntriesData);
+        setRawFileTree(treeData);
+        setPersistentState((prev) => ({
+          ...prev,
+          lastProcessedFileId: fileToProcess.id,
+          lastProcessedFileName: fileToProcess.name,
+          lastProcessedFileSize: fileToProcess.size,
+          selectedPaths: isNewFile ? [] : prev.selectedPaths,
+          expandedFolderPaths: isNewFile ? [] : prev.expandedFolderPaths,
+          filterSelectedExtension: isNewFile
+            ? ''
+            : prev.filterSelectedExtension,
+        }));
         historyOutputObj = {
           fileCount: rawEntriesCount,
-          message: `${rawEntriesCount} files found in ${file.name}`,
+          message: `${rawEntriesCount} files found in ${fileToProcess.name}`,
         };
       } catch (err: unknown) {
-        console.error('Error processing zip file:', err);
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to read zip file.';
-        setError(errorMessage);
+        setClientError(
+          err instanceof Error ? err.message : 'Failed to read zip file.'
+        );
         zipRef.current = null;
+        setPersistentState((prev) => ({
+          ...prev,
+          lastProcessedFileId: null,
+          lastProcessedFileName: null,
+          lastProcessedFileSize: null,
+          selectedPaths: [],
+          expandedFolderPaths: [],
+        }));
         historyStatus = 'error';
         historyOutputObj = {
           fileCount: 'Error',
-          errorMessage: errorMessage,
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
         };
-        historyInput.error = errorMessage;
+        historyInput.error =
+          err instanceof Error ? err.message : 'Unknown error';
       } finally {
-        setIsLoading(false);
+        setIsLoadingZipProcessing(false);
         addHistoryEntry({
           toolName: toolTitle,
           toolRoute: toolRoute,
@@ -147,62 +369,135 @@ export default function ZipFileExplorerClient({
         });
       }
     },
-    [addHistoryEntry, toolTitle, toolRoute]
+    [
+      addHistoryEntry,
+      toolTitle,
+      toolRoute,
+      setPersistentState,
+      persistentState.lastProcessedFileId,
+    ]
   );
 
-  const handleClear = useCallback(() => {
-    setSelectedFile(null);
-    setFileTree([]);
-    setError(null);
-    zipRef.current = null;
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setFilterName('');
-    setFilterMinDate('');
-    setFilterMaxDate('');
-    setExpandedFolders(new Set());
-    setIsPreviewOpen(false);
-  }, []);
+  useEffect(() => {
+    if (
+      !isLoadingToolState &&
+      !isLoadingZipProcessing &&
+      persistentState.lastProcessedFileId &&
+      (!currentZipFile ||
+        currentZipFile.id !== persistentState.lastProcessedFileId)
+    ) {
+      const loadLastFile = async () => {
+        if (!persistentState.lastProcessedFileId) {
+          console.warn(
+            '[ZipExplorer] Auto-load: lastProcessedFileId is null in persistentState. Skipping.'
+          );
+          return;
+        }
+        console.log(
+          `[ZipExplorer] Auto-load: Attempting to load last processed ZIP ID: ${persistentState.lastProcessedFileId}`
+        );
+        try {
+          const lastFile = await getFile(persistentState.lastProcessedFileId);
+          if (lastFile && lastFile.blob && lastFile.blob.size > 0) {
+            setCurrentZipFile(lastFile);
+            await processZipFile(lastFile);
+            console.log(
+              `[ZipExplorer] Auto-load: Successfully processed ${lastFile.name}`
+            );
+          } else {
+            console.warn(
+              `[ZipExplorer] Auto-load: Could not find or load valid blob for last processed file ID ${persistentState.lastProcessedFileId}. Clearing from persistent state.`
+            );
+            setPersistentState((prev) => ({
+              ...prev,
+              lastProcessedFileId: null,
+              lastProcessedFileName: null,
+              lastProcessedFileSize: null,
+              selectedPaths: [],
+              expandedFolderPaths: [],
+            }));
+          }
+        } catch (error) {
+          console.error(
+            `[ZipExplorer] Auto-load: Error during getFile or processZipFile for ${persistentState.lastProcessedFileId}:`,
+            error
+          );
+          setPersistentState((prev) => ({
+            ...prev,
+            lastProcessedFileId: null,
+            lastProcessedFileName: null,
+            lastProcessedFileSize: null,
+            selectedPaths: [],
+            expandedFolderPaths: [],
+          }));
+        }
+      };
+      loadLastFile();
+    }
+  }, [
+    persistentState.lastProcessedFileId,
+    isLoadingToolState,
+    isLoadingZipProcessing,
+    currentZipFile,
+    getFile,
+    processZipFile,
+    setPersistentState,
+  ]);
 
-  const handleFileChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      handleClear();
+  const handleClear = useCallback(() => {
+    setCurrentZipFile(null);
+    setRawFileTree([]);
+    setClientError(null);
+    zipRef.current = null;
+    setPersistentState(DEFAULT_ZIP_EXPLORER_STATE);
+    setIsPreviewOpen(false);
+    setUniqueExtensionsInZip([]);
+  }, [setPersistentState]);
+
+  const handleFilesSelectedFromModal = useCallback(
+    (files: StoredFile[], source: 'library' | 'upload') => {
+      const file = files[0];
       if (file) {
         if (
           file.type === 'application/zip' ||
           file.type === 'application/x-zip-compressed' ||
           file.name.toLowerCase().endsWith('.zip')
         ) {
-          setSelectedFile(file);
+          setCurrentZipFile(file);
           processZipFile(file);
         } else {
           const errorMsg = 'Invalid file type. Please select a .zip file.';
-          setError(errorMsg);
+          setClientError(errorMsg);
           addHistoryEntry({
             toolName: toolTitle,
             toolRoute: toolRoute,
-            trigger: 'upload',
-            input: { fileName: file.name, error: 'Invalid file type' },
+            trigger: source,
+            input: {
+              fileName: file.name,
+              fileId: file.id,
+              error: 'Invalid file type',
+            },
             output: { fileCount: 'Error', errorMessage: errorMsg },
             status: 'error',
             eventTimestamp: Date.now(),
           });
-          if (fileInputRef.current) fileInputRef.current.value = '';
         }
       }
+      setIsModalOpen(false);
     },
-    [processZipFile, handleClear, addHistoryEntry, toolTitle, toolRoute]
+    [processZipFile, addHistoryEntry, toolTitle, toolRoute]
   );
 
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {
     if (!entryData?._zipObject) {
-      setError(`Download error: Zip object missing for ${entryData.name}`);
+      setClientError(
+        `Download error: Zip object missing for ${entryData.name}`
+      );
       return;
     }
-    setError(null);
+    setClientError(null);
     const zipObject = entryData._zipObject;
     const filenameToSave = entryData.id.split('/').pop() || entryData.name;
-
     try {
       const blob = await zipObject.async('blob');
       const url = window.URL.createObjectURL(blob);
@@ -214,10 +509,9 @@ export default function ZipFileExplorerClient({
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      console.error(`Error downloading file ${entryData.id}:`, err);
       const message =
         err instanceof Error ? err.message : 'Unknown download error';
-      setError(`Download failed for ${filenameToSave}: ${message}`);
+      setClientError(`Download failed for ${filenameToSave}: ${message}`);
     }
   }, []);
 
@@ -241,7 +535,6 @@ export default function ZipFileExplorerClient({
       filenameLower.lastIndexOf('.') + 1
     );
     let generatedPreviewType: typeof previewType = 'unsupported';
-
     try {
       if (PREVIEWABLE_TEXT_EXTENSIONS.includes(extension)) {
         const textContent = await zipObject.async('string');
@@ -260,7 +553,6 @@ export default function ZipFileExplorerClient({
       }
       setPreviewType(generatedPreviewType);
     } catch (err: unknown) {
-      console.error(`Error generating preview for ${entryData.id}:`, err);
       const message =
         err instanceof Error ? err.message : 'Unknown preview error';
       setPreviewError(`Failed to load preview: ${message}`);
@@ -274,9 +566,7 @@ export default function ZipFileExplorerClient({
       currentObjectUrl = previewContent;
     }
     return () => {
-      if (currentObjectUrl) {
-        URL.revokeObjectURL(currentObjectUrl);
-      }
+      if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
     };
   }, [previewType, previewContent]);
 
@@ -288,139 +578,371 @@ export default function ZipFileExplorerClient({
     setPreviewError(null);
   }, []);
 
-  const toggleFolder = useCallback((folderPath: string) => {
-    setExpandedFolders((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(folderPath)) newSet.delete(folderPath);
-      else newSet.add(folderPath);
-      return newSet;
-    });
-  }, []);
+  const toggleFolder = useCallback(
+    (folderPath: string) => {
+      setPersistentState((prev) => {
+        const currentPaths = new Set(prev.expandedFolderPaths);
+        if (currentPaths.has(folderPath)) currentPaths.delete(folderPath);
+        else currentPaths.add(folderPath);
+        return { ...prev, expandedFolderPaths: Array.from(currentPaths) };
+      });
+    },
+    [setPersistentState]
+  );
+
+  const handleDownloadSelected = () => {
+    alert(
+      `Download Selected clicked. ${selectedPathsSet.size} items. (Not implemented)`
+    );
+  };
+
+  const toggleShowOnlySelected = () =>
+    setPersistentState((prev) => ({
+      ...prev,
+      showOnlySelected: !prev.showOnlySelected,
+    }));
+  const toggleHideEmptyFolders = () =>
+    setPersistentState((prev) => ({
+      ...prev,
+      hideEmptyFolders: !prev.hideEmptyFolders,
+    }));
+
+  const displayFileTree = useMemo(() => {
+    let nodesToFilter = [...rawFileTree];
+
+    if (persistentState.filterName.trim()) {
+      const searchTerm = persistentState.filterName.trim().toLowerCase();
+      const filterByNameRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.reduce((acc, node) => {
+          const children = node.children
+            ? filterByNameRec(node.children)
+            : undefined;
+          if (
+            node.path.toLowerCase().includes(searchTerm) ||
+            (children && children.length > 0)
+          ) {
+            acc.push({ ...node, children });
+          }
+          return acc;
+        }, [] as TreeNodeData[]);
+      nodesToFilter = filterByNameRec(nodesToFilter);
+    }
+
+    if (persistentState.filterSelectedExtension) {
+      const targetExt = persistentState.filterSelectedExtension;
+      const filterByExtRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.reduce((acc, node) => {
+          const children = node.children
+            ? filterByExtRec(node.children)
+            : undefined;
+          let matches =
+            node.type === 'folder' && children && children.length > 0;
+          if (node.type === 'file') {
+            const nameParts = node.name.split('.');
+            if (
+              nameParts.length > 1 &&
+              nameParts.pop()!.toLowerCase() === targetExt
+            ) {
+              matches = true;
+            }
+          }
+          if (matches) acc.push({ ...node, children });
+          return acc;
+        }, [] as TreeNodeData[]);
+      nodesToFilter = filterByExtRec(nodesToFilter);
+    }
+
+    // Date Filtering (Placeholder - needs actual date comparison logic)
+    if (persistentState.filterMinDate || persistentState.filterMaxDate) {
+      const minDate = persistentState.filterMinDate
+        ? new Date(persistentState.filterMinDate).getTime()
+        : 0;
+      const maxDate = persistentState.filterMaxDate
+        ? new Date(persistentState.filterMaxDate).getTime() +
+          (24 * 60 * 60 * 1000 - 1)
+        : Infinity; // End of day
+
+      const filterByDateRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.reduce((acc, node) => {
+          const children = node.children
+            ? filterByDateRec(node.children)
+            : undefined;
+          let matches =
+            node.type === 'folder' && children && children.length > 0;
+          if (node.type === 'file' && node.date) {
+            const nodeTime = node.date.getTime();
+            if (nodeTime >= minDate && nodeTime <= maxDate) {
+              matches = true;
+            }
+          }
+          if (matches) acc.push({ ...node, children });
+          return acc;
+        }, [] as TreeNodeData[]);
+      nodesToFilter = filterByDateRec(nodesToFilter);
+    }
+
+    if (persistentState.showOnlySelected && selectedPathsSet.size > 0) {
+      const filterSelectedRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.reduce((acc, node) => {
+          const children = node.children
+            ? filterSelectedRec(node.children)
+            : undefined;
+          if (
+            selectedPathsSet.has(node.path) ||
+            (children && children.length > 0)
+          ) {
+            acc.push({ ...node, children });
+          }
+          return acc;
+        }, [] as TreeNodeData[]);
+      nodesToFilter = filterSelectedRec(nodesToFilter);
+    }
+
+    if (persistentState.hideEmptyFolders) {
+      const pruneEmptyRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.filter((node) => {
+          if (node.type === 'file') return true;
+          if (node.children) {
+            node.children = pruneEmptyRec(node.children);
+            return node.children.length > 0;
+          }
+          return false; // Folder with no children defined
+        });
+      nodesToFilter = pruneEmptyRec(nodesToFilter);
+    }
+    return nodesToFilter;
+  }, [
+    rawFileTree,
+    persistentState.filterName,
+    persistentState.filterSelectedExtension,
+    persistentState.filterMinDate,
+    persistentState.filterMaxDate,
+    persistentState.showOnlySelected,
+    persistentState.hideEmptyFolders,
+    selectedPathsSet,
+  ]);
+
+  const fileCountInDisplayTree = useMemo(() => {
+    let count = 0;
+    const countFiles = (nodes: TreeNodeData[]) => {
+      nodes.forEach((node) => {
+        if (node.type === 'file') count++;
+        if (node.children) countFiles(node.children);
+      });
+    };
+    countFiles(displayFileTree);
+    return count;
+  }, [displayFileTree]);
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
-      {/* Input Section (Unchanged) */}
       <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">
-        <div>
-          <label
-            htmlFor="zipInput"
-            className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"
-          >
-            Select Zip File:
-          </label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            id="zipInput"
-            accept=".zip,application/zip,application/x-zip-compressed"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-[rgb(var(--color-text-base))] border border-[rgb(var(--color-input-border))] rounded-lg cursor-pointer bg-[rgb(var(--color-input-bg))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))] file:mr-4 file:py-2 file:px-4 file:rounded-l-md file:border-0 file:text-sm file:font-semibold file:bg-[rgb(var(--color-bg-subtle))] file:text-[rgb(var(--color-text-link))] hover:file:bg-[rgba(var(--color-text-link)/0.1)]"
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button
+            variant="primary"
+            onClick={() => setIsModalOpen(true)}
             disabled={isLoading}
-          />
-          <div className="mt-2 text-sm text-[rgb(var(--color-text-muted))] h-5">
-            {isLoading && selectedFile && (
+            iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}
+          >
+            {' '}
+            Select or Upload ZIP File{' '}
+          </Button>
+          {(currentZipFile || rawFileTree.length > 0 || error) && (
+            <Button
+              variant="danger"
+              onClick={handleClear}
+              disabled={isLoading}
+              iconLeft={<TrashIcon className="h-5 w-5" />}
+            >
+              {' '}
+              Clear Current ZIP{' '}
+            </Button>
+          )}
+        </div>
+        <div className="mt-2 text-sm text-[rgb(var(--color-text-muted))] h-5">
+          {isLoadingZipProcessing && currentZipFile && (
+            <span>
+              Processing: <em>{currentZipFile.name}</em>...
+            </span>
+          )}
+          {!isLoadingZipProcessing &&
+            currentZipFile &&
+            rawFileTree.length > 0 && (
               <span>
-                Processing: <em>{selectedFile.name}</em>...
+                Loaded: <strong>{currentZipFile.name}</strong>.
               </span>
             )}
-            {!isLoading && selectedFile && fileTree.length > 0 && (
+          {!isLoadingZipProcessing &&
+            currentZipFile &&
+            rawFileTree.length === 0 &&
+            !error && (
               <span>
-                Loaded: <strong>{selectedFile.name}</strong>.
+                Loaded <strong>{currentZipFile.name}</strong>, appears empty.
               </span>
             )}
-            {!isLoading && selectedFile && fileTree.length === 0 && !error && (
-              <span>
-                Loaded <strong>{selectedFile.name}</strong>, appears empty or
-                contained only unsupported files.
+          {!isLoadingZipProcessing &&
+            !currentZipFile &&
+            !error &&
+            persistentState.lastProcessedFileName && (
+              <span className="italic">
+                Previously: {persistentState.lastProcessedFileName} (
+                {persistentState.lastProcessedFileSize
+                  ? formatBytesCompact(persistentState.lastProcessedFileSize)
+                  : 'size unknown'}
+                ). Select new.
               </span>
             )}
-            {!isLoading && !selectedFile && !error && (
+          {!isLoadingZipProcessing &&
+            !currentZipFile &&
+            !error &&
+            !persistentState.lastProcessedFileName && (
               <span>Ready for file selection.</span>
             )}
-          </div>
         </div>
-        {(selectedFile || fileTree.length > 0 || error) && (
-          <button
-            type="button"
-            onClick={handleClear}
-            disabled={isLoading}
-            className="px-4 py-2 rounded-md text-sm font-medium text-[rgb(var(--color-button-danger-text))] bg-[rgb(var(--color-button-danger-bg))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]"
-          >
-            Clear
-          </button>
-        )}
       </div>
 
-      {/* Filter Section (Unchanged) */}
-      {!isLoading && fileTree.length > 0 && (
-        <div
-          className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-4 opacity-60 cursor-not-allowed"
-          title="Filtering/Sorting not implemented yet"
-        >
-          <h3 className="text-lg font-semibold text-[rgb(var(--color-text-muted))]">
-            Filter Results{' '}
-            <span className="text-xs font-normal">(Inactive)</span>
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      {!isLoading && rawFileTree.length > 0 && (
+        <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-4">
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <h3 className="text-lg font-semibold text-[rgb(var(--color-text-base))] flex items-center">
+              <FunnelIcon className="h-5 w-5 mr-2 text-[rgb(var(--color-text-muted))]" />
+              Filter & View Options
+            </h3>
+            <Button
+              variant="neutral-outline"
+              size="sm"
+              onClick={handleClearFilters}
+              disabled={!areFiltersActive || isLoading}
+              iconLeft={<ClearFilterIcon className="h-4 w-4" />}
+              title="Clear all text/type/date filters"
+            >
+              Clear Filters
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-start">
             <div>
               <label
                 htmlFor="filterName"
-                className="block font-medium text-[rgb(var(--color-text-muted))] mb-1"
+                className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"
               >
-                Name contains:
+                Name/Path contains:
               </label>
               <input
-                disabled
                 type="text"
                 id="filterName"
-                value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
+                value={persistentState.filterName}
+                onChange={(e) =>
+                  setPersistentState((prev) => ({
+                    ...prev,
+                    filterName: e.target.value,
+                  }))
+                }
                 placeholder="e.g., .txt, image"
-                className="w-full px-2 py-1 border border-[rgb(var(--color-input-border))] rounded-md shadow-sm bg-[rgb(var(--color-input-disabled-bg))] text-[rgb(var(--color-text-muted))]"
+                className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] rounded-md shadow-sm bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] focus:border-[rgb(var(--color-input-focus-border))] focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))] text-sm"
+                disabled={isLoading || rawFileTree.length === 0}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label
-                  htmlFor="filterMinDate"
-                  className="block font-medium text-[rgb(var(--color-text-muted))] mb-1"
-                >
-                  Min Date:
-                </label>
-                <input
-                  disabled
-                  type="date"
-                  id="filterMinDate"
-                  value={filterMinDate}
-                  onChange={(e) => setFilterMinDate(e.target.value)}
-                  className="w-full px-2 py-1 border border-[rgb(var(--color-input-border))] rounded-md shadow-sm bg-[rgb(var(--color-input-disabled-bg))] text-[rgb(var(--color-text-muted))]"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="filterMaxDate"
-                  className="block font-medium text-[rgb(var(--color-text-muted))] mb-1"
-                >
-                  Max Date:
-                </label>
-                <input
-                  disabled
-                  type="date"
-                  id="filterMaxDate"
-                  value={filterMaxDate}
-                  onChange={(e) => setFilterMaxDate(e.target.value)}
-                  className="w-full px-2 py-1 border border-[rgb(var(--color-input-border))] rounded-md shadow-sm bg-[rgb(var(--color-input-disabled-bg))] text-[rgb(var(--color-text-muted))]"
-                />
-              </div>
+            <div>
+              <Select
+                label="File Type:"
+                id="filterExtension"
+                options={[
+                  {
+                    value: '',
+                    label: `All Types (${uniqueExtensionsInZip.reduce((sum, ext) => sum + ext.count, 0)})`,
+                  },
+                  ...uniqueExtensionsInZip,
+                ]}
+                value={persistentState.filterSelectedExtension}
+                onChange={(e) =>
+                  setPersistentState((prev) => ({
+                    ...prev,
+                    filterSelectedExtension: e.target.value,
+                  }))
+                }
+                disabled={isLoading || uniqueExtensionsInZip.length === 0}
+                selectClassName="text-sm py-2"
+              />
             </div>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-start pt-3 border-t border-[rgb(var(--color-border-base))]">
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
+                View Toggles:
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  onClick={toggleShowOnlySelected}
+                  variant={
+                    persistentState.showOnlySelected
+                      ? 'accent-outline'
+                      : 'neutral-outline'
+                  }
+                  size="sm"
+                  disabled={
+                    isLoading ||
+                    rawFileTree.length === 0 ||
+                    selectedPathsSet.size === 0
+                  }
+                  title={
+                    persistentState.showOnlySelected
+                      ? 'Show all items'
+                      : 'Show only selected'
+                  }
+                >
+                  {persistentState.showOnlySelected
+                    ? `Selected (${selectedPathsSet.size})`
+                    : 'Show Selected'}
+                </Button>
+                <Button
+                  onClick={toggleHideEmptyFolders}
+                  variant={
+                    persistentState.hideEmptyFolders
+                      ? 'accent-outline'
+                      : 'neutral-outline'
+                  }
+                  size="sm"
+                  disabled={isLoading || rawFileTree.length === 0}
+                  title={
+                    persistentState.hideEmptyFolders
+                      ? 'Show empty folders'
+                      : 'Hide empty folders'
+                  }
+                >
+                  {persistentState.hideEmptyFolders
+                    ? 'Hiding Empty'
+                    : 'Hide Empty'}
+                </Button>
+                <Button
+                  variant="neutral-outline"
+                  size="sm"
+                  disabled
+                  title="Date Filter (Coming Soon)"
+                >
+                  🗓️ Dates
+                </Button>
+              </div>
+            </div>
+            <div>
+              {' '}
+              {/* Placeholder for future Size filter or other controls */}{' '}
+            </div>
+          </div>
+          <p className="text-xs text-right text-gray-500 mt-1 pr-1">
+            Displaying {fileCountInDisplayTree} files / {displayFileTree.length}{' '}
+            total entries based on current filters.
+          </p>
         </div>
       )}
 
-      {/* Loading / Error / Tree Display (Unchanged) */}
-      {isLoading && (
-        <p className="text-center text-[rgb(var(--color-text-link))] p-4">
+      {isLoadingZipProcessing && (
+        <p className="text-center text-[rgb(var(--color-text-link))] p-4 animate-pulse">
           Processing zip file...
+        </p>
+      )}
+      {isLoadingToolState && !isLoadingZipProcessing && (
+        <p className="text-center text-[rgb(var(--color-text-link))] p-4 animate-pulse">
+          Loading saved state...
         </p>
       )}
       {error && (
@@ -428,50 +950,95 @@ export default function ZipFileExplorerClient({
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 flex-shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <XCircleIcon
+            className="h-5 w-5 flex-shrink-0 text-red-500"
+            aria-hidden="true"
+          />
           <strong className="font-semibold">Error:</strong> {error}
         </div>
       )}
 
-      {!isLoading && fileTree.length > 0 && (
+      {!isLoading && rawFileTree.length > 0 && (
         <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md">
-          <h2 className="text-lg font-semibold mb-2 text-[rgb(var(--color-text-base))]">
-            {' '}
-            Contents of “{selectedFile?.name}”:{' '}
-          </h2>
-          <div className="font-mono text-sm space-y-1 max-h-[60vh] overflow-auto border border-[rgb(var(--color-border-base))] rounded p-2 bg-[rgb(var(--color-bg-component))]">
-            {fileTree.map((node) => (
+          <div className="flex flex-wrap justify-between items-center mb-2 gap-2">
+            <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">
+              Contents of “
+              {currentZipFile?.name ||
+                persistentState.lastProcessedFileName ||
+                'Archive'}
+              ”:
+            </h2>
+            <div className="flex gap-2">
+              {selectedPathsSet.size > 0 && (
+                <Button
+                  variant="secondary-outline"
+                  size="sm"
+                  onClick={handleDownloadSelected}
+                  disabled
+                  iconLeft={<DownloadIcon className="h-4 w-4" />}
+                  title="Download selected (Not Implemented)"
+                >
+                  Download Sel ({selectedPathsSet.size})
+                </Button>
+              )}
+              {selectedPathsSet.size > 0 && (
+                <Button
+                  variant="accent"
+                  size="sm"
+                  onClick={() => alert('Send To... (Not Implemented)')}
+                  disabled
+                  iconLeft={<PaperAirplaneIcon className="h-4 w-4" />}
+                  title="Send selected to another tool (Not Implemented)"
+                >
+                  Send To...
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="font-mono text-sm space-y-0.5 max-h-[60vh] overflow-auto border border-[rgb(var(--color-border-base))] rounded p-2 bg-[rgb(var(--color-bg-component))]">
+            {displayFileTree.map((node) => (
               <TreeNode
                 key={node.id}
                 node={node}
                 level={0}
-                expandedFolders={expandedFolders}
+                expandedFolders={expandedFoldersSet}
+                selectedPaths={selectedPathsSet}
+                isPathIndeterminate={isPathIndeterminate}
                 onToggle={toggleFolder}
+                onToggleSelection={handleToggleSelection}
                 onDownload={handleDownload}
                 onPreview={handlePreview}
               />
             ))}
+            {displayFileTree.length === 0 && rawFileTree.length > 0 && (
+              <p className="text-center text-gray-500 italic py-4">
+                No items match current filters.
+              </p>
+            )}
           </div>
         </div>
       )}
-      {!isLoading && !error && selectedFile && fileTree.length === 0 && (
-        <p className="p-4 text-[rgb(var(--color-text-muted))] italic">
-          No processable entries found in “{selectedFile.name}”.
-        </p>
-      )}
+      {!isLoading &&
+        !error &&
+        (currentZipFile || persistentState.lastProcessedFileId) &&
+        rawFileTree.length === 0 &&
+        displayFileTree.length === 0 && (
+          <p className="p-4 text-[rgb(var(--color-text-muted))] italic">
+            No files to display. The ZIP might be empty or an error occurred.
+          </p>
+        )}
 
-      {/* Preview Modal (Unchanged) */}
+      <FileSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onFilesSelected={handleFilesSelectedFromModal}
+        mode="selectExistingOrUploadNew"
+        accept=".zip,application/zip,application/x-zip-compressed"
+        selectionMode="single"
+        libraryFilter={{ type: 'application/zip' }}
+        initialTab="upload"
+      />
+
       {isPreviewOpen && (
         <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50"
@@ -492,17 +1059,18 @@ export default function ZipFileExplorerClient({
               >
                 {previewFilename || 'Preview'}
               </h3>
-              <button
+              <Button
+                variant="link"
                 onClick={closePreview}
                 title="Close Preview"
-                className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] text-2xl font-bold leading-none px-2 py-1 rounded hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none"
+                className="text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-base))] !p-1"
               >
-                ×
-              </button>
+                <XCircleIcon className="h-6 w-6" />
+              </Button>
             </div>
             <div className="p-4 overflow-auto flex-grow min-h-[200px]">
               {previewType === 'loading' && (
-                <p className="text-center text-[rgb(var(--color-text-muted))]">
+                <p className="text-center text-[rgb(var(--color-text-muted))] animate-pulse">
                   Loading preview...
                 </p>
               )}
@@ -511,26 +1079,17 @@ export default function ZipFileExplorerClient({
                   role="alert"
                   className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5 flex-shrink-0"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <XCircleIcon
+                    className="h-5 w-5 flex-shrink-0 text-red-500"
+                    aria-hidden="true"
+                  />
                   <strong className="font-semibold">Error:</strong>{' '}
                   {previewError}
                 </div>
               )}
               {!previewError && previewType === 'text' && (
                 <pre className="text-sm whitespace-pre-wrap break-words max-h-[75vh] overflow-auto">
-                  {' '}
-                  <code>{previewContent}</code>{' '}
+                  <code>{previewContent}</code>
                 </pre>
               )}
               {!previewError && previewType === 'image' && previewContent && (

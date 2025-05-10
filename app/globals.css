@@ -11,6 +11,16 @@
   width: auto !important;
 }
 
+.tree-node-file-icon:before {
+  /* Assuming you add 'tree-node-file-icon' class to the span */
+  font-size: 1rem !important; /* 
+  line-height: 1 !important;
+  width: 1rem !important;   
+  height: 1rem !important;  
+  vertical-align: middle;
+  */
+}
+
 :root {
   /* === Core Palette (RGB values for Tailwind arbitrary syntax) === */
   --color-text-base: 24 24 27; /* zinc-900 */

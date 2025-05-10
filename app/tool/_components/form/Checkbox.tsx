@@ -1,7 +1,7 @@
 // FILE: app/tool/_components/form/Checkbox.tsx
 'use client';
 
-import React, { useId } from 'react';
+import React, { useId, useEffect, useRef } from 'react';
 
 interface CheckboxProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'id'> {
@@ -9,6 +9,7 @@ interface CheckboxProps
   id?: string;
   checked: boolean;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  isIndeterminate?: boolean; // New prop for indeterminate state
   disabled?: boolean;
   className?: string;
   labelClassName?: string;
@@ -20,6 +21,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
   id: providedId,
   checked,
   onChange,
+  isIndeterminate = false, // Default to false
   disabled = false,
   className = '',
   labelClassName = '',
@@ -30,12 +32,25 @@ const Checkbox: React.FC<CheckboxProps> = ({
 }) => {
   const autoId = useId();
   const effectiveId = providedId || autoId;
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]);
+
+  // Tailwind doesn't have a built-in variant for :indeterminate pseudo-class easily.
+  // We can add a class to style it, or rely on browser default.
+  // For a simple visual cue if browser default isn't strong:
+  const indeterminateStyle = isIndeterminate && !checked ? 'bg-gray-400' : '';
 
   return (
     <div
       className={`flex items-center ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
     >
       <input
+        ref={inputRef}
         type="checkbox"
         id={effectiveId}
         name={name}
@@ -49,6 +64,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
           text-[rgb(var(--color-checkbox-accent))] 
           accent-[rgb(var(--color-checkbox-accent))] 
           disabled:cursor-not-allowed
+          ${indeterminateStyle} 
           ${inputClassName}
         `}
         {...rest}
@@ -56,7 +72,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
       {label && (
         <label
           htmlFor={effectiveId}
-          className={`ml-2 block text-sm ${disabled ? 'text-gray-400' : 'text-gray-700'} ${!disabled ? 'cursor-pointer' : ''} ${labelClassName}`}
+          className={`ml-2 block text-sm ${disabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-base))]'} ${!disabled ? 'cursor-pointer' : ''} ${labelClassName}`}
         >
           {label}
         </label>

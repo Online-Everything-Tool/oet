@@ -3,30 +3,67 @@
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
+import useToolState from '../../_hooks/useToolState';
+import Button from '../../_components/form/Button';
+import Input from '../../_components/form/Input'; // Using shared Input
+// Select component will be used when we refactor filter dropdowns
+// import Select from '../../_components/form/Select';
 import { getUniqueSortedValues } from '@/app/lib/utils';
 import { RichEmojiData } from '@/src/constants/emojis';
+import {
+  FunnelIcon,
+  ClipboardDocumentIcon,
+  CheckIcon,
+  XMarkIcon, // For clearing recently copied
+  MagnifyingGlassIcon,
+} from '@heroicons/react/24/outline';
+
+interface EmojiExplorerToolState {
+  searchTerm: string;
+  selectedGroup: string;
+  selectedSubgroup: string;
+  selectedVersion: string;
+  recentlyCopiedEmojis: RichEmojiData[];
+}
+
+const DEFAULT_EMOJI_EXPLORER_STATE: EmojiExplorerToolState = {
+  searchTerm: '',
+  selectedGroup: '',
+  selectedSubgroup: '',
+  selectedVersion: '',
+  recentlyCopiedEmojis: [],
+};
+
+const MAX_RECENTLY_COPIED = 20;
 
 interface EmojiSearchClientProps {
   initialEmojis: RichEmojiData[];
+  featuredEmoji?: RichEmojiData;
 }
 
 export default function EmojiSearchClient({
   initialEmojis,
+  featuredEmoji,
 }: EmojiSearchClientProps) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const {
+    state: toolState,
+    setState: setToolState,
+    isLoadingState: isLoadingToolState,
+  } = useToolState<EmojiExplorerToolState>(
+    '/tool/emoji-explorer',
+    DEFAULT_EMOJI_EXPLORER_STATE
+  );
+
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
-  const [selectedSubgroup, setSelectedSubgroup] = useState<string>('');
-  const [selectedVersion, setSelectedVersion] = useState<string>('');
+  const [lastCopiedValue, setLastCopiedValue] = useState<{
+    type: string;
+    value: string;
+  } | null>(null);
+
   const { addHistoryEntry } = useHistory();
 
-  useEffect(() => {
-    if (!initialEmojis || initialEmojis.length === 0) {
-      console.warn(
-        'EmojiSearchClient received empty or no initialEmojis array.'
-      );
-    }
-  }, [initialEmojis]);
+  // Removed the initialEmojis warning useEffect as it was for debugging
+
   const availableGroups = useMemo(
     () => getUniqueSortedValues(initialEmojis, 'group', 'asc'),
     [initialEmojis]
@@ -35,199 +72,339 @@ export default function EmojiSearchClient({
     () => getUniqueSortedValues(initialEmojis, 'version', 'version-desc'),
     [initialEmojis]
   );
+
   const derivedAvailableSubgroups = useMemo(() => {
-    if (!selectedGroup) return [];
+    if (!toolState.selectedGroup) return [];
     const filteredByGroup = initialEmojis.filter(
-      (e) => e.group === selectedGroup
+      (e) => e.group === toolState.selectedGroup
     );
     return getUniqueSortedValues(filteredByGroup, 'subgroup', 'asc');
-  }, [initialEmojis, selectedGroup]);
+  }, [initialEmojis, toolState.selectedGroup]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (selectedGroup) count++;
-    if (selectedSubgroup && selectedGroup) count++;
-    if (selectedVersion) count++;
+    if (toolState.selectedGroup) count++;
+    if (toolState.selectedSubgroup && toolState.selectedGroup) count++;
+    if (toolState.selectedVersion) count++;
     return count;
-  }, [selectedGroup, selectedSubgroup, selectedVersion]);
+  }, [
+    toolState.selectedGroup,
+    toolState.selectedSubgroup,
+    toolState.selectedVersion,
+  ]);
+
   const filteredEmojis = useMemo(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
-    if (!lowerCaseSearchTerm && !selectedGroup && !selectedVersion) {
+    const lowerCaseSearchTerm = toolState.searchTerm.toLowerCase().trim();
+    // If no filters/search and not a featured page with few items, return all
+    if (
+      !lowerCaseSearchTerm &&
+      !toolState.selectedGroup &&
+      !toolState.selectedVersion &&
+      !featuredEmoji
+    ) {
       return initialEmojis;
     }
+    // If it's a featured page and user hasn't interacted with filters/search, maybe show all.
+    // For now, filtering applies universally.
     return initialEmojis.filter((emoji) => {
       if (
         lowerCaseSearchTerm &&
         !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)
       )
         return false;
-      if (selectedGroup && emoji.group !== selectedGroup) return false;
+      if (toolState.selectedGroup && emoji.group !== toolState.selectedGroup)
+        return false;
       if (
-        selectedGroup &&
-        selectedSubgroup &&
-        emoji.subgroup !== selectedSubgroup
+        toolState.selectedGroup &&
+        toolState.selectedSubgroup &&
+        emoji.subgroup !== toolState.selectedSubgroup
       )
         return false;
-      if (selectedVersion && emoji.version !== selectedVersion) return false;
+      if (
+        toolState.selectedVersion &&
+        emoji.version !== toolState.selectedVersion
+      )
+        return false;
       return true;
     });
   }, [
-    searchTerm,
     initialEmojis,
-    selectedGroup,
-    selectedSubgroup,
-    selectedVersion,
+    toolState.searchTerm,
+    toolState.selectedGroup,
+    toolState.selectedSubgroup,
+    toolState.selectedVersion,
+    featuredEmoji,
   ]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    setSearchTerm(event.target.value);
+    setToolState({ searchTerm: event.target.value });
   const toggleFilterPanel = () => setIsFilterPanelOpen((prev) => !prev);
-  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedGroup(event.target.value);
-    setSelectedSubgroup('');
-  };
+  const handleGroupChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
+    setToolState({ selectedGroup: event.target.value, selectedSubgroup: '' });
   const handleSubgroupChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
-    setSelectedSubgroup(event.target.value);
+    setToolState({ selectedSubgroup: event.target.value });
   const handleVersionChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
-    setSelectedVersion(event.target.value);
-  const handleClearFilters = useCallback(() => {
-    setSelectedGroup('');
-    setSelectedSubgroup('');
-    setSelectedVersion('');
-  }, []);
+    setToolState({ selectedVersion: event.target.value });
+  const handleClearFilters = useCallback(
+    () =>
+      setToolState({
+        selectedGroup: '',
+        selectedSubgroup: '',
+        selectedVersion: '',
+      }),
+    [setToolState]
+  );
+  const handleClearRecentlyCopied = useCallback(
+    () => setToolState({ recentlyCopiedEmojis: [] }),
+    [setToolState]
+  );
 
-  const handleEmojiClick = useCallback(
-    (emojiData: RichEmojiData) => {
-      const historyInput: Record<string, unknown> = {
-        copiedType: 'emoji',
-        copiedValue: emojiData.emoji,
-        entityDescription: emojiData.name,
-      };
-      if (searchTerm) historyInput.searchTerm = searchTerm;
-      if (selectedGroup) historyInput.group = selectedGroup;
-      if (selectedSubgroup) historyInput.subgroup = selectedSubgroup;
-      if (selectedVersion) historyInput.version = selectedVersion;
-
-      const historyOutput = { emoji: emojiData.emoji, name: emojiData.name };
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(emojiData.emoji)
-          .then(() => {
-            addHistoryEntry({
-              toolName: 'Emoji Explorer',
-              toolRoute: '/tool/emoji-explorer',
-              trigger: 'click',
-              input: historyInput,
-              output: historyOutput,
-              status: 'success',
-              eventTimestamp: Date.now(),
-            });
-            console.log(`Copied ${emojiData.emoji} to clipboard.`);
-          })
-          .catch((err) => {
-            console.error('Failed to copy emoji:', err);
-            historyInput.error = `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`;
-
-            addHistoryEntry({
-              toolName: 'Emoji Explorer',
-              toolRoute: '/tool/emoji-explorer',
-              trigger: 'click',
-              input: historyInput,
-              output: historyOutput,
-              status: 'error',
-              eventTimestamp: Date.now(),
-            });
-          });
-      } else {
-        console.warn('Clipboard API not available.');
-        historyInput.error = 'Clipboard API not available';
-
+  const copyToClipboardHandler = useCallback(
+    async (textToCopy: string, copyContentType: string, emojiName?: string) => {
+      if (!textToCopy) return;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setLastCopiedValue({ type: copyContentType, value: textToCopy });
+        setTimeout(() => setLastCopiedValue(null), 1500);
         addHistoryEntry({
           toolName: 'Emoji Explorer',
           toolRoute: '/tool/emoji-explorer',
           trigger: 'click',
-          input: historyInput,
-          output: historyOutput,
+          input: {
+            action: 'copy',
+            contentType: copyContentType,
+            valueCopied: textToCopy,
+            emojiName: emojiName || 'N/A',
+          },
+          output: { message: `Copied ${copyContentType}` },
+          status: 'success',
+          eventTimestamp: Date.now(),
+        });
+      } catch (err) {
+        console.error(`Failed to copy ${copyContentType}:`, err);
+        addHistoryEntry({
+          toolName: 'Emoji Explorer',
+          toolRoute: '/tool/emoji-explorer',
+          trigger: 'click',
+          input: {
+            action: 'copy',
+            contentType: copyContentType,
+            valueCopied: textToCopy,
+            emojiName: emojiName || 'N/A',
+            error: `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          },
+          output: { message: `Failed to copy ${copyContentType}` },
           status: 'error',
           eventTimestamp: Date.now(),
         });
       }
     },
-    [
-      addHistoryEntry,
-      searchTerm,
-      selectedGroup,
-      selectedSubgroup,
-      selectedVersion,
-    ]
+    [addHistoryEntry]
   );
 
+  const handleEmojiClick = useCallback(
+    (
+      emojiData: RichEmojiData,
+      source: 'grid' | 'recent' | 'featured' = 'grid'
+    ) => {
+      copyToClipboardHandler(emojiData.emoji, 'emoji', emojiData.name);
+      if (source !== 'recent') {
+        setToolState((prev) => {
+          const newRecentlyCopied = [
+            emojiData,
+            ...prev.recentlyCopiedEmojis.filter(
+              (e) => e.codePoints !== emojiData.codePoints
+            ),
+          ].slice(0, MAX_RECENTLY_COPIED);
+          return { ...prev, recentlyCopiedEmojis: newRecentlyCopied };
+        });
+      }
+    },
+    [copyToClipboardHandler, setToolState]
+  );
+
+  if (isLoadingToolState) {
+    return (
+      <div className="text-center p-4 text-gray-500 italic animate-pulse">
+        Loading Emoji Explorer...
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      <div className="flex gap-3 items-center">
+    <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))] p-1">
+      {featuredEmoji && (
+        <div className="p-4 md:p-6 border border-[rgb(var(--color-button-accent-border))] rounded-lg bg-[rgb(var(--color-button-accent-bg)/0.05)] shadow-md mb-6">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
+            <span
+              className="text-6xl md:text-8xl"
+              aria-label={featuredEmoji.name}
+            >
+              {featuredEmoji.emoji}
+            </span>
+            <div className="flex-grow text-center md:text-left">
+              <h2 className="text-2xl md:text-3xl font-bold text-[rgb(var(--color-text-base))] mb-1">
+                {featuredEmoji.name}
+              </h2>
+              <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                <strong>Codepoints:</strong>{' '}
+                <code className="text-xs bg-gray-200 p-0.5 rounded">
+                  {featuredEmoji.codePoints}
+                </code>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="!ml-1 !p-0.5"
+                  onClick={() =>
+                    copyToClipboardHandler(
+                      featuredEmoji.codePoints,
+                      'codepoints',
+                      featuredEmoji.name
+                    )
+                  }
+                  title="Copy Codepoints"
+                >
+                  {lastCopiedValue?.type === 'codepoints' &&
+                  lastCopiedValue?.value === featuredEmoji.codePoints ? (
+                    <CheckIcon className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                  )}
+                </Button>
+              </p>
+              <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                <strong>Group:</strong> {featuredEmoji.group} {'>'}{' '}
+                {featuredEmoji.subgroup}
+              </p>
+              <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                <strong>Unicode Version:</strong> {featuredEmoji.version}
+              </p>
+            </div>
+            <Button
+              variant="accent"
+              onClick={() => handleEmojiClick(featuredEmoji, 'featured')}
+              className="w-full md:w-auto mt-4 md:mt-0 !py-2.5"
+              iconLeft={
+                lastCopiedValue?.type === 'emoji' &&
+                lastCopiedValue?.value === featuredEmoji.emoji ? (
+                  <CheckIcon className="h-5 w-5" />
+                ) : (
+                  <ClipboardDocumentIcon className="h-5 w-5" />
+                )
+              }
+            >
+              {lastCopiedValue?.type === 'emoji' &&
+              lastCopiedValue?.value === featuredEmoji.emoji
+                ? 'Copied Emoji!'
+                : `Copy ${featuredEmoji.emoji}`}
+            </Button>
+          </div>
+          {featuredEmoji &&
+            typeof window !== 'undefined' &&
+            window.location.pathname !== '/tool/emoji-explorer/' && (
+              <div className="mt-4 text-center md:text-right">
+                <a
+                  href="/tool/emoji-explorer/"
+                  className="text-sm text-[rgb(var(--color-text-link))] hover:underline"
+                >
+                  ← Back to Full Emoji Explorer
+                </a>
+              </div>
+            )}
+        </div>
+      )}
+
+      {toolState.recentlyCopiedEmojis &&
+        toolState.recentlyCopiedEmojis.length > 0 && (
+          <div className="p-3 border-b border-[rgb(var(--color-border-base))]">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-xs font-medium text-[rgb(var(--color-text-muted))]">
+                RECENTLY COPIED:
+              </h3>
+              <Button
+                variant="link"
+                size="sm"
+                onClick={handleClearRecentlyCopied}
+                title="Clear recently copied emojis"
+                className="!p-0.5 text-xs"
+              >
+                <XMarkIcon className="h-4 w-4 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-error))]" />
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {toolState.recentlyCopiedEmojis.map((emojiData) => (
+                <Button
+                  key={emojiData.codePoints}
+                  variant="neutral-outline"
+                  size="sm"
+                  onClick={() => handleEmojiClick(emojiData, 'recent')}
+                  title={`Copy: ${emojiData.name}`}
+                  className="!p-1.5 !text-xl leading-none aspect-square"
+                  aria-label={`Copy emoji: ${emojiData.name}`}
+                >
+                  {lastCopiedValue?.type === 'emoji' &&
+                  lastCopiedValue?.value === emojiData.emoji ? (
+                    <CheckIcon className="h-5 w-5 text-green-500" />
+                  ) : (
+                    emojiData.emoji
+                  )}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+      <div className="flex gap-3 items-center pt-2">
         <div className="flex-grow">
-          <label htmlFor="emoji-search" className="sr-only">
-            Search Emojis
-          </label>
-          <input
+          <Input
             type="search"
             id="emoji-search"
-            value={searchTerm}
+            value={toolState.searchTerm}
             onChange={handleSearchChange}
-            placeholder="Search by name..."
-            className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
+            placeholder="Search by name (e.g., smile, cat, star)..."
+            // Pass Tailwind classes directly to inputClassName to style the <input>
+            inputClassName="p-3 text-base" // Adjust padding as needed, base styles handle border/bg etc.
+            // Or, if your Input component's wrapper should be full width, you might not need containerClassName
+            // containerClassName="w-full"
+            iconLeft={
+              <MagnifyingGlassIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))]" />
+            } // Example search icon
           />
         </div>
         <div className="relative">
-          <button
+          <Button
+            variant="neutral-outline"
             onClick={toggleFilterPanel}
             title={isFilterPanelOpen ? 'Hide Filters' : 'Show Filters'}
             aria-expanded={isFilterPanelOpen}
-            className="p-3 border border-[rgb(var(--color-border-base))] rounded-md shadow-sm bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none"
+            className="!p-3"
+            iconLeft={
+              <FunnelIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))]" />
+            }
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-[rgb(var(--color-text-muted))]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-          </button>
-          {activeFilterCount > 0 && (
-            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-[rgb(var(--color-button-accent-bg))] text-xs font-medium text-[rgb(var(--color-button-accent-text))]">
-              {' '}
-              {activeFilterCount}{' '}
-            </span>
-          )}
+            {activeFilterCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[rgb(var(--color-button-accent-bg))] text-[10px] font-medium text-[rgb(var(--color-button-accent-text))] px-1">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
         </div>
       </div>
 
       {isFilterPanelOpen && (
-        <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex flex-col gap-4">
+        <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex flex-col gap-4 animate-slide-down">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium text-[rgb(var(--color-text-base))]">
               Filter Options
             </h3>
-            <button
+            <Button
+              variant="link"
               onClick={handleClearFilters}
               disabled={activeFilterCount === 0}
-              className="px-3 py-1 rounded text-sm font-medium text-[rgb(var(--color-text-link))] hover:underline disabled:text-[rgb(var(--color-text-muted))] disabled:opacity-50 disabled:no-underline focus:outline-none"
+              className="!px-0 !py-0 text-sm"
             >
-              {' '}
-              Clear Filters{' '}
-            </button>
+              Clear Filters
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -239,20 +416,16 @@ export default function EmojiSearchClient({
               </label>
               <select
                 id="filter-group"
-                value={selectedGroup}
+                value={toolState.selectedGroup}
                 onChange={handleGroupChange}
                 className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm"
               >
-                {' '}
-                <option key="all-groups" value="">
-                  All Groups
-                </option>{' '}
-                {availableGroups &&
-                  availableGroups.map((group) => (
-                    <option key={group} value={group}>
-                      {group}
-                    </option>
-                  ))}{' '}
+                <option value="">All Groups</option>
+                {availableGroups.map((group) => (
+                  <option key={group} value={group}>
+                    {group}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -264,24 +437,21 @@ export default function EmojiSearchClient({
               </label>
               <select
                 id="filter-subgroup"
-                value={selectedSubgroup}
+                value={toolState.selectedSubgroup}
                 onChange={handleSubgroupChange}
                 disabled={
-                  !selectedGroup || derivedAvailableSubgroups.length === 0
+                  !toolState.selectedGroup ||
+                  derivedAvailableSubgroups.length === 0
                 }
                 className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm disabled:bg-[rgb(var(--color-input-disabled-bg))] disabled:text-[rgb(var(--color-text-muted))] disabled:cursor-not-allowed"
               >
-                {' '}
-                <option key="all-subgroups" value="">
-                  All Subgroups
-                </option>{' '}
-                {selectedGroup &&
-                  derivedAvailableSubgroups &&
+                <option value="">All Subgroups</option>
+                {toolState.selectedGroup &&
                   derivedAvailableSubgroups.map((subgroup) => (
                     <option key={subgroup} value={subgroup}>
                       {subgroup}
                     </option>
-                  ))}{' '}
+                  ))}
               </select>
             </div>
             <div>
@@ -293,20 +463,16 @@ export default function EmojiSearchClient({
               </label>
               <select
                 id="filter-version"
-                value={selectedVersion}
+                value={toolState.selectedVersion}
                 onChange={handleVersionChange}
                 className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm"
               >
-                {' '}
-                <option key="all-versions" value="">
-                  All Versions
-                </option>{' '}
-                {availableVersions &&
-                  availableVersions.map((version) => (
-                    <option key={version} value={version}>
-                      Emoji {version}
-                    </option>
-                  ))}{' '}
+                <option value="">All Versions</option>
+                {availableVersions.map((version) => (
+                  <option key={version} value={version}>
+                    Emoji {version}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -314,40 +480,46 @@ export default function EmojiSearchClient({
       )}
 
       <p className="text-sm text-[rgb(var(--color-text-muted))]">
-        {' '}
         {initialEmojis.length === 0
           ? 'Loading emojis...'
-          : `Showing ${filteredEmojis.length} of ${initialEmojis.length} emojis.`}{' '}
+          : `Showing ${filteredEmojis.length} of ${initialEmojis.length} emojis.`}
       </p>
-
       {initialEmojis.length > 0 &&
         filteredEmojis.length === 0 &&
-        (searchTerm || activeFilterCount > 0) && (
+        (toolState.searchTerm || activeFilterCount > 0) && (
           <p className="text-[rgb(var(--color-text-muted))]">
             No emojis match your search or filter criteria.
           </p>
         )}
-
       {filteredEmojis.length > 0 && (
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3">
+        <div
+          className={`grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1 sm:gap-2 ${featuredEmoji ? 'pt-4 border-t border-dashed' : ''}`}
+        >
           {filteredEmojis.map((emojiData) => (
-            <button
+            <Button
               key={emojiData.codePoints || emojiData.name}
-              title={`${emojiData.name}\nCode: ${emojiData.codePoints}`}
-              className="flex items-center justify-center p-2 text-3xl sm:text-4xl bg-[rgb(var(--color-bg-subtle))] rounded-lg hover:bg-[rgb(var(--color-border-base))] focus:outline-none focus:border-[rgb(var(--color-border-focus))] border-2 border-transparent transition duration-150 ease-in-out aspect-square"
+              variant="neutral-outline"
               onClick={() => handleEmojiClick(emojiData)}
+              title={`${emojiData.name}\nCode: ${emojiData.codePoints}`}
+              className="!p-1.5 !text-2xl sm:!text-3xl !leading-none aspect-square flex items-center justify-center hover:!bg-[rgb(var(--color-border-base))]"
               aria-label={`Copy emoji: ${emojiData.name}`}
             >
-              {' '}
-              {emojiData.emoji}{' '}
-            </button>
+              {lastCopiedValue?.type === 'emoji' &&
+              lastCopiedValue?.value === emojiData.emoji ? (
+                <CheckIcon className="h-6 w-6 text-green-500" />
+              ) : (
+                emojiData.emoji
+              )}
+            </Button>
           ))}
         </div>
       )}
-      {initialEmojis.length === 0 && (
+      {initialEmojis.length === 0 && !isLoadingToolState && (
         <div className="text-center p-5 text-[rgb(var(--color-text-muted))]">
           {' '}
-          <p>Loading emoji data...</p>{' '}
+          <p>
+            No emoji data loaded. The emoji data file might be missing or empty.
+          </p>{' '}
         </div>
       )}
     </div>
