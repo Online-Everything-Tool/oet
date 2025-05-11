@@ -5,23 +5,11 @@ import ToolHeader from '../../_components/ToolHeader';
 import ToolSettings from '../../_components/ToolSettings';
 import EmojiSearchClient from '../_components/EmojiExplorerClient';
 import { notFound } from 'next/navigation';
-import metadata from '../metadata.json'; // For toolTitle in this server component
-import type { Metadata } from 'next'; // Import Next's Metadata type
+import metadata from '../metadata.json';
+import type { Metadata } from 'next';
 
-// Define the shape of the params object directly
-interface PageParams {
-  emojiSlug: string;
-}
-
-// Props for the Page component
-interface SingleEmojiPageProps {
-  params: PageParams;
-}
-
-// Props for generateMetadata
-interface GenerateMetadataProps {
-  params: PageParams;
-}
+// Let Next.js infer the params structure for these functions as much as possible
+// We know 'emojiSlug' will be in params.
 
 function generateSlug(name: string): string {
   return name
@@ -30,7 +18,8 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9-]/g, '');
 }
 
-export async function generateStaticParams(): Promise<PageParams[]> {
+export async function generateStaticParams() {
+  // Return type will be inferred
   const emojis = getEmojis();
   if (!emojis || emojis.length === 0) return [];
   return emojis.map((emoji) => ({
@@ -38,10 +27,13 @@ export async function generateStaticParams(): Promise<PageParams[]> {
   }));
 }
 
-// Use the GenerateMetadataProps and explicitly return Promise<Metadata>
+// For generateMetadata and the page component,
+// specify the params type as simply as possible for a dynamic segment.
 export async function generateMetadata({
   params,
-}: GenerateMetadataProps): Promise<Metadata> {
+}: {
+  params: { emojiSlug: string }; // Direct and standard
+}): Promise<Metadata> {
   const emojis = getEmojis();
   const emoji = emojis.find((e) => generateSlug(e.name) === params.emojiSlug);
   if (!emoji) {
@@ -57,10 +49,11 @@ export async function generateMetadata({
   };
 }
 
-// Use the SingleEmojiPageProps
 export default async function SingleEmojiPage({
   params,
-}: SingleEmojiPageProps) {
+}: {
+  params: { emojiSlug: string }; // Direct and standard
+}) {
   const { emojiSlug } = params;
   const allEmojis = getEmojis();
 
