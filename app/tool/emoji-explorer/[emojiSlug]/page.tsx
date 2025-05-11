@@ -24,9 +24,9 @@ function generateSlug(name: string): string {
 export async function generateStaticParams(): Promise<EmojiPageParams[]> {
   const emojis = await getEmojis();
   if (!emojis || emojis.length === 0) return [];
-  return emojis.map((emoji) => ({
+  return Promise.resolve(emojis.map((emoji) => ({
     emojiSlug: generateSlug(emoji.name),
-  }));
+  })));
 }
 
 export async function generateMetadata({
