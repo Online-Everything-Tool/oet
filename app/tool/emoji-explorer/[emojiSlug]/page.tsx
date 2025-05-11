@@ -6,13 +6,23 @@ import ToolSettings from '../../_components/ToolSettings';
 import EmojiSearchClient from '../_components/EmojiExplorerClient';
 import { notFound } from 'next/navigation';
 import metadata from '../metadata.json'; // For toolTitle in this server component
+import type { Metadata } from 'next'; // Import Next's Metadata type
 
-interface EmojiPageProps {
-  params: { emojiSlug: string }; // Standard Next.js way to type params for dynamic routes
-  // searchParams?: { [key: string]: string | string[] | undefined }; // If you were using searchParams
+// Define the shape of the params object directly
+interface PageParams {
+  emojiSlug: string;
 }
 
-// Helper to generate slugs (ensure this matches how you find it)
+// Props for the Page component
+interface SingleEmojiPageProps {
+  params: PageParams;
+}
+
+// Props for generateMetadata
+interface GenerateMetadataProps {
+  params: PageParams;
+}
+
 function generateSlug(name: string): string {
   return name
     .toLowerCase()
@@ -20,17 +30,19 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9-]/g, '');
 }
 
-export async function generateStaticParams(): Promise<{ emojiSlug: string }[]> {
-  const emojis = getEmojis(); // No need for await if getEmojis is synchronous
+export async function generateStaticParams(): Promise<PageParams[]> {
+  const emojis = getEmojis();
   if (!emojis || emojis.length === 0) return [];
   return emojis.map((emoji) => ({
     emojiSlug: generateSlug(emoji.name),
   }));
 }
 
-export async function generateMetadata({ params }: EmojiPageProps) {
-  // Use EmojiPageProps
-  const emojis = getEmojis(); // No need for await
+// Use the GenerateMetadataProps and explicitly return Promise<Metadata>
+export async function generateMetadata({
+  params,
+}: GenerateMetadataProps): Promise<Metadata> {
+  const emojis = getEmojis();
   const emoji = emojis.find((e) => generateSlug(e.name) === params.emojiSlug);
   if (!emoji) {
     return { title: 'Emoji Not Found | OET' };
@@ -45,10 +57,12 @@ export async function generateMetadata({ params }: EmojiPageProps) {
   };
 }
 
-export default async function SingleEmojiPage({ params }: EmojiPageProps) {
-  // Use EmojiPageProps
+// Use the SingleEmojiPageProps
+export default async function SingleEmojiPage({
+  params,
+}: SingleEmojiPageProps) {
   const { emojiSlug } = params;
-  const allEmojis = getEmojis(); // No need for await
+  const allEmojis = getEmojis();
 
   const featuredEmoji = allEmojis.find(
     (e) => generateSlug(e.name) === emojiSlug
