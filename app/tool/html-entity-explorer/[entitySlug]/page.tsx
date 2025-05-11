@@ -195,12 +195,13 @@ export async function generateStaticParams(): Promise<EntityPageParams[]> {
 export async function generateMetadata({
   params,
 }: {
-  params: EntityPageParams;
+  params: Promise<EntityPageParams>;
 }) {
   const { entities } = await loadAndProcessAllEntities();
   // Find entity using the same slug generation logic
+  const { entitySlug } = await params;
   const entity = entities.find(
-    (e) => generateEntitySlug(e) === params.entitySlug
+    (e) => generateEntitySlug(e) === entitySlug
   );
 
   if (!entity) {
@@ -226,9 +227,9 @@ export async function generateMetadata({
 export default async function SingleHtmlEntityPage({
   params,
 }: {
-  params: EntityPageParams;
+  params: Promise<EntityPageParams>;
 }) {
-  const { entitySlug } = params;
+  const { entitySlug } = await params;
   const { entities, categories } = await loadAndProcessAllEntities();
 
   const featuredEntity = entities.find(

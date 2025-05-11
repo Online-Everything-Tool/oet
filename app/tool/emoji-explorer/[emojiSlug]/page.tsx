@@ -1,6 +1,6 @@
 // FILE: app/tool/emoji-explorer/[emojiSlug]/page.tsx
 import React from 'react';
-import { getEmojis, RichEmojiData } from '@/src/constants/emojis';
+import { getEmojis } from '@/src/constants/emojis';
 import ToolHeader from '../../_components/ToolHeader';
 import ToolSettings from '../../_components/ToolSettings';
 import EmojiSearchClient from '../_components/EmojiExplorerClient';
@@ -18,9 +18,10 @@ function generateSlug(name: string): string {
     .replace(/[^a-z0-9-]/g, '');
 }
 
+const emojis = getEmojis();
+
 export async function generateStaticParams() {
   // Return type will be inferred
-  const emojis = getEmojis();
   if (!emojis || emojis.length === 0) return [];
   return emojis.map((emoji) => ({
     emojiSlug: generateSlug(emoji.name),
@@ -32,10 +33,10 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: { emojiSlug: string }; // Direct and standard
+  params: Promise<{ emojiSlug: string }>; // Direct and standard
 }): Promise<Metadata> {
-  const emojis = getEmojis();
-  const emoji = emojis.find((e) => generateSlug(e.name) === params.emojiSlug);
+  const { emojiSlug } = await params;
+  const emoji = emojis.find((e) => generateSlug(e.name) === emojiSlug);
   if (!emoji) {
     return { title: 'Emoji Not Found | OET' };
   }
@@ -52,12 +53,11 @@ export async function generateMetadata({
 export default async function SingleEmojiPage({
   params,
 }: {
-  params: { emojiSlug: string }; // Direct and standard
+  params: Promise<{ emojiSlug: string }>; // Direct and standard
 }) {
-  const { emojiSlug } = params;
-  const allEmojis = getEmojis();
+  const { emojiSlug } = await params;
 
-  const featuredEmoji = allEmojis.find(
+  const featuredEmoji = emojis.find(
     (e) => generateSlug(e.name) === emojiSlug
   );
 
@@ -73,7 +73,7 @@ export default async function SingleEmojiPage({
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <EmojiSearchClient
-        initialEmojis={allEmojis ?? []}
+        initialEmojis={emojis ?? []}
         featuredEmoji={featuredEmoji}
       />
     </div>
