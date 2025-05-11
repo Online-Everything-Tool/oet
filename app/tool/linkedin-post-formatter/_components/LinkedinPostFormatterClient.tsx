@@ -151,6 +151,7 @@ function applyCharStyle(
 }
 
 function convertNodeToUnicode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   node: any,
   listLevel = 0,
   listItemCounter = 1
@@ -162,6 +163,7 @@ function convertNodeToUnicode(
       // Apply marks - a simple approach, nesting complex styles might need more logic
       let isBold = false;
       let isItalic = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       node.marks.forEach((mark: any) => {
         if (mark.type === 'bold') isBold = true;
         if (mark.type === 'italic') isItalic = true;
@@ -170,7 +172,8 @@ function convertNodeToUnicode(
 
       currentText = currentText
         .split('')
-        .map((char) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((char: any) => {
           let styledChar = char;
           if (isItalic) styledChar = applyCharStyle(styledChar, 'italic'); // Apply italic first then bold for boldItalic visual
           if (isBold) styledChar = applyCharStyle(styledChar, 'bold');
@@ -182,6 +185,7 @@ function convertNodeToUnicode(
   }
 
   if (node.content) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     node.content.forEach((childNode: any, index: number) => {
       text += convertNodeToUnicode(childNode, listLevel, index + 1);
     });
@@ -202,6 +206,7 @@ function convertNodeToUnicode(
 
 // --- State Definition ---
 interface LinkedinFormatterState {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contentJson: Record<string, any> | null;
 }
 const DEFAULT_STATE: LinkedinFormatterState = {
@@ -249,6 +254,7 @@ export default function LinkedinPostFormatterClient({
       setState({ contentJson: editor.getJSON() });
     },
     editorProps: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       attributes: { class: 'focus:outline-none prose prose-sm max-w-none' },
     },
   });
@@ -269,7 +275,9 @@ export default function LinkedinPostFormatterClient({
     let result = '';
     let listCounter = 1;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function processContent(content: any[]) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       content.forEach((node: any, nodeIndex: number) => {
         if (node.type === 'paragraph') {
           if (
@@ -288,6 +296,7 @@ export default function LinkedinPostFormatterClient({
             result += '\n';
           }
           if (node.content) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             node.content.forEach((listItem: any) => {
               result += '• ';
               if (listItem.content) processContent(listItem.content);
@@ -302,6 +311,7 @@ export default function LinkedinPostFormatterClient({
           }
           listCounter = 1;
           if (node.content) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             node.content.forEach((listItem: any) => {
               result += `${listCounter}. `;
               if (listItem.content) processContent(listItem.content);
@@ -315,13 +325,14 @@ export default function LinkedinPostFormatterClient({
           if (node.marks) {
             let isBold = false;
             let isItalic = false;
-            // Underline and strike are typically not converted to Unicode for LinkedIn
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             node.marks.forEach((mark: any) => {
               if (mark.type === 'bold') isBold = true;
               if (mark.type === 'italic') isItalic = true;
             });
             styledText = styledText
               .split('')
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .map((char: any) => {
                 let tempChar = char;
                 // Apply italic first, then bold, so bold italic is BOLD(ITALIC(char))
@@ -344,7 +355,7 @@ export default function LinkedinPostFormatterClient({
     }
     // Normalize newlines: reduce 3+ newlines to 2, ensure single paragraphs are followed by double.
     // This is a common LinkedIn formatting practice.
-    let cleanedResult = result.replace(/\n{3,}/g, '\n\n').trim();
+    const cleanedResult = result.replace(/\n{3,}/g, '\n\n').trim();
     return cleanedResult;
   }, [editor]);
 

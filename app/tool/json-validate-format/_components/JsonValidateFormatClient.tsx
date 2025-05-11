@@ -40,7 +40,7 @@ const DEFAULT_JSON_TOOL_STATE: JsonToolState = {
   sortKeys: false,
   lastLoadedFilename: null,
 };
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sortObjectKeys = (obj: any): any => {
   if (typeof obj !== 'object' || obj === null) {
     return obj; // Primitives or null
@@ -51,6 +51,7 @@ const sortObjectKeys = (obj: any): any => {
   }
   // For objects, sort keys and then recursively sort values
   const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: { [key: string]: any } = {};
   for (const key of sortedKeys) {
     result[key] = sortObjectKeys(obj[key]);

@@ -26,7 +26,7 @@ interface BaseInputConfig {
   /** A unique identifier for this input within the tool's inputConfig array.
    *  Useful if a tool has multiple inputs of the same type (e.g., two file inputs).
    */
-  id: string; 
+  id: string;
   /** A user-friendly description of what this input is for. */
   description: string;
   /** The general type of input expected. */
@@ -42,23 +42,23 @@ interface FileInputDetails {
   /** Standard HTML accept attribute string (e.g., "image/*", ".json, text/plain"). */
   accept?: string;
   /** Maximum number of files allowed for this input (default is 1 if not 'multiple'). */
-  maxCount?: number; 
+  maxCount?: number;
   /** Restriction on where the file can come from (relevant for FileSelectionModal). */
   sourceRestriction?: 'libraryOnly' | 'uploadOnly' | 'any';
   /** Hint for the "Send To..." mechanism: Can this input handle data sent from another tool? */
-  canReceiveFromTool?: boolean; 
+  canReceiveFromTool?: boolean;
 }
 
 /** Placeholder for text input specific details (e.g., min/max length, pattern). */
 type TextInputDetails = Record<string, unknown> & {
-    placeholder?: string;
-    canReceiveFromTool?: boolean; // Can this text input receive output from another tool?
+  placeholder?: string;
+  canReceiveFromTool?: boolean; // Can this text input receive output from another tool?
 };
 
 /** Placeholder for JSON object input specific details. */
 type JsonObjectInputDetails = Record<string, unknown> & {
-    schema?: string; // URI to a JSON schema for validation (conceptual)
-    canReceiveFromTool?: boolean;
+  schema?: string; // URI to a JSON schema for validation (conceptual)
+  canReceiveFromTool?: boolean;
 };
 
 /** Placeholder for URL parameters object input specific details. */
@@ -71,9 +71,14 @@ type UrlParamsInputDetails = Record<string, unknown>; // Typically handled by di
 export type ToolInputConfig =
   | (BaseInputConfig & { type: 'file'; details?: FileInputDetails })
   | (BaseInputConfig & { type: 'text'; details?: TextInputDetails })
-  | (BaseInputConfig & { type: 'json_object'; details?: JsonObjectInputDetails; })
-  | (BaseInputConfig & { type: 'url_params_object'; details?: UrlParamsInputDetails; });
-
+  | (BaseInputConfig & {
+      type: 'json_object';
+      details?: JsonObjectInputDetails;
+    })
+  | (BaseInputConfig & {
+      type: 'url_params_object';
+      details?: UrlParamsInputDetails;
+    });
 
 // --- Output Configuration ---
 
@@ -90,13 +95,13 @@ interface BaseOutputConfig {
   /** The general type of output produced. */
   outputType: 'file' | 'text' | 'json_object' | 'url' | 'none'; // 'url' for things like generated links
   /** For object outputs, which field contains a human-readable summary? (Used for history). */
-  summaryField?: string; 
+  summaryField?: string;
   /** If output refers to a file in a library, what kind of ID is it? */
   referenceType?: 'imageLibraryId' | 'fileLibraryId' | 'none';
   /** If referenceType is used, which field in the output object holds this ID? */
-  referenceField?: string; 
+  referenceField?: string;
   /** Hint for the "Send To..." mechanism: Can this output be sent to another tool? */
-  canSendToTool?: boolean; 
+  canSendToTool?: boolean;
 }
 
 /**
@@ -120,7 +125,7 @@ type JsonObjectOutputDetails = Record<string, unknown>;
 
 /** Placeholder for URL output specific details (e.g. if it's a shareable link). */
 type UrlOutputDetails = Record<string, unknown> & {
-    isShortened?: boolean; // Example detail
+  isShortened?: boolean; // Example detail
 };
 
 /**
@@ -130,8 +135,11 @@ type UrlOutputDetails = Record<string, unknown> & {
 export type ToolOutputConfig =
   | (BaseOutputConfig & { outputType: 'file'; details: FileOutputDetails })
   | (BaseOutputConfig & { outputType: 'text'; details?: TextOutputDetails })
-  | (BaseOutputConfig & { outputType: 'json_object'; details?: JsonObjectOutputDetails; })
-  | (BaseOutputConfig & { outputType: 'url'; details?: UrlOutputDetails; })
+  | (BaseOutputConfig & {
+      outputType: 'json_object';
+      details?: JsonObjectOutputDetails;
+    })
+  | (BaseOutputConfig & { outputType: 'url'; details?: UrlOutputDetails })
   | (BaseOutputConfig & { outputType: 'none' }); // For tools that don't have a primary "data" output
 
 // --- Tool Metadata ---
@@ -143,7 +151,7 @@ export interface ToolMetadata {
   title: string;
   description: string;
   /** Array of input configurations. Allows a tool to accept multiple types/sources of input. */
-  inputConfig?: ToolInputConfig[]; 
+  inputConfig?: ToolInputConfig[];
   /** Array of output configurations. Allows a tool to produce multiple types/formats of output. */
   outputConfig?: ToolOutputConfig[]; // Changed to an array
   /** For simple URL parameter to state mapping, if not handled by more complex inputConfig. */

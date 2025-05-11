@@ -15,6 +15,7 @@ import {
   XMarkIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 interface HtmlEntityToolState {
   searchTerm: string;
@@ -309,12 +310,12 @@ export default function HtmlEntityExplorerClient({
             {typeof window !== 'undefined' &&
               window.location.pathname !== '/tool/html-entity-explorer/' && (
                 <div className="mt-4">
-                  <a
+                  <Link
                     href="/tool/html-entity-explorer/"
                     className="text-sm text-[rgb(var(--color-text-link))] hover:underline"
                   >
                     ← Back to Full Explorer
-                  </a>
+                  </Link>
                 </div>
               )}
           </div>

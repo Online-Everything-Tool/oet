@@ -17,6 +17,7 @@ import {
   XMarkIcon, // For clearing recently copied
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 interface EmojiExplorerToolState {
   searchTerm: string;
@@ -303,12 +304,12 @@ export default function EmojiSearchClient({
             typeof window !== 'undefined' &&
             window.location.pathname !== '/tool/emoji-explorer/' && (
               <div className="mt-4 text-center md:text-right">
-                <a
+                <Link
                   href="/tool/emoji-explorer/"
                   className="text-sm text-[rgb(var(--color-text-link))] hover:underline"
                 >
                   ← Back to Full Emoji Explorer
-                </a>
+                </Link>
               </div>
             )}
         </div>

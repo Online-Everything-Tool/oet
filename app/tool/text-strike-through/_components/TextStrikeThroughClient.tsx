@@ -5,12 +5,18 @@ import React, {
   useState,
   useCallback,
   useMemo,
-  useRef,
   useEffect,
+  useRef,
 } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
-import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import useToolUrlState from '../../_hooks/useToolUrlState';
+import useToolState from '../../_hooks/useToolState';
+import Textarea from '../../_components/form/Textarea';
+import Button from '../../_components/form/Button';
+import Checkbox from '../../_components/form/Checkbox';
+import Input from '../../_components/form/Input'; // For color picker
 import type { ParamConfig } from '@/src/types/tools';
+import { useDebouncedCallback } from 'use-debounce';
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
@@ -18,157 +24,237 @@ interface TextStrikeThroughClientProps {
   toolRoute: string;
 }
 
+interface TextStrikeThroughToolState {
+  inputText: string;
+  skipSpaces: boolean;
+  color: string;
+}
+
+const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
+  inputText: '',
+  skipSpaces: false,
+  color: '#dc2626', // Default red from original component
+};
+
+const HISTORY_LOG_DEBOUNCE_MS = 1500; // Debounce for logging history on state change
+
 export default function TextStrikeThroughClient({
   urlStateParams,
   toolTitle,
   toolRoute,
 }: TextStrikeThroughClientProps) {
-  const [text, setText] = useState<string>('');
-  const [skipSpaces, setSkipSpaces] = useState<boolean>(false);
-  const [color, setColor] = useState<string>('#dc2626');
-  const [isCopied, setIsCopied] = useState<boolean>(false);
-  const lastLoggedTextRef = useRef<string | null>(null);
-  const lastLoggedSkipSpacesRef = useRef<boolean | null>(null);
-  const lastLoggedColorRef = useRef<string | null>(null);
-  const initialLoadComplete = useRef(false);
+  const {
+    state: toolState,
+    setState: setToolState,
+    isLoadingState,
+  } = useToolState<TextStrikeThroughToolState>(
+    toolRoute,
+    DEFAULT_TEXT_STRIKE_THROUGH_STATE
+  );
 
   const { addHistoryEntry } = useHistory();
+  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
+    useToolUrlState(urlStateParams);
 
-  const stateSetters = useMemo(
-    () => ({
-      text: setText,
-      skipSpaces: setSkipSpaces,
-      color: setColor,
-    }),
-    []
-  );
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+  const lastLoggedStateRef = useRef<TextStrikeThroughToolState | null>(null);
 
-  useToolUrlState(urlStateParams, stateSetters as StateSetters);
-
+  // Effect to initialize state from URL parameters
   useEffect(() => {
-    if (!initialLoadComplete.current) {
-      lastLoggedTextRef.current = text;
-      lastLoggedSkipSpacesRef.current = skipSpaces;
-      lastLoggedColorRef.current = color;
-      initialLoadComplete.current = true;
+    if (!isLoadingState && !isLoadingUrlState && urlProvidedAnyValue) {
+      const updates: Partial<TextStrikeThroughToolState> = {};
+      const urlInputText = urlState.text as string | undefined;
+      const urlSkipSpaces = urlState.skipSpaces as boolean | undefined;
+      const urlColor = urlState.color as string | undefined;
+
+      if (urlInputText !== undefined && urlInputText !== toolState.inputText) {
+        updates.inputText = urlInputText;
+      }
+      if (
+        urlSkipSpaces !== undefined &&
+        urlSkipSpaces !== toolState.skipSpaces
+      ) {
+        updates.skipSpaces = urlSkipSpaces;
+      }
+      if (urlColor !== undefined && urlColor !== toolState.color) {
+        updates.color = urlColor;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setToolState(updates);
+      }
     }
-  }, [text, skipSpaces, color]);
+  }, [
+    isLoadingState,
+    isLoadingUrlState,
+    urlProvidedAnyValue,
+    urlState,
+    toolState,
+    setToolState,
+  ]);
 
-  const handleInputChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(event.target.value);
-      setIsCopied(false);
-    },
-    []
-  );
-
-  const handleSkipSpacesChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setSkipSpaces(event.target.checked);
-      setIsCopied(false);
-    },
-    []
-  );
-
-  const handleColorChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setColor(event.target.value);
-      setIsCopied(false);
-    },
-    []
-  );
-
-  const handleTextBlur = useCallback(() => {
-    if (!initialLoadComplete.current) {
-      return;
-    }
-
-    const currentText = text;
-    const currentSkipSpaces = skipSpaces;
-    const currentColor = color;
-
-    const textChanged = currentText !== lastLoggedTextRef.current;
-    const skipSpacesChanged =
-      currentSkipSpaces !== lastLoggedSkipSpacesRef.current;
-    const colorChanged = currentColor !== lastLoggedColorRef.current;
-
-    if (currentText && (textChanged || skipSpacesChanged || colorChanged)) {
-      const historyOutputObj = {
-        formattingStatus: 'Formatting Updated',
-      };
+  // Debounced history logging function
+  const debouncedLogHistoryAction = useDebouncedCallback(
+    (currentState: TextStrikeThroughToolState) => {
+      if (
+        !currentState.inputText.trim() || // Don't log if input is effectively empty
+        JSON.stringify(currentState) ===
+          JSON.stringify(lastLoggedStateRef.current) // Don't log if state hasn't changed meaningfully
+      ) {
+        return;
+      }
 
       addHistoryEntry({
         toolName: toolTitle,
         toolRoute: toolRoute,
-        trigger: 'auto',
+        trigger: 'auto', // Or 'input_change' / 'option_change'
         input: {
           text:
-            currentText.length > 500
-              ? currentText.substring(0, 500) + '...'
-              : currentText,
-          skipSpaces: currentSkipSpaces,
-          color: currentColor,
+            currentState.inputText.length > 500
+              ? currentState.inputText.substring(0, 500) + '...'
+              : currentState.inputText,
+          skipSpaces: currentState.skipSpaces,
+          color: currentState.color,
         },
-        output: historyOutputObj,
+        output: { formattingStatus: 'Formatting Updated' },
         status: 'success',
         eventTimestamp: Date.now(),
       });
+      lastLoggedStateRef.current = currentState;
+    },
+    HISTORY_LOG_DEBOUNCE_MS
+  );
 
-      lastLoggedTextRef.current = currentText;
-      lastLoggedSkipSpacesRef.current = currentSkipSpaces;
-      lastLoggedColorRef.current = currentColor;
+  // Effect to log history on state changes
+  useEffect(() => {
+    if (isLoadingState) {
+      // If still loading, initialize lastLoggedStateRef with the current toolState
+      // to prevent logging the initial loaded state as a "change".
+      lastLoggedStateRef.current = toolState;
+      return;
     }
-  }, [text, skipSpaces, color, addHistoryEntry, toolTitle, toolRoute]);
+    // Only log if input text is present and state has actually changed
+    if (toolState.inputText.trim()) {
+      if (
+        JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+      ) {
+        debouncedLogHistoryAction(toolState);
+      }
+    } else {
+      // If input text becomes empty, we might want to log a "cleared" state or just update ref
+      // For now, if it's empty, the debounced action won't log due to the check inside it.
+      // If the previous state had text, and now it's empty, this change *should* be logged if different from last log.
+      if (
+        lastLoggedStateRef.current?.inputText &&
+        JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+      ) {
+        // Log if it meaningfully changed to an empty state from a non-empty one
+        debouncedLogHistoryAction(toolState);
+      } else {
+        // If it was already empty or effectively empty, just update the ref
+        lastLoggedStateRef.current = toolState;
+      }
+    }
+  }, [
+    toolState,
+    isLoadingState,
+    debouncedLogHistoryAction,
+    addHistoryEntry,
+    toolTitle,
+    toolRoute,
+  ]);
+
+  const handleInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setToolState({ inputText: event.target.value });
+      setIsCopied(false);
+    },
+    [setToolState]
+  );
+
+  const handleSkipSpacesChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setToolState({ skipSpaces: event.target.checked });
+      setIsCopied(false);
+    },
+    [setToolState]
+  );
+
+  const handleColorChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setToolState({ color: event.target.value });
+      setIsCopied(false);
+    },
+    [setToolState]
+  );
 
   const handleClear = useCallback(() => {
-    const wasChanged =
-      text !== '' || skipSpaces !== false || color !== '#dc2626';
-    setText('');
-    setSkipSpaces(false);
-    setColor('#dc2626');
+    // Check if current state is different from default to decide if "cleared" log is needed
+    const wasChangedFromDefault =
+      JSON.stringify(toolState) !==
+      JSON.stringify(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
+
+    setToolState(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
     setIsCopied(false);
 
-    if (wasChanged && initialLoadComplete.current) {
-      handleTextBlur();
-    }
-
-    lastLoggedTextRef.current = '';
-    lastLoggedSkipSpacesRef.current = false;
-    lastLoggedColorRef.current = '#dc2626';
-  }, [text, skipSpaces, color, handleTextBlur]);
+    // The history logging useEffect will handle logging this state change
+    // if it's different from the last logged state.
+    // If wasChangedFromDefault is true and the default state means empty inputText,
+    // the history log condition (inputText.trim()) might prevent logging.
+    // We might explicitly log a "cleared" action if needed, but for now,
+    // letting the standard state change logic handle it is simpler.
+    // Ensure lastLoggedStateRef is updated to prevent re-logging default on next interaction.
+    // If DEFAULT_TEXT_STRIKE_THROUGH_STATE's inputText is empty, logging will be skipped by debouncedLogHistoryAction check.
+    // So, we might need to force a log if we want "cleared" action.
+    // For now, let's rely on the main history effect. It will log if default is different from last logged.
+    debouncedLogHistoryAction.cancel(); // Cancel any pending logs
+    lastLoggedStateRef.current = DEFAULT_TEXT_STRIKE_THROUGH_STATE; // Align ref with cleared state
+  }, [setToolState, toolState, debouncedLogHistoryAction]);
 
   const handleCopy = useCallback(() => {
-    if (!text || !navigator.clipboard) return;
-
-    navigator.clipboard.writeText(text).then(
+    if (!toolState.inputText || !navigator.clipboard) return;
+    navigator.clipboard.writeText(toolState.inputText).then(
       () => {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 1500);
+        addHistoryEntry({
+          toolName: toolTitle,
+          toolRoute,
+          trigger: 'click',
+          input: {
+            action: 'copyInputText',
+            length: toolState.inputText.length,
+          },
+          output: { message: 'Input text copied to clipboard' },
+          status: 'success',
+          eventTimestamp: Date.now(),
+        });
       },
       (err) => {
         console.error('Failed to copy text: ', err);
+        // Optionally add an error state or notification
       }
     );
-  }, [text]);
+  }, [toolState.inputText, addHistoryEntry, toolTitle, toolRoute]);
 
   const renderedOutput = useMemo(() => {
-    if (!text) {
+    if (!toolState.inputText) {
       return (
         <span className="italic text-[rgb(var(--color-input-placeholder))]">
           Output preview appears here...
         </span>
       );
     }
-    const strikeStyle = {
+    const strikeStyle: React.CSSProperties = {
       textDecoration: 'line-through',
-      textDecorationColor: color,
-      textDecorationStyle:
-        'solid' as React.CSSProperties['textDecorationStyle'],
+      textDecorationColor: toolState.color,
+      textDecorationStyle: 'solid',
     };
-    if (!skipSpaces) {
-      return <span style={strikeStyle}>{text}</span>;
+
+    if (!toolState.skipSpaces) {
+      return <span style={strikeStyle}>{toolState.inputText}</span>;
     } else {
-      const segments = text.split(/(\s+)/);
+      const segments = toolState.inputText.split(/(\s+)/);
       return segments.map((segment, index) => {
         if (segment.match(/\s+/)) {
           return <React.Fragment key={index}>{segment}</React.Fragment>;
@@ -182,26 +268,29 @@ export default function TextStrikeThroughClient({
         return null;
       });
     }
-  }, [text, skipSpaces, color]);
+  }, [toolState.inputText, toolState.skipSpaces, toolState.color]);
+
+  if (isLoadingState) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Text Strike Through Tool...
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <div className="space-y-1 h-full flex flex-col">
-          <label
-            htmlFor="text-input"
-            className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
-          >
-            Input Text
-          </label>
-          <textarea
+          <Textarea
+            label="Input Text"
             id="text-input"
             name="text"
             rows={8}
-            value={text}
+            value={toolState.inputText}
             onChange={handleInputChange}
-            onBlur={handleTextBlur}
-            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base placeholder:text-[rgb(var(--color-input-placeholder))] flex-grow"
+            containerClassName="flex-grow flex flex-col"
+            textareaClassName="flex-grow text-base"
             placeholder="Paste or type your text here..."
             aria-label="Input text for strikethrough formatting"
           />
@@ -216,7 +305,7 @@ export default function TextStrikeThroughClient({
           <div
             id="outputTextDisplay"
             aria-live="polite"
-            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow"
+            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow min-h-[calc(8*1.5rem+2*0.75rem+2px)]" // Approximate height match for textarea
           >
             {renderedOutput}
           </div>
@@ -225,24 +314,13 @@ export default function TextStrikeThroughClient({
       <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <fieldset className="flex flex-wrap gap-x-4 gap-y-2 items-center">
           <legend className="sr-only">Strikethrough Options</legend>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="skipSpaces-input"
-              name="skipSpaces"
-              checked={skipSpaces}
-              onChange={handleSkipSpacesChange}
-              onBlur={handleTextBlur}
-              className="h-4 w-4 rounded border-[rgb(var(--color-input-border))] text-[rgb(var(--color-checkbox-accent))] focus:outline-none focus:border-[rgb(var(--color-input-focus-border))]"
-              style={{ accentColor: `rgb(var(--color-checkbox-accent))` }}
-            />
-            <label
-              htmlFor="skipSpaces-input"
-              className="text-sm text-[rgb(var(--color-text-muted))] select-none cursor-pointer"
-            >
-              Skip Spaces
-            </label>
-          </div>
+          <Checkbox
+            id="skipSpaces-input"
+            label="Skip Spaces"
+            checked={toolState.skipSpaces}
+            onChange={handleSkipSpacesChange}
+            labelClassName="text-sm text-[rgb(var(--color-text-muted))] select-none"
+          />
           <div className="flex items-center gap-2">
             <label
               htmlFor="color-input"
@@ -250,41 +328,37 @@ export default function TextStrikeThroughClient({
             >
               Color:
             </label>
-            <input
+            <Input
               type="color"
               id="color-input"
               name="color"
-              value={color}
+              value={toolState.color}
               onChange={handleColorChange}
-              onBlur={handleTextBlur}
-              className="h-7 w-10 border border-[rgb(var(--color-input-border))] rounded cursor-pointer p-0.5 bg-[rgb(var(--color-input-bg))]"
+              inputClassName="h-7 w-10 p-5" // Adjusted padding for color input
               aria-label="Strikethrough color picker"
             />
           </div>
         </fieldset>
         <div className="flex items-center space-x-3 ml-auto">
-          <button
-            type="button"
+          <Button
+            variant={isCopied ? 'secondary' : 'accent2'}
             onClick={handleCopy}
-            disabled={!text}
-            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none transition-colors duration-150 ease-in-out
-                            ${
-                              isCopied
-                                ? 'bg-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] text-[rgb(var(--color-button-secondary-text))]'
-                                : 'bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] text-[rgb(var(--color-button-accent2-text))]'
-                            }
-                            disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed disabled:text-[rgb(var(--color-text-muted))]`}
+            disabled={!toolState.inputText.trim()}
+            className="transition-colors duration-150 ease-in-out"
           >
-            {isCopied ? 'Copied!' : 'Copy Text'}
-          </button>
-          <button
-            type="button"
+            {isCopied ? 'Copied!' : 'Copy Input'}
+          </Button>
+          <Button
+            variant="neutral"
             onClick={handleClear}
-            disabled={!text && !skipSpaces && color === '#dc2626'}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-[rgb(var(--color-button-neutral-text))] bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={
+              !toolState.inputText &&
+              !toolState.skipSpaces &&
+              toolState.color === DEFAULT_TEXT_STRIKE_THROUGH_STATE.color
+            }
           >
             Clear
-          </button>
+          </Button>
         </div>
       </div>
     </div>

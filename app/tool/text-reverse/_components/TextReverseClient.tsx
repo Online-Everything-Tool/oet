@@ -5,90 +5,127 @@ import React, {
   useState,
   useCallback,
   useMemo,
-  useRef,
   useEffect,
+  useRef,
 } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
-import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import useToolUrlState from '../../_hooks/useToolUrlState';
+import useToolState from '../../_hooks/useToolState';
+import Textarea from '../../_components/form/Textarea';
+import Button from '../../_components/form/Button';
+import Select from '../../_components/form/Select';
 import type { ParamConfig } from '@/src/types/tools';
+import { useDebouncedCallback } from 'use-debounce';
+import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
-type Reverse = 'character' | 'word';
+type ReverseMode = 'character' | 'word' | 'line'; // Added 'line'
+
+interface TextReverseToolState {
+  inputText: string;
+  reverseMode: ReverseMode;
+}
+
+const DEFAULT_TEXT_REVERSE_STATE: TextReverseToolState = {
+  inputText: '',
+  reverseMode: 'character', // Default remains character
+};
+
+const HISTORY_LOG_DEBOUNCE_MS = 1500;
 
 interface TextReverseClientProps {
   urlStateParams: ParamConfig[];
   toolTitle: string;
   toolRoute: string;
 }
+
 const TextReverseClient = ({
   urlStateParams,
   toolTitle,
   toolRoute,
 }: TextReverseClientProps) => {
-  const [text, setText] = useState<string>('');
-  const [reverse, setReverse] = useState<Reverse>('character');
-  const lastLoggedTextRef = useRef<string | null>(null);
-  const lastLoggedReverseRef = useRef<Reverse | null>(null);
-  const initialLoadComplete = useRef(false);
+  const {
+    state: toolState,
+    setState: setToolState,
+    isLoadingState,
+  } = useToolState<TextReverseToolState>(toolRoute, DEFAULT_TEXT_REVERSE_STATE);
 
   const { addHistoryEntry } = useHistory();
+  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
+    useToolUrlState(urlStateParams);
 
-  const stateSetters = useMemo(
-    () => ({
-      text: setText,
-      reverse: setReverse,
-    }),
+  const [isOutputCopied, setIsOutputCopied] = useState<boolean>(false);
+  const lastLoggedStateRef = useRef<TextReverseToolState | null>(null);
+
+  const reverseOptions = useMemo(
+    () => [
+      { value: 'character' as ReverseMode, label: 'Character' },
+      { value: 'word' as ReverseMode, label: 'Word' },
+      { value: 'line' as ReverseMode, label: 'Line' }, // Added Line option
+    ],
     []
   );
 
-  useToolUrlState(urlStateParams, stateSetters as StateSetters);
-
+  // Effect to initialize state from URL parameters
   useEffect(() => {
-    if (!initialLoadComplete.current) {
-      lastLoggedTextRef.current = text;
-      lastLoggedReverseRef.current = reverse;
-      initialLoadComplete.current = true;
+    if (!isLoadingState && !isLoadingUrlState && urlProvidedAnyValue) {
+      const updates: Partial<TextReverseToolState> = {};
+      const urlInputText = urlState.text as string | undefined;
+      const urlReverseMode = urlState.reverse as ReverseMode | undefined;
+
+      if (urlInputText !== undefined && urlInputText !== toolState.inputText) {
+        updates.inputText = urlInputText;
+      }
+      if (
+        urlReverseMode !== undefined &&
+        (urlReverseMode === 'character' ||
+          urlReverseMode === 'word' ||
+          urlReverseMode === 'line') && // Ensure 'line' is valid here
+        urlReverseMode !== toolState.reverseMode
+      ) {
+        updates.reverseMode = urlReverseMode;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setToolState(updates);
+      }
     }
-  }, [text, reverse]);
+  }, [
+    isLoadingState,
+    isLoadingUrlState,
+    urlProvidedAnyValue,
+    urlState,
+    toolState,
+    setToolState,
+  ]);
 
   const reversedText = useMemo(() => {
-    if (!text) return '';
-    if (reverse === 'character') {
-      return text.split('').reverse().join('');
-    } else {
-      return text.split(/\s+/).reverse().join(' ');
+    if (!toolState.inputText) return '';
+    if (toolState.reverseMode === 'character') {
+      return toolState.inputText.split('').reverse().join('');
+    } else if (toolState.reverseMode === 'word') {
+      return toolState.inputText.split(/\s+/).reverse().join(' ');
+    } else if (toolState.reverseMode === 'line') {
+      // Added line reversal logic
+      return toolState.inputText.split(/\r?\n/).reverse().join('\n');
     }
-  }, [text, reverse]);
+    return toolState.inputText; // Fallback, should not be reached
+  }, [toolState.inputText, toolState.reverseMode]);
 
-  const handleTextChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(event.target.value);
-    },
-    []
-  );
+  // Debounced history logging function
+  const debouncedLogHistoryAction = useDebouncedCallback(
+    (currentState: TextReverseToolState, currentReversedText: string) => {
+      if (
+        !currentState.inputText.trim() ||
+        JSON.stringify(currentState) ===
+          JSON.stringify(lastLoggedStateRef.current)
+      ) {
+        return;
+      }
 
-  const handleReverseChange = useCallback(
-    (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setReverse(event.target.value as Reverse);
-    },
-    []
-  );
-
-  const handleTextBlur = useCallback(() => {
-    if (!initialLoadComplete.current) {
-      return;
-    }
-
-    const currentText = text;
-    const currentReverse = reverse;
-
-    const textChanged = currentText !== lastLoggedTextRef.current;
-    const reverseChanged = currentReverse !== lastLoggedReverseRef.current;
-
-    if (textChanged || reverseChanged) {
       const limitedOutput =
-        reversedText.length > 500
-          ? reversedText.substring(0, 500) + '...'
-          : reversedText;
+        currentReversedText.length > 500
+          ? currentReversedText.substring(0, 500) + '...'
+          : currentReversedText;
 
       addHistoryEntry({
         toolName: toolTitle,
@@ -96,56 +133,130 @@ const TextReverseClient = ({
         trigger: 'auto',
         input: {
           text:
-            currentText.length > 500
-              ? currentText.substring(0, 500) + '...'
-              : currentText,
-          reverse: currentReverse,
+            currentState.inputText.length > 500
+              ? currentState.inputText.substring(0, 500) + '...'
+              : currentState.inputText,
+          reverseMode: currentState.reverseMode,
         },
         output: {
-          reverseMethod: currentReverse,
+          reversalType: currentState.reverseMode,
           limitedReversedText: limitedOutput,
         },
         status: 'success',
         eventTimestamp: Date.now(),
       });
-      lastLoggedTextRef.current = currentText;
-      lastLoggedReverseRef.current = currentReverse;
+      lastLoggedStateRef.current = currentState;
+    },
+    HISTORY_LOG_DEBOUNCE_MS
+  );
+
+  // Effect to log history on state changes
+  useEffect(() => {
+    if (isLoadingState) {
+      lastLoggedStateRef.current = toolState;
+      return;
     }
-  }, [text, reverse, reversedText, addHistoryEntry, toolTitle, toolRoute]);
+    if (
+      toolState.inputText.trim() &&
+      JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+    ) {
+      debouncedLogHistoryAction(toolState, reversedText);
+    } else if (
+      !toolState.inputText.trim() &&
+      lastLoggedStateRef.current?.inputText &&
+      JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+    ) {
+      debouncedLogHistoryAction(toolState, reversedText);
+    } else {
+      lastLoggedStateRef.current = toolState;
+    }
+  }, [
+    toolState,
+    reversedText,
+    isLoadingState,
+    debouncedLogHistoryAction,
+    addHistoryEntry,
+    toolTitle,
+    toolRoute,
+  ]);
+
+  const handleInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setToolState({ inputText: event.target.value });
+      setIsOutputCopied(false);
+    },
+    [setToolState]
+  );
+
+  const handleReverseChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      setToolState({ reverseMode: event.target.value as ReverseMode });
+      setIsOutputCopied(false);
+    },
+    [setToolState]
+  );
+
+  const handleClear = useCallback(() => {
+    setToolState(DEFAULT_TEXT_REVERSE_STATE);
+    setIsOutputCopied(false);
+    debouncedLogHistoryAction.cancel();
+    lastLoggedStateRef.current = DEFAULT_TEXT_REVERSE_STATE;
+  }, [setToolState, debouncedLogHistoryAction]);
+
+  const handleCopyOutput = useCallback(() => {
+    if (!reversedText || !navigator.clipboard) return;
+    navigator.clipboard.writeText(reversedText).then(
+      () => {
+        setIsOutputCopied(true);
+        setTimeout(() => setIsOutputCopied(false), 1500);
+        addHistoryEntry({
+          toolName: toolTitle,
+          toolRoute,
+          trigger: 'click',
+          input: { action: 'copyOutputText', length: reversedText.length },
+          output: { message: 'Reversed text copied to clipboard' },
+          status: 'success',
+          eventTimestamp: Date.now(),
+        });
+      },
+      (err) => {
+        console.error('Failed to copy reversed text: ', err);
+      }
+    );
+  }, [reversedText, addHistoryEntry, toolTitle, toolRoute]);
+
+  if (isLoadingState) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Text Reverse Tool...
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Textarea
+          label="Input Text:"
+          id="text-input"
+          rows={8}
+          value={toolState.inputText}
+          onChange={handleInputChange}
+          placeholder="Enter text to reverse here..."
+          textareaClassName="text-base font-mono"
+          spellCheck="false"
+          aria-label="Enter text to reverse"
+        />
         <div>
           <label
-            htmlFor="text-input"
-            className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
-          >
-            {' '}
-            Input Text:{' '}
-          </label>
-          <textarea
-            id="text-input"
-            rows={8}
-            value={text}
-            onChange={handleTextChange}
-            onBlur={handleTextBlur}
-            placeholder="Enter text to reverse here..."
-            className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
-            spellCheck="false"
-            aria-label="Enter text to reverse"
-          />
-        </div>
-        <div>
-          <label
-            htmlFor="reversed-text"
+            htmlFor="reversed-text-output"
             className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
           >
             Reversed Text:
           </label>
           <div
-            id="reversed-text"
-            className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm text-base font-mono whitespace-pre-wrap break-words overflow-auto h-[12rem]"
+            id="reversed-text-output"
+            className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm text-base font-mono whitespace-pre-wrap break-words overflow-auto min-h-[calc(8*1.5rem+2*0.75rem+2px)]"
             aria-live="polite"
           >
             {reversedText || (
@@ -157,24 +268,43 @@ const TextReverseClient = ({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-4 border border-[rgb(var(--color-border-base))] rounded-md p-4 bg-[rgb(var(--color-bg-component))]">
-        <label
-          htmlFor="reverse-select"
-          className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
-        >
-          Reverse by:
-        </label>
-        <select
+        <Select
+          label="Reverse by:"
           id="reverse-select"
-          name="reverse"
-          value={reverse}
+          name="reverseMode"
+          options={reverseOptions} // Updated options will be used here
+          value={toolState.reverseMode}
           onChange={handleReverseChange}
-          onBlur={handleTextBlur}
-          className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-[rgb(var(--color-input-border))] focus:outline-none focus:ring-[rgb(var(--color-input-focus-border))] focus:border-[rgb(var(--color-input-focus-border))] sm:text-sm rounded-md bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]"
-        >
-          <option value="character">Character</option>
-          <option value="word">Word</option>
-        </select>
-        {/* TODO : Add Copy Function - Not Needed, Just Visual */}
+          containerClassName="w-full sm:w-auto sm:min-w-[150px]"
+          selectClassName="py-2"
+        />
+        <div className="flex items-center space-x-3 ml-auto">
+          <Button
+            variant={isOutputCopied ? 'secondary' : 'accent2'}
+            onClick={handleCopyOutput}
+            disabled={!reversedText.trim()}
+            iconLeft={
+              isOutputCopied ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <ClipboardDocumentIcon className="h-5 w-5" />
+              )
+            }
+            className="transition-colors duration-150 ease-in-out"
+          >
+            {isOutputCopied ? 'Copied!' : 'Copy Output'}
+          </Button>
+          <Button
+            variant="neutral"
+            onClick={handleClear}
+            disabled={
+              !toolState.inputText &&
+              toolState.reverseMode === DEFAULT_TEXT_REVERSE_STATE.reverseMode
+            }
+          >
+            Clear
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -8,10 +8,17 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
-
 import { useHistory } from '../../../context/HistoryContext';
-import useToolUrlState, { StateSetters } from '../../_hooks/useToolUrlState';
+import useToolUrlState from '../../_hooks/useToolUrlState';
+import useToolState from '../../_hooks/useToolState';
+import Textarea from '../../_components/form/Textarea';
+import Button from '../../_components/form/Button';
+import Input from '../../_components/form/Input';
+import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import type { ParamConfig } from '@/src/types/tools';
+import type { StoredFile } from '@/src/types/storage';
+import { useDebouncedCallback } from 'use-debounce';
+import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 
 interface TextCounts {
   words: number;
@@ -20,6 +27,20 @@ interface TextCounts {
   search: string;
   customCount: number;
 }
+
+interface TextCounterToolState {
+  inputText: string;
+  searchText: string;
+  lastLoadedFilename?: string | null;
+}
+
+const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
+  inputText: '',
+  searchText: '',
+  lastLoadedFilename: null,
+};
+
+const HISTORY_LOG_DEBOUNCE_MS = 1500;
 
 interface TextCounterClientProps {
   urlStateParams: ParamConfig[];
@@ -32,35 +53,54 @@ export default function TextCounterClient({
   toolTitle,
   toolRoute,
 }: TextCounterClientProps) {
-  const [text, setText] = useState<string>('');
-  const [search, setSearch] = useState<string>('');
-  const lastLoggedTextRef = useRef<string | null>(null);
-  const lastLoggedSearchRef = useRef<string | null>(null);
-  const initialLoadComplete = useRef(false);
+  const {
+    state: toolState,
+    setState: setToolState,
+    isLoadingState,
+  } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
   const { addHistoryEntry } = useHistory();
+  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
+    useToolUrlState(urlStateParams);
 
-  const stateSetters = useMemo(
-    () => ({
-      text: setText,
-      search: setSearch,
-    }),
-    []
-  );
+  const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null); // For file loading errors
+  const lastLoggedStateRef = useRef<TextCounterToolState | null>(null);
 
-  useToolUrlState(urlStateParams, stateSetters as StateSetters);
-
+  // Effect to initialize state from URL parameters
   useEffect(() => {
-    if (!initialLoadComplete.current) {
-      lastLoggedTextRef.current = text;
-      lastLoggedSearchRef.current = search;
-      initialLoadComplete.current = true;
+    if (!isLoadingState && !isLoadingUrlState && urlProvidedAnyValue) {
+      const updates: Partial<TextCounterToolState> = {};
+      const urlInputText = urlState.text as string | undefined;
+      const urlSearchText = urlState.search as string | undefined;
+
+      if (urlInputText !== undefined && urlInputText !== toolState.inputText) {
+        updates.inputText = urlInputText;
+        updates.lastLoadedFilename = '(loaded from URL)';
+      }
+      if (
+        urlSearchText !== undefined &&
+        urlSearchText !== toolState.searchText
+      ) {
+        updates.searchText = urlSearchText;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setToolState(updates);
+      }
     }
-  }, [text, search]);
+  }, [
+    isLoadingState,
+    isLoadingUrlState,
+    urlProvidedAnyValue,
+    urlState,
+    toolState,
+    setToolState,
+  ]);
 
   const allCounts = useMemo((): TextCounts => {
-    const inputText = text;
-    const searchString = search;
+    const inputText = toolState.inputText;
+    const searchString = toolState.searchText;
     const trimmedText = inputText.trim();
     const words =
       trimmedText.length === 0
@@ -70,37 +110,43 @@ export default function TextCounterClient({
     const lines = inputText === '' ? 0 : inputText.split(/\r\n|\r|\n/).length;
     let customCount = 0;
     if (inputText && searchString) {
-      customCount = inputText.split(searchString).length - 1;
+      try {
+        // Basic string split counting. For regex, a more complex approach would be needed.
+        customCount = inputText.split(searchString).length - 1;
+      } catch (e) {
+        // Handle potential errors if searchString is a complex regex special character
+        console.warn('Error counting occurrences with search string:', e);
+        customCount = -1; // Indicate error or invalid search
+      }
     }
     return { words, characters, lines, search: searchString, customCount };
-  }, [text, search]);
+  }, [toolState.inputText, toolState.searchText]);
 
-  const handleInputChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(event.target.value);
-    },
-    []
-  );
-
-  const handleSearchChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      setSearch(event.target.value);
-    },
-    []
-  );
-
-  const handleBlurLogging = useCallback(() => {
-    if (!initialLoadComplete.current) {
-      return;
-    }
-
-    const currentText = text;
-    const currentSearch = search;
-    const textChanged = currentText !== lastLoggedTextRef.current;
-    const searchChanged = currentSearch !== lastLoggedSearchRef.current;
-
-    if (textChanged || searchChanged) {
-      const latestCounts = allCounts;
+  // Debounced history logging
+  const debouncedLogHistoryAction = useDebouncedCallback(
+    (currentState: TextCounterToolState, counts: TextCounts) => {
+      if (
+        // Don't log if input is effectively empty unless search text is also changing from a non-empty state
+        (!currentState.inputText.trim() &&
+          !currentState.searchText.trim() &&
+          !lastLoggedStateRef.current?.searchText?.trim()) ||
+        JSON.stringify(currentState) ===
+          JSON.stringify(lastLoggedStateRef.current)
+      ) {
+        // If it became empty, but was not empty before, DO log it.
+        if (
+          !currentState.inputText.trim() &&
+          !currentState.searchText.trim() &&
+          (lastLoggedStateRef.current?.inputText?.trim() ||
+            lastLoggedStateRef.current?.searchText?.trim()) &&
+          JSON.stringify(currentState) !==
+            JSON.stringify(lastLoggedStateRef.current)
+        ) {
+          // Proceed to log the "cleared" state
+        } else {
+          return; // Otherwise, skip logging if state is identical or effectively empty and was already empty
+        }
+      }
 
       addHistoryEntry({
         toolName: toolTitle,
@@ -108,57 +154,179 @@ export default function TextCounterClient({
         trigger: 'auto',
         input: {
           text:
-            currentText.length > 500
-              ? currentText.substring(0, 500) + '...'
-              : currentText,
-          search: currentSearch,
+            currentState.inputText.length > 500
+              ? currentState.inputText.substring(0, 500) + '...'
+              : currentState.inputText,
+          search: currentState.searchText,
+          source: currentState.lastLoadedFilename || 'pasted/typed',
         },
         output: {
-          words: latestCounts.words,
-          characters: latestCounts.characters,
-          lines: latestCounts.lines,
-          customCount: latestCounts.customCount,
+          words: counts.words, // Using 'words' as summaryField from metadata
+          characters: counts.characters,
+          lines: counts.lines,
+          customCount: counts.customCount,
         },
         status: 'success',
         eventTimestamp: Date.now(),
       });
+      lastLoggedStateRef.current = currentState;
+    },
+    HISTORY_LOG_DEBOUNCE_MS
+  );
 
-      lastLoggedTextRef.current = currentText;
-      lastLoggedSearchRef.current = currentSearch;
+  // Effect to log history on state changes
+  useEffect(() => {
+    if (isLoadingState) {
+      lastLoggedStateRef.current = toolState;
+      return;
     }
-  }, [text, search, allCounts, addHistoryEntry, toolTitle, toolRoute]);
+    // Log if the state is different from the last logged state.
+    // The debounced function itself has further checks for empty input.
+    if (
+      JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+    ) {
+      debouncedLogHistoryAction(toolState, allCounts);
+    } else {
+      // If state is same, ensure ref is aligned (e.g. on initial load after URL params)
+      lastLoggedStateRef.current = toolState;
+    }
+  }, [toolState, allCounts, isLoadingState, debouncedLogHistoryAction]);
 
-  const handleClearSearch = useCallback(() => {
-    setSearch('');
-  }, []);
+  const handleInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setToolState({
+        inputText: event.target.value,
+        lastLoadedFilename: null,
+      });
+      setClientError(null);
+    },
+    [setToolState]
+  );
+
+  const handleSearchChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setToolState({ searchText: event.target.value });
+      setClientError(null);
+    },
+    [setToolState]
+  );
+
+  const handleFileSelectedFromModal = useCallback(
+    async (files: StoredFile[], source: 'library' | 'upload') => {
+      setIsLoadFileModalOpen(false);
+      setClientError(null);
+      if (files.length === 0) return;
+      const file = files[0];
+
+      if (!file.blob) {
+        setClientError(`Error: File "${file.name}" has no content.`);
+        return;
+      }
+      if (!file.type?.startsWith('text/')) {
+        // Heuristic: if no type, but common text extension, allow it.
+        const commonTextExtensions = [
+          '.txt',
+          '.md',
+          '.csv',
+          '.json',
+          '.xml',
+          '.log',
+          '.js',
+          '.ts',
+          '.css',
+          '.html',
+        ];
+        const hasTextExtension = commonTextExtensions.some((ext) =>
+          file.name.toLowerCase().endsWith(ext)
+        );
+        if (!hasTextExtension) {
+          setClientError(
+            `Error: File "${file.name}" is not a recognized text file type.`
+          );
+          return;
+        }
+      }
+
+      try {
+        const textContent = await file.blob.text();
+        setToolState({
+          inputText: textContent,
+          lastLoadedFilename: file.name,
+        });
+        // History will be logged by the useEffect watching toolState
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        setClientError(`Error reading file "${file.name}": ${msg}`);
+        setToolState({ inputText: '', lastLoadedFilename: null });
+      }
+    },
+    [setToolState]
+  );
 
   const handleClearText = useCallback(() => {
-    setText('');
-  }, []);
+    setToolState((prevState) => ({
+      ...prevState,
+      inputText: '',
+      lastLoadedFilename: null,
+    }));
+    setClientError(null);
+  }, [setToolState]);
+
+  const handleClearSearch = useCallback(() => {
+    setToolState((prevState) => ({ ...prevState, searchText: '' }));
+    setClientError(null);
+  }, [setToolState]);
+
+  if (isLoadingState) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Text Counter Tool...
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
-      <div>
+      <div className="flex justify-between items-center gap-2">
         <label
           htmlFor="text-input"
-          className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"
+          className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
         >
           Your Text:
+          {toolState.lastLoadedFilename && (
+            <span className="ml-2 text-xs italic">
+              (from: {toolState.lastLoadedFilename})
+            </span>
+          )}
         </label>
-        <textarea
-          id="text-input"
-          rows={10}
-          value={text}
-          onChange={handleInputChange}
-          onBlur={handleBlurLogging}
-          placeholder="Paste or type your text here..."
-          aria-label="Text input area"
-          className="w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
-          spellCheck="false"
-        />
+        <Button
+          variant="neutral-outline"
+          size="sm"
+          onClick={() => setIsLoadFileModalOpen(true)}
+          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+        >
+          Load from File
+        </Button>
       </div>
+      <Textarea
+        id="text-input"
+        rows={10}
+        value={toolState.inputText}
+        onChange={handleInputChange}
+        placeholder="Paste or type your text here..."
+        aria-label="Text input area"
+        textareaClassName="text-base font-inherit"
+        spellCheck="false"
+      />
+
+      {clientError && (
+        <p role="alert" className="text-sm text-red-600 -mt-2">
+          {clientError}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-4 p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
-        <div className="flex-grow grid grid-cols-3 gap-4 text-center">
+        <div className="flex-grow grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
               {allCounts.words.toLocaleString()}
@@ -173,7 +341,7 @@ export default function TextCounterClient({
               Characters
             </p>
           </div>
-          <div>
+          <div className="col-span-2 sm:col-span-1">
             <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
               {allCounts.lines.toLocaleString()}
             </p>
@@ -181,27 +349,29 @@ export default function TextCounterClient({
           </div>
         </div>
         <div className="flex-shrink-0">
-          <button
-            type="button"
+          <Button
+            variant="neutral"
             onClick={handleClearText}
-            disabled={!text}
+            disabled={!toolState.inputText}
             title="Clear input text"
-            className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Clear Text
-          </button>
+          </Button>
         </div>
       </div>
+
       <div className="flex flex-wrap gap-4 items-center justify-between border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))]">
         <div className="text-center px-4 shrink-0 order-1 sm:order-none">
           <p className="text-2xl font-bold text-[rgb(var(--color-button-secondary-bg))]">
-            {allCounts.customCount.toLocaleString()}
+            {allCounts.customCount < 0
+              ? 'N/A'
+              : allCounts.customCount.toLocaleString()}
           </p>
           <p
             className="text-xs text-[rgb(var(--color-button-secondary-bg))] opacity-90"
             title={
-              allCounts.search
-                ? `Occurrences of "${allCounts.search}"`
+              toolState.searchText
+                ? `Occurrences of "${toolState.searchText}"`
                 : 'Occurrences'
             }
           >
@@ -209,33 +379,39 @@ export default function TextCounterClient({
           </p>
         </div>
         <div className="flex-grow min-w-[200px] order-3 sm:order-none w-full sm:w-auto">
-          <label htmlFor="search-input" className="sr-only">
-            Text to count occurrences of
-          </label>
-          <input
+          <Input
             type="text"
             id="search-input"
-            name="search"
-            value={search}
+            name="searchText"
+            value={toolState.searchText}
             onChange={handleSearchChange}
-            onBlur={handleBlurLogging}
             placeholder="Text to Count Occurrences..."
             aria-label="Text to count occurrences of"
-            className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none resize-y text-base font-inherit placeholder:text-[rgb(var(--color-input-placeholder))]"
+            inputClassName="text-base font-inherit"
           />
         </div>
         <div className="flex items-center shrink-0 order-2 sm:order-none">
-          <button
-            type="button"
+          <Button
+            variant="neutral"
             onClick={handleClearSearch}
             title="Clear occurrence search text"
-            disabled={!search}
-            className="px-3 py-2 rounded-md text-[rgb(var(--color-button-neutral-text))] text-sm font-medium bg-[rgb(var(--color-button-neutral-bg))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] focus:outline-none transition-colors duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!toolState.searchText}
           >
             Clear Search
-          </button>
+          </Button>
         </div>
       </div>
+
+      <FileSelectionModal
+        isOpen={isLoadFileModalOpen}
+        onClose={() => setIsLoadFileModalOpen(false)}
+        onFilesSelected={handleFileSelectedFromModal}
+        mode="selectExistingOrUploadNew"
+        accept=".txt,text/*" // Common text file types
+        selectionMode="single"
+        libraryFilter={{ category: 'text' }} // Suggests filtering library for text files
+        initialTab="upload"
+      />
     </div>
   );
 }

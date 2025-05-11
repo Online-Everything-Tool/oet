@@ -12,21 +12,22 @@ type InputType =
   | 'search'
   | 'url'
   | 'tel'
-  | 'date' // Added date as it's common
-  | 'time' // Added time
-  | 'datetime-local'; // Added datetime-local
+  | 'date'
+  | 'time'
+  | 'datetime-local'
+  | 'color';
 
 interface InputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'id' | 'type'> {
   label?: string;
   id?: string;
-  type?: InputType; // Use our defined InputType
-  value: string | number; // Allow number for type="number"
+  type?: InputType;
+  value: string | number;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   error?: string | null;
   containerClassName?: string;
   labelClassName?: string;
-  inputClassName?: string; // For direct styling of the <input> element
+  inputClassName?: string;
   iconLeft?: React.ReactNode;
   iconRight?: React.ReactNode;
 }
@@ -41,7 +42,7 @@ const Input: React.FC<InputProps> = ({
   disabled = false,
   containerClassName = '',
   labelClassName = '',
-  inputClassName = '',
+  inputClassName = '', // This will be key for styling the color input
   iconLeft,
   iconRight,
   placeholder,
@@ -54,18 +55,19 @@ const Input: React.FC<InputProps> = ({
   const hasError = !!error;
   const isDisabled = disabled;
 
-  // Base styles for the input element itself
   const baseInputStyles = `
-    block w-full border rounded-md shadow-sm 
+    block border rounded-md shadow-sm 
     text-sm sm:text-base
     bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
     placeholder:text-[rgb(var(--color-input-placeholder))]
     focus:outline-none focus:ring-1
-  `;
+  `; // Removed w-full from here
+
+  const widthStyle = type === 'color' ? '' : 'w-full'; // Apply w-full conditionally
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
   const errorBorder =
-    'border-[rgb(var(--color-border-error))] ring-1 ring-[rgb(var(--color-border-error))]'; // Added ring for error
+    'border-[rgb(var(--color-border-error))] ring-1 ring-[rgb(var(--color-border-error))]';
   const focusStyles =
     'focus:border-[rgb(var(--color-input-focus-border))] focus:ring-[rgb(var(--color-input-focus-border))]';
 
@@ -73,10 +75,12 @@ const Input: React.FC<InputProps> = ({
     ? 'disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed opacity-60'
     : '';
 
-  // Padding adjustments based on presence of icons
-  const paddingLeft = iconLeft ? 'pl-10' : 'px-3'; // Or pl-3 if no iconLeft
-  const paddingRight = iconRight ? 'pr-10' : 'px-3'; // Or pr-3 if no iconRight
-  const verticalPadding = 'py-2'; // Standard vertical padding
+  // Padding: For type="color", we'll rely more on inputClassName.
+  // For other types, maintain standard padding.
+  const paddingStyles =
+    type === 'color'
+      ? '' // Minimal internal padding for color, let inputClassName handle it
+      : `${iconLeft ? 'pl-10' : 'px-3'} ${iconRight ? 'pr-10' : 'px-3'} py-2`;
 
   return (
     <div className={`w-full ${containerClassName}`}>
@@ -89,7 +93,7 @@ const Input: React.FC<InputProps> = ({
         </label>
       )}
       <div className="relative rounded-md shadow-sm">
-        {iconLeft && (
+        {iconLeft && type !== 'color' && (
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <span className="text-[rgb(var(--color-text-muted))] sm:text-sm">
               {iconLeft}
@@ -106,17 +110,24 @@ const Input: React.FC<InputProps> = ({
           placeholder={placeholder}
           className={`
             ${baseInputStyles}
+            ${widthStyle} 
             ${hasError ? errorBorder : normalBorder}
             ${!isDisabled ? focusStyles : ''}
             ${disabledStyles}
-            ${paddingLeft} ${paddingRight} ${verticalPadding}
-            ${inputClassName}
+            ${paddingStyles}
+            ${inputClassName} 
           `}
           aria-invalid={hasError ? 'true' : 'false'}
           aria-describedby={hasError ? `${effectiveId}-error` : undefined}
           {...rest}
+          // Specific style for color input to ensure it's not scaled by text properties
+          style={
+            type === 'color'
+              ? { padding: '0px', lineHeight: 'normal', ...rest.style }
+              : rest.style
+          }
         />
-        {iconRight && (
+        {iconRight && type !== 'color' && (
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
             <span className="text-[rgb(var(--color-text-muted))] sm:text-sm">
               {iconRight}

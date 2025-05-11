@@ -91,11 +91,12 @@ const TreeNode: React.FC<TreeNodeProps> = ({
       })
     : '---';
 
-  // @ts-expect-error TypeScript might complain about _data or uncompressedSize not being on the type.
   const nodeSize =
     node.type === 'file' && node._zipObject
       ? formatBytesCompact(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (node._zipObject as any)._data?.uncompressedSize ||
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (node._zipObject as any).uncompressedSize ||
             0
         )
