@@ -12,12 +12,10 @@ import { getUniqueSortedValues } from '@/app/lib/utils';
 import { RichEmojiData } from '@/src/constants/emojis';
 import {
   FunnelIcon,
-  ClipboardDocumentIcon,
   CheckIcon,
   XMarkIcon, // For clearing recently copied
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
-import Link from 'next/link';
 
 interface EmojiExplorerToolState {
   searchTerm: string;
@@ -39,12 +37,10 @@ const MAX_RECENTLY_COPIED = 20;
 
 interface EmojiSearchClientProps {
   initialEmojis: RichEmojiData[];
-  featuredEmoji?: RichEmojiData;
 }
 
 export default function EmojiSearchClient({
   initialEmojis,
-  featuredEmoji,
 }: EmojiSearchClientProps) {
   const {
     state: toolState,
@@ -100,8 +96,7 @@ export default function EmojiSearchClient({
     if (
       !lowerCaseSearchTerm &&
       !toolState.selectedGroup &&
-      !toolState.selectedVersion &&
-      !featuredEmoji
+      !toolState.selectedVersion
     ) {
       return initialEmojis;
     }
@@ -134,7 +129,6 @@ export default function EmojiSearchClient({
     toolState.selectedGroup,
     toolState.selectedSubgroup,
     toolState.selectedVersion,
-    featuredEmoji,
   ]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -234,86 +228,6 @@ export default function EmojiSearchClient({
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))] p-1">
-      {featuredEmoji && (
-        <div className="p-4 md:p-6 border border-[rgb(var(--color-button-accent-border))] rounded-lg bg-[rgb(var(--color-button-accent-bg)/0.05)] shadow-md mb-6">
-          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
-            <span
-              className="text-6xl md:text-8xl"
-              aria-label={featuredEmoji.name}
-            >
-              {featuredEmoji.emoji}
-            </span>
-            <div className="flex-grow text-center md:text-left">
-              <h2 className="text-2xl md:text-3xl font-bold text-[rgb(var(--color-text-base))] mb-1">
-                {featuredEmoji.name}
-              </h2>
-              <p className="text-sm text-[rgb(var(--color-text-muted))]">
-                <strong>Codepoints:</strong>{' '}
-                <code className="text-xs bg-gray-200 p-0.5 rounded">
-                  {featuredEmoji.codePoints}
-                </code>
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="!ml-1 !p-0.5"
-                  onClick={() =>
-                    copyToClipboardHandler(
-                      featuredEmoji.codePoints,
-                      'codepoints',
-                      featuredEmoji.name
-                    )
-                  }
-                  title="Copy Codepoints"
-                >
-                  {lastCopiedValue?.type === 'codepoints' &&
-                  lastCopiedValue?.value === featuredEmoji.codePoints ? (
-                    <CheckIcon className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  )}
-                </Button>
-              </p>
-              <p className="text-sm text-[rgb(var(--color-text-muted))]">
-                <strong>Group:</strong> {featuredEmoji.group} {'>'}{' '}
-                {featuredEmoji.subgroup}
-              </p>
-              <p className="text-sm text-[rgb(var(--color-text-muted))]">
-                <strong>Unicode Version:</strong> {featuredEmoji.version}
-              </p>
-            </div>
-            <Button
-              variant="accent"
-              onClick={() => handleEmojiClick(featuredEmoji, 'featured')}
-              className="w-full md:w-auto mt-4 md:mt-0 !py-2.5"
-              iconLeft={
-                lastCopiedValue?.type === 'emoji' &&
-                lastCopiedValue?.value === featuredEmoji.emoji ? (
-                  <CheckIcon className="h-5 w-5" />
-                ) : (
-                  <ClipboardDocumentIcon className="h-5 w-5" />
-                )
-              }
-            >
-              {lastCopiedValue?.type === 'emoji' &&
-              lastCopiedValue?.value === featuredEmoji.emoji
-                ? 'Copied Emoji!'
-                : `Copy ${featuredEmoji.emoji}`}
-            </Button>
-          </div>
-          {featuredEmoji &&
-            typeof window !== 'undefined' &&
-            window.location.pathname !== '/tool/emoji-explorer/' && (
-              <div className="mt-4 text-center md:text-right">
-                <Link
-                  href="/tool/emoji-explorer/"
-                  className="text-sm text-[rgb(var(--color-text-link))] hover:underline"
-                >
-                  ← Back to Full Emoji Explorer
-                </Link>
-              </div>
-            )}
-        </div>
-      )}
 
       {toolState.recentlyCopiedEmojis &&
         toolState.recentlyCopiedEmojis.length > 0 && (
@@ -494,7 +408,7 @@ export default function EmojiSearchClient({
         )}
       {filteredEmojis.length > 0 && (
         <div
-          className={`grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1 sm:gap-2 ${featuredEmoji ? 'pt-4 border-t border-dashed' : ''}`}
+          className={`grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1 sm:gap-2`}
         >
           {filteredEmojis.map((emojiData) => (
             <Button

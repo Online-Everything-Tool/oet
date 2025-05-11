@@ -8,14 +8,11 @@ import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input';
 import Select from '../../_components/form/Select';
-import { getUniqueSortedValues } from '@/app/lib/utils'; // This might not be needed here anymore if categories are passed directly
 import {
-  ClipboardDocumentIcon,
   CheckIcon,
   XMarkIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import Link from 'next/link';
 
 interface HtmlEntityToolState {
   searchTerm: string;
@@ -34,13 +31,11 @@ const MAX_RECENTLY_COPIED_ENTITIES = 10;
 interface EntitySearchClientProps {
   initialEntities: RichEntityData[];
   availableCategories: string[];
-  featuredEntity?: RichEntityData;
 }
 
 export default function HtmlEntityExplorerClient({
   initialEntities,
   availableCategories,
-  featuredEntity,
 }: EntitySearchClientProps) {
   // --- ALL HOOKS AT THE TOP ---
   const {
@@ -217,111 +212,7 @@ export default function HtmlEntityExplorerClient({
   // --- JSX RENDER ---
   return (
     <div className="flex flex-col gap-6 text-[rgb(var(--color-text-base))] p-1">
-      {/* Featured Entity Section */}
-      {featuredEntity && (
-        <div className="p-4 md:p-6 border rounded-lg bg-[rgb(var(--color-bg-subtle))] shadow-sm mb-4">
-          <div className="flex flex-col items-center text-center">
-            <div
-              className="text-6xl font-serif py-2 px-4 rounded bg-white shadow"
-              title={featuredEntity.name}
-            >
-              {featuredEntity.char}
-            </div>
-            <h2 className="text-xl font-semibold mt-3">
-              {featuredEntity.name}
-            </h2>
-            <p className="text-sm text-[rgb(var(--color-text-muted))]">
-              {featuredEntity.description}
-            </p>
-            <div className="flex gap-2 mt-3">
-              <Button
-                size="sm"
-                onClick={() =>
-                  handleCopy(
-                    featuredEntity.char,
-                    'char',
-                    featuredEntity,
-                    'featured'
-                  )
-                }
-                iconLeft={
-                  lastCopiedInfo?.id === featuredEntity.id &&
-                  lastCopiedInfo?.type === 'char' ? (
-                    <CheckIcon className="h-4 w-4" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  )
-                }
-              >
-                {lastCopiedInfo?.id === featuredEntity.id &&
-                lastCopiedInfo?.type === 'char'
-                  ? 'Copied!'
-                  : 'Char'}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  handleCopy(
-                    featuredEntity.name,
-                    'name',
-                    featuredEntity,
-                    'featured'
-                  )
-                }
-                iconLeft={
-                  lastCopiedInfo?.id === featuredEntity.id &&
-                  lastCopiedInfo?.type === 'name' ? (
-                    <CheckIcon className="h-4 w-4" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  )
-                }
-              >
-                {lastCopiedInfo?.id === featuredEntity.id &&
-                lastCopiedInfo?.type === 'name'
-                  ? 'Copied!'
-                  : `Name`}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  handleCopy(
-                    featuredEntity.code,
-                    'code',
-                    featuredEntity,
-                    'featured'
-                  )
-                }
-                iconLeft={
-                  lastCopiedInfo?.id === featuredEntity.id &&
-                  lastCopiedInfo?.type === 'code' ? (
-                    <CheckIcon className="h-4 w-4" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  )
-                }
-              >
-                {lastCopiedInfo?.id === featuredEntity.id &&
-                lastCopiedInfo?.type === 'code'
-                  ? 'Copied!'
-                  : `Code`}
-              </Button>
-            </div>
-            {typeof window !== 'undefined' &&
-              window.location.pathname !== '/tool/html-entity-explorer/' && (
-                <div className="mt-4">
-                  <Link
-                    href="/tool/html-entity-explorer/"
-                    className="text-sm text-[rgb(var(--color-text-link))] hover:underline"
-                  >
-                    ← Back to Full Explorer
-                  </Link>
-                </div>
-              )}
-          </div>
-        </div>
-      )}
-
+      
       {/* Recently Copied Section */}
       {toolState.recentlyCopiedEntities &&
         toolState.recentlyCopiedEntities.length > 0 && (
