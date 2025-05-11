@@ -1,7 +1,7 @@
 // FILE: app/tool/emoji-explorer/_components/EmojiExplorerClient.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useHistory } from '../../../context/HistoryContext';
 import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
@@ -228,7 +228,6 @@ export default function EmojiSearchClient({
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))] p-1">
-
       {toolState.recentlyCopiedEmojis &&
         toolState.recentlyCopiedEmojis.length > 0 && (
           <div className="p-3 border-b border-[rgb(var(--color-border-base))]">

@@ -1,7 +1,7 @@
 // FILE: app/tool/html-entity-explorer/_components/HtmlEntityExplorerClient.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react'; // useEffect might be needed if we add more complex effects
+import React, { useState, useMemo, useCallback } from 'react'; // useEffect might be needed if we add more complex effects
 import type { RichEntityData } from '../page';
 import { useHistory } from '../../../context/HistoryContext';
 import useToolState from '../../_hooks/useToolState';
@@ -212,7 +212,6 @@ export default function HtmlEntityExplorerClient({
   // --- JSX RENDER ---
   return (
     <div className="flex flex-col gap-6 text-[rgb(var(--color-text-base))] p-1">
-      
       {/* Recently Copied Section */}
       {toolState.recentlyCopiedEntities &&
         toolState.recentlyCopiedEntities.length > 0 && (

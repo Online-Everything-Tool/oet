@@ -34,10 +34,8 @@ async function loadAndProcessEntities(): Promise<{
 }> {
   const filePath = path.join(
     process.cwd(),
-    'app',
-    'tool',
-    'html-entity-explorer',
-    '_data',
+    'src',
+    'constants',
     'html-entities-data.json'
   );
   let jsonData: CategorizedRawData;
