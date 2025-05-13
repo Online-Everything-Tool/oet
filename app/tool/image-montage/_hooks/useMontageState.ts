@@ -32,14 +32,18 @@ interface PersistedMontageImage {
 
 export type MontageEffect = 'polaroid' | 'natural';
 
-interface PersistedMontageState {
-  images: PersistedMontageImage[];
+export interface ImageMontageToolPersistedState {
+  persistedImages: PersistedMontageImage[];
   effect: MontageEffect;
+  processedFileId: string | null;
+  outputFilename: string | null;
 }
 
-const DEFAULT_MONTAGE_STATE: PersistedMontageState = {
-  images: [],
+const DEFAULT_MONTAGE_TOOL_STATE: ImageMontageToolPersistedState = {
+  persistedImages: [],
   effect: 'polaroid',
+  processedFileId: null,
+  outputFilename: null,
 };
 
 const getRandomTilt = (): number => {
@@ -49,8 +53,11 @@ const getRandomTilt = (): number => {
 };
 
 interface UseMontageStateReturn {
-  montageImages: MontageImage[];
+  persistedImages: PersistedMontageImage[];
   effect: MontageEffect;
+  montageImagesForCanvas: MontageImage[];
+  processedFileId: string | null;
+  outputFilename: string | null;
   addStoredFiles: (storedFiles: StoredFile[]) => Promise<void>;
   clearMontage: () => Promise<void>;
   handleTiltChange: (imageId: string, newTilt: number) => void;
@@ -60,21 +67,25 @@ interface UseMontageStateReturn {
   handleMoveUp: (imageId: string) => void;
   handleMoveDown: (imageId: string) => void;
   handleEffectChange: (effect: MontageEffect) => void;
-  isLoading: boolean;
-  error: string | null;
+  setProcessedFileIdInState: (fileId: string | null) => void;
+  setOutputFilenameInState: (filename: string | null) => void;
+  isLoadingState: boolean;
+  errorLoadingState: string | null;
+  isLoadingImages: boolean;
+  imageLoadingError: string | null;
 }
 
-export function useMontageState(
-  toolTitle: string,
-  toolRoute: string
-): UseMontageStateReturn {
+export function useMontageState(toolRoute: string): UseMontageStateReturn {
   const {
-    state: persistentState,
-    setState: setPersistentState,
-    isLoadingState: isLoadingPersistentState,
-    clearState: clearPersistentState,
+    state: toolState,
+    setState: setToolState,
+    isLoadingState,
+    clearState: clearPersistentToolState,
     errorLoadingState,
-  } = useToolState<PersistedMontageState>(toolRoute, DEFAULT_MONTAGE_STATE);
+  } = useToolState<ImageMontageToolPersistedState>(
+    toolRoute,
+    DEFAULT_MONTAGE_TOOL_STATE
+  );
 
   const [loadedImageElements, setLoadedImageElements] = useState<
     Map<string, HTMLImageElement>
@@ -82,44 +93,39 @@ export function useMontageState(
   const [imageLoadingStatus, setImageLoadingStatus] = useState<
     Record<string, 'idle' | 'loading' | 'loaded' | 'error'>
   >({});
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [imageLoadingError, setImageLoadingError] = useState<string | null>(
+    null
+  );
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
 
   const { getImage } = useImageLibrary();
-
-  const isLoading =
-    isLoadingPersistentState ||
-    Object.values(imageLoadingStatus).some((status) => status === 'loading');
-  const error = errorLoadingState || localError;
+  const isLoadingImages = Object.values(imageLoadingStatus).some(
+    (status) => status === 'loading'
+  );
 
   useEffect(() => {
-    if (isLoadingPersistentState) return;
-    const currentImageIds = new Set(
-      persistentState.images.map((img) => img.imageId)
-    );
-    const nextLoadingStatus = { ...imageLoadingStatus };
-    let needsStatusUpdate = false;
-    let localErrorOccurred: string | null = null;
-    let stateNeedsDimensionUpdate = false;
-    const dimensionUpdates: {
-      imageId: string;
-      width: number;
-      height: number;
-    }[] = [];
+    if (isLoadingState) return;
 
-    persistentState.images.forEach((persistedImage) => {
-      const { imageId } = persistedImage;
+    const currentImageIdsInState = new Set(
+      toolState.persistedImages.map((img) => img.imageId)
+    );
+    const newImageLoadingStatus = { ...imageLoadingStatus };
+    let didStatusChange = false;
+    let localErrorMsg: string | null = null;
+
+    toolState.persistedImages.forEach((persistedImg) => {
+      const { imageId, name } = persistedImg;
       if (
         !loadedImageElements.has(imageId) &&
-        nextLoadingStatus[imageId] !== 'loading' &&
-        nextLoadingStatus[imageId] !== 'error'
+        newImageLoadingStatus[imageId] !== 'loading' &&
+        newImageLoadingStatus[imageId] !== 'error'
       ) {
-        nextLoadingStatus[imageId] = 'loading';
-        needsStatusUpdate = true;
+        newImageLoadingStatus[imageId] = 'loading';
+        didStatusChange = true;
         getImage(imageId)
           .then((storedFile) => {
             if (!storedFile?.blob)
-              throw new Error(`Blob missing for image ID ${imageId}`);
+              throw new Error(`Blob missing for image ID ${imageId} (${name})`);
             const objectURL = URL.createObjectURL(storedFile.blob);
             objectUrlsRef.current.set(imageId, objectURL);
             const img = new Image();
@@ -127,121 +133,96 @@ export function useMontageState(
               setLoadedImageElements((prevMap) =>
                 new Map(prevMap).set(imageId, img)
               );
-              setImageLoadingStatus((prevStatus) => ({
-                ...prevStatus,
+              setImageLoadingStatus((prev) => ({
+                ...prev,
                 [imageId]: 'loaded',
               }));
-
-              const existingPersisted = persistentState.images.find(
-                (pImg) => pImg.imageId === imageId
-              );
               if (
-                existingPersisted &&
-                (!existingPersisted.originalWidth ||
-                  !existingPersisted.originalHeight) &&
+                (!persistedImg.originalWidth || !persistedImg.originalHeight) &&
                 img.naturalWidth > 0 &&
                 img.naturalHeight > 0
               ) {
-                dimensionUpdates.push({
-                  imageId: imageId,
-                  width: img.naturalWidth,
-                  height: img.naturalHeight,
-                });
-                stateNeedsDimensionUpdate = true;
+                setToolState((prevToolState) => ({
+                  ...prevToolState,
+                  persistedImages: prevToolState.persistedImages.map((pImg) =>
+                    pImg.imageId === imageId
+                      ? {
+                          ...pImg,
+                          originalWidth: img.naturalWidth,
+                          originalHeight: img.naturalHeight,
+                        }
+                      : pImg
+                  ),
+                }));
               }
             };
             img.onerror = () => {
               URL.revokeObjectURL(objectURL);
               objectUrlsRef.current.delete(imageId);
-              setImageLoadingStatus((prevStatus) => ({
-                ...prevStatus,
+              setImageLoadingStatus((prev) => ({
+                ...prev,
                 [imageId]: 'error',
               }));
-              setLocalError(
-                (prev) =>
-                  prev ||
-                  `Failed to load image: ${persistedImage.name || imageId}`
+              setImageLoadingError(
+                (prev) => prev || `Failed to load image: ${name || imageId}`
               );
             };
             img.src = objectURL;
           })
           .catch((err) => {
-            nextLoadingStatus[imageId] = 'error';
-            setImageLoadingStatus((prevStatus) => ({
-              ...prevStatus,
-              [imageId]: 'error',
-            }));
-            const errorMsg = `Error loading ${persistedImage.name || imageId}: ${err.message}`;
-            localErrorOccurred = localErrorOccurred || errorMsg;
-            needsStatusUpdate = true;
+            setImageLoadingStatus((prev) => ({ ...prev, [imageId]: 'error' }));
+            const errorText = `Error loading ${name || imageId}: ${err.message}`;
+            localErrorMsg = localErrorMsg
+              ? `${localErrorMsg}; ${errorText}`
+              : errorText;
+            didStatusChange = true;
           });
       }
     });
 
-    if (stateNeedsDimensionUpdate) {
-      setPersistentState((prev) => {
-        const updatedImages = prev.images.map((pImg) => {
-          const update = dimensionUpdates.find(
-            (du) => du.imageId === pImg.imageId
-          );
-          return update
-            ? {
-                ...pImg,
-                originalWidth: update.width,
-                originalHeight: update.height,
-              }
-            : pImg;
-        });
-
-        return JSON.stringify(prev.images) !== JSON.stringify(updatedImages)
-          ? { ...prev, images: updatedImages }
-          : prev;
-      });
-    }
-
-    let needsElementCleanup = false;
-    let needsStatusCleanup = false;
+    let elementsCleaned = false;
     loadedImageElements.forEach((_, imageId) => {
-      if (!currentImageIds.has(imageId)) {
+      if (!currentImageIdsInState.has(imageId)) {
         const url = objectUrlsRef.current.get(imageId);
         if (url) {
           URL.revokeObjectURL(url);
           objectUrlsRef.current.delete(imageId);
         }
-        needsElementCleanup = true;
-        if (nextLoadingStatus[imageId]) {
-          delete nextLoadingStatus[imageId];
-          needsStatusCleanup = true;
+        elementsCleaned = true;
+        if (newImageLoadingStatus[imageId]) {
+          delete newImageLoadingStatus[imageId];
+          didStatusChange = true;
         }
       }
     });
 
-    if (needsElementCleanup) {
+    if (elementsCleaned) {
       setLoadedImageElements((prevMap) => {
         const newMap = new Map(prevMap);
         prevMap.forEach((_, imageId) => {
-          if (!currentImageIds.has(imageId)) newMap.delete(imageId);
+          if (!currentImageIdsInState.has(imageId)) newMap.delete(imageId);
         });
         return newMap;
       });
     }
-    if (needsStatusUpdate || needsStatusCleanup) {
-      if (
-        JSON.stringify(nextLoadingStatus) !== JSON.stringify(imageLoadingStatus)
-      ) {
-        setImageLoadingStatus(nextLoadingStatus);
-      }
+    if (
+      didStatusChange &&
+      JSON.stringify(newImageLoadingStatus) !==
+        JSON.stringify(imageLoadingStatus)
+    ) {
+      setImageLoadingStatus(newImageLoadingStatus);
     }
-    if (localErrorOccurred && !localError) setLocalError(localErrorOccurred);
-    else if (!localErrorOccurred && localError) setLocalError(null);
+    if (localErrorMsg && imageLoadingError !== localErrorMsg)
+      setImageLoadingError(localErrorMsg);
+    else if (!localErrorMsg && imageLoadingError) setImageLoadingError(null);
   }, [
-    persistentState.images,
-    isLoadingPersistentState,
+    toolState.persistedImages,
+    isLoadingState,
     getImage,
-    localError,
-    imageLoadingStatus,
+    setToolState,
     loadedImageElements,
-    setPersistentState,
+    imageLoadingStatus,
+    imageLoadingError,
   ]);
 
   useEffect(() => {
@@ -252,248 +233,232 @@ export function useMontageState(
     };
   }, []);
 
-  const montageImages = useMemo((): MontageImage[] => {
-    console.log(
-      '[MontageState useMemo] Calculating derived state. Persistent state image order:',
-      persistentState.images.map((p) => ({ id: p.imageId, z: p.zIndex }))
-    );
-
-    const derived = persistentState.images
+  const montageImagesForCanvas = useMemo((): MontageImage[] => {
+    return toolState.persistedImages
       .map((persistedImg, index): MontageImage | null => {
         const loadedElement = loadedImageElements.get(persistedImg.imageId);
         if (
           loadedElement &&
           imageLoadingStatus[persistedImg.imageId] === 'loaded'
         ) {
-          const simpleHash = (str: string): number => {
-            let hash = 0;
-            if (str.length === 0) {
-              return hash;
-            }
-            for (let i = 0; i < str.length; i++) {
-              const char = str.charCodeAt(i);
-
-              hash = (hash << 5) - hash + char;
-
-              hash |= 0;
-            }
-
-            hash = Math.abs(hash ^ (str.length * 13));
-            return hash;
-          };
+          const simpleHash = (str: string): number =>
+            str.split('').reduce((a, b) => {
+              a = (a << 5) - a + b.charCodeAt(0);
+              return a & a;
+            }, 0);
           return {
-            id: index + simpleHash(persistedImg.imageId),
+            id: index + Math.abs(simpleHash(persistedImg.imageId)),
             imageId: persistedImg.imageId,
             image: loadedElement,
             alt: persistedImg.name,
             tilt: persistedImg.tilt,
             overlapPercent: persistedImg.overlapPercent,
             zIndex: persistedImg.zIndex,
-            originalWidth: persistedImg.originalWidth,
-            originalHeight: persistedImg.originalHeight,
+            originalWidth:
+              persistedImg.originalWidth || loadedElement.naturalWidth,
+            originalHeight:
+              persistedImg.originalHeight || loadedElement.naturalHeight,
           };
         }
         return null;
       })
       .filter((img): img is MontageImage => img !== null);
+  }, [toolState.persistedImages, loadedImageElements, imageLoadingStatus]);
 
-    console.log(
-      '[MontageState useMemo] Finished calculation. Derived state image order:',
-      derived.map((d) => ({ id: d.imageId, z: d.zIndex }))
-    );
-
-    return derived;
-  }, [persistentState.images, loadedImageElements, imageLoadingStatus]);
-
+  // USING YOUR CORRECTED addStoredFiles LOGIC
   const addStoredFiles = useCallback(
     async (storedFiles: StoredFile[]): Promise<void> => {
       if (!storedFiles || storedFiles.length === 0) return;
-      setLocalError(null);
-      const addedFileNames: string[] = [];
-      let newlyAddedImages: PersistedMontageImage[] = [];
+      setImageLoadingError(null);
 
-      setPersistentState((prevState) => {
-        const existingIds = new Set(prevState.images.map((img) => img.imageId));
-        const maxZIndex = prevState.images.reduce(
+      setToolState((prevState) => {
+        const existingIds = new Set(
+          prevState.persistedImages.map((img) => img.imageId)
+        );
+        let maxZIndex = prevState.persistedImages.reduce(
           (max, img) => Math.max(max, img.zIndex),
           -1
         );
-        const addedInThisUpdate: PersistedMontageImage[] = [];
 
-        storedFiles.forEach((file, index) => {
+        // Define newPersistedImagesToAdd before using its length
+        const newlyAddedImagesThisCall: PersistedMontageImage[] = [];
+        storedFiles.forEach((file) => {
           if (file.type?.startsWith('image/') && !existingIds.has(file.id)) {
-            addedFileNames.push(file.name);
-            const newPersistedImage = {
+            maxZIndex++;
+            newlyAddedImagesThisCall.push({
               imageId: file.id,
               name: file.name,
               tilt: getRandomTilt(),
+              // Corrected overlapPercent logic: use prevState.persistedImages.length + current count of newlyAddedImagesThisCall
               overlapPercent:
-                prevState.images.length + addedInThisUpdate.length === 0
+                prevState.persistedImages.length +
+                  newlyAddedImagesThisCall.length ===
+                0
                   ? 0
                   : DEFAULT_OVERLAP_PERCENT,
-              zIndex: maxZIndex + 1 + index,
+              zIndex: maxZIndex,
               originalWidth: 0,
               originalHeight: 0,
-            };
-            addedInThisUpdate.push(newPersistedImage);
-          } else if (file.type?.startsWith('image/')) {
-            console.warn(`[MontageState Add] Image already exists: ${file.id}`);
-          } else {
-            console.warn(
-              `[MontageState Add] Skipping non-image file: ${file.name}`
-            );
+            });
           }
         });
 
-        if (addedInThisUpdate.length === 0) return prevState;
-        newlyAddedImages = addedInThisUpdate;
+        if (newlyAddedImagesThisCall.length === 0) return prevState;
+
         return {
           ...prevState,
-          images: [...prevState.images, ...addedInThisUpdate],
+          persistedImages: [
+            ...prevState.persistedImages,
+            ...newlyAddedImagesThisCall,
+          ],
+          processedFileId: null,
+          outputFilename: null,
         };
       });
     },
-    [setPersistentState, toolTitle, toolRoute]
+    [setToolState]
   );
 
   const clearMontage = useCallback(async () => {
-    const previousCount = persistentState.images.length;
-    if (previousCount === 0) return;
-    setLocalError(null);
-    await clearPersistentState();
-  }, [persistentState.images, clearPersistentState, toolTitle, toolRoute]);
+    if (
+      JSON.stringify(toolState) === JSON.stringify(DEFAULT_MONTAGE_TOOL_STATE)
+    )
+      return;
+    setImageLoadingError(null);
+    await clearPersistentToolState();
+  }, [toolState, clearPersistentToolState]);
 
-  const handleTiltChange = useCallback(
-    (imageId: string, newTilt: number) => {
-      setPersistentState((prevState) => ({
+  const modifyPersistedImage = useCallback(
+    (
+      imageId: string,
+      updates: Partial<Omit<PersistedMontageImage, 'imageId' | 'name'>>
+    ) => {
+      setToolState((prevState) => ({
         ...prevState,
-        images: prevState.images.map((img) =>
-          img.imageId === imageId ? { ...img, tilt: newTilt } : img
+        persistedImages: prevState.persistedImages.map((img) =>
+          img.imageId === imageId ? { ...img, ...updates } : img
         ),
       }));
     },
-    [setPersistentState]
+    [setToolState]
+  );
+
+  const handleTiltChange = useCallback(
+    (imageId: string, newTilt: number) =>
+      modifyPersistedImage(imageId, { tilt: newTilt }),
+    [modifyPersistedImage]
   );
 
   const handleOverlapChange = useCallback(
-    (imageId: string, newOverlap: number) => {
-      setPersistentState((prevState) => ({
-        ...prevState,
-        images: prevState.images.map((img, index) => {
-          if (img.imageId === imageId && index > 0) {
-            return {
-              ...img,
-              overlapPercent: Math.max(
-                0,
-                Math.min(MAX_OVERLAP_PERCENT, newOverlap)
-              ),
-            };
-          }
-          return img;
-        }),
-      }));
-    },
-    [setPersistentState]
+    (imageId: string, newOverlap: number) =>
+      modifyPersistedImage(imageId, {
+        overlapPercent: Math.max(0, Math.min(MAX_OVERLAP_PERCENT, newOverlap)),
+      }),
+    [modifyPersistedImage]
   );
 
-  const handleMoveImageLeft = useCallback(
-    (imageId: string) => {
-      setPersistentState((prevState) => {
-        const indexToMove = prevState.images.findIndex(
+  const handleMoveImageOrder = useCallback(
+    (imageId: string, direction: 'left' | 'right') => {
+      setToolState((prevState) => {
+        const indexToMove = prevState.persistedImages.findIndex(
           (img) => img.imageId === imageId
         );
-        if (indexToMove <= 0) return prevState;
-        const newImages = [...prevState.images];
-        [newImages[indexToMove - 1], newImages[indexToMove]] = [
-          newImages[indexToMove],
-          newImages[indexToMove - 1],
-        ];
-        return { ...prevState, images: newImages };
-      });
-    },
-    [setPersistentState]
-  );
-
-  const handleMoveImageRight = useCallback(
-    (imageId: string) => {
-      setPersistentState((prevState) => {
-        const indexToMove = prevState.images.findIndex(
-          (img) => img.imageId === imageId
-        );
-        if (indexToMove < 0 || indexToMove >= prevState.images.length - 1)
+        if (direction === 'left' && indexToMove <= 0) return prevState;
+        if (
+          direction === 'right' &&
+          indexToMove >= prevState.persistedImages.length - 1
+        )
           return prevState;
-        const newImages = [...prevState.images];
-        [newImages[indexToMove + 1], newImages[indexToMove]] = [
+
+        const newTargetIndex =
+          direction === 'left' ? indexToMove - 1 : indexToMove + 1;
+        const newImages = [...prevState.persistedImages];
+        [newImages[newTargetIndex], newImages[indexToMove]] = [
           newImages[indexToMove],
-          newImages[indexToMove + 1],
+          newImages[newTargetIndex],
         ];
-        return { ...prevState, images: newImages };
+
+        return { ...prevState, persistedImages: newImages };
       });
     },
-    [setPersistentState]
+    [setToolState]
   );
+  const handleMoveImageLeft = (imageId: string) =>
+    handleMoveImageOrder(imageId, 'left');
+  const handleMoveImageRight = (imageId: string) =>
+    handleMoveImageOrder(imageId, 'right');
 
-  const handleMoveUp = useCallback(
-    (imageId: string) => {
-      setPersistentState((prevState) => {
-        const imagesSortedByZ = [...prevState.images].sort(
+  const handleZIndexChange = useCallback(
+    (imageId: string, direction: 'up' | 'down') => {
+      setToolState((prevState) => {
+        const imagesSortedByZ = [...prevState.persistedImages].sort(
           (a, b) => a.zIndex - b.zIndex
         );
-        const currentIndex = imagesSortedByZ.findIndex(
+        const currentIndexInSorted = imagesSortedByZ.findIndex(
           (img) => img.imageId === imageId
         );
-        if (currentIndex < 0 || currentIndex >= imagesSortedByZ.length - 1)
-          return prevState;
-        const currentImage = imagesSortedByZ[currentIndex];
-        const imageAbove = imagesSortedByZ[currentIndex + 1];
-        const newImages = prevState.images.map((img) => {
-          if (img.imageId === currentImage.imageId)
-            return { ...img, zIndex: imageAbove.zIndex };
-          if (img.imageId === imageAbove.imageId)
-            return { ...img, zIndex: currentImage.zIndex };
-          return img;
-        });
-        return { ...prevState, images: newImages };
-      });
-    },
-    [setPersistentState]
-  );
 
-  const handleMoveDown = useCallback(
-    (imageId: string) => {
-      setPersistentState((prevState) => {
-        const imagesSortedByZ = [...prevState.images].sort(
-          (a, b) => a.zIndex - b.zIndex
-        );
-        const currentIndex = imagesSortedByZ.findIndex(
-          (img) => img.imageId === imageId
-        );
-        if (currentIndex <= 0) return prevState;
-        const currentImage = imagesSortedByZ[currentIndex];
-        const imageBelow = imagesSortedByZ[currentIndex - 1];
-        const newImages = prevState.images.map((img) => {
-          if (img.imageId === currentImage.imageId)
-            return { ...img, zIndex: imageBelow.zIndex };
-          if (img.imageId === imageBelow.imageId)
-            return { ...img, zIndex: currentImage.zIndex };
+        if (
+          direction === 'up' &&
+          currentIndexInSorted >= imagesSortedByZ.length - 1
+        )
+          return prevState;
+        if (direction === 'down' && currentIndexInSorted <= 0) return prevState;
+
+        const currentImageOriginalZ =
+          imagesSortedByZ[currentIndexInSorted].zIndex;
+        const otherImageOriginalZ =
+          direction === 'up'
+            ? imagesSortedByZ[currentIndexInSorted + 1].zIndex
+            : imagesSortedByZ[currentIndexInSorted - 1].zIndex;
+        const otherImageId =
+          direction === 'up'
+            ? imagesSortedByZ[currentIndexInSorted + 1].imageId
+            : imagesSortedByZ[currentIndexInSorted - 1].imageId;
+
+        const updatedPersistedImages = prevState.persistedImages.map((img) => {
+          if (img.imageId === imageId)
+            return { ...img, zIndex: otherImageOriginalZ };
+          if (img.imageId === otherImageId)
+            return { ...img, zIndex: currentImageOriginalZ };
           return img;
         });
-        return { ...prevState, images: newImages };
+        return { ...prevState, persistedImages: updatedPersistedImages };
       });
     },
-    [setPersistentState]
+    [setToolState]
   );
+  const handleMoveUp = (imageId: string) => handleZIndexChange(imageId, 'up');
+  const handleMoveDown = (imageId: string) =>
+    handleZIndexChange(imageId, 'down');
 
   const handleEffectChange = useCallback(
     (newEffect: MontageEffect) => {
-      setPersistentState((prevState) => ({ ...prevState, effect: newEffect }));
+      setToolState((prevState) => ({ ...prevState, effect: newEffect }));
     },
-    [setPersistentState, toolTitle, toolRoute, persistentState.effect]
+    [setToolState]
+  );
+
+  const setProcessedFileIdInState = useCallback(
+    (fileId: string | null) => {
+      setToolState({ processedFileId: fileId });
+    },
+    [setToolState]
+  );
+
+  const setOutputFilenameInState = useCallback(
+    (filename: string | null) => {
+      setToolState({ outputFilename: filename });
+    },
+    [setToolState]
   );
 
   return {
-    montageImages,
-    effect: persistentState.effect,
+    persistedImages: toolState.persistedImages,
+    effect: toolState.effect,
+    montageImagesForCanvas,
+    processedFileId: toolState.processedFileId,
+    outputFilename: toolState.outputFilename,
     addStoredFiles,
     clearMontage,
     handleTiltChange,
@@ -503,7 +468,11 @@ export function useMontageState(
     handleMoveUp,
     handleMoveDown,
     handleEffectChange,
-    isLoading,
-    error,
+    setProcessedFileIdInState,
+    setOutputFilenameInState,
+    isLoadingState,
+    errorLoadingState,
+    isLoadingImages,
+    imageLoadingError,
   };
 }

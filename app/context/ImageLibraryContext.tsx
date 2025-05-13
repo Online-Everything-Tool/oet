@@ -26,6 +26,11 @@ interface ImageLibraryFunctions {
   deleteImage: (id: string) => Promise<void>;
   clearAllImages: () => Promise<void>;
   makeImagePermanent: (id: string) => Promise<void>;
+  updateBlob: (
+    id: string,
+    generateThumb: boolean,
+    newBlob: Blob
+  ) => Promise<void>;
 }
 
 interface ImageLibraryContextValue extends ImageLibraryFunctions {
@@ -156,6 +161,32 @@ export const ImageLibraryProvider = ({
     [fileLibrary.getFile]
   );
 
+  const updateBlob = useCallback(
+    async (
+      id: string,
+      generateThumb: boolean,
+      newBlob: Blob
+    ): Promise<void> => {
+      const file = await fileLibrary.getFile(id);
+      if (!file || !file.type?.startsWith('image/')) {
+        throw new Error(`File ID ${id} is not an image or does not exist.`);
+      }
+      await fileLibrary.updateFileBlob(id, newBlob);
+
+      if (generateThumb) {
+        const thumbnailBlob = await generateThumbnail(id, newBlob);
+        if (thumbnailBlob) {
+          const db = getDbInstance();
+          await db.files.update(id, {
+            thumbnailBlob: thumbnailBlob,
+            lastModified: new Date(),
+          });
+        }
+      }
+    },
+    [fileLibrary.getFile, fileLibrary.updateFileBlob, generateThumbnail]
+  );
+
   const addImage = useCallback(
     async (
       blob: Blob,
@@ -242,6 +273,7 @@ export const ImageLibraryProvider = ({
       deleteImage,
       clearAllImages,
       makeImagePermanent,
+      updateBlob,
     }),
     [
       listImages,
@@ -250,6 +282,7 @@ export const ImageLibraryProvider = ({
       deleteImage,
       clearAllImages,
       makeImagePermanent,
+      updateBlob,
     ]
   );
 

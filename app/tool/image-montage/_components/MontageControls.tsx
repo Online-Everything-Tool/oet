@@ -1,84 +1,130 @@
 // --- FILE: app/tool/image-montage/_components/MontageControls.tsx ---
-import React, { ChangeEvent } from 'react';
-
+import React from 'react';
 import Button from '../../_components/form/Button';
+import {
+  PhotoIcon,
+  ArchiveBoxArrowDownIcon,
+  ArrowDownTrayIcon,
+  TrashIcon,
+  CheckBadgeIcon,
+  DocumentDuplicateIcon,
+} from '@heroicons/react/20/solid';
 
 interface MontageControlsProps {
   isLoading: boolean;
-  isProcessingFiles: boolean;
-  isSaved: boolean;
-  isCopied: boolean;
+  isGeneratingMontageForAction: boolean;
+  isOutputPermanentAndSaved: boolean;
+  canSaveOrUpdate: boolean;
+  canDownload: boolean;
   imageCount: number;
+  manualSaveSuccessFeedback: boolean;
 
   onAddClick: () => void;
   onClear: () => void;
-  onSave: () => void;
-  onDownload: () => void;
-  onCopy: () => void;
+  onSaveOrUpdateClick: () => void;
+  onSaveAsNewClick: () => void;
+  onDownloadClick: () => void;
 }
 
 export default function MontageControls({
   isLoading,
-  isProcessingFiles,
-  isSaved,
-  isCopied,
+  isGeneratingMontageForAction,
+  isOutputPermanentAndSaved,
+  canSaveOrUpdate,
+  canDownload,
   imageCount,
+  manualSaveSuccessFeedback,
 
   onAddClick,
   onClear,
-  onSave,
-  onDownload,
-  onCopy,
+  onSaveOrUpdateClick,
+  onSaveAsNewClick,
+  onDownloadClick,
 }: MontageControlsProps) {
-  const disableActions = imageCount === 0 || isLoading;
+  const generalActionsDisabled = isLoading || isGeneratingMontageForAction;
+
+  let saveButtonText = 'Save to Library';
+  let saveButtonIcon = <ArchiveBoxArrowDownIcon className="h-5 w-5" />;
+  let saveButtonVariant: 'secondary' | 'primary-outline' = 'primary-outline';
+
+  if (manualSaveSuccessFeedback) {
+    saveButtonText = 'Saved!';
+    saveButtonIcon = <CheckBadgeIcon className="h-5 w-5" />;
+    saveButtonVariant = 'secondary';
+  } else if (isOutputPermanentAndSaved) {
+    saveButtonText = 'Update Saved Montage';
+    saveButtonVariant = 'secondary';
+  }
+
+  const showSaveAsNewButton = canSaveOrUpdate && isOutputPermanentAndSaved;
 
   return (
     <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))] space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          {/* *** UPDATED: Use Button component and onAddClick *** */}
           <Button
             variant="accent2"
             onClick={onAddClick}
-            isLoading={isProcessingFiles}
-            loadingText="Processing..."
-            disabled={isLoading}
+            isLoading={
+              isLoading && !isGeneratingMontageForAction && imageCount === 0
+            }
+            loadingText="Loading..."
+            disabled={generalActionsDisabled}
+            iconLeft={<PhotoIcon className="h-5 w-5" />}
           >
             Add Images
           </Button>
-          {/* *** REMOVED: label and input *** */}
 
-          {/* Clear Button */}
           <Button
             variant="neutral"
             onClick={onClear}
-            disabled={imageCount === 0 || isLoading}
+            disabled={generalActionsDisabled || imageCount === 0}
+            iconLeft={<TrashIcon className="h-5 w-5" />}
           >
-            Clear
+            Clear All
           </Button>
-          {/* Save Button */}
+
           <Button
-            variant={isSaved ? 'secondary' : 'primary-outline'}
-            onClick={onSave}
-            disabled={disableActions}
+            variant={saveButtonVariant}
+            onClick={onSaveOrUpdateClick}
+            disabled={
+              generalActionsDisabled ||
+              !canSaveOrUpdate ||
+              manualSaveSuccessFeedback
+            }
+            isLoading={
+              isGeneratingMontageForAction && !manualSaveSuccessFeedback
+            }
+            loadingText={
+              isOutputPermanentAndSaved ? 'Updating...' : 'Saving...'
+            }
+            iconLeft={saveButtonIcon}
           >
-            {isSaved ? 'Saved!' : 'Save to Library'}
+            {saveButtonText}
           </Button>
-          {/* Download Button */}
+
+          {showSaveAsNewButton && (
+            <Button
+              variant="primary-outline"
+              onClick={onSaveAsNewClick}
+              disabled={generalActionsDisabled || !canSaveOrUpdate}
+              isLoading={isGeneratingMontageForAction} // Corrected
+              loadingText="Saving As..."
+              iconLeft={<DocumentDuplicateIcon className="h-5 w-5" />}
+            >
+              Save As New...
+            </Button>
+          )}
+
           <Button
             variant="primary"
-            onClick={onDownload}
-            disabled={disableActions}
+            onClick={onDownloadClick}
+            disabled={generalActionsDisabled || !canDownload}
+            isLoading={isGeneratingMontageForAction}
+            loadingText="Preparing..."
+            iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
           >
-            Download
-          </Button>
-          {/* Copy Button */}
-          <Button
-            variant={isCopied ? 'secondary' : 'accent-outline'}
-            onClick={onCopy}
-            disabled={disableActions}
-          >
-            {isCopied ? 'Copied!' : 'Copy'}
+            Download Montage
           </Button>
         </div>
       </div>

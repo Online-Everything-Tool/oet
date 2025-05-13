@@ -24,17 +24,18 @@ interface MontageImage {
 interface ImageAdjustmentCardProps {
   image: MontageImage;
   index: number;
+  imageCount: number; // Added: total number of images in the montage
   isFirst: boolean;
   isLast: boolean;
-  isTop: boolean;
-  isBottom: boolean;
+  isTopZIndex: boolean; // Renamed for clarity
+  isBottomZIndex: boolean; // Renamed for clarity
   isLoading: boolean;
   onTiltChange: (imageId: string, value: number) => void;
   onOverlapChange: (imageId: string, value: number) => void;
   onMoveLeft: (imageId: string) => void;
   onMoveRight: (imageId: string) => void;
-  onMoveUp: (imageId: string) => void;
-  onMoveDown: (imageId: string) => void;
+  onMoveUpZIndex: (imageId: string) => void; // Renamed for clarity
+  onMoveDownZIndex: (imageId: string) => void; // Renamed for clarity
 }
 
 const MAX_TILT_DEG = 25;
@@ -43,92 +44,75 @@ const MAX_OVERLAP_PERCENT = 80;
 export default function ImageAdjustmentCard({
   image,
   index,
+  imageCount, // Consuming new prop
   isFirst,
   isLast,
-  isTop,
-  isBottom,
+  isTopZIndex,
+  isBottomZIndex,
   isLoading,
   onTiltChange,
   onOverlapChange,
   onMoveLeft,
   onMoveRight,
-  onMoveUp,
-  onMoveDown,
+  onMoveUpZIndex,
+  onMoveDownZIndex,
 }: ImageAdjustmentCardProps) {
   return (
     <div className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border border-gray-200 rounded-lg bg-white shadow-sm w-[180px]">
-      {/* *** New Layout: All 4 Arrows Around Name *** */}
       <div className="flex flex-col items-center w-full mb-2">
-        {/* Up Button (Z-index) */}
         <Button
           variant="neutral-outline"
           size="sm"
           className="!p-1 mb-0.5"
-          onClick={() => onMoveUp(image.imageId)}
-          disabled={isTop || isLoading}
+          onClick={() => onMoveUpZIndex(image.imageId)}
+          disabled={isLoading || imageCount <= 1 || isTopZIndex} // Updated disabled logic
           aria-label="Move image forward (increase stacking order)"
-          title="Move Forward"
+          title="Move Forward (Z-Index)"
         >
-          {' '}
-          <ArrowUpIcon className="h-4 w-4" />{' '}
+          <ArrowUpIcon className="h-4 w-4" />
         </Button>
-
-        {/* Middle Row: Left Arrow, Name, Right Arrow */}
         <div className="flex items-center justify-between w-full">
-          {/* Left Button (Layout) */}
           <Button
             variant="neutral-outline"
             size="sm"
             className="!p-1"
             onClick={() => onMoveLeft(image.imageId)}
-            disabled={isFirst || isLoading}
-            aria-label="Move image left"
-            title="Move Left"
+            disabled={isLoading || isFirst} // Layout move still depends on isFirst/isLast
+            aria-label="Move image left in layout"
+            title="Move Left (Layout)"
           >
-            {' '}
-            <ArrowLeftIcon className="h-4 w-4" />{' '}
+            <ArrowLeftIcon className="h-4 w-4" />
           </Button>
-
-          {/* Filename/Index */}
           <p
             className="text-xs font-medium text-gray-600 text-center flex-grow truncate mx-1 px-1"
             title={`${image.alt} (Z:${image.zIndex})`}
           >
             {index + 1}. {image.alt}
           </p>
-
-          {/* Right Button (Layout) */}
           <Button
             variant="neutral-outline"
             size="sm"
             className="!p-1"
             onClick={() => onMoveRight(image.imageId)}
-            disabled={isLast || isLoading}
-            aria-label="Move image right"
-            title="Move Right"
+            disabled={isLoading || isLast} // Layout move still depends on isFirst/isLast
+            aria-label="Move image right in layout"
+            title="Move Right (Layout)"
           >
-            {' '}
-            <ArrowRightIcon className="h-4 w-4" />{' '}
+            <ArrowRightIcon className="h-4 w-4" />
           </Button>
         </div>
-
-        {/* Down Button (Z-index) */}
         <Button
           variant="neutral-outline"
           size="sm"
           className="!p-1 mt-0.5"
-          onClick={() => onMoveDown(image.imageId)}
-          disabled={isBottom || isLoading}
+          onClick={() => onMoveDownZIndex(image.imageId)}
+          disabled={isLoading || imageCount <= 1 || isBottomZIndex} // Updated disabled logic
           aria-label="Move image backward (decrease stacking order)"
-          title="Move Backward"
+          title="Move Backward (Z-Index)"
         >
-          {' '}
-          <ArrowDownIcon className="h-4 w-4" />{' '}
+          <ArrowDownIcon className="h-4 w-4" />
         </Button>
       </div>
-      {/* ******************************************* */}
-
-      {/* Tilt Control */}
       <Range
         label="Tilt (°)"
         id={`tilt-${image.imageId}`}
@@ -140,8 +124,6 @@ export default function ImageAdjustmentCard({
         disabled={isLoading}
         containerClassName="w-full"
       />
-
-      {/* Overlap Control (Conditional) */}
       {!isFirst && (
         <Range
           label="Overlap (%)"
@@ -157,8 +139,6 @@ export default function ImageAdjustmentCard({
           containerClassName="w-full"
         />
       )}
-
-      {/* Removed the separate Left/Right button row from the bottom */}
     </div>
   );
 }

@@ -4,7 +4,7 @@
   "outputConfig": {
     "transferableContent": {
       "dataType": "selectionReferenceList",
-      "fileIdStateKey": "selectedFileIds",
+      "fileIdStateKey": "selectedPaths",
       "fileCategory": "*"
     }
   },

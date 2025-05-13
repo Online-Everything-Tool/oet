@@ -8,7 +8,7 @@
       "fileCategory": "*"
     }
   },
-  "tags": ["file", "storage", "local", "indexeddb", "utility", "management"],
+  "tags": ["file", "storage", "local", "management"],
   "includeInSitemap": true,
-  "status": "beta"
+  "status": "stable"
 }

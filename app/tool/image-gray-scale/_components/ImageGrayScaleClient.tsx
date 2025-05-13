@@ -1,4 +1,4 @@
-// FILE: app/tool/image-gray-scale/_components/ImageGrayScaleClient.tsx
+// --- FILE: app/tool/image-gray-scale/_components/ImageGrayScaleClient.tsx ---
 'use client';
 
 import React, {
@@ -10,70 +10,167 @@ import React, {
 } from 'react';
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
+import useToolState from '../../_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
+// No ParamConfig needed as we're forgoing URL params for this image tool
 import {
   PhotoIcon,
   ArrowDownTrayIcon,
-  ClipboardDocumentIcon,
   XCircleIcon,
-  CheckIcon,
   ArrowPathIcon,
   ArchiveBoxArrowDownIcon,
   CheckBadgeIcon,
 } from '@heroicons/react/20/solid';
 
+interface ImageGrayScaleToolState {
+  autoSaveProcessed: boolean;
+  selectedFileId: string | null;
+  processedFileId: string | null;
+}
+
+const DEFAULT_GRAYSCALE_TOOL_STATE: ImageGrayScaleToolState = {
+  autoSaveProcessed: false,
+  selectedFileId: null,
+  processedFileId: null,
+};
+
 interface ImageGrayScaleClientProps {
   toolTitle: string;
   toolRoute: string;
+  // No urlStateParams prop needed
 }
 
 export default function ImageGrayScaleClient({
   toolTitle,
   toolRoute,
 }: ImageGrayScaleClientProps) {
+  const {
+    state: toolState,
+    setState: setToolState,
+    isLoadingState: isLoadingToolSettings,
+  } = useToolState<ImageGrayScaleToolState>(
+    toolRoute,
+    DEFAULT_GRAYSCALE_TOOL_STATE
+  );
+
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<StoredFile | null>(null);
-
-  const [isCopied, setIsCopied] = useState<boolean>(false);
-
-  const [processedFileId, setProcessedFileId] = useState<string | null>(null);
-  const [isProcessedFilePermanent, setIsProcessedFilePermanent] =
-    useState<boolean>(false);
-
-  const [autoSaveProcessed, setAutoSaveProcessed] = useState<boolean>(true);
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
-
   const [uiError, setUiError] = useState<string | null>(null);
+  const [originalFilenameForDisplay, setOriginalFilenameForDisplay] = useState<
+    string | null
+  >(null);
+
+  const [originalImageSrcForUI, setOriginalImageSrcForUI] = useState<
+    string | null
+  >(null);
+  const [processedImageSrcForUI, setProcessedImageSrcForUI] = useState<
+    string | null
+  >(null);
+  const [wasLastProcessedOutputPermanent, setWasLastProcessedOutputPermanent] =
+    useState<boolean>(false);
+  const [manualSaveSuccess, setManualSaveSuccess] = useState<boolean>(false);
+
+  const initialSetupRanRef = useRef(false); // Only for tool state loading, not URL params
 
   const { getImage, makeImagePermanent } = useImageLibrary();
-
   const {
-    originalImageSrc,
-    processedImageSrc,
-    processedImageBlob,
-    processedFileId: hookProcessedFileId,
-    fileName,
     isLoading: isProcessingImage,
     error: processingErrorHook,
-    setOriginalImageSrc,
     processImage,
-    clearProcessingOutput,
+    clearProcessingOutput: clearProcessingHookOutput,
   } = useImageProcessing({ toolTitle, toolRoute });
 
+  // Effect 1: Mark initial setup as complete once tool settings are loaded
   useEffect(() => {
-    setProcessedFileId(hookProcessedFileId);
-    if (hookProcessedFileId && autoSaveProcessed) {
-      setIsProcessedFilePermanent(true);
-    } else if (!hookProcessedFileId) {
-      setIsProcessedFilePermanent(false);
+    console.log(
+      `[ImageGrayScale InitialSetupEffect] Running. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}`
+    );
+    if (isLoadingToolSettings || initialSetupRanRef.current) {
+      return;
     }
-  }, [hookProcessedFileId, autoSaveProcessed]);
+    initialSetupRanRef.current = true;
+    console.log(
+      `[ImageGrayScale InitialSetupEffect] Setup complete. Current toolState:`,
+      JSON.stringify(toolState)
+    );
+  }, [isLoadingToolSettings, toolState]);
 
-  const convertToGrayScale = useCallback(
+  // Effect 2: Load image previews based on IDs in toolState
+  useEffect(() => {
+    let origObjUrl: string | null = null;
+    let procObjUrl: string | null = null;
+    let mounted = true;
+
+    const loadPreviews = async () => {
+      if (!mounted) return;
+      if (toolState.selectedFileId) {
+        try {
+          const file = await getImage(toolState.selectedFileId);
+          if (!mounted) return;
+          if (file?.blob) {
+            origObjUrl = URL.createObjectURL(file.blob);
+            setOriginalImageSrcForUI(origObjUrl);
+            setOriginalFilenameForDisplay(file.name);
+          } else {
+            setOriginalImageSrcForUI(null);
+            setOriginalFilenameForDisplay(null);
+          }
+        } catch (e) {
+          if (mounted) {
+            setOriginalImageSrcForUI(null);
+            setOriginalFilenameForDisplay(null);
+          }
+        }
+      } else {
+        setOriginalImageSrcForUI(null);
+        setOriginalFilenameForDisplay(null);
+      }
+
+      if (toolState.processedFileId) {
+        try {
+          const file = await getImage(toolState.processedFileId);
+          if (!mounted) return;
+          if (file?.blob) {
+            procObjUrl = URL.createObjectURL(file.blob);
+            setProcessedImageSrcForUI(procObjUrl);
+            setWasLastProcessedOutputPermanent(file.isTemporary === false);
+          } else {
+            setProcessedImageSrcForUI(null);
+            setWasLastProcessedOutputPermanent(false);
+          }
+        } catch (e) {
+          if (mounted) {
+            setProcessedImageSrcForUI(null);
+            setWasLastProcessedOutputPermanent(false);
+          }
+        }
+      } else {
+        setProcessedImageSrcForUI(null);
+        setWasLastProcessedOutputPermanent(false);
+      }
+    };
+
+    if (!isLoadingToolSettings && initialSetupRanRef.current) {
+      loadPreviews();
+    }
+
+    return () => {
+      mounted = false;
+      if (origObjUrl) URL.revokeObjectURL(origObjUrl);
+      if (procObjUrl) URL.revokeObjectURL(procObjUrl);
+    };
+  }, [
+    toolState.selectedFileId,
+    toolState.processedFileId,
+    getImage,
+    isLoadingToolSettings,
+  ]);
+
+  const convertToGrayScaleCallback = useCallback(
     (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
       const { naturalWidth: w, naturalHeight: h } = img;
       ctx.drawImage(img, 0, 0, w, h);
@@ -91,231 +188,170 @@ export default function ImageGrayScaleClient({
     []
   );
 
+  // Effect 3: Image Processing Logic
   useEffect(() => {
-    let objectUrl: string | null = null;
-    if (selectedFile?.blob && selectedFile.type?.startsWith('image/')) {
-      try {
-        clearProcessingOutput();
-        setIsProcessedFilePermanent(false);
-        setIsCopied(false);
-        setUiError(null);
-        objectUrl = URL.createObjectURL(selectedFile.blob);
-        setOriginalImageSrc(objectUrl);
-      } catch (e) {
-        setUiError(
-          `Could not create preview for selected image: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        setOriginalImageSrc(null);
-      }
-    } else {
-      setOriginalImageSrc(null);
-      clearProcessingOutput();
-      setIsProcessedFilePermanent(false);
-      if (selectedFile)
-        setUiError('Invalid file type. Please select an image.');
-    }
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [selectedFile, setOriginalImageSrc, clearProcessingOutput, setUiError]);
-
-  const processingEffectRunCount = useRef(0);
-  const processingKey = useMemo(() => selectedFile?.id || null, [selectedFile]);
-  const prevProcessingKey = useRef<string | null>(null);
-
-  useEffect(() => {
-    processingEffectRunCount.current += 1;
-    if (!selectedFile?.blob || !selectedFile.type?.startsWith('image/')) {
-      prevProcessingKey.current = processingKey;
+    if (
+      isLoadingToolSettings ||
+      !initialSetupRanRef.current ||
+      !toolState.selectedFileId ||
+      toolState.processedFileId ||
+      isProcessingImage
+    ) {
       return;
     }
-    if (processingKey === prevProcessingKey.current && !isProcessingImage)
-      return;
-    if (isProcessingImage && processingKey === prevProcessingKey.current)
-      return;
-
-    prevProcessingKey.current = processingKey;
-    const currentInputFileForAsync = selectedFile;
 
     const triggerProcessing = async () => {
+      const inputFile = await getImage(toolState.selectedFileId!);
+      if (!inputFile || !inputFile.blob) {
+        setUiError('Original image data not found for processing.');
+        return;
+      }
+
       const baseName =
-        currentInputFileForAsync.name.substring(
-          0,
-          currentInputFileForAsync.name.lastIndexOf('.')
-        ) || currentInputFileForAsync.name;
-      const mimeTypeParts = currentInputFileForAsync.type?.split('/');
-      const extension =
-        mimeTypeParts && mimeTypeParts.length > 1 ? mimeTypeParts[1] : 'png';
+        inputFile.name?.substring(0, inputFile.name.lastIndexOf('.')) ||
+        inputFile.name ||
+        `image-${toolState.selectedFileId?.substring(0, 8)}`;
+      const extension = inputFile.type?.split('/')[1] || 'png';
       const outputFileName = `grayscale-${baseName}.${extension}`;
 
-      await processImage(
-        currentInputFileForAsync,
-        convertToGrayScale,
+      const result = await processImage(
+        inputFile,
+        convertToGrayScaleCallback,
         outputFileName,
         {},
-        autoSaveProcessed
+        toolState.autoSaveProcessed
       );
+
+      if (result.id) {
+        setToolState({ processedFileId: result.id });
+        setWasLastProcessedOutputPermanent(toolState.autoSaveProcessed);
+        setManualSaveSuccess(false);
+      } else if (processingErrorHook) {
+        setUiError(`Processing failed: ${processingErrorHook}`);
+      }
     };
     triggerProcessing();
   }, [
-    processingKey,
+    toolState.selectedFileId,
+    toolState.processedFileId, // Process if this is null
+    toolState.autoSaveProcessed,
+    isLoadingToolSettings,
     isProcessingImage,
-    selectedFile,
     processImage,
-    convertToGrayScale,
-    autoSaveProcessed,
+    convertToGrayScaleCallback,
+    getImage,
+    setToolState,
+    processingErrorHook,
   ]);
 
   const handleFilesSelectedFromModal = useCallback(
-    (files: StoredFile[]) => {
+    async (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
-      prevProcessingKey.current = null;
       if (files && files.length > 0) {
         const firstFile = files[0];
         if (firstFile.type?.startsWith('image/') && firstFile.blob) {
-          setSelectedFile(firstFile);
-          clearProcessingOutput();
-          setIsProcessedFilePermanent(false);
+          setToolState({ selectedFileId: firstFile.id, processedFileId: null });
+          clearProcessingHookOutput();
+          setManualSaveSuccess(false);
         } else {
           setUiError('Invalid file selected. Please select an image.');
-          setSelectedFile(null);
-          clearProcessingOutput();
-          setIsProcessedFilePermanent(false);
+          setToolState({ selectedFileId: null, processedFileId: null });
+          clearProcessingHookOutput();
         }
-      } else {
-        setSelectedFile(null);
-        clearProcessingOutput();
-        setIsProcessedFilePermanent(false);
       }
     },
-    [setUiError, clearProcessingOutput]
+    [setToolState, clearProcessingHookOutput]
   );
 
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSaveState = e.target.checked;
-      setAutoSaveProcessed(newAutoSaveState);
+      setToolState({ autoSaveProcessed: newAutoSaveState });
       setUiError(null);
+      setManualSaveSuccess(false);
 
+      const currentProcessedId = toolState.processedFileId;
       if (
-        newAutoSaveState === true &&
-        processedFileId &&
-        !isProcessedFilePermanent &&
+        newAutoSaveState &&
+        currentProcessedId &&
+        !wasLastProcessedOutputPermanent &&
         !isProcessingImage &&
         !isManuallySaving
       ) {
-        console.log(
-          '[ImageGrayScaleClient] Auto-save ON. Making current image permanent.'
-        );
         setIsManuallySaving(true);
         try {
-          await makeImagePermanent(processedFileId);
-          setIsProcessedFilePermanent(true);
+          await makeImagePermanent(currentProcessedId);
+          setWasLastProcessedOutputPermanent(true);
         } catch (err) {
-          const message =
-            err instanceof Error
-              ? err.message
-              : 'Failed to make image permanent.';
-          setUiError(`Auto-save failed: ${message}`);
+          setUiError(
+            `Auto-save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+          );
         } finally {
           setIsManuallySaving(false);
         }
       }
     },
     [
-      processedFileId,
-      isProcessedFilePermanent,
-      makeImagePermanent,
-      toolTitle,
-      toolRoute,
-      selectedFile?.name,
+      toolState.processedFileId,
+      wasLastProcessedOutputPermanent,
       isProcessingImage,
       isManuallySaving,
-      setUiError,
+      makeImagePermanent,
+      setToolState,
     ]
   );
 
-  const handleClear = useCallback(() => {
-    setOriginalImageSrc(null);
-    clearProcessingOutput();
+  const handleClear = useCallback(async () => {
+    setToolState(DEFAULT_GRAYSCALE_TOOL_STATE);
+    clearProcessingHookOutput();
+    setOriginalImageSrcForUI(null);
+    setOriginalFilenameForDisplay(null);
+    setProcessedImageSrcForUI(null);
     setUiError(null);
-    setSelectedFile(null);
-    prevProcessingKey.current = null;
+    setWasLastProcessedOutputPermanent(false);
+    setManualSaveSuccess(false);
+    initialSetupRanRef.current = false;
+  }, [setToolState, clearProcessingHookOutput]);
 
-    setIsCopied(false);
-    setAutoSaveProcessed(true);
-    setIsProcessedFilePermanent(false);
-  }, [setOriginalImageSrc, clearProcessingOutput, setUiError]);
-
-  const handleDownload = useCallback(() => {
-    if (!processedImageSrc || !fileName) {
+  const handleDownload = useCallback(async () => {
+    if (!processedImageSrcForUI || !originalFilenameForDisplay) {
       setUiError('No image to download.');
       return;
     }
     setUiError(null);
     const link = document.createElement('a');
     const baseName =
-      fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-    const mimeType =
-      processedImageSrc.match(/data:(image\/\w+);base64,/)?.[1] || 'image/png';
-    const extension = mimeType.split('/')[1] || 'png';
+      originalFilenameForDisplay.substring(
+        0,
+        originalFilenameForDisplay.lastIndexOf('.')
+      ) || originalFilenameForDisplay;
+    const extension =
+      processedImageSrcForUI.match(/data:image\/(\w+);base64,/)?.[1] || 'png';
     link.download = `grayscale-${baseName}.${extension}`;
-    link.href = processedImageSrc;
+    link.href = processedImageSrcForUI;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [processedImageSrc, fileName, setUiError]);
-
-  const handleCopyToClipboard = useCallback(async () => {
-    setIsCopied(false);
-    setUiError(null);
-    let blobToCopy: Blob | null = null;
-    if (processedFileId) {
-      const fileData = await getImage(processedFileId);
-      if (fileData?.blob && fileData.type?.startsWith('image/'))
-        blobToCopy = fileData.blob;
-      else {
-        if (processedImageBlob) blobToCopy = processedImageBlob;
-        else {
-          setUiError('Processed image data not found for copy.');
-          return;
-        }
-      }
-    } else if (processedImageBlob) blobToCopy = processedImageBlob;
-    else {
-      setUiError('No image data available to copy.');
-      return;
-    }
-    if (!blobToCopy) {
-      setUiError('Blob data missing for copy.');
-      return;
-    }
-    try {
-      if (!navigator.clipboard?.write)
-        throw new Error('Clipboard API not available.');
-      await navigator.clipboard.write([
-        new ClipboardItem({ [blobToCopy.type || 'image/png']: blobToCopy }),
-      ]);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
-      setUiError(
-        `Copy failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
-    }
-  }, [processedFileId, processedImageBlob, getImage, setUiError]);
+  }, [processedImageSrcForUI, originalFilenameForDisplay]);
 
   const handleSaveProcessedToLibrary = useCallback(async () => {
-    if (!processedFileId || isProcessedFilePermanent) {
-      if (!processedFileId) setUiError('No processed image available to save.');
+    const currentProcessedId = toolState.processedFileId;
+    if (
+      !currentProcessedId ||
+      wasLastProcessedOutputPermanent ||
+      manualSaveSuccess
+    ) {
+      if (!currentProcessedId) setUiError('No processed image to save.');
       return;
     }
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      await makeImagePermanent(processedFileId);
-      setIsProcessedFilePermanent(true);
+      await makeImagePermanent(currentProcessedId);
+      setWasLastProcessedOutputPermanent(true);
+      setManualSaveSuccess(true);
+      setTimeout(() => setManualSaveSuccess(false), 2500);
     } catch (err) {
       setUiError(
         `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -324,32 +360,41 @@ export default function ImageGrayScaleClient({
       setIsManuallySaving(false);
     }
   }, [
-    processedFileId,
-    isProcessedFilePermanent,
+    toolState.processedFileId,
+    wasLastProcessedOutputPermanent,
+    manualSaveSuccess,
     makeImagePermanent,
-    toolTitle,
-    toolRoute,
-    selectedFile?.name,
-    setUiError,
   ]);
 
   const imageFilter = useMemo(() => ({ category: 'image' }), []);
   const displayError = processingErrorHook || uiError;
-  const canPerformActions =
-    !!processedImageSrc && !isProcessingImage && !isManuallySaving;
-
+  const canPerformOutputActions =
+    !!processedImageSrcForUI && !isProcessingImage && !isManuallySaving;
   const showSaveButton =
-    processedImageBlob &&
-    !autoSaveProcessed &&
-    !isProcessedFilePermanent &&
+    toolState.processedFileId &&
+    !toolState.autoSaveProcessed &&
+    !wasLastProcessedOutputPermanent &&
+    !manualSaveSuccess &&
     !isProcessingImage &&
     !isManuallySaving;
 
+  if (isLoadingToolSettings && !initialSetupRanRef.current) {
+    return (
+      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        Loading Grayscale Tool...
+      </p>
+    );
+  }
+
+  const isOutputSaved =
+    toolState.processedFileId &&
+    (toolState.autoSaveProcessed ||
+      wasLastProcessedOutputPermanent ||
+      manualSaveSuccess);
+
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* Controls Section */}
       <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        {/* Row 1: File selection */}
         <div className="flex flex-wrap gap-4 items-center">
           <Button
             variant="accent2"
@@ -357,14 +402,14 @@ export default function ImageGrayScaleClient({
             onClick={() => setIsLibraryModalOpen(true)}
             disabled={isProcessingImage || isManuallySaving}
           >
-            {originalImageSrc ? 'Change Image' : 'Select Image'}
+            {toolState.selectedFileId ? 'Change Image' : 'Select Image'}
           </Button>
+          {/* No specific controls like flipType for grayscale, just input image */}
         </div>
-        {/* Row 2: Auto-save and action buttons */}
         <div className="flex flex-wrap gap-4 items-center pt-3 border-t border-gray-200 mt-2">
           <Checkbox
             label="Auto-save grayscale image to Library"
-            checked={autoSaveProcessed}
+            checked={toolState.autoSaveProcessed}
             onChange={handleAutoSaveChange}
             disabled={isProcessingImage || isManuallySaving}
             id="autoSaveGrayscaleImage"
@@ -382,35 +427,35 @@ export default function ImageGrayScaleClient({
                 Save to Library
               </Button>
             )}
+            {(manualSaveSuccess ||
+              (toolState.autoSaveProcessed &&
+                toolState.processedFileId &&
+                wasLastProcessedOutputPermanent)) &&
+              !showSaveButton && (
+                <Button
+                  variant="secondary"
+                  iconLeft={<CheckBadgeIcon className="h-5 w-5" />}
+                  disabled={true}
+                  className="!opacity-100 !cursor-default"
+                >
+                  Saved to Library
+                </Button>
+              )}
             <Button
               variant="primary"
               iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
               onClick={handleDownload}
-              disabled={!canPerformActions}
+              disabled={!canPerformOutputActions}
             >
               Download
-            </Button>
-            <Button
-              variant={isCopied ? 'secondary' : 'accent'}
-              iconLeft={
-                isCopied ? (
-                  <CheckIcon className="h-5 w-5" />
-                ) : (
-                  <ClipboardDocumentIcon className="h-5 w-5" />
-                )
-              }
-              onClick={handleCopyToClipboard}
-              disabled={!canPerformActions}
-            >
-              {isCopied ? 'Copied!' : 'Copy'}
             </Button>
             <Button
               variant="neutral"
               iconLeft={<XCircleIcon className="h-5 w-5" />}
               onClick={handleClear}
               disabled={
-                !originalImageSrc &&
-                !processedImageSrc &&
+                !toolState.selectedFileId &&
+                !toolState.processedFileId &&
                 !displayError &&
                 !isProcessingImage &&
                 !isManuallySaving
@@ -422,42 +467,36 @@ export default function ImageGrayScaleClient({
         </div>
       </div>
 
-      {/* Error Display */}
       {displayError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
           <XCircleIcon
-            className="h-5 w-5 text-[rgb(var(--color-text-error))] "
+            className="h-5 w-5 text-[rgb(var(--color-text-error))]"
             aria-hidden="true"
           />
           <div>
-            {' '}
-            <strong className="font-semibold">Error:</strong>{' '}
-            {displayError}{' '}
+            <strong className="font-semibold">Error:</strong> {displayError}
           </div>
         </div>
       )}
 
-      {/* Image Previews */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Original Image */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            {' '}
             Original Image{' '}
-            {fileName && (
+            {originalFilenameForDisplay && (
               <span className="font-normal text-xs text-[rgb(var(--color-text-muted))]">
-                ({fileName})
+                ({originalFilenameForDisplay})
               </span>
-            )}{' '}
+            )}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {originalImageSrc ? (
+            {originalImageSrcForUI ? (
               <Image
-                src={originalImageSrc}
-                alt={fileName || 'Original'}
+                src={originalImageSrcForUI}
+                alt={originalFilenameForDisplay || 'Original'}
                 width={500}
                 height={500}
                 className="max-w-full max-h-full object-contain"
@@ -470,36 +509,35 @@ export default function ImageGrayScaleClient({
             )}
           </div>
         </div>
-        {/* Grayscale Image */}
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
             Grayscale Image
-            {/* Updated Status Indicator */}
-            {processedFileId && isProcessedFilePermanent && (
+            {isOutputSaved && (
               <span className="text-xs text-green-600 ml-1 inline-flex items-center gap-1">
                 <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> (Saved
                 to Library)
               </span>
             )}
-            {processedFileId &&
-              !isProcessedFilePermanent &&
-              !autoSaveProcessed && (
-                <span className="text-xs text-orange-600 ml-1">
-                  (Not Saved)
-                </span>
-              )}
+            {toolState.processedFileId && !isOutputSaved && (
+              <span className="text-xs text-orange-600 ml-1">
+                (Not saved to Library)
+              </span>
+            )}
           </label>
           <div className="w-full aspect-square border border-[rgb(var(--color-input-border))] rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {isProcessingImage && !processedImageSrc && (
+            {isProcessingImage && !processedImageSrcForUI ? (
               <div className="flex flex-col items-center text-sm text-[rgb(var(--color-text-link))] italic">
-                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2 text-[rgb(var(--color-text-link))]" />{' '}
+                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2 text-[rgb(var(--color-text-link))]" />
                 Grayscaling...
               </div>
-            )}
-            {!isProcessingImage && processedImageSrc ? (
+            ) : !isProcessingImage && processedImageSrcForUI ? (
               <Image
-                src={processedImageSrc}
-                alt={fileName ? `Grayscale ${fileName}` : 'Grayscale Image'}
+                src={processedImageSrcForUI}
+                alt={
+                  originalFilenameForDisplay
+                    ? `Grayscale ${originalFilenameForDisplay}`
+                    : 'Grayscale Image'
+                }
                 width={500}
                 height={500}
                 className="max-w-full max-h-full object-contain"
@@ -515,8 +553,6 @@ export default function ImageGrayScaleClient({
           </div>
         </div>
       </div>
-
-      {/* Modal */}
       <FileSelectionModal
         isOpen={isLibraryModalOpen}
         onClose={() => setIsLibraryModalOpen(false)}

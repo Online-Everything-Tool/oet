@@ -40,9 +40,9 @@ interface ZipFileExplorerClientProps {
 }
 
 interface PersistedZipExplorerState {
-  lastProcessedFileId: string | null;
-  lastProcessedFileName: string | null;
-  lastProcessedFileSize: number | null;
+  processedFileId: string | null;
+  processedFileName: string | null;
+  processedFileSize: number | null;
   expandedFolderPaths: string[];
   selectedPaths: string[];
   filterName: string;
@@ -54,9 +54,9 @@ interface PersistedZipExplorerState {
 }
 
 const DEFAULT_ZIP_EXPLORER_STATE: PersistedZipExplorerState = {
-  lastProcessedFileId: null,
-  lastProcessedFileName: null,
-  lastProcessedFileSize: null,
+  processedFileId: null,
+  processedFileName: null,
+  processedFileSize: null,
   expandedFolderPaths: [],
   selectedPaths: [],
   filterName: '',
@@ -290,8 +290,7 @@ export default function ZipFileExplorerClient({
       setClientError(null);
       setRawFileTree([]);
       zipRef.current = null;
-      const isNewFile =
-        persistentState.lastProcessedFileId !== fileToProcess.id;
+      const isNewFile = persistentState.processedFileId !== fileToProcess.id;
       let rawEntriesCount = 0;
       try {
         const zip = new JSZip();
@@ -312,9 +311,9 @@ export default function ZipFileExplorerClient({
         setRawFileTree(treeData);
         setPersistentState((prev) => ({
           ...prev,
-          lastProcessedFileId: fileToProcess.id,
-          lastProcessedFileName: fileToProcess.name,
-          lastProcessedFileSize: fileToProcess.size,
+          processedFileId: fileToProcess.id,
+          processedFileName: fileToProcess.name,
+          processedFileSize: fileToProcess.size,
           selectedPaths: isNewFile ? [] : prev.selectedPaths,
           expandedFolderPaths: isNewFile ? [] : prev.expandedFolderPaths,
           filterSelectedExtension: isNewFile
@@ -328,9 +327,9 @@ export default function ZipFileExplorerClient({
         zipRef.current = null;
         setPersistentState((prev) => ({
           ...prev,
-          lastProcessedFileId: null,
-          lastProcessedFileName: null,
-          lastProcessedFileSize: null,
+          processedFileId: null,
+          processedFileName: null,
+          processedFileSize: null,
           selectedPaths: [],
           expandedFolderPaths: [],
         }));
@@ -338,34 +337,28 @@ export default function ZipFileExplorerClient({
         setIsLoadingZipProcessing(false);
       }
     },
-    [
-      toolTitle,
-      toolRoute,
-      setPersistentState,
-      persistentState.lastProcessedFileId,
-    ]
+    [toolTitle, toolRoute, setPersistentState, persistentState.processedFileId]
   );
 
   useEffect(() => {
     if (
       !isLoadingToolState &&
       !isLoadingZipProcessing &&
-      persistentState.lastProcessedFileId &&
-      (!currentZipFile ||
-        currentZipFile.id !== persistentState.lastProcessedFileId)
+      persistentState.processedFileId &&
+      (!currentZipFile || currentZipFile.id !== persistentState.processedFileId)
     ) {
       const loadLastFile = async () => {
-        if (!persistentState.lastProcessedFileId) {
+        if (!persistentState.processedFileId) {
           console.warn(
-            '[ZipExplorer] Auto-load: lastProcessedFileId is null in persistentState. Skipping.'
+            '[ZipExplorer] Auto-load: processedFileId is null in persistentState. Skipping.'
           );
           return;
         }
         console.log(
-          `[ZipExplorer] Auto-load: Attempting to load last processed ZIP ID: ${persistentState.lastProcessedFileId}`
+          `[ZipExplorer] Auto-load: Attempting to load last processed ZIP ID: ${persistentState.processedFileId}`
         );
         try {
-          const lastFile = await getFile(persistentState.lastProcessedFileId);
+          const lastFile = await getFile(persistentState.processedFileId);
           if (lastFile && lastFile.blob && lastFile.blob.size > 0) {
             setCurrentZipFile(lastFile);
             await processZipFile(lastFile);
@@ -374,27 +367,27 @@ export default function ZipFileExplorerClient({
             );
           } else {
             console.warn(
-              `[ZipExplorer] Auto-load: Could not find or load valid blob for last processed file ID ${persistentState.lastProcessedFileId}. Clearing from persistent state.`
+              `[ZipExplorer] Auto-load: Could not find or load valid blob for last processed file ID ${persistentState.processedFileId}. Clearing from persistent state.`
             );
             setPersistentState((prev) => ({
               ...prev,
-              lastProcessedFileId: null,
-              lastProcessedFileName: null,
-              lastProcessedFileSize: null,
+              processedFileId: null,
+              processedFileName: null,
+              processedFileSize: null,
               selectedPaths: [],
               expandedFolderPaths: [],
             }));
           }
         } catch (error) {
           console.error(
-            `[ZipExplorer] Auto-load: Error during getFile or processZipFile for ${persistentState.lastProcessedFileId}:`,
+            `[ZipExplorer] Auto-load: Error during getFile or processZipFile for ${persistentState.processedFileId}:`,
             error
           );
           setPersistentState((prev) => ({
             ...prev,
-            lastProcessedFileId: null,
-            lastProcessedFileName: null,
-            lastProcessedFileSize: null,
+            processedFileId: null,
+            processedFileName: null,
+            processedFileSize: null,
             selectedPaths: [],
             expandedFolderPaths: [],
           }));
@@ -403,7 +396,7 @@ export default function ZipFileExplorerClient({
       loadLastFile();
     }
   }, [
-    persistentState.lastProcessedFileId,
+    persistentState.processedFileId,
     isLoadingToolState,
     isLoadingZipProcessing,
     currentZipFile,
@@ -738,11 +731,11 @@ export default function ZipFileExplorerClient({
           {!isLoadingZipProcessing &&
             !currentZipFile &&
             !error &&
-            persistentState.lastProcessedFileName && (
+            persistentState.processedFileName && (
               <span className="italic">
-                Previously: {persistentState.lastProcessedFileName} (
-                {persistentState.lastProcessedFileSize
-                  ? formatBytesCompact(persistentState.lastProcessedFileSize)
+                Previously: {persistentState.processedFileName} (
+                {persistentState.processedFileSize
+                  ? formatBytesCompact(persistentState.processedFileSize)
                   : 'size unknown'}
                 ). Select new.
               </span>
@@ -750,7 +743,7 @@ export default function ZipFileExplorerClient({
           {!isLoadingZipProcessing &&
             !currentZipFile &&
             !error &&
-            !persistentState.lastProcessedFileName && (
+            !persistentState.processedFileName && (
               <span>Ready for file selection.</span>
             )}
         </div>
@@ -919,7 +912,7 @@ export default function ZipFileExplorerClient({
             <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">
               Contents of “
               {currentZipFile?.name ||
-                persistentState.lastProcessedFileName ||
+                persistentState.processedFileName ||
                 'Archive'}
               ”:
             </h2>
@@ -975,7 +968,7 @@ export default function ZipFileExplorerClient({
       )}
       {!isLoading &&
         !error &&
-        (currentZipFile || persistentState.lastProcessedFileId) &&
+        (currentZipFile || persistentState.processedFileId) &&
         rawFileTree.length === 0 &&
         displayFileTree.length === 0 && (
           <p className="p-4 text-[rgb(var(--color-text-muted))] italic">
