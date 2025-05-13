@@ -4,7 +4,6 @@ import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
 interface UseImageProcessingProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -40,9 +39,9 @@ interface UseImageProcessingReturn {
 }
 
 const useImageProcessing = ({
-  toolTitle,
   toolRoute,
 }: UseImageProcessingProps): UseImageProcessingReturn => {
+  console.log('useImageProcessing:', toolRoute);
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(
     null
@@ -180,7 +179,7 @@ const useImageProcessing = ({
       }
       return result;
     },
-    [toolTitle, toolRoute, addImage, clearProcessingOutput]
+    [addImage, clearProcessingOutput]
   );
 
   return {

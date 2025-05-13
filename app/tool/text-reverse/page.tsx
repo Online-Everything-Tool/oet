@@ -22,7 +22,6 @@ export default function TextReversePage() {
       <ToolSuspenseWrapper>
         <TextReverseClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

@@ -15,11 +15,9 @@ import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
 import Input from '../../_components/form/Input'; // For color picker
 import type { ParamConfig } from '@/src/types/tools';
-import { useDebouncedCallback } from 'use-debounce';
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -37,7 +35,6 @@ const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
 
 export default function TextStrikeThroughClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: TextStrikeThroughClientProps) {
   const {
@@ -111,7 +108,7 @@ export default function TextStrikeThroughClient({
         lastLoggedStateRef.current = toolState;
       }
     }
-  }, [toolState, isLoadingState, toolTitle, toolRoute]);
+  }, [toolState, isLoadingState, toolRoute]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -138,16 +135,11 @@ export default function TextStrikeThroughClient({
   );
 
   const handleClear = useCallback(() => {
-    // Check if current state is different from default to decide if "cleared" log is needed
-    const wasChangedFromDefault =
-      JSON.stringify(toolState) !==
-      JSON.stringify(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
-
     setToolState(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
     setIsCopied(false);
 
     lastLoggedStateRef.current = DEFAULT_TEXT_STRIKE_THROUGH_STATE; // Align ref with cleared state
-  }, [setToolState, toolState]);
+  }, [setToolState]);
 
   const handleCopy = useCallback(() => {
     if (!toolState.inputText || !navigator.clipboard) return;
@@ -161,7 +153,7 @@ export default function TextStrikeThroughClient({
         // Optionally add an error state or notification
       }
     );
-  }, [toolState.inputText, toolTitle, toolRoute]);
+  }, [toolState.inputText]);
 
   const renderedOutput = useMemo(() => {
     if (!toolState.inputText) {

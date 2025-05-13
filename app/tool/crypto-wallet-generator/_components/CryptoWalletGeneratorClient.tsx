@@ -32,7 +32,6 @@ import {
 } from '@heroicons/react/24/outline';
 
 const ECPair = ECPairFactory(tinysecp);
-
 type WalletType = 'ethereum' | 'bitcoin' | 'solana';
 
 interface WalletEntry {
@@ -57,7 +56,6 @@ const MAX_DISPLAYED_WALLETS = 10;
 
 interface CryptoWalletGeneratorClientProps {
   toolRoute: string;
-  toolTitle: string;
   urlStateParams?: ParamConfig[];
 }
 
@@ -108,8 +106,8 @@ export default function CryptoWalletGeneratorClient({
         } else if (typeForGeneration === 'bitcoin') {
           const keyPair = ECPair.makeRandom();
           generatedPrivateKey = keyPair.toWIF();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { address } = bitcoin.payments.p2pkh({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             pubkey: keyPair.publicKey as any,
           });
           if (!address)

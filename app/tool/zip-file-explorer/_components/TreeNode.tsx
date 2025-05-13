@@ -19,7 +19,7 @@ interface TreeNodeProps {
   selectedPaths: Set<string>;
   isPathIndeterminate: (path: string) => boolean;
   onToggle: (path: string) => void;
-  onToggleSelection: (path: string, isFolder: boolean) => void;
+  onToggleSelection: (path: string) => void;
   onDownload: (entryData: ActionEntryData) => void;
   onPreview: (entryData: ActionEntryData) => void;
 }
@@ -50,7 +50,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
-    onToggleSelection(node.path, node.type === 'folder');
+    onToggleSelection(node.path);
   };
 
   const actionData =
@@ -117,7 +117,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         onClick={
           node.type === 'folder'
             ? handleToggle
-            : () => onToggleSelection(node.path, false)
+            : () => onToggleSelection(node.path)
         }
         role={node.type === 'folder' ? 'treeitem' : 'option'}
         tabIndex={0}
@@ -126,7 +126,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
             ? (e) => (e.key === 'Enter' || e.key === ' ') && handleToggle()
             : (e) =>
                 (e.key === 'Enter' || e.key === ' ') &&
-                onToggleSelection(node.path, false)
+                onToggleSelection(node.path)
         }
         aria-expanded={node.type === 'folder' ? isExpanded : undefined}
         aria-selected={isSelected}

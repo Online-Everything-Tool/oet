@@ -35,7 +35,6 @@ import {
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 
 interface ZipFileExplorerClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -70,7 +69,6 @@ const DEFAULT_ZIP_EXPLORER_STATE: PersistedZipExplorerState = {
 const MAX_TEXT_PREVIEW_SIZE: number = 0;
 
 export default function ZipFileExplorerClient({
-  toolTitle,
   toolRoute,
 }: ZipFileExplorerClientProps) {
   const { getFile } = useFileLibrary();
@@ -192,7 +190,7 @@ export default function ZipFileExplorerClient({
   );
 
   const handleToggleSelection = useCallback(
-    (path: string, isFolder: boolean) => {
+    (path: string) => {
       setPersistentState((prev) => {
         const currentSelectedPaths = new Set(prev.selectedPaths);
         const isCurrentlySelected = currentSelectedPaths.has(path);
@@ -291,12 +289,11 @@ export default function ZipFileExplorerClient({
       setRawFileTree([]);
       zipRef.current = null;
       const isNewFile = persistentState.processedFileId !== fileToProcess.id;
-      let rawEntriesCount = 0;
       try {
         const zip = new JSZip();
         zipRef.current = await zip.loadAsync(fileToProcess.blob);
         const rawEntriesData: RawZipEntry[] = [];
-        zipRef.current.forEach((relativePath, zipEntry) => {
+        zipRef.current.forEach((_relativePath, zipEntry) => {
           if (zipEntry.name && !zipEntry.name.startsWith('__MACOSX/')) {
             rawEntriesData.push({
               name: zipEntry.name,
@@ -306,7 +303,6 @@ export default function ZipFileExplorerClient({
             });
           }
         });
-        rawEntriesCount = rawEntriesData.filter((e) => !e.isDirectory).length;
         const treeData = buildFileTree(rawEntriesData);
         setRawFileTree(treeData);
         setPersistentState((prev) => ({
@@ -337,7 +333,7 @@ export default function ZipFileExplorerClient({
         setIsLoadingZipProcessing(false);
       }
     },
-    [toolTitle, toolRoute, setPersistentState, persistentState.processedFileId]
+    [setPersistentState, persistentState.processedFileId]
   );
 
   useEffect(() => {
@@ -433,7 +429,7 @@ export default function ZipFileExplorerClient({
       }
       setIsModalOpen(false);
     },
-    [processZipFile, toolTitle, toolRoute]
+    [processZipFile]
   );
 
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {

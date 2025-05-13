@@ -81,11 +81,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSettingsOpen, isRecentPanelOpen, isFeedbackOpen]);
 
-  const openSettings = () => {
-    setIsRecentPanelOpen(false);
-    setIsFeedbackOpen(false);
-    setIsSettingsOpen(true);
-  };
   const openRecentPanel = () => {
     setIsSettingsOpen(false);
     setIsFeedbackOpen(false);

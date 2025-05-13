@@ -19,7 +19,6 @@ import { getFileIconClassName, isTextBasedMimeType } from '@/app/lib/utils';
 import useToolState from '../../_hooks/useToolState'; // Import useToolState
 
 interface FileStorageClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -37,7 +36,6 @@ const DEFAULT_FILE_STORAGE_STATE: PersistedFileStorageState = {
 };
 
 export default function FileStorageClient({
-  toolTitle,
   toolRoute,
 }: FileStorageClientProps) {
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
@@ -283,8 +281,6 @@ export default function FileStorageClient({
       selectedFileIds,
       storedFiles,
       deleteFile,
-      toolRoute,
-      toolTitle,
       setPersistentState, // Added
     ]
   );
@@ -301,7 +297,6 @@ export default function FileStorageClient({
       return;
     setError(null);
     setIsProcessing(true);
-    const count = storedFiles.length;
     try {
       await clearAllFiles(false); // false means only permanent files (non-temporary)
       loadAndDisplayFiles();
@@ -326,8 +321,6 @@ export default function FileStorageClient({
     storedFiles,
     selectedFileIds,
     clearAllFiles,
-    toolRoute,
-    toolTitle,
     loadAndDisplayFiles,
     setPersistentState, // Added
   ]);
@@ -402,7 +395,6 @@ export default function FileStorageClient({
       isBulkDeleting
     )
       return;
-    const count = selectedFileIds.size;
     setIsBulkDeleting(true);
     setError(null);
     const idsToDelete = Array.from(selectedFileIds);
@@ -437,8 +429,6 @@ export default function FileStorageClient({
     storedFiles,
     deleteFile,
     loadAndDisplayFiles,
-    toolRoute,
-    toolTitle,
     setPersistentState, // Added
   ]);
 

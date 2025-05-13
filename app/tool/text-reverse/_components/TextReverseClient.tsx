@@ -14,7 +14,6 @@ import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import type { ParamConfig } from '@/src/types/tools';
-import { useDebouncedCallback } from 'use-debounce';
 import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 type ReverseMode = 'character' | 'word' | 'line'; // Added 'line'
@@ -31,13 +30,11 @@ const DEFAULT_TEXT_REVERSE_STATE: TextReverseToolState = {
 
 interface TextReverseClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
 const TextReverseClient = ({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: TextReverseClientProps) => {
   const {
@@ -125,7 +122,7 @@ const TextReverseClient = ({
     } else {
       lastLoggedStateRef.current = toolState;
     }
-  }, [toolState, reversedText, isLoadingState, toolTitle, toolRoute]);
+  }, [toolState, reversedText, isLoadingState, toolRoute]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -160,7 +157,7 @@ const TextReverseClient = ({
         console.error('Failed to copy reversed text: ', err);
       }
     );
-  }, [reversedText, toolTitle, toolRoute]);
+  }, [reversedText]);
 
   if (isLoadingState) {
     return (

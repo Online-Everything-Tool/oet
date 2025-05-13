@@ -58,13 +58,11 @@ const AUTO_PROCESS_DEBOUNCE_MS = 300;
 
 interface ColorConverterClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function ColorConverterClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: ColorConverterClientProps) {
   const {
@@ -306,7 +304,20 @@ export default function ColorConverterClient({
       };
       convertAndSetColors(sourceForProcessing, currentInputState);
     }
-  }, [isLoadingToolState, urlStateParams, setToolState, convertAndSetColors]); // toolState parts removed from deps
+  }, [
+    isLoadingToolState,
+    urlStateParams,
+    setToolState,
+    convertAndSetColors,
+    toolState.bInput,
+    toolState.gInput,
+    toolState.hInput,
+    toolState.hexInput,
+    toolState.lInput,
+    toolState.lastEditedField,
+    toolState.rInput,
+    toolState.sInput,
+  ]);
 
   // Main Effect for Processing input changes
   useEffect(() => {

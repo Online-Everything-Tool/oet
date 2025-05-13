@@ -16,7 +16,7 @@ export default function ZipFileExplorerPage() {
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ZipFileExplorerClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <ZipFileExplorerClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

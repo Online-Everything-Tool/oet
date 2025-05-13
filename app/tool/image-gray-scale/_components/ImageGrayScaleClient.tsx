@@ -39,13 +39,10 @@ const DEFAULT_GRAYSCALE_TOOL_STATE: ImageGrayScaleToolState = {
 };
 
 interface ImageGrayScaleClientProps {
-  toolTitle: string;
   toolRoute: string;
-  // No urlStateParams prop needed
 }
 
 export default function ImageGrayScaleClient({
-  toolTitle,
   toolRoute,
 }: ImageGrayScaleClientProps) {
   const {
@@ -82,7 +79,7 @@ export default function ImageGrayScaleClient({
     error: processingErrorHook,
     processImage,
     clearProcessingOutput: clearProcessingHookOutput,
-  } = useImageProcessing({ toolTitle, toolRoute });
+  } = useImageProcessing({ toolRoute });
 
   // Effect 1: Mark initial setup as complete once tool settings are loaded
   useEffect(() => {
@@ -119,7 +116,7 @@ export default function ImageGrayScaleClient({
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
           }
-        } catch (e) {
+        } catch (_e) {
           if (mounted) {
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
@@ -142,7 +139,7 @@ export default function ImageGrayScaleClient({
             setProcessedImageSrcForUI(null);
             setWasLastProcessedOutputPermanent(false);
           }
-        } catch (e) {
+        } catch (_e) {
           if (mounted) {
             setProcessedImageSrcForUI(null);
             setWasLastProcessedOutputPermanent(false);

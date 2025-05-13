@@ -36,13 +36,11 @@ const STATE_SAVE_DEBOUNCE_MS = 1500;
 
 interface UrlEncodeDecodeClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function UrlEncodeDecodeClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: UrlEncodeDecodeClientProps) {
   const [outputValue, setOutputValue] = useState<string>('');
@@ -50,7 +48,7 @@ export default function UrlEncodeDecodeClient({
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isDownloaded, setIsDownloaded] = useState<boolean>(false);
 
-  const { urlState, isLoadingUrlState, urlParamsLoaded, urlProvidedAnyValue } =
+  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
     useToolUrlState(urlStateParams);
   const {
     state,
@@ -69,8 +67,6 @@ export default function UrlEncodeDecodeClient({
     if (isLoadingUrlState || isLoadingState || isComponentInitialized) return;
 
     let initialState: UrlToolState = state;
-    let stateWasOverridden = false;
-
     if (urlProvidedAnyValue) {
       const urlOverrides: Partial<UrlToolState> = {};
       if (typeof urlState.text === 'string') urlOverrides.text = urlState.text;
@@ -79,9 +75,6 @@ export default function UrlEncodeDecodeClient({
 
       const mergedState = { ...state, ...urlOverrides };
       if (JSON.stringify(mergedState) !== JSON.stringify(state)) {
-        if (JSON.stringify(state) !== JSON.stringify(DEFAULT_STATE)) {
-          stateWasOverridden = true;
-        }
         initialState = mergedState;
       }
     }
@@ -99,7 +92,6 @@ export default function UrlEncodeDecodeClient({
     urlProvidedAnyValue,
     isComponentInitialized,
     setState,
-    toolTitle,
     toolRoute,
   ]);
 
@@ -190,18 +182,10 @@ export default function UrlEncodeDecodeClient({
       await navigator.clipboard.writeText(outputValue);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       setError('Could not copy text to clipboard.');
     }
-  }, [
-    outputValue,
-    isCopied,
-    state.text,
-    state.operation,
-    state.encodeMode,
-    toolRoute,
-    toolTitle,
-  ]);
+  }, [outputValue, isCopied]);
   const handleDownloadOutput = useCallback(() => {
     if (!outputValue) return;
     try {
@@ -219,17 +203,10 @@ export default function UrlEncodeDecodeClient({
       URL.revokeObjectURL(url);
       setIsDownloaded(true);
       setTimeout(() => setIsDownloaded(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       setError('Could not prepare text for download.');
     }
-  }, [
-    outputValue,
-    state.text,
-    state.operation,
-    state.encodeMode,
-    toolRoute,
-    toolTitle,
-  ]);
+  }, [outputValue, state.operation, state.encodeMode]);
 
   if (isLoadingUrlState || (isLoadingState && !isComponentInitialized)) {
     return (

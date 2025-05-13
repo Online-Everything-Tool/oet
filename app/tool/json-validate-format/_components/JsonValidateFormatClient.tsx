@@ -21,7 +21,6 @@ import {
 
 interface JsonValidateFormatClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -59,7 +58,6 @@ const sortObjectKeys = (obj: any): any => {
 
 export default function JsonValidateFormatClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: JsonValidateFormatClientProps) {
   const {
@@ -169,15 +167,7 @@ export default function JsonValidateFormatClient({
         setIsValid(currentIsValid);
       }
     },
-    [
-      toolState.jsonInput,
-      toolState.indent,
-      toolState.sortKeys,
-      toolState.lastLoadedFilename,
-      toolTitle,
-      toolRoute,
-      setToolState,
-    ]
+    [toolState.jsonInput, toolState.indent, toolState.sortKeys, setToolState]
   );
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -300,7 +290,7 @@ export default function JsonValidateFormatClient({
       'formatted-json';
     const filename = `${originalFilename}-${Date.now()}.json`;
     try {
-      const newFileId = await addFileToLibrary(
+      await addFileToLibrary(
         blob,
         filename,
         'application/json',

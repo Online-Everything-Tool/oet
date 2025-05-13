@@ -1,14 +1,7 @@
 // --- FILE: app/tool/image-montage/_components/ImageMontageClient.tsx ---
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
-import Image from 'next/image';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useMontageState, MontageEffect } from '../_hooks/useMontageState';
 import { useMontageCanvas } from '../_hooks/useMontageCanvas';
@@ -20,22 +13,16 @@ import type { StoredFile } from '@/src/types/storage';
 import RadioGroup from '../../_components/form/RadioGroup';
 // Checkbox for auto-save removed
 import {
-  PhotoIcon,
-  ArrowDownTrayIcon,
   XCircleIcon,
   ArrowPathIcon,
-  ArchiveBoxArrowDownIcon,
   CheckBadgeIcon,
-  // InformationCircleIcon, // No longer showing separate "last saved" preview
 } from '@heroicons/react/20/solid';
 
 interface ImageMontageClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function ImageMontageClient({
-  toolTitle,
   toolRoute,
 }: ImageMontageClientProps) {
   const {
@@ -86,7 +73,6 @@ export default function ImageMontageClient({
   const {
     addImage: addImageToLibrary,
     getImage,
-    makeImagePermanent,
     updateBlob,
     deleteImage,
   } = useImageLibrary();
@@ -314,6 +300,7 @@ export default function ImageMontageClient({
         currentFilenameToPrompt: suggestedDownloadName,
       });
       setIsFilenameModalOpen(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any)._tempMontageBlobForDownload = blobToDownload;
     } else {
       setUiError('Failed to get montage image data for download.');
@@ -340,8 +327,10 @@ export default function ImageMontageClient({
         actionContext.idToUpdate
       );
     } else if (actionContext.type === 'download') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const blobToDownload = (window as any)
         ._tempMontageBlobForDownload as Blob | null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any)._tempMontageBlobForDownload;
 
       if (blobToDownload) {

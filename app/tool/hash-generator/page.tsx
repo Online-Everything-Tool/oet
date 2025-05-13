@@ -22,7 +22,6 @@ export default function HashGeneratorPage() {
       <ToolSuspenseWrapper>
         <HashGeneratorClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

@@ -22,7 +22,6 @@ export default function JsonValidateFormatPage() {
       <ToolSuspenseWrapper>
         <JsonValidateFormatClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

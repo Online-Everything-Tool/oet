@@ -21,7 +21,6 @@ export default function ColorConverterPage() {
       <ToolSuspenseWrapper>
         <ColorConverterClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

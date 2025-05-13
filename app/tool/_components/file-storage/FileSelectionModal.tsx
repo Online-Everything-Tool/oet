@@ -133,7 +133,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       console.log(
         `${logPrefix} UNMOUNT. Revoking all managed URLs: ${managedUrlsRef.current.size} URLs`
       );
-      managedUrlsRef.current.forEach((url, id) => {
+      managedUrlsRef.current.forEach((url) => {
         URL.revokeObjectURL(url);
       });
       managedUrlsRef.current.clear();
@@ -179,15 +179,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     activeTab,
     logPrefix,
   ]);
-
-  const revokeAndClearManagedUrls = useCallback(() => {
-    // console.log(`${logPrefix} revokeAndClearManagedUrls called. Current managed count: ${managedUrlsRef.current.size}`);
-    managedUrlsRef.current.forEach((url, id) => {
-      // console.log(`${logPrefix} Revoking URL for ID: ${id}`);
-      URL.revokeObjectURL(url);
-    });
-    managedUrlsRef.current.clear();
-  }, [logPrefix]);
 
   useEffect(() => {
     // console.log(`${logPrefix} Fetch & Preview Effect. isOpen: ${isOpen}, activeTab: ${activeTab}, showLibTab: ${showLibraryTab}, hasFetched: ${hasFetchedForCurrentOpenStateRef.current}, modalLoading: ${modalProcessingLoading}`);
@@ -384,7 +375,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               browserFile.type,
               isTemporaryForDbWrite
             );
-          } catch (saveErr) {
+          } catch (_saveErr) {
             setModalError(
               (prev) =>
                 (prev ? prev + '; ' : '') +

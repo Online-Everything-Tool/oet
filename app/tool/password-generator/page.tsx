@@ -21,7 +21,7 @@ export default function PasswordGeneratorPage() {
         description={typedMetadata.description || ''}
       />
       <ToolSuspenseWrapper>
-        <PasswordGeneratorClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <PasswordGeneratorClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

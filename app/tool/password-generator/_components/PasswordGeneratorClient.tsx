@@ -20,7 +20,6 @@ import {
 } from '@heroicons/react/24/outline'; // Using outline for better visual distinction from solid elsewhere
 
 interface PasswordGeneratorClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -41,7 +40,6 @@ const DEFAULT_PASSWORD_GENERATOR_STATE: PasswordGeneratorToolState = {
 };
 
 export default function PasswordGeneratorClient({
-  toolTitle,
   toolRoute,
 }: PasswordGeneratorClientProps) {
   const {
@@ -131,8 +129,6 @@ export default function PasswordGeneratorClient({
     }
   }, [
     toolState, // Now depends on the whole toolState object
-    toolTitle,
-    toolRoute,
   ]);
 
   const handleCopy = useCallback(async () => {

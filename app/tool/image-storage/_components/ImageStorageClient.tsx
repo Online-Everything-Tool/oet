@@ -20,7 +20,6 @@ import useToolState from '../../_hooks/useToolState'; // Import useToolState
 import { PhotoIcon } from '@heroicons/react/20/solid';
 
 interface ImageStorageClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -38,7 +37,6 @@ const DEFAULT_IMAGE_STORAGE_STATE: PersistedImageStorageState = {
 };
 
 export default function ImageStorageClient({
-  toolTitle,
   toolRoute,
 }: ImageStorageClientProps) {
   const [storedImages, setStoredImages] = useState<StoredFile[]>([]);
@@ -284,8 +282,6 @@ export default function ImageStorageClient({
       selectedImageIds,
       storedImages,
       deleteImage,
-      toolRoute,
-      toolTitle,
       setPersistentState, // Added
     ]
   );
@@ -302,7 +298,6 @@ export default function ImageStorageClient({
       return;
     setError(null);
     setIsProcessing(true);
-    const count = storedImages.length;
     try {
       await clearAllImages(); // This should only clear images now
       loadAndDisplayImages();
@@ -327,8 +322,6 @@ export default function ImageStorageClient({
     storedImages,
     selectedImageIds,
     clearAllImages,
-    toolRoute,
-    toolTitle,
     loadAndDisplayImages,
     setPersistentState, // Added
   ]);
@@ -405,7 +398,6 @@ export default function ImageStorageClient({
       isBulkDeleting
     )
       return;
-    const count = selectedImageIds.size;
     setIsBulkDeleting(true);
     setError(null);
     const idsToDelete = Array.from(selectedImageIds);
@@ -440,8 +432,6 @@ export default function ImageStorageClient({
     storedImages,
     deleteImage,
     loadAndDisplayImages,
-    toolRoute,
-    toolTitle,
     setPersistentState, // Added
   ]);
 

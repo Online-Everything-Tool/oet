@@ -83,15 +83,6 @@ export default function HtmlEntityExplorerClient({
     [availableCategories]
   );
 
-  const activeFilterCount = useMemo(() => {
-    // Recalculated activeFilterCount based on current filters
-    let count = 0;
-    if (toolState.selectedCategory && toolState.selectedCategory !== '')
-      count++;
-    // If other filters were added to toolState, they'd be checked here
-    return count;
-  }, [toolState.selectedCategory]);
-
   // --- CALLBACKS (HOOKS) ---
   const handleSearchChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {

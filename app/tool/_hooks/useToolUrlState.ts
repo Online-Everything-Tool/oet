@@ -69,7 +69,7 @@ export default function useToolUrlState(
                 try {
                   parsedValue = JSON.parse(urlValue);
                   isValid = true;
-                } catch (jsonError) {
+                } catch (_jsonError) {
                   /* ignore */
                 }
                 break;
@@ -78,7 +78,7 @@ export default function useToolUrlState(
               parsedStateFromUrl[config.paramName] = parsedValue;
               anyValueFound = true;
             }
-          } catch (parseError) {
+          } catch (_parseError) {
             /* ignore */
           }
         }

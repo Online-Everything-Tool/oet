@@ -1,7 +1,7 @@
 // FILE: app/tool/case-converter/_components/CaseConverterClient.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -42,13 +42,11 @@ const DEFAULT_CASE_CONVERTER_STATE: CaseConverterToolState = {
 
 interface CaseConverterClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string; // Keep for potential future use, though not directly used now
   toolRoute: string; // Keep for useToolState key
 }
 
 export default function CaseConverterClient({
   urlStateParams,
-  // toolTitle,
   toolRoute,
 }: CaseConverterClientProps) {
   const {
@@ -323,31 +321,6 @@ export default function CaseConverterClient({
     [toolState.caseType]
   );
 
-  const initiateOutputAction = useCallback(
-    (action: 'download' | 'save') => {
-      if (!toolState.outputValue.trim() || uiError) {
-        setUiError(uiError || 'No output to ' + action + '.');
-        return;
-      }
-      if (toolState.lastLoadedFilename) {
-        const autoFilename = generateOutputFilename(
-          toolState.lastLoadedFilename
-        );
-        handleFilenameConfirm(autoFilename, action);
-      } else {
-        setSuggestedFilenameForPrompt(generateOutputFilename(null));
-        setFilenameAction(action);
-        setIsFilenameModalOpen(true);
-      }
-    },
-    [
-      toolState.outputValue,
-      uiError,
-      toolState.lastLoadedFilename,
-      generateOutputFilename,
-    ]
-  );
-
   const handleFilenameConfirm = useCallback(
     (filename: string, actionOverride?: 'download' | 'save') => {
       setIsFilenameModalOpen(false);
@@ -406,11 +379,36 @@ export default function CaseConverterClient({
     [
       filenameAction,
       toolState.lastLoadedFilename,
-      toolState.caseType,
       toolState.outputValue,
       addFileToLibrary,
       generateOutputFilename,
       uiError,
+    ]
+  );
+
+  const initiateOutputAction = useCallback(
+    (action: 'download' | 'save') => {
+      if (!toolState.outputValue.trim() || uiError) {
+        setUiError(uiError || 'No output to ' + action + '.');
+        return;
+      }
+      if (toolState.lastLoadedFilename) {
+        const autoFilename = generateOutputFilename(
+          toolState.lastLoadedFilename
+        );
+        handleFilenameConfirm(autoFilename, action);
+      } else {
+        setSuggestedFilenameForPrompt(generateOutputFilename(null));
+        setFilenameAction(action);
+        setIsFilenameModalOpen(true);
+      }
+    },
+    [
+      handleFilenameConfirm,
+      toolState.outputValue,
+      uiError,
+      toolState.lastLoadedFilename,
+      generateOutputFilename,
     ]
   );
 
@@ -424,7 +422,7 @@ export default function CaseConverterClient({
       setCopySuccess(true);
       if (uiError) setUiError('');
       setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       setUiError('Failed to copy to clipboard.');
     }
   }, [toolState.outputValue, uiError]);

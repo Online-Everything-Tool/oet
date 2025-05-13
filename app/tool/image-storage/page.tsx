@@ -15,7 +15,7 @@ export default function ImageStoragePage() {
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageStorageClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <ImageStorageClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

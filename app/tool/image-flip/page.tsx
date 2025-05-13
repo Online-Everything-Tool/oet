@@ -16,7 +16,7 @@ export default function ImageFlipPage() {
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageFlipClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <ImageFlipClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

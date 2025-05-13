@@ -43,14 +43,10 @@ const DEFAULT_FLIP_TOOL_STATE: ImageFlipToolState = {
 };
 
 interface ImageFlipClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
-export default function ImageFlipClient({
-  toolTitle,
-  toolRoute,
-}: ImageFlipClientProps) {
+export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   const {
     state: toolState,
     setState: setToolState,
@@ -83,7 +79,7 @@ export default function ImageFlipClient({
     error: processingErrorHook,
     processImage,
     clearProcessingOutput: clearProcessingHookOutput,
-  } = useImageProcessing({ toolTitle, toolRoute });
+  } = useImageProcessing({ toolRoute });
 
   // Effect 2: Load image previews based on IDs in toolState
   useEffect(() => {

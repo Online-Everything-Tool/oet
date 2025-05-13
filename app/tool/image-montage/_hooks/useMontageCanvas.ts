@@ -139,7 +139,7 @@ const calculateLayout = (
 
   // Calculate necessary padding based on potential tilt of end images
   let extraHorizontalPaddingForTilt = 0;
-  let extraVerticalPaddingForTilt =
+  const extraVerticalPaddingForTilt =
     maxItemHeightForLayout * CANVAS_VERTICAL_PADDING_FACTOR; // Base vertical padding
 
   if (images.length > 0) {
@@ -580,7 +580,7 @@ export function useMontageCanvas(
                 targetW,
                 targetH
               );
-            } catch (e) {
+            } catch (_e) {
               tempRenderCtx.fillStyle = '#fcc';
               tempRenderCtx.fillRect(imgAreaX, imgAreaY, targetW, targetH);
             }
@@ -607,7 +607,7 @@ export function useMontageCanvas(
           if (dW > 0 && dH > 0) {
             try {
               tempRenderCtx.drawImage(image, dX, dY, dW, dH);
-            } catch (e) {
+            } catch (_e) {
               tempRenderCtx.fillStyle = '#fcc';
               tempRenderCtx.fillRect(
                 drawOffsetX,

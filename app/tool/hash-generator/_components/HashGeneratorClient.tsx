@@ -40,13 +40,11 @@ const DEFAULT_HASH_TOOL_STATE: HashGeneratorToolState = {
 
 interface HashGeneratorClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function HashGeneratorClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: HashGeneratorClientProps) {
   const {
@@ -120,13 +118,7 @@ export default function HashGeneratorClient({
         setIsProcessing(false);
       }
     },
-    [
-      toolState.inputText,
-      toolState.algorithm,
-      toolState.lastLoadedFilename,
-      toolTitle,
-      toolRoute,
-    ]
+    [toolState.inputText, toolState.algorithm]
   );
 
   const debouncedGenerateHash = useDebouncedCallback(
@@ -266,40 +258,6 @@ export default function HashGeneratorClient({
     [toolState.algorithm]
   );
 
-  const initiateOutputAction = useCallback(
-    (action: 'download' | 'save') => {
-      if (!outputValue.trim()) {
-        setError('No output to ' + action + '.');
-        return;
-      }
-      if (error && outputValue.trim()) {
-        setError('Cannot ' + action + ' output due to existing input errors.');
-        return;
-      }
-
-      if (toolState.lastLoadedFilename) {
-        const autoFilename = generateOutputFilename(
-          toolState.lastLoadedFilename
-        );
-        handleFilenameConfirm(autoFilename, action);
-      } else {
-        setSuggestedFilenameForPrompt(generateOutputFilename(null));
-        setFilenameAction(action);
-        setIsFilenameModalOpen(true);
-      }
-    },
-    [
-      outputValue,
-      error,
-      toolState.lastLoadedFilename,
-      generateOutputFilename,
-      setFilenameAction,
-      setIsFilenameModalOpen,
-      setSuggestedFilenameForPrompt,
-      setError,
-    ]
-  );
-
   const handleFilenameConfirm = useCallback(
     (filename: string, actionOverride?: 'download' | 'save') => {
       setIsFilenameModalOpen(false);
@@ -342,7 +300,7 @@ export default function HashGeneratorClient({
           type: 'text/plain;charset=utf-8',
         });
         addFileToLibrary(blob, finalFilename, 'text/plain', false)
-          .then((newFileId) => {
+          .then((_newFileId) => {
             setSaveSuccess(true);
             setError('');
             setTimeout(() => setSaveSuccess(false), 2000);
@@ -358,16 +316,48 @@ export default function HashGeneratorClient({
     [
       filenameAction,
       toolState.lastLoadedFilename,
-      toolState.algorithm,
       outputValue,
       addFileToLibrary,
-      toolTitle,
-      toolRoute,
       setError,
       setSaveSuccess,
       generateOutputFilename,
       setIsFilenameModalOpen,
       setFilenameAction,
+    ]
+  );
+
+  const initiateOutputAction = useCallback(
+    (action: 'download' | 'save') => {
+      if (!outputValue.trim()) {
+        setError('No output to ' + action + '.');
+        return;
+      }
+      if (error && outputValue.trim()) {
+        setError('Cannot ' + action + ' output due to existing input errors.');
+        return;
+      }
+
+      if (toolState.lastLoadedFilename) {
+        const autoFilename = generateOutputFilename(
+          toolState.lastLoadedFilename
+        );
+        handleFilenameConfirm(autoFilename, action);
+      } else {
+        setSuggestedFilenameForPrompt(generateOutputFilename(null));
+        setFilenameAction(action);
+        setIsFilenameModalOpen(true);
+      }
+    },
+    [
+      handleFilenameConfirm,
+      outputValue,
+      error,
+      toolState.lastLoadedFilename,
+      generateOutputFilename,
+      setFilenameAction,
+      setIsFilenameModalOpen,
+      setSuggestedFilenameForPrompt,
+      setError,
     ]
   );
 
@@ -381,10 +371,10 @@ export default function HashGeneratorClient({
       setCopySuccess(true);
       setError('');
       setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to copy to clipboard.');
     }
-  }, [outputValue, toolTitle, toolRoute, setError, setCopySuccess]);
+  }, [outputValue, setError, setCopySuccess]);
 
   if (isLoadingToolState) {
     return (

@@ -22,7 +22,6 @@ export default function UrlEncodeDecodePage() {
       <ToolSuspenseWrapper>
         <UrlEncodeDecodeClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

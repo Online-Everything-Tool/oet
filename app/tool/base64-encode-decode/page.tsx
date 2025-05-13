@@ -22,7 +22,6 @@ export default function Base64EncodeDecodePage() {
       <ToolSuspenseWrapper>
         <Base64EncodeDecodeClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

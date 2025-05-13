@@ -1,8 +1,8 @@
 // --- FILE: app/tool/linkedin-post-formatter/_components/LinkedinPostFormatterClient.tsx ---
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useEditor, EditorContent, Node } from '@tiptap/react'; // Added Node
+import React, { useState, useEffect, useCallback } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react'; // Added Node
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -149,60 +149,6 @@ function applyCharStyle(
   return UNICODE_MAPS[style]?.[char] || char;
 }
 
-function convertNodeToUnicode(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  node: any,
-  listLevel = 0,
-  listItemCounter = 1
-): string {
-  let text = '';
-  if (node.type === 'text' && node.text) {
-    let currentText = node.text;
-    if (node.marks) {
-      // Apply marks - a simple approach, nesting complex styles might need more logic
-      let isBold = false;
-      let isItalic = false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      node.marks.forEach((mark: any) => {
-        if (mark.type === 'bold') isBold = true;
-        if (mark.type === 'italic') isItalic = true;
-        // TODO: handle underline and strike if desired (e.g., with combining characters)
-      });
-
-      currentText = currentText
-        .split('')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((char: any) => {
-          let styledChar = char;
-          if (isItalic) styledChar = applyCharStyle(styledChar, 'italic'); // Apply italic first then bold for boldItalic visual
-          if (isBold) styledChar = applyCharStyle(styledChar, 'bold');
-          return styledChar;
-        })
-        .join('');
-    }
-    text += currentText;
-  }
-
-  if (node.content) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    node.content.forEach((childNode: any, index: number) => {
-      text += convertNodeToUnicode(childNode, listLevel, index + 1);
-    });
-  }
-
-  // Add newlines or list prefixes based on block type
-  if (node.type === 'paragraph') {
-    text += '\n\n'; // LinkedIn prefers double newlines for paragraph breaks
-  } else if (node.type === 'listItem') {
-    // This is simplified. Real list handling requires knowing parent type.
-    // For this pass, we assume bullet for bulletList, number for orderedList from parent context
-    // This prefixing should ideally happen *before* processing child content for proper indentation
-    // Will be handled in the main traversal.
-    text += '\n';
-  }
-  return text;
-}
-
 // --- State Definition ---
 interface LinkedinFormatterState {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -213,12 +159,10 @@ const DEFAULT_STATE: LinkedinFormatterState = {
 };
 
 interface LinkedinPostFormatterClientProps {
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function LinkedinPostFormatterClient({
-  toolTitle,
   toolRoute,
 }: LinkedinPostFormatterClientProps) {
   const {
@@ -252,7 +196,6 @@ export default function LinkedinPostFormatterClient({
       setState({ contentJson: editor.getJSON() });
     },
     editorProps: {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       attributes: { class: 'focus:outline-none prose prose-sm max-w-none' },
     },
   });
@@ -373,14 +316,14 @@ export default function LinkedinPostFormatterClient({
       const message = err instanceof Error ? err.message : 'Unknown error';
       setActionError(`Could not copy text: ${message}`);
     }
-  }, [editor, toolRoute, toolTitle, generateUnicodeText]);
+  }, [editor, generateUnicodeText]);
 
   const handleClear = useCallback(async () => {
     // ... (handleClear logic as before, no changes needed to it for Unicode)
     editor?.commands.clearContent(true);
     setActionError(null);
     setIsCopied(false);
-  }, [editor, toolRoute, toolTitle]);
+  }, [editor]);
 
   const toggleBold = useCallback(
     () => editor?.chain().focus().toggleBold().run(),
@@ -414,7 +357,7 @@ export default function LinkedinPostFormatterClient({
       }
       setIsEmojiModalOpen(false);
     },
-    [editor, toolTitle, toolRoute]
+    [editor]
   );
 
   if (isLoadingState && !editor) {

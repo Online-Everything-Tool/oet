@@ -20,7 +20,7 @@ export default function FileStoragePage() {
 
       {/* Wrap Client Component in Suspense */}
       <ToolSuspenseWrapper>
-        <FileStorageClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <FileStorageClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

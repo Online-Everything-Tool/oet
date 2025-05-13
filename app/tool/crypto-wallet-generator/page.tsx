@@ -19,7 +19,6 @@ export default function CryptoWalletGeneratorPage() {
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <CryptoWalletGeneratorClient
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
           urlStateParams={urlStateParams}
         />

@@ -16,7 +16,7 @@ export default function ImageGrayScalePage() {
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageGrayScaleClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <ImageGrayScaleClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

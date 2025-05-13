@@ -47,7 +47,6 @@ const AUTO_PROCESS_DEBOUNCE_MS = 300;
 
 interface Base64EncodeDecodeClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
@@ -68,7 +67,7 @@ const determineInitialOperationAndLikelihood = (
     try {
       atob(cleanedForTest);
       return { operation: 'decode', likelihood: 'likely_base64' };
-    } catch (e) {
+    } catch (_e) {
       return { operation: 'encode', likelihood: 'likely_text' };
     }
   }
@@ -96,7 +95,7 @@ const calculateLikelihoodForCurrentOperation = (
     try {
       atob(cleanedForTest);
       return 'likely_base64';
-    } catch (e) {
+    } catch (_e) {
       return 'invalid_base64_chars';
     }
   } else {
@@ -109,7 +108,6 @@ const calculateLikelihoodForCurrentOperation = (
 
 export default function Base64EncodeDecodeClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: Base64EncodeDecodeClientProps) {
   const {
@@ -170,7 +168,7 @@ export default function Base64EncodeDecodeClient({
             'encode'
           );
           if (error) setError('');
-        } catch (err) {
+        } catch (_err) {
           currentError = 'Failed to encode text. Ensure text is valid UTF-8.';
           finalLikelihoodForUIUpdate = calculateLikelihoodForCurrentOperation(
             textToProcess,
@@ -231,7 +229,13 @@ export default function Base64EncodeDecodeClient({
         setBase64Likelihood(finalLikelihoodForUIUpdate);
       }
     },
-    [setToolState, base64Likelihood, error]
+    [
+      setToolState,
+      base64Likelihood,
+      error,
+      toolState.inputText,
+      toolState.operation,
+    ]
   );
 
   const debouncedProcess = useDebouncedCallback(
@@ -311,7 +315,18 @@ export default function Base64EncodeDecodeClient({
     } else if (!textToSetForState.trim() && base64Likelihood !== 'unknown') {
       setBase64Likelihood('unknown');
     }
-  }, [isLoadingToolState, urlStateParams]);
+  }, [
+    isLoadingToolState,
+    urlStateParams,
+    base64Likelihood,
+    error,
+    handleEncodeDecode,
+    setToolState,
+    toolState.inputText,
+    toolState.lastLoadedFilename,
+    toolState.operation,
+    toolState.outputValue,
+  ]);
 
   useEffect(() => {
     if (isLoadingToolState) {
@@ -482,35 +497,6 @@ export default function Base64EncodeDecodeClient({
     [toolState.operation]
   );
 
-  const initiateOutputAction = useCallback(
-    (action: 'download' | 'save') => {
-      if (!toolState.outputValue.trim()) {
-        setError('No output to ' + action + '.');
-        return;
-      }
-      if (error && toolState.outputValue.trim()) {
-        setError('Cannot ' + action + ' output due to existing input errors.');
-        return;
-      }
-      if (toolState.lastLoadedFilename) {
-        const autoFilename = generateOutputFilename(
-          toolState.lastLoadedFilename
-        );
-        handleFilenameConfirm(autoFilename, action);
-      } else {
-        setSuggestedFilenameForPrompt(generateOutputFilename(null));
-        setFilenameAction(action);
-        setIsFilenameModalOpen(true);
-      }
-    },
-    [
-      toolState.outputValue,
-      error,
-      toolState.lastLoadedFilename,
-      generateOutputFilename,
-    ]
-  );
-
   const handleFilenameConfirm = useCallback(
     (filename: string, actionOverride?: 'download' | 'save') => {
       setIsFilenameModalOpen(false);
@@ -580,6 +566,36 @@ export default function Base64EncodeDecodeClient({
     ]
   );
 
+  const initiateOutputAction = useCallback(
+    (action: 'download' | 'save') => {
+      if (!toolState.outputValue.trim()) {
+        setError('No output to ' + action + '.');
+        return;
+      }
+      if (error && toolState.outputValue.trim()) {
+        setError('Cannot ' + action + ' output due to existing input errors.');
+        return;
+      }
+      if (toolState.lastLoadedFilename) {
+        const autoFilename = generateOutputFilename(
+          toolState.lastLoadedFilename
+        );
+        handleFilenameConfirm(autoFilename, action);
+      } else {
+        setSuggestedFilenameForPrompt(generateOutputFilename(null));
+        setFilenameAction(action);
+        setIsFilenameModalOpen(true);
+      }
+    },
+    [
+      handleFilenameConfirm,
+      toolState.outputValue,
+      error,
+      toolState.lastLoadedFilename,
+      generateOutputFilename,
+    ]
+  );
+
   const handleCopyToClipboard = useCallback(async () => {
     if (!toolState.outputValue) {
       setError('No output to copy.');
@@ -590,7 +606,7 @@ export default function Base64EncodeDecodeClient({
       setCopySuccess(true);
       setError('');
       setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
+    } catch (_err) {
       setError('Failed to copy to clipboard.');
     }
   }, [toolState.outputValue]);

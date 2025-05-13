@@ -22,7 +22,6 @@ export default function CaseConverterPage() {
       <ToolSuspenseWrapper>
         <CaseConverterClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

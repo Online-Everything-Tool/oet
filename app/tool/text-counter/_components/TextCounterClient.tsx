@@ -16,7 +16,6 @@ import Input from '../../_components/form/Input';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
-import { useDebouncedCallback } from 'use-debounce';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 
 interface TextCounts {
@@ -41,13 +40,11 @@ const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
 
 interface TextCounterClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
   toolRoute: string;
 }
 
 export default function TextCounterClient({
   urlStateParams,
-  toolTitle,
   toolRoute,
 }: TextCounterClientProps) {
   const {

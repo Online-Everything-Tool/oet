@@ -26,8 +26,7 @@ export default function useToolState<T extends object>(
   toolRoute: string,
   defaultState: T
 ): UseToolStateReturn<T> {
-  const { getFile, deleteFile, addFile, updateFileBlob, makeFilePermanent } =
-    useFileLibrary();
+  const { getFile, deleteFile } = useFileLibrary();
 
   const [internalState, setInternalState] = useState<T>(defaultState);
   const [isLoadingState, setIsLoadingState] = useState<boolean>(true);
@@ -274,7 +273,7 @@ export default function useToolState<T extends object>(
         }
       });
     },
-    [debouncedSaveState, toolRoute]
+    [debouncedSaveState]
   );
 
   const togglePersistence = useCallback(async () => {

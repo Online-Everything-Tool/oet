@@ -20,10 +20,7 @@ export default function LinkedinPostFormatterPage() {
         description={typedMetadata.description || ''}
       />
       <ToolSuspenseWrapper>
-        <LinkedinPostFormatterClient
-          toolTitle={toolTitle}
-          toolRoute={toolRoute}
-        />
+        <LinkedinPostFormatterClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

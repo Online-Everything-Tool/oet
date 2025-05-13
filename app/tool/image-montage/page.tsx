@@ -16,7 +16,7 @@ export default function ImageMontagePage() {
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
-        <ImageMontageClient toolTitle={toolTitle} toolRoute={toolRoute} />
+        <ImageMontageClient toolRoute={toolRoute} />
       </ToolSuspenseWrapper>
     </div>
   );

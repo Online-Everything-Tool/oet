@@ -157,7 +157,7 @@ export default function EmojiSearchClient({
         setLastCopiedValue({ type: copyContentType, value: textToCopy });
         setTimeout(() => setLastCopiedValue(null), 1500);
       } catch (err) {
-        console.error(`Failed to copy ${copyContentType}:`, err);
+        console.error(`Failed to copy ${emojiName} ${copyContentType}:`, err);
       }
     },
     []

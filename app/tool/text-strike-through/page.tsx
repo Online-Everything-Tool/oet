@@ -22,7 +22,6 @@ export default function TextStrikeThroughPage() {
       <ToolSuspenseWrapper>
         <TextStrikeThroughClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

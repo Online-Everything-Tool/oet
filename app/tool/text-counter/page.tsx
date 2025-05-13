@@ -22,7 +22,6 @@ export default function TextCounterPage() {
       <ToolSuspenseWrapper>
         <TextCounterClient
           urlStateParams={urlStateParams}
-          toolTitle={toolTitle}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>
