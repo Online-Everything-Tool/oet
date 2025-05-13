@@ -13,12 +13,14 @@
       "defaultValue": "lowercase"
     }
   ],
+  "inputConfig": [{ "acceptsMimeTypes": ["text/*"] }],
   "outputConfig": {
-    "summaryField": "resultCaseTypeLabel"
+    "transferableContent": {
+      "dataType": "text",
+      "textStateKey": "outputValue"
+    }
   },
   "tags": ["text", "format", "developer"],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

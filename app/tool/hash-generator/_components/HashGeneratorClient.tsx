@@ -2,9 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -71,7 +69,6 @@ export default function HashGeneratorClient({
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const { addHistoryEntry } = useHistory();
   const { addFile: addFileToLibrary } = useFileLibrary();
 
   const algorithmOptions = useMemo(
@@ -85,11 +82,7 @@ export default function HashGeneratorClient({
   );
 
   const handleGenerateHash = useCallback(
-    async (
-      triggerType: TriggerType,
-      textToProcess = toolState.inputText,
-      algo = toolState.algorithm
-    ) => {
+    async (textToProcess = toolState.inputText, algo = toolState.algorithm) => {
       setError('');
       setOutputValue('');
       setIsProcessing(true);
@@ -103,15 +96,7 @@ export default function HashGeneratorClient({
       }
 
       let result = '';
-      let status: 'success' | 'error' = 'success';
       let errorMessage = '';
-      let historyOutputObj: Record<string, unknown> = {};
-      const inputDetailsForHistory = {
-        source: toolState.lastLoadedFilename || 'pasted/typed',
-        inputTextLength: trimmedTextToProcess.length,
-        algorithm: algo,
-      };
-
       try {
         if (algo === 'MD5') {
           result = md5(trimmedTextToProcess);
@@ -128,32 +113,17 @@ export default function HashGeneratorClient({
           result = bufferToHex(hashBuffer);
         }
         setOutputValue(result);
-        historyOutputObj = { algorithmUsed: algo, hashValue: result };
       } catch (err) {
         errorMessage = err instanceof Error ? err.message : 'Hashing error.';
         setError(`Error: ${errorMessage}`);
-        status = 'error';
-        (inputDetailsForHistory as Record<string, unknown>).error =
-          errorMessage;
-        historyOutputObj = { algorithmUsed: `Error (${algo})`, errorMessage };
       } finally {
         setIsProcessing(false);
       }
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: triggerType,
-        input: inputDetailsForHistory,
-        output: historyOutputObj,
-        status: status,
-        eventTimestamp: Date.now(),
-      });
     },
     [
       toolState.inputText,
       toolState.algorithm,
       toolState.lastLoadedFilename,
-      addHistoryEntry,
       toolTitle,
       toolRoute,
     ]
@@ -196,10 +166,7 @@ export default function HashGeneratorClient({
           lastLoadedFilename: loadedFilename,
         }));
       } else if (initialInput.trim()) {
-        setTimeout(
-          () => handleGenerateHash('query', initialInput, initialAlgo),
-          0
-        );
+        setTimeout(() => handleGenerateHash(initialInput, initialAlgo), 0);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,7 +174,7 @@ export default function HashGeneratorClient({
 
   useEffect(() => {
     if (!isLoadingToolState) {
-      debouncedGenerateHash('auto', toolState.inputText, toolState.algorithm);
+      debouncedGenerateHash(toolState.inputText, toolState.algorithm);
     }
   }, [
     toolState.inputText,
@@ -246,7 +213,7 @@ export default function HashGeneratorClient({
   }, [setToolState, debouncedGenerateHash]);
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[]) => {
       setIsLoadFileModalOpen(false);
       if (files.length === 0) return;
       const file = files[0];
@@ -361,32 +328,10 @@ export default function HashGeneratorClient({
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
           setError('');
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: {
-              action: 'downloadOutput',
-              filename: finalFilename,
-              length: outputValue.length,
-            },
-            output: { message: `Downloaded ${finalFilename}` },
-            status: 'success',
-            eventTimestamp: Date.now(),
-          });
         } catch (err) {
           const msg =
             err instanceof Error ? err.message : 'Unknown download error';
           setError(`Failed to prepare download: ${msg}`);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: { action: 'downloadOutput', filename: finalFilename },
-            output: { error: `Download failed: ${msg}` },
-            status: 'error',
-            eventTimestamp: Date.now(),
-          });
         }
       } else if (currentAction === 'save') {
         if (!outputValue) {
@@ -401,38 +346,11 @@ export default function HashGeneratorClient({
             setSaveSuccess(true);
             setError('');
             setTimeout(() => setSaveSuccess(false), 2000);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: {
-                action: 'saveOutputToLibrary',
-                filename: finalFilename,
-                length: outputValue.length,
-              },
-              output: {
-                message: 'Saved to library',
-                fileId: newFileId,
-                filename: finalFilename,
-              },
-              status: 'success',
-              eventTimestamp: Date.now(),
-              outputFileIds: [newFileId],
-            });
           })
           .catch((err) => {
             const msg =
               err instanceof Error ? err.message : 'Unknown save error';
             setError(`Failed to save to library: ${msg}`);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: { action: 'saveOutputToLibrary', filename: finalFilename },
-              output: { error: `Save to library failed: ${msg}` },
-              status: 'error',
-              eventTimestamp: Date.now(),
-            });
           });
       }
       setFilenameAction(null);
@@ -445,7 +363,6 @@ export default function HashGeneratorClient({
       addFileToLibrary,
       toolTitle,
       toolRoute,
-      addHistoryEntry,
       setError,
       setSaveSuccess,
       generateOutputFilename,
@@ -464,35 +381,10 @@ export default function HashGeneratorClient({
       setCopySuccess(true);
       setError('');
       setTimeout(() => setCopySuccess(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput', length: outputValue.length },
-        output: { message: 'Copied to clipboard' },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       setError('Failed to copy to clipboard.');
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput' },
-        output: { error: 'Failed to copy' },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
     }
-  }, [
-    outputValue,
-    toolTitle,
-    toolRoute,
-    addHistoryEntry,
-    setError,
-    setCopySuccess,
-  ]);
+  }, [outputValue, toolTitle, toolRoute, setError, setCopySuccess]);
 
   if (isLoadingToolState) {
     return (

@@ -1,6 +1,5 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageState.ts ---
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useHistory } from '@/app/context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import useToolState from '../../_hooks/useToolState';
@@ -86,7 +85,6 @@ export function useMontageState(
   const [localError, setLocalError] = useState<string | null>(null);
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
 
-  const { addHistoryEntry } = useHistory();
   const { getImage } = useImageLibrary();
 
   const isLoading =
@@ -354,57 +352,16 @@ export function useMontageState(
           images: [...prevState.images, ...addedInThisUpdate],
         };
       });
-
-      if (newlyAddedImages.length > 0) {
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'transfer',
-          input: {
-            action: 'addImages',
-            addedFileCount: newlyAddedImages.length,
-            addedFileIds: newlyAddedImages.map((f) => f.imageId),
-            addedFileNames: addedFileNames.join(', ').substring(0, 500),
-          },
-          output: {
-            message: `Added ${newlyAddedImages.length} image(s) to montage queue.`,
-          },
-          status: 'success',
-          eventTimestamp: Date.now(),
-          outputFileIds: [],
-        });
-      }
     },
-    [setPersistentState, addHistoryEntry, toolTitle, toolRoute]
+    [setPersistentState, toolTitle, toolRoute]
   );
 
   const clearMontage = useCallback(async () => {
     const previousCount = persistentState.images.length;
     if (previousCount === 0) return;
-    const previousImageIds = persistentState.images.map((img) => img.imageId);
     setLocalError(null);
     await clearPersistentState();
-    addHistoryEntry({
-      toolName: toolTitle,
-      toolRoute: toolRoute,
-      trigger: 'click',
-      input: {
-        action: 'clearMontage',
-        previousImageCount: previousCount,
-        previousImageIds: previousImageIds,
-      },
-      output: { message: `Cleared ${previousCount} image(s) from montage.` },
-      status: 'success',
-      eventTimestamp: Date.now(),
-      outputFileIds: [],
-    });
-  }, [
-    persistentState.images,
-    clearPersistentState,
-    addHistoryEntry,
-    toolTitle,
-    toolRoute,
-  ]);
+  }, [persistentState.images, clearPersistentState, toolTitle, toolRoute]);
 
   const handleTiltChange = useCallback(
     (imageId: string, newTilt: number) => {
@@ -529,30 +486,9 @@ export function useMontageState(
 
   const handleEffectChange = useCallback(
     (newEffect: MontageEffect) => {
-      const previousEffect = persistentState.effect;
       setPersistentState((prevState) => ({ ...prevState, effect: newEffect }));
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: {
-          action: 'changeEffect',
-          newEffect: newEffect,
-          previousEffect: previousEffect,
-        },
-        output: { message: `Changed montage effect to ${newEffect}.` },
-        status: 'success',
-        eventTimestamp: Date.now(),
-        outputFileIds: [],
-      });
     },
-    [
-      setPersistentState,
-      addHistoryEntry,
-      toolTitle,
-      toolRoute,
-      persistentState.effect,
-    ]
+    [setPersistentState, toolTitle, toolRoute, persistentState.effect]
   );
 
   return {

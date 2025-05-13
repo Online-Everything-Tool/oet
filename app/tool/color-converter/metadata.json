@@ -10,9 +10,14 @@
     { "paramName": "s", "type": "string", "defaultValue": "" },
     { "paramName": "l", "type": "string", "defaultValue": "" }
   ],
+  "inputConfig": [{ "acceptsMimeTypes": ["text/plain", "text/x-hex-color"] }],
+  "outputConfig": {
+    "transferableContent": {
+      "dataType": "jsonObject",
+      "jsonStateKey": "validColorValues"
+    }
+  },
   "tags": ["color", "converter", "developer", "css", "design"],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

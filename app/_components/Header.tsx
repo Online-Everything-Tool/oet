@@ -4,20 +4,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useHistory } from '@/app/context/HistoryContext';
 import { useFavorites } from '@/app/context/FavoritesContext';
 
-import { StarIcon, ListBulletIcon } from '@heroicons/react/24/solid';
+import { StarIcon } from '@heroicons/react/24/solid';
 
 import Button from '@/app/tool/_components/form/Button';
 
 export default function Header() {
-  const { history, isLoaded: historyLoaded } = useHistory();
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const [showFavoritesDropdown, setShowFavoritesDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const historyCount = historyLoaded ? history.length : 0;
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
   const pathname = usePathname();
   const isHome = pathname === '/';
@@ -134,29 +131,6 @@ export default function Header() {
               )}
             </div>
           )}
-
-          {/* History Link (Styled Link) */}
-          <Link
-            href="/history"
-            className="relative inline-flex items-center justify-center text-sm font-medium hover:text-indigo-200 transition-colors duration-200 px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.1)]"
-            aria-label="View History"
-            title="View History"
-          >
-            <ListBulletIcon
-              className="h-5 w-5 text-indigo-200"
-              aria-hidden="true"
-            />
-            {historyLoaded && historyCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-yellow-400 text-gray-900 text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
-                title={`${historyCount} history entries`}
-                aria-hidden="true"
-              >
-                {historyCount > 99 ? '99+' : historyCount}
-              </span>
-            )}
-            <span className="sr-only">History ({historyCount} items)</span>
-          </Link>
         </div>
       </nav>
     </header>

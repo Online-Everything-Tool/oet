@@ -1,15 +1,21 @@
 // FILE: app/tool/image-storage/_components/ImageStorageClient.tsx
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from 'react';
 import Image from 'next/image';
-import { useHistory } from '../../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import StorageControls from '../../_components/file-storage/StorageControls';
 import FileListView from '../../_components/file-storage/FileListView';
 import FileGridView from '../../_components/file-storage/FileGridView';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import useToolState from '../../_hooks/useToolState'; // Import useToolState
 
 import { PhotoIcon } from '@heroicons/react/20/solid';
 
@@ -18,12 +24,25 @@ interface ImageStorageClientProps {
   toolRoute: string;
 }
 
+// Define the state structure for persistence
+interface PersistedImageStorageState {
+  selectedImageIds: string[];
+  layout: 'list' | 'grid';
+  isFilterSelectedActive: boolean;
+}
+
+const DEFAULT_IMAGE_STORAGE_STATE: PersistedImageStorageState = {
+  selectedImageIds: [],
+  layout: 'grid', // Default to grid view
+  isFilterSelectedActive: false,
+};
+
 export default function ImageStorageClient({
   toolTitle,
   toolRoute,
 }: ImageStorageClientProps) {
   const [storedImages, setStoredImages] = useState<StoredFile[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [clientIsLoading, setClientIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
@@ -33,27 +52,40 @@ export default function ImageStorageClient({
       { type: 'copy' | 'download' | 'error'; message: string } | null
     >
   >({});
-  const [layout, setLayout] = useState<'list' | 'grid'>('grid');
   const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(
     new Map()
   );
   const managedUrlsRef = useRef<Map<string, string>>(new Map());
-  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(
-    new Set()
-  );
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
-  const [isFilterSelectedActive, setIsFilterSelectedActive] =
-    useState<boolean>(false);
-
-  const { addHistoryEntry } = useHistory();
   const { listImages, deleteImage, clearAllImages, getImage } =
     useImageLibrary();
+
+  // --- Integrate useToolState ---
+  const {
+    state: persistentState,
+    setState: setPersistentState,
+    isLoadingState: isLoadingToolState,
+    errorLoadingState: toolStateError,
+  } = useToolState<PersistedImageStorageState>(
+    toolRoute,
+    DEFAULT_IMAGE_STORAGE_STATE
+  );
+
+  // Derive state from persistentState
+  const selectedImageIds = useMemo(
+    () => new Set(persistentState.selectedImageIds),
+    [persistentState.selectedImageIds]
+  );
+  const layout = persistentState.layout;
+  const isFilterSelectedActive = persistentState.isFilterSelectedActive;
+  // --- End useToolState Integration ---
 
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach(URL.revokeObjectURL);
     managedUrlsRef.current.clear();
   }, []);
+
   const updatePreviewUrlsForImagesClient = useCallback(
     (imagesToDisplay: StoredFile[]) => {
       setPreviewUrls((prevMap) => {
@@ -100,11 +132,13 @@ export default function ImageStorageClient({
     },
     []
   );
+
   useEffect(() => {
     return () => {
       revokeManagedUrls();
     };
   }, [revokeManagedUrls]);
+
   useEffect(() => {
     updatePreviewUrlsForImagesClient(storedImages);
     const currentIds = new Set(storedImages.map((f) => f.id));
@@ -150,37 +184,49 @@ export default function ImageStorageClient({
 
   const loadAndDisplayImages = useCallback(async () => {
     setError(null);
-    setIsLoading(true);
+    setClientIsLoading(true);
     try {
-      const images = await listImages(100);
+      const images = await listImages(100); // listImages only gets permanent images
       setStoredImages(images);
     } catch (err) {
       setError(
-        `Failed to load stored files: ${err instanceof Error ? err.message : 'Unknown error'}`
+        `Failed to load stored images: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
       setStoredImages([]);
     } finally {
-      setIsLoading(false);
+      setClientIsLoading(false);
     }
   }, [listImages]);
 
   useEffect(() => {
-    loadAndDisplayImages();
-  }, [loadAndDisplayImages]);
+    if (!isLoadingToolState) {
+      // Only load after tool state is ready
+      loadAndDisplayImages();
+    }
+  }, [loadAndDisplayImages, isLoadingToolState]);
 
   const handleAddClick = () => {
     setIsModalOpen(true);
   };
 
+  // Update setPersistentState for layout and filter toggle
+  const handleLayoutChange = useCallback(
+    (newLayout: 'list' | 'grid') => {
+      setPersistentState({ layout: newLayout });
+    },
+    [setPersistentState]
+  );
+
   const handleToggleFilterSelected = useCallback(() => {
-    setIsFilterSelectedActive((prev) => !prev);
-  }, []);
+    setPersistentState((prev) => ({
+      isFilterSelectedActive: !prev.isFilterSelectedActive,
+    }));
+  }, [setPersistentState]);
 
   const handleModalFilesSelected = useCallback(
     async (
       filesFromModal: StoredFile[],
       _source: 'library' | 'upload',
-      _saveUploadedToLibrary?: boolean,
       filterToThese?: boolean
     ) => {
       setIsModalOpen(false);
@@ -193,26 +239,20 @@ export default function ImageStorageClient({
       setError(null);
       setIsProcessing(true);
 
-      await loadAndDisplayImages();
+      await loadAndDisplayImages(); // Refresh the list
 
       if (filterToThese) {
-        const addedImageIds = new Set(
-          imageFilesToAdd.map((f) => f.id).filter((id) => !!id)
-        );
-        const currentImageIdSet = new Set(storedImages.map((f) => f.id));
-        const validAddedIds = new Set<string>();
-        addedImageIds.forEach((id) => {
-          if (currentImageIdSet.has(id)) validAddedIds.add(id);
+        const addedImageIdsArray = imageFilesToAdd
+          .map((f) => f.id)
+          .filter((id): id is string => !!id);
+        setPersistentState({
+          selectedImageIds: addedImageIdsArray,
+          isFilterSelectedActive: true,
         });
-        setSelectedImageIds(validAddedIds);
-        setIsFilterSelectedActive(true);
-      } else {
-        setSelectedImageIds(new Set());
-        setIsFilterSelectedActive(false);
       }
       setIsProcessing(false);
     },
-    [loadAndDisplayImages, storedImages]
+    [loadAndDisplayImages, setPersistentState]
   );
 
   const handleDeleteSingleImage = useCallback(
@@ -225,35 +265,16 @@ export default function ImageStorageClient({
       try {
         await deleteImage(imageId);
         setStoredImages((prev) => prev.filter((f) => f.id !== imageId));
-        setSelectedImageIds((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(imageId);
-          return newSet;
-        });
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'click',
-          input: { deletedImageId: imageId, deletedImageName: imageName },
-          output: { message: `Deleted "${imageName}"` },
-          outputFileIds: [],
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
+        // Update persistent state
+        setPersistentState((prev) => ({
+          selectedImageIds: prev.selectedImageIds.filter(
+            (id) => id !== imageId
+          ),
+        }));
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Unknown error deleting image.';
         setError(`Failed to delete "${imageName}". ${message}`);
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'click',
-          input: { deletedImageId: imageId, error: message },
-          output: `Error deleting "${imageName}": ${message}`,
-          outputFileIds: [],
-          status: 'error',
-          eventTimestamp: Date.now(),
-        });
       } finally {
         setIsProcessing(false);
       }
@@ -263,15 +284,16 @@ export default function ImageStorageClient({
       selectedImageIds,
       storedImages,
       deleteImage,
-      addHistoryEntry,
       toolRoute,
       toolTitle,
+      setPersistentState, // Added
     ]
   );
 
   const handleClearAll = useCallback(async () => {
     if (
-      isLoading ||
+      clientIsLoading || // Use clientIsLoading
+      isLoadingToolState || // And isLoadingToolState
       isProcessing ||
       isBulkDeleting ||
       storedImages.length === 0 ||
@@ -282,46 +304,33 @@ export default function ImageStorageClient({
     setIsProcessing(true);
     const count = storedImages.length;
     try {
-      await clearAllImages();
+      await clearAllImages(); // This should only clear images now
       loadAndDisplayImages();
-      setSelectedImageIds(new Set());
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: { clearAllCount: count },
-        output: `Cleared all ${count} images.`,
-        status: 'success',
-        eventTimestamp: Date.now(),
+      // Clear selectedImageIds in persistent state
+      setPersistentState({
+        selectedImageIds: [],
+        isFilterSelectedActive: false,
       });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Unknown error clearing images.';
       setError(`Failed to clear all images. ${message}`);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: { clearAllCount: count, error: message },
-        output: `Error clearing images: ${message}`,
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
       await loadAndDisplayImages();
     } finally {
       setIsProcessing(false);
     }
   }, [
-    isLoading,
+    clientIsLoading,
+    isLoadingToolState,
     isProcessing,
     isBulkDeleting,
     storedImages,
     selectedImageIds,
     clearAllImages,
-    addHistoryEntry,
     toolRoute,
     toolTitle,
     loadAndDisplayImages,
+    setPersistentState, // Added
   ]);
 
   const handleDownloadFile = useCallback(
@@ -348,6 +357,7 @@ export default function ImageStorageClient({
     },
     [getImage, setItemFeedback]
   );
+
   const handleCopyFileContent = useCallback(
     async (imageId: string) => {
       setError(null);
@@ -372,18 +382,25 @@ export default function ImageStorageClient({
     },
     [getImage, setItemFeedback]
   );
-  const handleToggleSelection = useCallback((imageId: string) => {
-    setSelectedImageIds((prevSelected) => {
-      const newSelected = new Set(prevSelected);
-      if (newSelected.has(imageId)) newSelected.delete(imageId);
-      else newSelected.add(imageId);
-      return newSelected;
-    });
-  }, []);
+
+  // Update to use setPersistentState
+  const handleToggleSelection = useCallback(
+    (imageId: string) => {
+      setPersistentState((prev) => {
+        const newSelected = new Set(prev.selectedImageIds);
+        if (newSelected.has(imageId)) newSelected.delete(imageId);
+        else newSelected.add(imageId);
+        return { selectedImageIds: Array.from(newSelected) };
+      });
+    },
+    [setPersistentState]
+  );
+
   const handleDeleteSelected = useCallback(async () => {
     if (
       selectedImageIds.size === 0 ||
-      isLoading ||
+      clientIsLoading || // Use clientIsLoading
+      isLoadingToolState || // And isLoadingToolState
       isProcessing ||
       isBulkDeleting
     )
@@ -405,49 +422,27 @@ export default function ImageStorageClient({
         errorsEncountered.push(`Failed to delete "${name}": ${message}`);
       }
     }
-    setSelectedImageIds(new Set());
-    let historyOutput: Record<string, unknown> | string = {};
-    let finalStatus: 'success' | 'error' = 'success';
-    if (errorsEncountered.length === 0) {
-      historyOutput = {
-        message: `Deleted ${count} selected image(s).`,
-        deletedCount: count,
-        deletedNames: deletedNames,
-      };
-    } else {
-      finalStatus = 'error';
+    // Clear selectedImageIds in persistent state
+    setPersistentState({ selectedImageIds: [], isFilterSelectedActive: false });
+
+    if (errorsEncountered.length !== 0) {
       const errorMessage = `Errors occurred: ${errorsEncountered.join('; ')}`;
       setError(errorMessage);
-      historyOutput = {
-        message: errorMessage,
-        deletedCount: deletedNames.length,
-        errorCount: errorsEncountered.length,
-        errors: errorsEncountered,
-      };
     }
-    addHistoryEntry({
-      toolName: toolTitle,
-      toolRoute: toolRoute,
-      trigger: 'click',
-      input: { deletedImageIds: idsToDelete, requestedCount: count },
-      output: historyOutput,
-      outputFileIds: [],
-      status: finalStatus,
-      eventTimestamp: Date.now(),
-    });
     await loadAndDisplayImages();
     setIsBulkDeleting(false);
   }, [
     selectedImageIds,
-    isLoading,
+    clientIsLoading,
+    isLoadingToolState,
     isProcessing,
     isBulkDeleting,
     storedImages,
     deleteImage,
     loadAndDisplayImages,
-    addHistoryEntry,
     toolRoute,
     toolTitle,
+    setPersistentState, // Added
   ]);
 
   const renderPreview = useCallback(
@@ -472,17 +467,23 @@ export default function ImageStorageClient({
     [previewUrls]
   );
 
-  const controlsAreLoading = isLoading || isProcessing || isBulkDeleting;
+  // Combine loading states
+  const combinedClientAndViewLoading = clientIsLoading || isLoadingToolState;
+  const controlsAreLoading =
+    combinedClientAndViewLoading || isProcessing || isBulkDeleting;
 
   const itemsToShow = isFilterSelectedActive
     ? storedImages.filter((img) => selectedImageIds.has(img.id))
     : storedImages;
   const showEmpty =
-    !isLoading && itemsToShow.length === 0 && !controlsAreLoading;
+    !combinedClientAndViewLoading &&
+    itemsToShow.length === 0 &&
+    !controlsAreLoading;
+
+  const currentError = error || toolStateError;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      {/* Use StorageControls */}
       <StorageControls
         isLoading={controlsAreLoading}
         isDeleting={isBulkDeleting}
@@ -493,23 +494,23 @@ export default function ImageStorageClient({
         onToggleFilterSelected={handleToggleFilterSelected}
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
-        onLayoutChange={setLayout}
+        onLayoutChange={handleLayoutChange} // Use the new handler
         onDeleteSelectedClick={handleDeleteSelected}
         itemNameSingular={'Image'}
         itemNamePlural={'Images'}
       />
-      {error && (
+      {currentError && (
         <div
           role="alert"
           className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm"
         >
           {' '}
-          <strong>Error:</strong> {error}{' '}
+          <strong>Error:</strong> {currentError}{' '}
         </div>
       )}
 
       <div className="border-2 border-dashed border-gray-300 rounded-md min-h-[200px] p-1">
-        {isLoading &&
+        {combinedClientAndViewLoading && // Use combined loading state
           !isProcessing &&
           !isBulkDeleting &&
           storedImages.length === 0 && (
@@ -530,8 +531,7 @@ export default function ImageStorageClient({
             </p>
           </div>
         )}
-        {/* Pass itemsToShow */}
-        {!isLoading &&
+        {!combinedClientAndViewLoading && // Use combined loading state
           !showEmpty &&
           (layout === 'list' ? (
             <FileListView
@@ -561,7 +561,6 @@ export default function ImageStorageClient({
           ))}
       </div>
 
-      {/* Use FileSelectionModal */}
       <FileSelectionModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}

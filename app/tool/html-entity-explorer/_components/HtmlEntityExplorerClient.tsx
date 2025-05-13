@@ -3,7 +3,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react'; // useEffect might be needed if we add more complex effects
 import type { RichEntityData } from '../page';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input';
@@ -52,7 +51,6 @@ export default function HtmlEntityExplorerClient({
     type: 'char' | 'name' | 'code';
   } | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
-  const { addHistoryEntry } = useHistory(); // useContext
 
   // --- MEMOIZED VALUES (HOOKS) ---
   const filteredEntities = useMemo(() => {
@@ -131,21 +129,6 @@ export default function HtmlEntityExplorerClient({
       if (!navigator.clipboard || !navigator.clipboard.writeText) {
         const errorMsg = 'Clipboard API not available in this browser.';
         setCopyError(errorMsg);
-        addHistoryEntry({
-          toolName: 'HTML Entity Explorer',
-          toolRoute: '/tool/html-entity-explorer',
-          trigger: 'click',
-          input: {
-            copiedType: type,
-            value: textToCopy,
-            entityName: entity.name,
-            source,
-            error: errorMsg,
-          },
-          output: { char: entity.char, name: entity.name },
-          status: 'error',
-          eventTimestamp: Date.now(),
-        });
         return;
       }
       try {
@@ -162,42 +145,13 @@ export default function HtmlEntityExplorerClient({
             return { ...prev, recentlyCopiedEntities: newRecents };
           });
         }
-        addHistoryEntry({
-          toolName: 'HTML Entity Explorer',
-          toolRoute: '/tool/html-entity-explorer',
-          trigger: 'click',
-          input: {
-            copiedType: type,
-            value: textToCopy,
-            entityName: entity.name,
-            source,
-          },
-          output: { char: entity.char, name: entity.name, code: entity.code },
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
       } catch (err) {
         const errorMsg = `Failed to copy ${type}: ${err instanceof Error ? err.message : 'Unknown clipboard error'}`;
         console.error(errorMsg, err);
         setCopyError(errorMsg);
-        addHistoryEntry({
-          toolName: 'HTML Entity Explorer',
-          toolRoute: '/tool/html-entity-explorer',
-          trigger: 'click',
-          input: {
-            copiedType: type,
-            value: textToCopy,
-            entityName: entity.name,
-            source,
-            error: errorMsg,
-          },
-          output: { char: entity.char, name: entity.name },
-          status: 'error',
-          eventTimestamp: Date.now(),
-        });
       }
     },
-    [addHistoryEntry, setToolState] // Removed toolState from deps as it's accessed via functional update in setToolState
+    [setToolState] // Removed toolState from deps as it's accessed via functional update in setToolState
   );
 
   // --- CONDITIONAL RETURN MOVED AFTER ALL HOOKS ---

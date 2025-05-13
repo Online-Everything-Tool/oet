@@ -2,13 +2,13 @@
   "title": "File Storage",
   "description": "Upload, view, and manage files stored locally in your browser using IndexedDB.",
   "outputConfig": {
-    "summaryField": "message",
-    "referenceType": "imageLibraryId",
-    "referenceField": "imageId"
+    "transferableContent": {
+      "dataType": "selectionReferenceList",
+      "fileIdStateKey": "selectedFileIds",
+      "fileCategory": "*"
+    }
   },
   "tags": ["file", "storage", "local", "indexeddb", "utility", "management"],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "beta",
-  "defaultLogging": "on"
+  "status": "beta"
 }

@@ -1,28 +1,23 @@
 // FILE: app/lib/db.ts
 import Dexie, { type EntityTable } from 'dexie';
 import type { StoredFile } from '@/src/types/storage';
-import type { HistoryEntry } from '@/src/types/history';
 
 const CURRENT_SCHEMA_VERSION = 10;
 
 export class OetDatabase extends Dexie {
   files!: EntityTable<StoredFile, 'id'>;
-  history!: EntityTable<HistoryEntry, 'id'>;
 
   constructor() {
     super('OetDatabase');
 
     this.version(CURRENT_SCHEMA_VERSION).stores({
       files: 'id, createdAt, isTemporary, type, toolRoute',
-
-      history: 'id, toolRoute, eventTimestamp, *outputFileIds',
     });
 
     this.files.mapToClass(Object as unknown as { new (): StoredFile });
-    this.history.mapToClass(Object as unknown as { new (): HistoryEntry });
 
     console.log(
-      `[DB] Initialized Dexie schema version ${CURRENT_SCHEMA_VERSION}. Added 'toolRoute' index to 'files', '*outputFileIds' index to 'history'.`
+      `[DB] Initialized Dexie schema version ${CURRENT_SCHEMA_VERSION}.`
     );
   }
 }
@@ -41,5 +36,5 @@ const getDbInstance = (): OetDatabase => {
   return dbInstance;
 };
 
-export type { StoredFile, HistoryEntry };
+export type { StoredFile };
 export { getDbInstance };

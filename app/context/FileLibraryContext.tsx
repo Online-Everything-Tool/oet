@@ -231,8 +231,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     }
 
     try {
-      if (!db?.files || !db?.history)
-        throw new Error("DB 'files' or 'history' table not available.");
+      if (!db?.files) throw new Error("DB 'files' table not available.");
 
       const stateFiles = await db.files
         .where({ type: 'application/x-oet-tool-state+json' })
@@ -272,15 +271,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       }
 
       await db.files.delete(id);
-
-      const deletedHistoryCount = await db.history
-        .where('outputFileIds')
-        .equals(id)
-        .delete();
-      if (deletedHistoryCount > 0)
-        console.log(
-          `Deleted ${deletedHistoryCount} history entries referencing file ${id}.`
-        );
     } catch (err: unknown) {
       const m = err instanceof Error ? err.message : 'Unknown DB error';
       setError(`Failed to delete file: ${m}`);
@@ -313,8 +303,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       }
 
       try {
-        if (!db?.files || !db?.history)
-          throw new Error("DB 'files' or 'history' table not available.");
+        if (!db?.files) throw new Error("DB 'files' table not available.");
 
         let collectionToClear = db.files.filter(
           (file) => file.type !== 'application/x-oet-tool-state+json'
@@ -328,18 +317,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
 
         if (keysToDelete.length > 0) {
           await db.files.bulkDelete(keysToDelete);
-          const historyKeysToDelete: string[] = [];
-          const historyScanPromises = keysToDelete.map(async (fileId) => {
-            const historyReferencingFile = await db.history
-              .where('outputFileIds')
-              .equals(fileId)
-              .primaryKeys();
-            historyKeysToDelete.push(...historyReferencingFile);
-          });
-          await Promise.all(historyScanPromises);
-          const uniqueHistoryKeys = [...new Set(historyKeysToDelete)];
-          if (uniqueHistoryKeys.length > 0)
-            await db.history.bulkDelete(uniqueHistoryKeys);
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown DB error';
@@ -358,8 +335,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     let db: OetDatabase | null = null;
     try {
       db = getDbInstance();
-      if (!db?.files || !db?.history)
-        throw new Error("DB 'files' or 'history' table not available.");
+      if (!db?.files) throw new Error("DB 'files' table not available.");
 
       const allTempFiles = await db.files
         .filter((file) => file.isTemporary === true)
@@ -370,15 +346,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       const tempOutputFiles = allTempFiles.filter(
         (file) => file.type !== 'application/x-oet-tool-state+json'
       );
-
-      const historyFileIds = new Set<string>();
-      await db.history.each((entry) => {
-        entry.outputFileIds?.forEach((id) => historyFileIds.add(id));
-      });
-
-      const outputFilesToDelete = tempOutputFiles
-        .filter((file) => !historyFileIds.has(file.id))
-        .map((file) => file.id);
+      const outputFilesToDelete = tempOutputFiles.map((file) => file.id);
       const stateFilesToDelete = tempStateFiles.map((file) => file.id);
       const allTempKeysToDelete = [
         ...new Set([...outputFilesToDelete, ...stateFilesToDelete]),

@@ -8,7 +8,7 @@ import FileStorageClient from './_components/FileStorageClient';
 
 export default function FileStoragePage() {
   const toolTitle = metadata.title || 'File Storage';
-  const toolRoute = '/tool/file-storage/';
+  const toolRoute = '/tool/file-storage';
 
   return (
     <div className="relative flex flex-col gap-6">

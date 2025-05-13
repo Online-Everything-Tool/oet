@@ -2,8 +2,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import ToolHistorySettings from './ToolHistorySettings';
-import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import FeedbackModal from '@/app/_components/FeedbackModal';
 import { useFavorites } from '@/app/context/FavoritesContext';
 
@@ -11,7 +9,6 @@ import {
   StarIcon as StarIconSolid,
   ChatBubbleBottomCenterTextIcon,
   ListBulletIcon,
-  Cog6ToothIcon,
 } from '@heroicons/react/24/solid';
 import { StarIcon as StarIconOutline } from '@heroicons/react/24/outline';
 
@@ -155,17 +152,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
         <ListBulletIcon className="h-5 w-5" aria-hidden="true" />
       </button>
 
-      {/* Settings Button */}
-      <button
-        type="button"
-        onClick={openSettings}
-        title="History Logging Settings"
-        aria-label="Open History Logging Settings"
-        className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
-      >
-        <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
-      </button>
-
       {/* Settings Modal (Structure unchanged) */}
       {isSettingsOpen && (
         <div
@@ -207,10 +193,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
                   />
                 </svg>
               </button>
-            </div>
-            {/* Body */}
-            <div className="p-6 overflow-y-auto">
-              <ToolHistorySettings toolRoute={toolRoute} />
             </div>
             {/* Footer */}
             <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end">
@@ -267,14 +249,6 @@ export default function ToolSettings({ toolRoute }: ToolSettingsProps) {
                   />
                 </svg>
               </button>
-            </div>
-            {/* Body */}
-            <div className="p-6 overflow-y-auto flex-grow">
-              <RecentlyUsedWidget
-                limit={10}
-                filterToolRoute={toolRoute}
-                displayMode="toolpage"
-              />
             </div>
           </div>
         </div>

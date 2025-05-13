@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import JSZip from 'jszip';
 import Image from 'next/image';
-import { useHistory } from '../../../context/HistoryContext';
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
@@ -22,7 +21,6 @@ import type { StoredFile } from '@/src/types/storage';
 import {
   PREVIEWABLE_TEXT_EXTENSIONS,
   PREVIEWABLE_IMAGE_EXTENSIONS,
-  getFileIconClassName,
   formatBytesCompact,
 } from '@/app/lib/utils';
 import {
@@ -75,7 +73,6 @@ export default function ZipFileExplorerClient({
   toolTitle,
   toolRoute,
 }: ZipFileExplorerClientProps) {
-  const { addHistoryEntry } = useHistory();
   const { getFile } = useFileLibrary();
   const {
     state: persistentState,
@@ -296,14 +293,6 @@ export default function ZipFileExplorerClient({
       const isNewFile =
         persistentState.lastProcessedFileId !== fileToProcess.id;
       let rawEntriesCount = 0;
-      let historyStatus: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {};
-      const historyInput: Record<string, unknown> = {
-        fileName: fileToProcess.name,
-        fileSize: fileToProcess.size,
-        fileId: fileToProcess.id,
-      };
-
       try {
         const zip = new JSZip();
         zipRef.current = await zip.loadAsync(fileToProcess.blob);
@@ -332,10 +321,6 @@ export default function ZipFileExplorerClient({
             ? ''
             : prev.filterSelectedExtension,
         }));
-        historyOutputObj = {
-          fileCount: rawEntriesCount,
-          message: `${rawEntriesCount} files found in ${fileToProcess.name}`,
-        };
       } catch (err: unknown) {
         setClientError(
           err instanceof Error ? err.message : 'Failed to read zip file.'
@@ -349,28 +334,11 @@ export default function ZipFileExplorerClient({
           selectedPaths: [],
           expandedFolderPaths: [],
         }));
-        historyStatus = 'error';
-        historyOutputObj = {
-          fileCount: 'Error',
-          errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        };
-        historyInput.error =
-          err instanceof Error ? err.message : 'Unknown error';
       } finally {
         setIsLoadingZipProcessing(false);
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'upload',
-          input: historyInput,
-          output: historyOutputObj,
-          status: historyStatus,
-          eventTimestamp: Date.now(),
-        });
       }
     },
     [
-      addHistoryEntry,
       toolTitle,
       toolRoute,
       setPersistentState,
@@ -455,7 +423,7 @@ export default function ZipFileExplorerClient({
   }, [setPersistentState]);
 
   const handleFilesSelectedFromModal = useCallback(
-    (files: StoredFile[], source: 'library' | 'upload') => {
+    (files: StoredFile[]) => {
       const file = files[0];
       if (file) {
         if (
@@ -468,24 +436,11 @@ export default function ZipFileExplorerClient({
         } else {
           const errorMsg = 'Invalid file type. Please select a .zip file.';
           setClientError(errorMsg);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute,
-            trigger: source,
-            input: {
-              fileName: file.name,
-              fileId: file.id,
-              error: 'Invalid file type',
-            },
-            output: { fileCount: 'Error', errorMessage: errorMsg },
-            status: 'error',
-            eventTimestamp: Date.now(),
-          });
         }
       }
       setIsModalOpen(false);
     },
-    [processZipFile, addHistoryEntry, toolTitle, toolRoute]
+    [processZipFile, toolTitle, toolRoute]
   );
 
   const handleDownload = useCallback(async (entryData: ActionEntryData) => {

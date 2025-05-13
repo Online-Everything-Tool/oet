@@ -14,11 +14,11 @@
     }
   ],
   "outputConfig": {
-    "summaryField": "validationStatus"
+    "transferableContent": {
+      "dataType": "none"
+    }
   },
   "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

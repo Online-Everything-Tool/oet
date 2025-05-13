@@ -13,12 +13,19 @@
       "defaultValue": "encode"
     }
   ],
+  "inputConfig": [
+    {
+      "acceptsMimeTypes": ["text/*"]
+    }
+  ],
   "outputConfig": {
-    "summaryField": "operationResult"
+    "transferableContent": {
+      "dataType": "text",
+      "textStateKey": "outputValue"
+    }
   },
   "tags": [],
   "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

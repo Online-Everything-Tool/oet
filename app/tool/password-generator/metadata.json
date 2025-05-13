@@ -2,11 +2,11 @@
   "title": "Password Generator",
   "description": "Generate strong, random passwords with customizable options.",
   "outputConfig": {
-    "summaryField": "generatedLength"
+    "transferableContent": {
+      "dataType": "none"
+    }
   },
   "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "restrictive"
+  "status": "stable"
 }

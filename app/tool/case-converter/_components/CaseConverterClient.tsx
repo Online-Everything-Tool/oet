@@ -2,12 +2,11 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
+import RadioGroup from '../../_components/form/RadioGroup';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type { ParamConfig } from '@/src/types/tools';
@@ -24,73 +23,45 @@ import {
 } from '@heroicons/react/24/outline';
 
 const SENTENCE_CASE_REGEX = /(^\s*\w|[.!?]\s*\w)/g;
-const TITLE_CASE_DELIMITERS = /[\s\-_]+/;
+const TITLE_WORD_DELIMITERS = /([\s\-_]+)/;
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
 
 interface CaseConverterToolState {
   inputText: string;
   caseType: CaseType;
+  outputValue: string;
   lastLoadedFilename?: string | null;
 }
 
 const DEFAULT_CASE_CONVERTER_STATE: CaseConverterToolState = {
   inputText: '',
   caseType: 'lowercase',
+  outputValue: '',
   lastLoadedFilename: null,
 };
 
-const buttonColorCycle = [
-  {
-    base: '--color-button-primary-bg',
-    hover: '--color-button-primary-hover-bg',
-    text: '--color-button-primary-text',
-  },
-  {
-    base: '--color-button-secondary-bg',
-    hover: '--color-button-secondary-hover-bg',
-    text: '--color-button-secondary-text',
-  },
-  {
-    base: '--color-button-accent2-bg',
-    hover: '--color-button-accent2-hover-bg',
-    text: '--color-button-accent2-text',
-  },
-  {
-    base: '--color-button-accent-bg',
-    hover: '--color-button-accent-hover-bg',
-    text: '--color-button-accent-text',
-  },
-] as const;
-
-const activeBgColorVar = '--color-button-accent-bg';
-const activeHoverBgColorVar = '--color-button-accent-hover-bg';
-const activeTextColorVar = '--color-button-accent-text';
-
 interface CaseConverterClientProps {
   urlStateParams: ParamConfig[];
-  toolTitle: string;
-  toolRoute: string;
+  toolTitle: string; // Keep for potential future use, though not directly used now
+  toolRoute: string; // Keep for useToolState key
 }
 
 export default function CaseConverterClient({
   urlStateParams,
-  toolTitle,
+  // toolTitle,
   toolRoute,
 }: CaseConverterClientProps) {
   const {
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
+    clearState: persistentClearState,
   } = useToolState<CaseConverterToolState>(
-    toolRoute,
+    toolRoute, // Pass toolRoute to useToolState
     DEFAULT_CASE_CONVERTER_STATE
   );
 
-  const [outputValue, setOutputValue] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const { addHistoryEntry } = useHistory();
-  const { addFile: addFileToLibrary } = useFileLibrary();
-
+  const [uiError, setUiError] = useState<string>('');
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
   const [filenameAction, setFilenameAction] = useState<
@@ -101,122 +72,112 @@ export default function CaseConverterClient({
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const { addFile: addFileToLibrary } = useFileLibrary();
+
   const performConversion = useCallback(
-    (
-      triggerType: TriggerType,
-      textToProcess = toolState.inputText,
-      targetCase = toolState.caseType
-    ) => {
+    (textToProcess = toolState.inputText, targetCase = toolState.caseType) => {
       let result = '';
       let currentError = '';
-      let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {};
-      const targetCaseLabel =
-        CASE_TYPES.find((ct) => ct.value === targetCase)?.label || targetCase;
-      setError('');
-      const trimmedTextToProcess = textToProcess.trim();
-      if (!trimmedTextToProcess) {
-        setOutputValue('');
+      if (uiError) setUiError('');
+
+      const inputForProcessing =
+        targetCase === 'title' ? textToProcess : textToProcess.trim();
+
+      if (!inputForProcessing && !textToProcess.trim()) {
+        setToolState({ outputValue: '' });
+        if (uiError) setUiError('');
         return;
       }
-
-      const inputDetailsForHistory = {
-        source: toolState.lastLoadedFilename || 'pasted/typed',
-        inputTextTruncated:
-          trimmedTextToProcess.length > 500
-            ? trimmedTextToProcess.substring(0, 500) + '...'
-            : trimmedTextToProcess,
-        caseType: targetCase,
-      };
 
       try {
         switch (targetCase) {
           case 'uppercase':
-            result = trimmedTextToProcess.toUpperCase();
+            result = inputForProcessing.toUpperCase();
             break;
           case 'lowercase':
-            result = trimmedTextToProcess.toLowerCase();
+            result = inputForProcessing.toLowerCase();
             break;
           case 'sentence':
-            result = trimmedTextToProcess
+            result = inputForProcessing
               .toLowerCase()
               .replace(SENTENCE_CASE_REGEX, (char) => char.toUpperCase());
             break;
           case 'title':
-            result = trimmedTextToProcess
-              .toLowerCase()
-              .split(TITLE_CASE_DELIMITERS)
-              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(' ');
+            result = inputForProcessing
+              .split(/(\r?\n)/)
+              .map((segment) => {
+                if (/^\r?\n$/.test(segment)) {
+                  return segment;
+                }
+                return segment
+                  .split(TITLE_WORD_DELIMITERS)
+                  .map((part) => {
+                    if (
+                      TITLE_WORD_DELIMITERS.test(part) &&
+                      part.match(TITLE_WORD_DELIMITERS)?.[0] === part
+                    ) {
+                      return part;
+                    }
+                    // Only attempt to uppercase if part is not empty
+                    if (part && part.length > 0) {
+                      return (
+                        part.charAt(0).toUpperCase() +
+                        part.slice(1).toLowerCase()
+                      );
+                    }
+                    return part; // Return empty or non-word parts as is
+                  })
+                  .join('');
+              })
+              .join('');
             break;
           case 'camel':
-            result = trimmedTextToProcess
+            result = inputForProcessing
               .toLowerCase()
               .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
               .replace(/^./, (char) => char.toLowerCase());
             break;
           case 'pascal':
-            result = trimmedTextToProcess
+            result = inputForProcessing
               .toLowerCase()
               .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase())
               .replace(/^./, (char) => char.toUpperCase());
             break;
           case 'snake':
-            result = trimmedTextToProcess
+            result = inputForProcessing
               .replace(/\W+/g, ' ')
+              .trim()
               .split(/ |\B(?=[A-Z])/)
               .map((word) => word.toLowerCase())
               .filter(Boolean)
               .join('_');
             break;
           case 'kebab':
-            result = trimmedTextToProcess
+            result = inputForProcessing
               .replace(/\W+/g, ' ')
+              .trim()
               .split(/ |\B(?=[A-Z])/)
               .map((word) => word.toLowerCase())
               .filter(Boolean)
               .join('-');
             break;
+          // Ensure no 'line' case here
           default:
-            const exhaustiveCheck: never = targetCase;
+            // This default case should ideally not be reached if CaseType is properly constrained.
+            // If somehow an invalid caseType gets here:
+            const exhaustiveCheck: never = targetCase; // This will cause a compile-time error if not all CaseType values are handled
             throw new Error(`Unsupported case type: ${exhaustiveCheck}`);
         }
-        setOutputValue(result);
-        historyOutputObj = {
-          resultCaseTypeLabel: targetCaseLabel,
-          outputLength: result.length,
-        };
+        setToolState({ outputValue: result });
+        if (uiError) setUiError('');
       } catch (err) {
         currentError =
           err instanceof Error ? err.message : 'Failed to convert case.';
-        setError(currentError);
-        status = 'error';
-        historyOutputObj = {
-          resultCaseTypeLabel: `Error converting to ${targetCaseLabel}`,
-          errorMessage: currentError,
-        };
-        (inputDetailsForHistory as Record<string, unknown>).error =
-          currentError;
-        setOutputValue('');
+        setUiError(currentError);
+        setToolState({ outputValue: '' });
       }
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: triggerType,
-        input: inputDetailsForHistory,
-        output: historyOutputObj,
-        status: status,
-        eventTimestamp: Date.now(),
-      });
     },
-    [
-      toolState.inputText,
-      toolState.caseType,
-      toolState.lastLoadedFilename,
-      addHistoryEntry,
-      toolTitle,
-      toolRoute,
-    ]
+    [toolState.inputText, toolState.caseType, setToolState, uiError]
   );
 
   const debouncedPerformConversion = useDebouncedCallback(
@@ -225,107 +186,129 @@ export default function CaseConverterClient({
   );
 
   useEffect(() => {
-    if (!isLoadingToolState && urlStateParams?.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      let initialInput = toolState.inputText;
-      let initialCase = toolState.caseType;
-      let needsStateUpdate = false;
-      const textFromUrl = params.get('text');
-      if (textFromUrl !== null && textFromUrl !== initialInput) {
-        initialInput = textFromUrl;
-        needsStateUpdate = true;
-      }
-      const caseFromUrl = params.get('case') as CaseType;
-      if (
-        caseFromUrl &&
-        CASE_TYPES.some((ct) => ct.value === caseFromUrl) &&
-        caseFromUrl !== initialCase
-      ) {
-        initialCase = caseFromUrl;
-        needsStateUpdate = true;
-      }
-      if (needsStateUpdate) {
-        setToolState((prev) => ({
-          ...prev,
-          inputText: initialInput,
-          caseType: initialCase,
-          lastLoadedFilename:
-            textFromUrl !== null
-              ? '(loaded from URL)'
-              : prev.lastLoadedFilename,
-        }));
-      } else if (initialInput.trim()) {
-        setTimeout(
-          () => performConversion('query', initialInput, initialCase),
-          0
-        );
-      }
+    if (isLoadingToolState || !urlStateParams || urlStateParams.length === 0)
+      return;
+
+    const params = new URLSearchParams(window.location.search);
+    const textFromUrl = params.get('text');
+    const caseFromUrl = params.get('case') as CaseType | null;
+
+    let newText = toolState.inputText;
+    let newCase = toolState.caseType;
+    let newFilename = toolState.lastLoadedFilename;
+    let needsStateUpdate = false;
+
+    if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
+      newText = textFromUrl;
+      newFilename = '(loaded from URL)';
+      needsStateUpdate = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolState, urlStateParams, setToolState]);
+
+    if (
+      caseFromUrl &&
+      CASE_TYPES.some((ct) => ct.value === caseFromUrl) &&
+      caseFromUrl !== toolState.caseType
+    ) {
+      newCase = caseFromUrl;
+      needsStateUpdate = true;
+    }
+
+    if (needsStateUpdate) {
+      setToolState({
+        inputText: newText,
+        caseType: newCase,
+        lastLoadedFilename: newFilename,
+        outputValue: '',
+      });
+    } else if (newText.trim() && !toolState.outputValue.trim() && !uiError) {
+      // Direct call for initial load if state didn't change but output should be populated
+      performConversion(newText, newCase);
+    }
+  }, [
+    isLoadingToolState,
+    urlStateParams,
+    setToolState,
+    performConversion,
+    toolState.inputText,
+    toolState.caseType,
+    toolState.lastLoadedFilename,
+    toolState.outputValue,
+    uiError,
+  ]);
 
   useEffect(() => {
-    if (!isLoadingToolState) {
-      debouncedPerformConversion(
-        'auto',
-        toolState.inputText,
-        toolState.caseType
-      );
+    if (isLoadingToolState) return;
+
+    const text = toolState.inputText;
+    const currentCase = toolState.caseType;
+
+    const effectiveText = currentCase === 'title' ? text : text.trim();
+
+    if (!effectiveText && !text.trim()) {
+      if (toolState.outputValue !== '') setToolState({ outputValue: '' });
+      if (uiError !== '') setUiError('');
+      debouncedPerformConversion.cancel();
+      return;
     }
+    debouncedPerformConversion(text, currentCase);
   }, [
     toolState.inputText,
     toolState.caseType,
     isLoadingToolState,
     debouncedPerformConversion,
+    setToolState,
+    toolState.outputValue,
+    uiError,
   ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setToolState((prev) => ({
-      ...prev,
+    setToolState({
       inputText: event.target.value,
       lastLoadedFilename: null,
-    }));
+      outputValue: '',
+    });
     setCopySuccess(false);
     setSaveSuccess(false);
   };
 
-  const handleClear = useCallback(() => {
-    setToolState(DEFAULT_CASE_CONVERTER_STATE);
-    setOutputValue('');
-    setError('');
+  const handleCaseTypeChange = (newCaseType: CaseType) => {
+    setToolState({ caseType: newCaseType, outputValue: '' });
+  };
+
+  const handleClear = useCallback(async () => {
+    await persistentClearState();
+    setUiError('');
     setCopySuccess(false);
     setSaveSuccess(false);
     debouncedPerformConversion.cancel();
-  }, [setToolState, debouncedPerformConversion]);
-
-  const handleCaseButtonClick = (newCaseType: CaseType) => {
-    setToolState((prev) => ({ ...prev, caseType: newCaseType }));
-  };
+  }, [persistentClearState, debouncedPerformConversion]);
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[]) => {
       setIsLoadFileModalOpen(false);
       if (files.length === 0) return;
       const file = files[0];
       if (!file.blob) {
-        setError(`Error: File "${file.name}" has no content.`);
+        setUiError(`Error: File "${file.name}" has no content.`);
         return;
       }
       try {
         const text = await file.blob.text();
-        setToolState((prev) => ({
-          ...prev,
+        setToolState({
           inputText: text,
           lastLoadedFilename: file.name,
-        }));
+          outputValue: '',
+        });
+        setUiError('');
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Unknown error';
-        setError(`Error reading file "${file.name}": ${msg}`);
-        setToolState((prev) => ({
-          ...prev,
+        setUiError(
+          `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`
+        );
+        setToolState({
           inputText: '',
           lastLoadedFilename: null,
-        }));
+          outputValue: '',
+        });
       }
     },
     [setToolState]
@@ -342,8 +325,8 @@ export default function CaseConverterClient({
 
   const initiateOutputAction = useCallback(
     (action: 'download' | 'save') => {
-      if (!outputValue.trim() || error) {
-        setError(error || 'No output to ' + action + '.');
+      if (!toolState.outputValue.trim() || uiError) {
+        setUiError(uiError || 'No output to ' + action + '.');
         return;
       }
       if (toolState.lastLoadedFilename) {
@@ -358,14 +341,10 @@ export default function CaseConverterClient({
       }
     },
     [
-      outputValue,
-      error,
+      toolState.outputValue,
+      uiError,
       toolState.lastLoadedFilename,
       generateOutputFilename,
-      setFilenameAction,
-      setIsFilenameModalOpen,
-      setSuggestedFilenameForPrompt,
-      setError,
     ]
   );
 
@@ -380,12 +359,12 @@ export default function CaseConverterClient({
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
 
       if (currentAction === 'download') {
-        if (!outputValue) {
-          setError('No output to download.');
+        if (!toolState.outputValue) {
+          setUiError('No output to download.');
           return;
         }
         try {
-          const blob = new Blob([outputValue], {
+          const blob = new Blob([toolState.outputValue], {
             type: 'text/plain;charset=utf-8',
           });
           const url = URL.createObjectURL(blob);
@@ -396,145 +375,59 @@ export default function CaseConverterClient({
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          setError('');
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: {
-              action: 'downloadOutput',
-              filename: finalFilename,
-              length: outputValue.length,
-            },
-            output: { message: `Downloaded ${finalFilename}` },
-            status: 'success',
-            eventTimestamp: Date.now(),
-          });
+          if (uiError) setUiError('');
         } catch (err) {
-          const msg =
-            err instanceof Error ? err.message : 'Unknown download error';
-          setError(`Failed to prepare download: ${msg}`);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: { action: 'downloadOutput', filename: finalFilename },
-            output: { error: `Download failed: ${msg}` },
-            status: 'error',
-            eventTimestamp: Date.now(),
-          });
+          setUiError(
+            `Failed to prepare download: ${err instanceof Error ? err.message : 'Unknown error'}`
+          );
         }
       } else if (currentAction === 'save') {
-        if (!outputValue) {
-          setError('No output to save.');
+        if (!toolState.outputValue) {
+          setUiError('No output to save.');
           return;
         }
-        const blob = new Blob([outputValue], {
+        const blob = new Blob([toolState.outputValue], {
           type: 'text/plain;charset=utf-8',
         });
         addFileToLibrary(blob, finalFilename, 'text/plain', false)
-          .then((newFileId) => {
+          .then(() => {
             setSaveSuccess(true);
-            setError('');
+            if (uiError) setUiError('');
             setTimeout(() => setSaveSuccess(false), 2000);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: {
-                action: 'saveOutputToLibrary',
-                filename: finalFilename,
-                length: outputValue.length,
-              },
-              output: {
-                message: 'Saved to library',
-                fileId: newFileId,
-                filename: finalFilename,
-              },
-              status: 'success',
-              eventTimestamp: Date.now(),
-              outputFileIds: [newFileId],
-            });
           })
-          .catch((err) => {
-            const msg =
-              err instanceof Error ? err.message : 'Unknown save error';
-            setError(`Failed to save to library: ${msg}`);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: { action: 'saveOutputToLibrary', filename: finalFilename },
-              output: { error: `Save to library failed: ${msg}` },
-              status: 'error',
-              eventTimestamp: Date.now(),
-            });
-          });
+          .catch((err) =>
+            setUiError(
+              `Failed to save to library: ${err instanceof Error ? err.message : 'Unknown error'}`
+            )
+          );
       }
       setFilenameAction(null);
     },
     [
       filenameAction,
       toolState.lastLoadedFilename,
-      outputValue,
+      toolState.caseType,
+      toolState.outputValue,
       addFileToLibrary,
-      toolTitle,
-      toolRoute,
-      addHistoryEntry,
-      setError,
-      setSaveSuccess,
       generateOutputFilename,
-      setIsFilenameModalOpen,
-      setFilenameAction,
+      uiError,
     ]
   );
 
   const handleCopyToClipboard = useCallback(async () => {
-    if (!outputValue) {
-      setError('No output to copy.');
+    if (!toolState.outputValue) {
+      setUiError('No output to copy.');
       return;
     }
     try {
-      await navigator.clipboard.writeText(outputValue);
+      await navigator.clipboard.writeText(toolState.outputValue);
       setCopySuccess(true);
-      setError('');
+      if (uiError) setUiError('');
       setTimeout(() => setCopySuccess(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput', length: outputValue.length },
-        output: { message: 'Copied to clipboard' },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
-      setError('Failed to copy to clipboard.');
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput' },
-        output: { error: 'Failed to copy' },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
+      setUiError('Failed to copy to clipboard.');
     }
-  }, [
-    outputValue,
-    toolTitle,
-    toolRoute,
-    addHistoryEntry,
-    setError,
-    setCopySuccess,
-  ]);
-
-  const currentCaseLabel = useMemo(() => {
-    return (
-      CASE_TYPES.find((ct) => ct.value === toolState.caseType)?.label ||
-      toolState.caseType
-    );
-  }, [toolState.caseType]);
+  }, [toolState.outputValue, uiError]);
 
   if (isLoadingToolState) {
     return (
@@ -543,7 +436,11 @@ export default function CaseConverterClient({
       </p>
     );
   }
-  const canPerformOutputActions = outputValue.trim() !== '' && !error;
+  const canPerformOutputActions =
+    toolState.outputValue.trim() !== '' && !uiError;
+  const currentCaseLabel =
+    CASE_TYPES.find((ct) => ct.value === toolState.caseType)?.label ||
+    toolState.caseType;
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -576,56 +473,46 @@ export default function CaseConverterClient({
       />
 
       <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
-        <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-3">
-          Convert to:
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {CASE_TYPES.map((ct, index) => {
-            const isActive = toolState.caseType === ct.value;
-            const colorIndex = index % buttonColorCycle.length;
-            const colors = buttonColorCycle[colorIndex];
-            return (
-              <Button
-                key={ct.value}
-                type="button"
-                onClick={() => handleCaseButtonClick(ct.value)}
-                variant={isActive ? 'accent' : 'neutral'}
-                className={
-                  isActive
-                    ? `ring-2 ring-offset-1 ring-[rgb(var(${activeBgColorVar}))]`
-                    : `bg-[rgb(var(${colors.base}))] text-[rgb(var(${colors.text}))] hover:bg-[rgb(var(${colors.hover}))] border-transparent`
-                }
-                aria-pressed={isActive}
-                size="sm"
-              >
-                {ct.label}
-              </Button>
-            );
-          })}
+        <div className="flex flex-wrap justify-between items-center">
+          <RadioGroup
+            name="caseType"
+            legend="Convert to:"
+            options={CASE_TYPES.map((ct) => ({
+              value: ct.value,
+              label: ct.label,
+            }))}
+            selectedValue={toolState.caseType}
+            onChange={handleCaseTypeChange}
+            layout="horizontal"
+            className="flex-grow"
+            radioClassName="text-sm mb-2 mr-2" // Added mb-2 mr-2 for better spacing when wrapped
+            labelClassName="font-medium"
+          />
           <Button
             variant="neutral"
             onClick={handleClear}
-            disabled={!toolState.inputText && !outputValue && !error}
+            disabled={
+              !toolState.inputText && !toolState.outputValue && !uiError
+            }
             title="Clear input and output"
-            className="ml-auto"
+            className="ml-auto sm:ml-4 mt-2 sm:mt-0"
           >
             Clear
           </Button>
         </div>
       </div>
 
-      {error && (
+      {uiError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
-          {' '}
           <ExclamationTriangleIcon
             className="h-5 w-5 flex-shrink-0 mt-0.5"
             aria-hidden="true"
-          />{' '}
+          />
           <div>
-            <strong className="font-semibold">Error:</strong> {error}
+            <strong className="font-semibold">Error:</strong> {uiError}
           </div>
         </div>
       )}
@@ -634,7 +521,7 @@ export default function CaseConverterClient({
         label={`Output (${currentCaseLabel}):`}
         id="text-output"
         rows={8}
-        value={outputValue}
+        value={toolState.outputValue}
         readOnly
         placeholder="Result appears here..."
         textareaClassName="text-base bg-[rgb(var(--color-bg-subtle))] placeholder:text-[rgb(var(--color-input-placeholder))]"
@@ -686,6 +573,7 @@ export default function CaseConverterClient({
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
+        slurpContentOnly={true}
         mode="selectExistingOrUploadNew"
         accept=".txt,text/*"
         selectionMode="single"
@@ -704,8 +592,8 @@ export default function CaseConverterClient({
         }
         promptMessage={
           filenameAction === 'download'
-            ? 'Filename for download:'
-            : 'Filename for library:'
+            ? 'Please enter a filename for the download:'
+            : 'Please enter a filename to save to the library:'
         }
         confirmButtonText={
           filenameAction === 'download' ? 'Download' : 'Save to Library'

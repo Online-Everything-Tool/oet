@@ -6,12 +6,10 @@ import path from 'path';
 
 import './globals.css';
 
-import { HistoryProvider } from './context/HistoryContext';
 import { ImageLibraryProvider } from './context/ImageLibraryContext';
 import { FileLibraryProvider } from './context/FileLibraryContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
-import ClientOnly from './_components/ClientOnly';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
@@ -97,22 +95,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <ClientOnly>
-          {/* Wrap ImageLibraryProvider with FileLibraryProvider */}
-          {/* Order might matter if one depends on the other, but they seem independent */}
-          <FileLibraryProvider>
-            <ImageLibraryProvider>
-              <HistoryProvider>
-                <FavoritesProvider>
-                  <Header />
-                  <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                    {children}
-                  </main>
-                </FavoritesProvider>
-              </HistoryProvider>
-            </ImageLibraryProvider>
-          </FileLibraryProvider>
-        </ClientOnly>
+        <FileLibraryProvider>
+          <ImageLibraryProvider>
+            <FavoritesProvider>
+              <Header />
+              <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                {children}
+              </main>
+            </FavoritesProvider>
+          </ImageLibraryProvider>
+        </FileLibraryProvider>
       </body>
     </html>
   );

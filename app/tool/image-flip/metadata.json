@@ -2,13 +2,13 @@
   "title": "Image Flip",
   "description": "Flips an image horizontally or vertically.",
   "outputConfig": {
-    "summaryField": "message",
-    "referenceType": "imageLibraryId",
-    "referenceField": "imageId"
+    "transferableContent": {
+      "dataType": "fileReference",
+      "fileIdStateKey": "outputImageId",
+      "fileCategory": "image"
+    }
   },
   "tags": ["image", "transform"],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

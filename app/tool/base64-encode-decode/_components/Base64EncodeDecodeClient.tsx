@@ -2,9 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -13,7 +11,7 @@ import FileSelectionModal from '../../_components/file-storage/FileSelectionModa
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
-import { useDebouncedCallback } from 'use-debounce'; // Import useDebouncedCallback
+import { useDebouncedCallback } from 'use-debounce';
 import {
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
@@ -21,12 +19,12 @@ import {
   CheckIcon,
   DocumentPlusIcon,
   ExclamationTriangleIcon,
-  // ArrowPathIcon, // No longer needed for Process button
 } from '@heroicons/react/24/outline';
 
 type Operation = 'encode' | 'decode';
 type Base64Likelihood =
   | 'unknown'
+  | 'likely_base64'
   | 'possibly_base64_or_text'
   | 'likely_text'
   | 'invalid_base64_chars';
@@ -34,22 +32,80 @@ type Base64Likelihood =
 interface Base64ToolState {
   inputText: string;
   operation: Operation;
+  outputValue: string;
   lastLoadedFilename?: string | null;
 }
 
 const DEFAULT_BASE64_TOOL_STATE: Base64ToolState = {
   inputText: '',
   operation: 'encode',
+  outputValue: '',
   lastLoadedFilename: null,
 };
 
-const AUTO_PROCESS_DEBOUNCE_MS = 500; // Debounce time for auto-processing on text input
+const AUTO_PROCESS_DEBOUNCE_MS = 300;
 
 interface Base64EncodeDecodeClientProps {
   urlStateParams: ParamConfig[];
   toolTitle: string;
   toolRoute: string;
 }
+
+const determineInitialOperationAndLikelihood = (
+  text: string
+): { operation: Operation; likelihood: Base64Likelihood } => {
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+    return { operation: 'encode', likelihood: 'unknown' };
+  }
+  const cleanedForTest = trimmedText.replace(/\s/g, '');
+  const strictBase64FormatWithPaddingRegex = /^[A-Za-z0-9+/]*={0,2}$/;
+
+  if (
+    strictBase64FormatWithPaddingRegex.test(cleanedForTest) &&
+    cleanedForTest.length % 4 === 0
+  ) {
+    try {
+      atob(cleanedForTest);
+      return { operation: 'decode', likelihood: 'likely_base64' };
+    } catch (e) {
+      return { operation: 'encode', likelihood: 'likely_text' };
+    }
+  }
+  return { operation: 'encode', likelihood: 'likely_text' };
+};
+
+const calculateLikelihoodForCurrentOperation = (
+  text: string,
+  currentOperation: Operation
+): Base64Likelihood => {
+  const trimmedText = text.trim();
+  if (!trimmedText) return 'unknown';
+  const cleanedForTest = trimmedText.replace(/\s/g, '');
+
+  const base64CharsOnlyStrictRegex = /^[A-Za-z0-9+/]*$/;
+  const strictBase64FormatWithPaddingRegex = /^[A-Za-z0-9+/]*={0,2}$/;
+
+  if (currentOperation === 'decode') {
+    if (
+      !strictBase64FormatWithPaddingRegex.test(cleanedForTest) ||
+      cleanedForTest.length % 4 !== 0
+    ) {
+      return 'invalid_base64_chars';
+    }
+    try {
+      atob(cleanedForTest);
+      return 'likely_base64';
+    } catch (e) {
+      return 'invalid_base64_chars';
+    }
+  } else {
+    if (!base64CharsOnlyStrictRegex.test(cleanedForTest.replace(/=/g, ''))) {
+      return 'likely_text';
+    }
+    return 'possibly_base64_or_text';
+  }
+};
 
 export default function Base64EncodeDecodeClient({
   urlStateParams,
@@ -60,13 +116,12 @@ export default function Base64EncodeDecodeClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
+    clearState: persistentClearState,
   } = useToolState<Base64ToolState>(toolRoute, DEFAULT_BASE64_TOOL_STATE);
 
-  const [outputValue, setOutputValue] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [base64Likelihood, setBase64Likelihood] =
     useState<Base64Likelihood>('unknown');
-
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
   const [filenameAction, setFilenameAction] = useState<
@@ -77,7 +132,6 @@ export default function Base64EncodeDecodeClient({
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const { addHistoryEntry } = useHistory();
   const { addFile: addFileToLibrary } = useFileLibrary();
 
   const operationOptions = useMemo(
@@ -90,67 +144,48 @@ export default function Base64EncodeDecodeClient({
 
   const handleEncodeDecode = useCallback(
     (
-      triggerType: TriggerType,
       textToProcess = toolState.inputText,
       opToPerform = toolState.operation
     ) => {
       let currentOutput = '';
       let currentError = '';
-      let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {};
-      setError('');
-      setOutputValue('');
-      setCopySuccess(false);
-      setSaveSuccess(false);
+      let finalOperationForState = opToPerform;
+      let finalLikelihoodForUIUpdate = base64Likelihood;
 
-      const trimmedTextToProcess = textToProcess.trim(); // Use trimmed for processing
+      const trimmedTextToProcess = textToProcess.trim();
 
       if (!trimmedTextToProcess) {
-        // If, after trimming, the input is empty, clear relevant state.
-        // Don't clear lastLoadedFilename here if original inputText was just spaces from a file.
-        // Let handleInputChange or handleClear manage lastLoadedFilename.
-        setBase64Likelihood('unknown'); // Reset likelihood for empty effective input
+        setToolState({ outputValue: '' });
+        if (error) setError('');
         return;
       }
-
-      const inputDetailsForHistory = {
-        source: toolState.lastLoadedFilename || 'pasted/typed',
-        inputTextTruncated:
-          trimmedTextToProcess.length > 500
-            ? trimmedTextToProcess.substring(0, 500) + '...'
-            : trimmedTextToProcess,
-        operation: opToPerform,
-      };
 
       if (opToPerform === 'encode') {
         try {
           currentOutput = btoa(
             unescape(encodeURIComponent(trimmedTextToProcess))
-          ); // Process trimmed
-          setOutputValue(currentOutput);
-          historyOutputObj = {
-            operationResult: 'Encoded Text',
-            outputLength: currentOutput.length,
-          };
+          );
+          finalLikelihoodForUIUpdate = calculateLikelihoodForCurrentOperation(
+            textToProcess,
+            'encode'
+          );
+          if (error) setError('');
         } catch (err) {
           currentError = 'Failed to encode text. Ensure text is valid UTF-8.';
-          setError(currentError);
-          status = 'error';
-          historyOutputObj = {
-            operationResult: 'Encoding Error',
-            errorMessage: currentError,
-          };
+          finalLikelihoodForUIUpdate = calculateLikelihoodForCurrentOperation(
+            textToProcess,
+            'encode'
+          );
         }
       } else {
-        // Decode
         try {
-          const cleanedTextToDecode = trimmedTextToProcess.replace(/\s/g, ''); // Further clean for decode
+          const cleanedTextToDecode = trimmedTextToProcess.replace(/\s/g, '');
           if (
             cleanedTextToDecode.length % 4 !== 0 ||
             !/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedTextToDecode)
           ) {
             throw new DOMException(
-              'Input is not valid Base64.',
+              'Input is not valid Base64 (length or padding).',
               'InvalidCharacterError'
             );
           }
@@ -160,195 +195,194 @@ export default function Base64EncodeDecodeClient({
               .map((byte) => ('0' + byte.charCodeAt(0).toString(16)).slice(-2))
               .join('%')
           );
-          setOutputValue(currentOutput);
-          historyOutputObj = {
-            operationResult: 'Decoded Text',
-            outputLength: currentOutput.length,
-          };
+          finalLikelihoodForUIUpdate = 'likely_base64';
+          if (error) setError('');
         } catch (err) {
+          const errMessage =
+            err instanceof Error ? err.message : 'Unknown decode error';
           if (
             err instanceof DOMException &&
             err.name === 'InvalidCharacterError'
           ) {
-            currentError =
-              'Failed to decode: Input is not a valid Base64 string or contains invalid characters.';
+            currentError = `Failed to decode: Input is not a valid Base64 string or contains invalid characters/padding. (${errMessage})`;
           } else {
-            currentError = 'An unexpected error occurred during decoding.';
+            currentError = `An unexpected error occurred during decoding. (${errMessage})`;
           }
-          setError(currentError);
-          status = 'error';
-          historyOutputObj = {
-            operationResult: 'Decoding Error',
-            errorMessage: currentError,
-          };
+          finalOperationForState = 'encode';
+          finalLikelihoodForUIUpdate = calculateLikelihoodForCurrentOperation(
+            textToProcess,
+            'encode'
+          );
         }
       }
-      // Only add history if there was something to process (trimmed input was not empty)
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: triggerType,
-        input: inputDetailsForHistory,
-        output: historyOutputObj,
-        status: status,
-        eventTimestamp: Date.now(),
-      });
-    },
-    [
-      toolState.inputText,
-      toolState.operation,
-      toolState.lastLoadedFilename,
-      addHistoryEntry,
-      toolTitle,
-      toolRoute,
-    ] // Removed setToolState
-  );
 
-  // Debounced auto-processing for text input changes
-  const debouncedProcess = useDebouncedCallback(
-    (text: string, operation: Operation) => {
-      if (text.trim()) {
-        // Only process if there's non-whitespace content
-        handleEncodeDecode('auto', text, operation);
+      if (currentError) {
+        if (error !== currentError) setError(currentError);
+        setToolState({ outputValue: '', operation: finalOperationForState });
       } else {
-        // If input becomes effectively empty, clear output
-        setOutputValue('');
-        setError('');
-        setBase64Likelihood('unknown');
+        if (error) setError('');
+        setToolState({
+          outputValue: currentOutput,
+          operation: finalOperationForState,
+        });
+      }
+
+      if (finalLikelihoodForUIUpdate !== base64Likelihood) {
+        setBase64Likelihood(finalLikelihoodForUIUpdate);
       }
     },
+    [setToolState, base64Likelihood, error]
+  );
+
+  const debouncedProcess = useDebouncedCallback(
+    handleEncodeDecode,
     AUTO_PROCESS_DEBOUNCE_MS
   );
 
   useEffect(() => {
-    if (!isLoadingToolState && urlStateParams?.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      let initialInput = toolState.inputText;
-      let initialOp = toolState.operation;
-      const textFromUrl = params.get('text');
-      if (textFromUrl !== null && textFromUrl !== initialInput) {
-        initialInput = textFromUrl;
-      }
-      const opFromUrl = params.get('operation') as Operation;
-      if (
-        opFromUrl &&
-        ['encode', 'decode'].includes(opFromUrl) &&
-        opFromUrl !== initialOp
-      ) {
-        initialOp = opFromUrl;
-      }
+    if (isLoadingToolState || !urlStateParams || urlStateParams.length === 0)
+      return;
 
-      const needsStateUpdate =
-        initialInput !== toolState.inputText ||
-        initialOp !== toolState.operation;
-      const loadedFilename =
-        textFromUrl !== null
-          ? '(loaded from URL)'
-          : toolState.lastLoadedFilename;
+    const params = new URLSearchParams(window.location.search);
+    const textFromUrl = params.get('text');
+    const opFromUrlExplicit = params.get('operation') as Operation | null;
 
-      if (needsStateUpdate) {
-        setToolState((prev) => ({
-          ...prev,
-          inputText: initialInput,
-          operation: initialOp,
-          lastLoadedFilename: loadedFilename,
-        }));
-      }
+    let textToSetForState = toolState.inputText;
+    let opToSetForState = toolState.operation;
+    let filenameToSetForState = toolState.lastLoadedFilename;
+    let uiLikelihoodToSetInitially = base64Likelihood;
+    let needsToolStateUpdate = false;
 
-      // If input has content (either from URL or already in state), process it.
-      // This will also cover the case where only the operation changed via URL for existing text.
-      if (initialInput.trim()) {
-        // We need to ensure this runs after state is set if it was updated.
-        // If state was updated, the other useEffect for inputText/operation change will trigger processing.
-        // If state was NOT updated (URL matched current state), but we still want to process on load, call here.
-        if (!needsStateUpdate) {
-          setTimeout(() => {
-            handleEncodeDecode('query', initialInput, initialOp);
-          }, 0);
-        }
-      }
+    if (textFromUrl !== null) {
+      textToSetForState = textFromUrl;
+      filenameToSetForState = '(loaded from URL)';
+      needsToolStateUpdate = true;
+
+      const {
+        operation: determinedOpFromText,
+        likelihood: determinedLikelihoodFromText,
+      } = determineInitialOperationAndLikelihood(textToSetForState);
+      opToSetForState = determinedOpFromText;
+      uiLikelihoodToSetInitially = determinedLikelihoodFromText;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolState, urlStateParams, setToolState]); // Removed handleEncodeDecode from deps
+
+    if (opFromUrlExplicit && ['encode', 'decode'].includes(opFromUrlExplicit)) {
+      if (opFromUrlExplicit !== opToSetForState) {
+        opToSetForState = opFromUrlExplicit;
+        needsToolStateUpdate = true;
+      }
+      uiLikelihoodToSetInitially = calculateLikelihoodForCurrentOperation(
+        textToSetForState,
+        opToSetForState
+      );
+    }
+
+    const updates: Partial<Base64ToolState> = {};
+    if (textToSetForState !== toolState.inputText)
+      updates.inputText = textToSetForState;
+    if (opToSetForState !== toolState.operation)
+      updates.operation = opToSetForState;
+    if (filenameToSetForState !== toolState.lastLoadedFilename)
+      updates.lastLoadedFilename = filenameToSetForState;
+
+    if (Object.keys(updates).length > 0) {
+      updates.outputValue = '';
+      setToolState(updates);
+    }
+
+    if (uiLikelihoodToSetInitially !== base64Likelihood) {
+      setBase64Likelihood(uiLikelihoodToSetInitially);
+    }
+
+    if (
+      !needsToolStateUpdate &&
+      textToSetForState.trim() &&
+      !toolState.outputValue.trim() &&
+      !error
+    ) {
+      const currentContextLikelihood = calculateLikelihoodForCurrentOperation(
+        textToSetForState,
+        opToSetForState
+      );
+      if (currentContextLikelihood !== base64Likelihood)
+        setBase64Likelihood(currentContextLikelihood);
+
+      handleEncodeDecode(textToSetForState, opToSetForState); // Direct call, not debounced for initial load
+    } else if (!textToSetForState.trim() && base64Likelihood !== 'unknown') {
+      setBase64Likelihood('unknown');
+    }
+  }, [isLoadingToolState, urlStateParams]);
 
   useEffect(() => {
-    // This effect handles likelihood and auto-processing on inputText or operation change
+    if (isLoadingToolState) {
+      return;
+    }
+
     const text = toolState.inputText;
-    const operation = toolState.operation;
+    const currentOperation = toolState.operation;
 
-    if (!text) {
-      setBase64Likelihood('unknown');
-      setOutputValue('');
-      setError('');
+    const newUILikelihood = calculateLikelihoodForCurrentOperation(
+      text,
+      currentOperation
+    );
+    if (newUILikelihood !== base64Likelihood) {
+      setBase64Likelihood(newUILikelihood);
+    }
+
+    if (!text.trim()) {
+      if (toolState.outputValue !== '') setToolState({ outputValue: '' });
+      if (error !== '') setError('');
+      debouncedProcess.cancel();
       return;
     }
-    const cleanedInput = text.replace(/\s/g, '');
-    if (!cleanedInput) {
-      setBase64Likelihood('unknown');
-      setOutputValue('');
-      setError('');
-      return;
-    }
 
-    const base64CharRegex = /^[A-Za-z0-9+/]*={0,2}$/;
-    const potentialBase64Regex = /[A-Za-z0-9+/=]/;
-    if (!base64CharRegex.test(cleanedInput)) {
-      setBase64Likelihood('invalid_base64_chars');
-    } else if (
-      cleanedInput.length % 4 === 0 &&
-      potentialBase64Regex.test(cleanedInput)
-    ) {
-      try {
-        atob(cleanedInput);
-        setBase64Likelihood('possibly_base64_or_text');
-      } catch {
-        setBase64Likelihood('likely_text');
-      }
-    } else {
-      setBase64Likelihood('likely_text');
-    }
-
-    // Auto-process if not loading state (to avoid processing during initial hydration with persisted state)
-    if (!isLoadingToolState) {
-      debouncedProcess(text, operation);
-    }
+    debouncedProcess(text, currentOperation);
   }, [
     toolState.inputText,
     toolState.operation,
-    isLoadingToolState,
-    debouncedProcess,
+    isLoadingToolState, // Keep this to prevent running before state is loaded
+    debouncedProcess, // Stable ref
+    setToolState, // Stable ref
+    base64Likelihood, // For comparison before setting
+    error, // To clear it if processing becomes successful
+    toolState.outputValue, // Re-added: if output changes externally, might need to re-eval some things
   ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setToolState((prev) => ({
-      ...prev,
-      inputText: event.target.value,
+    const newText = event.target.value;
+    setToolState({
+      inputText: newText,
       lastLoadedFilename: null,
-    }));
-    // Debounced processing will take care of outputValue, error, and likelihood
+      outputValue: '', // Clear output, main useEffect will trigger re-processing
+    });
     setCopySuccess(false);
-    setSaveSuccess(false); // Reset action feedbacks immediately
+    setSaveSuccess(false);
   };
 
   const handleOperationChange = (newOperation: Operation) => {
-    setToolState((prev) => ({ ...prev, operation: newOperation }));
-    // The useEffect listening to toolState.operation (and inputText) will trigger debouncedProcess
+    setToolState({ operation: newOperation, outputValue: '' });
   };
 
-  const handleClear = useCallback(() => {
-    setToolState(DEFAULT_BASE64_TOOL_STATE); // This will also clear inputText
-    setOutputValue('');
+  const handleClear = useCallback(async () => {
+    console.log(
+      '[Base64Client handleClear] Clearing state via persistentClearState.'
+    );
+    debouncedProcess.cancel(); // Cancel any pending debounced processing first
+
+    await persistentClearState(); // This will set toolState to default and delete the Dexie record
+
     setError('');
-    setBase64Likelihood('unknown'); // Reset local UI state
+    setBase64Likelihood('unknown'); // Reflect the cleared input state
     setCopySuccess(false);
     setSaveSuccess(false);
-    debouncedProcess.cancel(); // Cancel any pending processing
-  }, [setToolState, debouncedProcess]);
+    console.log('[Base64Client handleClear] State cleared.');
+  }, [persistentClearState, debouncedProcess]);
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[]) => {
       setIsLoadFileModalOpen(false);
       if (files.length === 0) return;
+
       const file = files[0];
       if (!file.blob) {
         setError(`Error: File "${file.name}" has no content.`);
@@ -356,37 +390,85 @@ export default function Base64EncodeDecodeClient({
       }
       try {
         const text = await file.blob.text();
-        const cleanedInputForLikelihood = text.replace(/\s/g, '');
-        let opForFileLoad = toolState.operation;
-        if (cleanedInputForLikelihood) {
-          const b64CharRegex = /^[A-Za-z0-9+/]*={0,2}$/;
-          if (!b64CharRegex.test(cleanedInputForLikelihood)) {
-            opForFileLoad = 'encode';
-          } else if (cleanedInputForLikelihood.length % 4 === 0) {
-            try {
-              atob(cleanedInputForLikelihood);
-              opForFileLoad = 'decode';
-            } catch {
-              opForFileLoad = 'encode';
+
+        let opForFileLoad: Operation;
+        let likelihoodForUI: Base64Likelihood;
+        let outputForState = '';
+        let errorForUI = '';
+
+        const { operation: guessedOp, likelihood: _guessedLikelihoodNotUsed } =
+          determineInitialOperationAndLikelihood(text);
+
+        if (guessedOp === 'decode') {
+          try {
+            const cleanedTextToDecode = text.trim().replace(/\s/g, '');
+            if (
+              cleanedTextToDecode.length % 4 !== 0 ||
+              !/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedTextToDecode)
+            ) {
+              throw new DOMException(
+                'Input is not valid Base64 (length or padding).',
+                'InvalidCharacterError'
+              );
             }
-          } else {
+            const decodedBytes = atob(cleanedTextToDecode);
+            outputForState = decodeURIComponent(
+              Array.from(decodedBytes)
+                .map((byte) =>
+                  ('0' + byte.charCodeAt(0).toString(16)).slice(-2)
+                )
+                .join('%')
+            );
+            opForFileLoad = 'decode';
+            likelihoodForUI = 'likely_base64';
+            // console.log('[handleFileSelected] Immediate decode SUCCESSFUL.');
+          } catch (decodeError) {
             opForFileLoad = 'encode';
+            outputForState = '';
+            errorForUI =
+              decodeError instanceof Error &&
+              decodeError.name === 'InvalidCharacterError'
+                ? 'Failed to decode: Input is not a valid Base64 string. Switched to Encode mode.'
+                : 'Decode attempt failed. Switched to Encode mode.';
+            likelihoodForUI = calculateLikelihoodForCurrentOperation(
+              text,
+              'encode'
+            );
+            // console.warn('[handleFileSelected] Immediate decode FAILED. Op: encode, Likelihood:', likelihoodForUI, 'Error:', errorForUI);
           }
+        } else {
+          opForFileLoad = 'encode';
+          likelihoodForUI = calculateLikelihoodForCurrentOperation(
+            text,
+            'encode'
+          );
+          outputForState = '';
+          // console.log('[handleFileSelected] Initial guess was encode. Op: encode, Likelihood:', likelihoodForUI);
         }
-        // Set state. The useEffect for inputText/operation change will trigger debouncedProcess.
+
         setToolState({
           inputText: text,
           lastLoadedFilename: file.name,
           operation: opForFileLoad,
+          outputValue: outputForState,
         });
+        setBase64Likelihood(likelihoodForUI);
+        setError(errorForUI);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setError(`Error reading file "${file.name}": ${msg}`);
-        setToolState({ inputText: '', lastLoadedFilename: null }); // Reset relevant state
+        setToolState({
+          inputText: '',
+          lastLoadedFilename: null,
+          outputValue: '',
+        });
+        setBase64Likelihood('unknown');
+        // console.error('[handleFileSelected] Outer catch during file read:', e);
       }
+      // console.log('[handleFileSelected] END.');
     },
-    [setToolState, toolState.operation]
-  ); // Removed handleEncodeDecode, it's now handled by useEffect
+    [setToolState]
+  );
 
   const generateOutputFilename = useCallback(
     (baseName?: string | null, chosenOperation?: Operation): string => {
@@ -402,15 +484,14 @@ export default function Base64EncodeDecodeClient({
 
   const initiateOutputAction = useCallback(
     (action: 'download' | 'save') => {
-      if (!outputValue.trim()) {
+      if (!toolState.outputValue.trim()) {
         setError('No output to ' + action + '.');
         return;
-      } // No error check here, rely on outputValue
-      if (error && outputValue.trim()) {
+      }
+      if (error && toolState.outputValue.trim()) {
         setError('Cannot ' + action + ' output due to existing input errors.');
         return;
       }
-
       if (toolState.lastLoadedFilename) {
         const autoFilename = generateOutputFilename(
           toolState.lastLoadedFilename
@@ -423,20 +504,15 @@ export default function Base64EncodeDecodeClient({
       }
     },
     [
-      outputValue,
+      toolState.outputValue,
       error,
       toolState.lastLoadedFilename,
       generateOutputFilename,
-      setFilenameAction,
-      setIsFilenameModalOpen,
-      setSuggestedFilenameForPrompt,
-      setError,
     ]
   );
 
   const handleFilenameConfirm = useCallback(
     (filename: string, actionOverride?: 'download' | 'save') => {
-      // ... (implementation remains the same as last correct version)
       setIsFilenameModalOpen(false);
       const currentAction = actionOverride || filenameAction;
       if (!currentAction) return;
@@ -448,13 +524,14 @@ export default function Base64EncodeDecodeClient({
         );
       if (!/\.(txt|b64|text|json)$/i.test(finalFilename))
         finalFilename += toolState.operation === 'encode' ? '.b64.txt' : '.txt';
+
       if (currentAction === 'download') {
-        if (!outputValue) {
+        if (!toolState.outputValue) {
           setError('No output to download.');
           return;
         }
         try {
-          const blob = new Blob([outputValue], {
+          const blob = new Blob([toolState.outputValue], {
             type: 'text/plain;charset=utf-8',
           });
           const url = URL.createObjectURL(blob);
@@ -466,79 +543,30 @@ export default function Base64EncodeDecodeClient({
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
           setError('');
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: {
-              action: 'downloadOutput',
-              filename: finalFilename,
-              length: outputValue.length,
-            },
-            output: { message: `Downloaded ${finalFilename}` },
-            status: 'success',
-            eventTimestamp: Date.now(),
-          });
         } catch (err) {
-          const msg =
-            err instanceof Error ? err.message : 'Unknown download error';
-          setError(`Failed to prepare download: ${msg}`);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'click',
-            input: { action: 'downloadOutput', filename: finalFilename },
-            output: { error: `Download failed: ${msg}` },
-            status: 'error',
-            eventTimestamp: Date.now(),
-          });
+          setError(
+            `Failed to prepare download: ${err instanceof Error ? err.message : 'Unknown error'}`
+          );
         }
       } else if (currentAction === 'save') {
-        if (!outputValue) {
+        if (!toolState.outputValue) {
           setError('No output to save.');
           return;
         }
-        const blob = new Blob([outputValue], {
+        const blob = new Blob([toolState.outputValue], {
           type: 'text/plain;charset=utf-8',
         });
         addFileToLibrary(blob, finalFilename, 'text/plain', false)
-          .then((newFileId) => {
+          .then(() => {
             setSaveSuccess(true);
             setError('');
             setTimeout(() => setSaveSuccess(false), 2000);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: {
-                action: 'saveOutputToLibrary',
-                filename: finalFilename,
-                length: outputValue.length,
-              },
-              output: {
-                message: 'Saved to library',
-                fileId: newFileId,
-                filename: finalFilename,
-              },
-              status: 'success',
-              eventTimestamp: Date.now(),
-              outputFileIds: [newFileId],
-            });
           })
-          .catch((err) => {
-            const msg =
-              err instanceof Error ? err.message : 'Unknown save error';
-            setError(`Failed to save to library: ${msg}`);
-            addHistoryEntry({
-              toolName: toolTitle,
-              toolRoute,
-              trigger: 'click',
-              input: { action: 'saveOutputToLibrary', filename: finalFilename },
-              output: { error: `Save to library failed: ${msg}` },
-              status: 'error',
-              eventTimestamp: Date.now(),
-            });
-          });
+          .catch((err) =>
+            setError(
+              `Failed to save to library: ${err instanceof Error ? err.message : 'Unknown error'}`
+            )
+          );
       }
       setFilenameAction(null);
     },
@@ -546,33 +574,43 @@ export default function Base64EncodeDecodeClient({
       filenameAction,
       toolState.lastLoadedFilename,
       toolState.operation,
-      outputValue,
+      toolState.outputValue,
       addFileToLibrary,
-      toolTitle,
-      toolRoute,
-      addHistoryEntry,
-      setError,
-      setSaveSuccess,
       generateOutputFilename,
-      setFilenameAction,
-      setIsFilenameModalOpen,
     ]
   );
 
   const handleCopyToClipboard = useCallback(async () => {
-    /* ... as before ... */
-  }, [
-    outputValue,
-    toolTitle,
-    toolRoute,
-    addHistoryEntry,
-    setError,
-    setCopySuccess,
-  ]);
+    if (!toolState.outputValue) {
+      setError('No output to copy.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(toolState.outputValue);
+      setCopySuccess(true);
+      setError('');
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      setError('Failed to copy to clipboard.');
+    }
+  }, [toolState.outputValue]);
 
-  const getLikelihoodBarState = () => {
-    /* ... as before ... */
+  const getLikelihoodBarState = useCallback(() => {
     switch (base64Likelihood) {
+      case 'likely_base64':
+        return {
+          text: 'Input: Likely Base64 (Ready to Decode)',
+          bgColor: 'bg-green-500',
+          label: 'Base64',
+          valueNow: 100,
+        };
+      case 'possibly_base64_or_text':
+        return {
+          text: `Input: ${toolState.operation === 'encode' ? 'Valid for Encode (may also be decodable Base64)' : 'Potentially Base64 (ambiguous for decode)'}`,
+          bgColor: 'bg-[rgb(var(--color-indicator-ambiguous))]',
+          label: 'Ambiguous',
+          valueNow: 50,
+        };
       case 'likely_text':
         return {
           text: 'Input: Likely Plain Text (Ready to Encode)',
@@ -580,16 +618,9 @@ export default function Base64EncodeDecodeClient({
           label: 'Text',
           valueNow: 10,
         };
-      case 'possibly_base64_or_text':
-        return {
-          text: 'Input: Could be Base64 (Ready to Decode) or Plain Text',
-          bgColor: 'bg-[rgb(var(--color-indicator-ambiguous))]',
-          label: 'Ambiguous',
-          valueNow: 50,
-        };
       case 'invalid_base64_chars':
         return {
-          text: 'Input: Contains characters NOT valid for Base64',
+          text: `Input: Contains characters invalid for Base64 ${toolState.operation === 'decode' ? '(Decode will fail)' : '(Encode might work if invalid char is e.g. space that gets trimmed)'}`,
           bgColor: 'bg-[rgb(var(--color-text-error))]',
           label: 'Invalid Chars',
           valueNow: 80,
@@ -603,7 +634,8 @@ export default function Base64EncodeDecodeClient({
           valueNow: 0,
         };
     }
-  };
+  }, [base64Likelihood, toolState.operation]);
+
   const {
     text: likelihoodText,
     bgColor,
@@ -618,8 +650,7 @@ export default function Base64EncodeDecodeClient({
       </p>
     );
   }
-
-  const canPerformOutputActions = outputValue.trim() !== '' && !error;
+  const canPerformOutputActions = toolState.outputValue.trim() !== '' && !error;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
@@ -647,7 +678,7 @@ export default function Base64EncodeDecodeClient({
         value={toolState.inputText}
         onChange={handleInputChange}
         placeholder="Paste text or Base64 string here..."
-        textareaClassName="text-base font-mono"
+        textareaClassName="text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
         spellCheck="false"
         aria-describedby="format-indicator"
       />
@@ -672,7 +703,6 @@ export default function Base64EncodeDecodeClient({
       >
         {likelihoodText}
       </p>
-
       <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-center p-3 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <RadioGroup
           name="base64Operation"
@@ -684,7 +714,6 @@ export default function Base64EncodeDecodeClient({
           radioClassName="text-sm"
           labelClassName="font-medium"
         />
-        {/* Process button removed */}
         <div className="flex-grow"></div>
         <Button
           variant="neutral"
@@ -695,36 +724,34 @@ export default function Base64EncodeDecodeClient({
           Clear
         </Button>
       </div>
-
       {error && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
-          {' '}
           <ExclamationTriangleIcon
             className="h-5 w-5 flex-shrink-0 mt-0.5"
             aria-hidden="true"
-          />{' '}
+          />
           <div>
             <strong className="font-semibold">Error:</strong> {error}
-          </div>{' '}
+          </div>
         </div>
       )}
       <Textarea
         label="Output:"
         id="base64-output"
         rows={8}
-        value={outputValue}
+        value={toolState.outputValue}
         readOnly
         placeholder="Result will appear here..."
         textareaClassName="text-base font-mono bg-[rgb(var(--color-bg-subtle))]"
         spellCheck="false"
         aria-live="polite"
+        onClick={(e) => e.currentTarget.select()}
       />
       {canPerformOutputActions && (
         <div className="flex flex-wrap gap-3 items-center p-3 border-t border-[rgb(var(--color-border-base))]">
-          {' '}
           <Button
             variant="primary-outline"
             onClick={() => initiateOutputAction('save')}
@@ -737,17 +764,15 @@ export default function Base64EncodeDecodeClient({
               )
             }
           >
-            {' '}
-            {saveSuccess ? 'Saved!' : 'Save to Library'}{' '}
-          </Button>{' '}
+            {saveSuccess ? 'Saved!' : 'Save to Library'}
+          </Button>
           <Button
             variant="secondary"
             onClick={() => initiateOutputAction('download')}
             iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
           >
-            {' '}
-            Download Output{' '}
-          </Button>{' '}
+            Download Output
+          </Button>
           <Button
             variant="neutral"
             onClick={handleCopyToClipboard}
@@ -760,15 +785,15 @@ export default function Base64EncodeDecodeClient({
               )
             }
           >
-            {' '}
-            {copySuccess ? 'Copied!' : 'Copy Output'}{' '}
-          </Button>{' '}
+            {copySuccess ? 'Copied!' : 'Copy Output'}
+          </Button>
         </div>
       )}
       <FileSelectionModal
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
+        slurpContentOnly={true}
         mode="selectExistingOrUploadNew"
         accept=".txt,text/*"
         selectionMode="single"

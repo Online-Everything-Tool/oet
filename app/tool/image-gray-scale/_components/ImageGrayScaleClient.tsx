@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { useHistory } from '../../../context/HistoryContext';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
@@ -49,8 +48,6 @@ export default function ImageGrayScaleClient({
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
 
   const [uiError, setUiError] = useState<string | null>(null);
-
-  const { addHistoryEntry } = useHistory();
 
   const { getImage, makeImagePermanent } = useImageLibrary();
 
@@ -154,7 +151,6 @@ export default function ImageGrayScaleClient({
       await processImage(
         currentInputFileForAsync,
         convertToGrayScale,
-        'auto',
         outputFileName,
         {},
         autoSaveProcessed
@@ -216,20 +212,6 @@ export default function ImageGrayScaleClient({
         try {
           await makeImagePermanent(processedFileId);
           setIsProcessedFilePermanent(true);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'auto',
-            input: {
-              originalFile: selectedFile?.name,
-              processedFileId: processedFileId,
-              operation: 'auto-save toggled on',
-            },
-            output: { message: `File ${processedFileId} made permanent.` },
-            outputFileIds: [processedFileId],
-            status: 'success',
-            eventTimestamp: Date.now(),
-          });
         } catch (err) {
           const message =
             err instanceof Error
@@ -245,7 +227,6 @@ export default function ImageGrayScaleClient({
       processedFileId,
       isProcessedFilePermanent,
       makeImagePermanent,
-      addHistoryEntry,
       toolTitle,
       toolRoute,
       selectedFile?.name,
@@ -335,22 +316,6 @@ export default function ImageGrayScaleClient({
     try {
       await makeImagePermanent(processedFileId);
       setIsProcessedFilePermanent(true);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: {
-          originalFile: selectedFile?.name,
-          processedFileId: processedFileId,
-          operation: 'manual save',
-        },
-        output: {
-          message: `Made processed image ${processedFileId} permanent.`,
-        },
-        outputFileIds: [processedFileId],
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       setUiError(
         `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -362,7 +327,6 @@ export default function ImageGrayScaleClient({
     processedFileId,
     isProcessedFilePermanent,
     makeImagePermanent,
-    addHistoryEntry,
     toolTitle,
     toolRoute,
     selectedFile?.name,

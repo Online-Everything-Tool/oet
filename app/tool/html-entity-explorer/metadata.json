@@ -5,8 +5,6 @@
     "summaryField": "char"
   },
   "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

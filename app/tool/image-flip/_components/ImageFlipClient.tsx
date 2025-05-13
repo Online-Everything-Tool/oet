@@ -10,7 +10,6 @@ import React, {
 } from 'react';
 import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolState from '../../_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
@@ -72,7 +71,6 @@ export default function ImageFlipClient({
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
   const [uiError, setUiError] = useState<string | null>(null);
 
-  const { addHistoryEntry } = useHistory();
   const { getImage, makeImagePermanent } = useImageLibrary();
 
   const {
@@ -223,7 +221,6 @@ export default function ImageFlipClient({
         await processImage(
           currentInputFileForAsync,
           flipDrawFunction,
-          'auto',
           outputFileName,
           { flipType: currentFlipType },
           currentAutoSave
@@ -305,19 +302,6 @@ export default function ImageFlipClient({
         try {
           await makeImagePermanent(hookGeneratedFileId);
           setIsProcessedFilePermanent(true);
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute,
-            trigger: 'auto',
-            input: {
-              processedFileId: hookGeneratedFileId,
-              action: 'auto-save-on',
-            },
-            output: { message: `File ${hookGeneratedFileId} made permanent.` },
-            outputFileIds: [hookGeneratedFileId],
-            status: 'success',
-            eventTimestamp: Date.now(),
-          });
         } catch (err) {
           setUiError(
             `Auto-save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -331,7 +315,6 @@ export default function ImageFlipClient({
       hookGeneratedFileId,
       isProcessedFilePermanent,
       makeImagePermanent,
-      addHistoryEntry,
       toolTitle,
       toolRoute,
       isProcessingImage,
@@ -426,18 +409,6 @@ export default function ImageFlipClient({
     try {
       await makeImagePermanent(hookGeneratedFileId);
       setIsProcessedFilePermanent(true);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { processedFileId: hookGeneratedFileId, action: 'manual-save' },
-        output: {
-          message: `Processed image ${hookGeneratedFileId} saved permanently.`,
-        },
-        outputFileIds: [hookGeneratedFileId],
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       setUiError(
         `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
@@ -449,7 +420,6 @@ export default function ImageFlipClient({
     hookGeneratedFileId,
     isProcessedFilePermanent,
     makeImagePermanent,
-    addHistoryEntry,
     toolTitle,
     toolRoute,
     setUiError,

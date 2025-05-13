@@ -1,14 +1,18 @@
 {
   "title": "Image Montage",
   "description": "Upload multiple images to create a fun, overlapping polaroid-style montage.",
+  "inputConfig": [
+    {
+      "acceptsCategory": "image",
+      "acceptsMimeTypes": ["image/*"]
+    }
+  ],
   "outputConfig": {
     "summaryField": "message",
     "referenceType": "imageLibraryId",
     "referenceField": "imageId"
   },
   "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

@@ -39,7 +39,6 @@ const CORE_CONTEXT_FILES = [
   'tsconfig.json',
 
   'src/types/tools.ts',
-  'src/types/history.ts',
   'src/types/image.ts',
   'src/types/build.ts',
 
@@ -48,7 +47,6 @@ const CORE_CONTEXT_FILES = [
 
   'app/tool/_components/ImageSelectionModal.tsx',
 
-  'app/context/HistoryContext.tsx',
   'app/context/ImageLibraryContext.tsx',
 
   'app/lib/utils.ts',
@@ -253,16 +251,15 @@ export async function POST(req: NextRequest) {
 1.  **Client-Side Focus:** Core tool logic MUST execute entirely in the user's browser. No backend needed for the main functionality unless explicitly stated otherwise (rare).
 2.  **Core File Structure:** Each tool lives in \`app/tool/<directive>/\` and typically requires THREE core files:
     *   \`${serverComponentPath}\`: Standard **React Server Component** wrapper. Imports metadata, ToolHeader, ToolSuspenseWrapper, and the main client component. Renders these, passing necessary props. Follow patterns from examples.
-    *   \`${clientComponentPath}\`: The main **React Client Component** (\`'use client';\`). Contains core state (useState), logic (handlers, effects), and UI (HTML). Uses provided hooks (useToolUrlState, useHistory, useImageLibrary etc.).
-    *   \`${metadataPath}\`: Contains tool metadata (title, description, urlStateParams, outputConfig etc.). Use the 'ToolMetadata' type definition.
+    *   \`${clientComponentPath}\`: Contains core state (useState), logic (handlers, effects), and UI (HTML). Uses provided hooks (useToolUrlState, useToolState, useToolUrlState, useImageLibrary, useImageProcessing etc.).
+    *   \`${metadataPath}\`: Contains tool metadata (title, description, inputConfig, urlStateParams, outputConfig etc.). Use the 'ToolMetadata' type definition.
 3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), **DO NOT put everything into the main Client Component.** Instead, decompose the logic and UI by generating additional helper files:
     *   **Custom Hooks:** If complex state logic, side effects, or reusable calculations are needed *specifically for this tool*, create custom hooks. Place them in \`${toolBasePath}/_hooks/<hookName>.ts\`. (e.g., \`${toolBasePath}/_hooks/useMontageState.ts\`).
     *   **Sub-Components:** If the UI is complex, break it down into smaller, focused presentational components. Place them in \`${toolBasePath}/_components/<ComponentName>.tsx\`. (e.g., \`${toolBasePath}/_components/ImageAdjustmentCard.tsx\`). The main Client Component should then import and use these.
 4.  **UI:** Use standard HTML elements. Style with Tailwind CSS using project's \`rgb(var(--color-...))\` variables. Keep UI clean and functional.
 5.  **State Management:** Use React hooks (useState, useCallback, useEffect, useMemo, useRef) within Client Components or Custom Hooks.
 6.  **URL State Syncing (\`useToolUrlState\`):** If simple state needs persistence, define \`urlStateParams\` in \`metadata.json\` and use the \`useToolUrlState\` hook in the Client Component.
-7.  **History Logging (\`useHistory\`):** The Client Component (or relevant hook) MUST import and use the \`useHistory\` hook. Call \`addHistoryEntry({ toolName, toolRoute, trigger, input, output, status })\` for significant actions. Format \`input\` and \`output\` appropriately (use \`imageId\` in output if applicable and configure \`outputConfig\` in metadata). Truncate long text.
-8.  **Types & Constants:** Use the types and constants defined in the Core Project Definitions below.
+7.  **Types & Constants:** Use the types and constants defined in the Core Project Definitions below.
 
 ${coreContextContent}
 

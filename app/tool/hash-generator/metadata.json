@@ -14,11 +14,11 @@
     }
   ],
   "outputConfig": {
-    "summaryField": "algorithmUsed"
+    "transferableContent": {
+      "dataType": "none"
+    }
   },
   "tags": ["security", "developer", "data"],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

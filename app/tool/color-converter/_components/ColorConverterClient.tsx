@@ -2,11 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
-import Button from '../../_components/form/Button'; // Assuming Button is in form folder
-// We'll use standard <input> for now, can be replaced by shared <Input /> later
+import Button from '../../_components/form/Button';
 import type { ParamConfig } from '@/src/types/tools';
 import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb } from '@/app/lib/colorUtils';
 import { useDebouncedCallback } from 'use-debounce';
@@ -19,26 +16,42 @@ import {
 type InputMode = 'hex' | 'rgb' | 'hsl';
 type CopiedFormat = InputMode | null;
 
+// For storing the validated, numeric color values
+interface ValidColorValues {
+  hex: string; // Normalized hex (e.g., #RRGGBB)
+  r: number;
+  g: number;
+  b: number;
+  h: number;
+  s: number;
+  l: number;
+}
+
 interface ColorConverterToolState {
-  hex: string;
-  r: string;
-  g: string;
-  b: string;
-  h: string;
-  s: string;
-  l: string;
+  // User input fields - always strings
+  hexInput: string;
+  rInput: string;
+  gInput: string;
+  bInput: string;
+  hInput: string;
+  sInput: string;
+  lInput: string;
+
   lastEditedField: InputMode;
+  // Holds the structured, validated color data if current inputs are valid
+  validColorValues: ValidColorValues | null;
 }
 
 const DEFAULT_COLOR_TOOL_STATE: ColorConverterToolState = {
-  hex: '',
-  r: '',
-  g: '',
-  b: '',
-  h: '',
-  s: '',
-  l: '',
+  hexInput: '',
+  rInput: '',
+  gInput: '',
+  bInput: '',
+  hInput: '',
+  sInput: '',
+  lInput: '',
   lastEditedField: 'hex',
+  validColorValues: null, // Initialize as null
 };
 
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
@@ -58,472 +71,363 @@ export default function ColorConverterClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
+    clearState: persistentClearState,
   } = useToolState<ColorConverterToolState>(
     toolRoute,
     DEFAULT_COLOR_TOOL_STATE
   );
 
-  const [error, setError] = useState<string>('');
+  const [uiError, setUiError] = useState<string>(''); // For UI display of errors
   const [copiedFormat, setCopiedFormat] = useState<CopiedFormat>(null);
-  const { addHistoryEntry } = useHistory();
 
-  const convertColors = useCallback(
+  // console.log(`[ColorConverter] RENDER. LastEdited: ${toolState.lastEditedField}, Hex: ${toolState.hexInput}, Valid: ${!!toolState.validColorValues}, Error: "${uiError}"`);
+
+  const convertAndSetColors = useCallback(
     (
       sourceMode: InputMode,
-      currentToolState: ColorConverterToolState,
-      triggerType: TriggerType = 'auto'
+      currentInputState: Omit<
+        ColorConverterToolState,
+        'validColorValues' | 'lastEditedField'
+      >
     ) => {
-      setError('');
-      setCopiedFormat(null);
-      let status: 'success' | 'error' = 'success';
-      let currentError = '';
-      let inputDetails: Record<string, unknown> = {};
-      let outputDetails: Record<string, unknown> = {};
+      // console.log(`[convertAndSetColors] Source: ${sourceMode}, Inputs:`, currentInputState);
+      let newValidValues: ValidColorValues | null = null;
+      let currentErrorMsg = '';
 
-      let newHex = currentToolState.hex,
-        newR = currentToolState.r,
-        newG = currentToolState.g,
-        newB = currentToolState.b,
-        newH = currentToolState.h,
-        newS = currentToolState.s,
-        newL = currentToolState.l;
+      let tempHex = currentInputState.hexInput;
+      let tempR = currentInputState.rInput;
+      let tempG = currentInputState.gInput;
+      let tempB = currentInputState.bInput;
+      let tempH = currentInputState.hInput;
+      let tempS = currentInputState.sInput;
+      let tempL = currentInputState.lInput;
 
       try {
         if (sourceMode === 'hex') {
-          if (!currentToolState.hex.trim()) {
-            setToolState(DEFAULT_COLOR_TOOL_STATE);
-            return;
-          } // Clear all if hex is cleared
-          inputDetails = { hex: currentToolState.hex };
-          const rgbResult = hexToRgb(currentToolState.hex);
-          if (rgbResult) {
-            const hslResult = rgbToHsl(rgbResult.r, rgbResult.g, rgbResult.b);
-            newR = String(rgbResult.r);
-            newG = String(rgbResult.g);
-            newB = String(rgbResult.b);
-            newH = String(hslResult.h);
-            newS = String(hslResult.s);
-            newL = String(hslResult.l);
-            // Re-set hex from a valid conversion to normalize it (e.g. #fff -> #FFFFFF)
-            newHex = rgbToHex(rgbResult.r, rgbResult.g, rgbResult.b);
-            outputDetails = {
-              rgb: `rgb(${newR},${newG},${newB})`,
-              hsl: `hsl(${newH},${newS}%,${newL}%)`,
-            };
-          } else {
+          if (!currentInputState.hexInput.trim()) throw new Error('empty');
+          const rgb = hexToRgb(currentInputState.hexInput);
+          if (!rgb)
             throw new Error('Invalid Hex. Use #RRGGBB, #RGB, RRGGBB, or RGB.');
-          }
+          const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+          newValidValues = {
+            hex: rgbToHex(rgb.r, rgb.g, rgb.b),
+            ...rgb,
+            ...hsl,
+          };
+          tempR = String(rgb.r);
+          tempG = String(rgb.g);
+          tempB = String(rgb.b);
+          tempH = String(hsl.h);
+          tempS = String(hsl.s);
+          tempL = String(hsl.l);
+          tempHex = newValidValues.hex; // Use normalized hex
         } else if (sourceMode === 'rgb') {
           if (
-            !currentToolState.r.trim() &&
-            !currentToolState.g.trim() &&
-            !currentToolState.b.trim() &&
-            !currentToolState.hex.trim() &&
-            !currentToolState.h.trim()
-          ) {
-            setToolState(DEFAULT_COLOR_TOOL_STATE);
-            return;
-          }
-          if (
-            !currentToolState.r.trim() ||
-            !currentToolState.g.trim() ||
-            !currentToolState.b.trim()
+            !currentInputState.rInput.trim() &&
+            !currentInputState.gInput.trim() &&
+            !currentInputState.bInput.trim()
           )
-            throw new Error('All RGB inputs are required.');
-          const rNum = parseInt(currentToolState.r, 10),
-            gNum = parseInt(currentToolState.g, 10),
-            bNum = parseInt(currentToolState.b, 10);
-          inputDetails = {
-            r: currentToolState.r,
-            g: currentToolState.g,
-            b: currentToolState.b,
-          };
+            throw new Error('empty');
           if (
-            isNaN(rNum) ||
-            isNaN(gNum) ||
-            isNaN(bNum) ||
-            rNum < 0 ||
-            rNum > 255 ||
-            gNum < 0 ||
-            gNum > 255 ||
-            bNum < 0 ||
-            bNum > 255
+            !currentInputState.rInput.trim() ||
+            !currentInputState.gInput.trim() ||
+            !currentInputState.bInput.trim()
+          )
+            throw new Error('All RGB inputs required if any is present.');
+          const r = parseInt(currentInputState.rInput, 10),
+            g = parseInt(currentInputState.gInput, 10),
+            b = parseInt(currentInputState.bInput, 10);
+          if (
+            isNaN(r) ||
+            isNaN(g) ||
+            isNaN(b) ||
+            r < 0 ||
+            r > 255 ||
+            g < 0 ||
+            g > 255 ||
+            b < 0 ||
+            b > 255
           ) {
-            throw new Error('Invalid RGB. Components: 0-255.');
+            throw new Error('Invalid RGB. Components must be numbers 0-255.');
           }
-          newHex = rgbToHex(rNum, gNum, bNum);
-          const hslResult = rgbToHsl(rNum, gNum, bNum);
-          newH = String(hslResult.h);
-          newS = String(hslResult.s);
-          newL = String(hslResult.l);
-          // Ensure r,g,b in state match parsed numbers if they were valid
-          newR = String(rNum);
-          newG = String(gNum);
-          newB = String(bNum);
-          outputDetails = {
-            hex: newHex,
-            hsl: `hsl(${newH},${newS}%,${newL}%)`,
-          };
+          const hex = rgbToHex(r, g, b);
+          const hsl = rgbToHsl(r, g, b);
+          newValidValues = { hex, r, g, b, ...hsl };
+          tempHex = hex;
+          tempH = String(hsl.h);
+          tempS = String(hsl.s);
+          tempL = String(hsl.l);
+          // Keep user's valid number input string for r,g,b if they are valid numbers
+          tempR = String(r);
+          tempG = String(g);
+          tempB = String(b);
         } else if (sourceMode === 'hsl') {
           if (
-            !currentToolState.h.trim() &&
-            !currentToolState.s.trim() &&
-            !currentToolState.l.trim() &&
-            !currentToolState.hex.trim() &&
-            !currentToolState.r.trim()
-          ) {
-            setToolState(DEFAULT_COLOR_TOOL_STATE);
-            return;
-          }
-          if (
-            !currentToolState.h.trim() ||
-            !currentToolState.s.trim() ||
-            !currentToolState.l.trim()
+            !currentInputState.hInput.trim() &&
+            !currentInputState.sInput.trim() &&
+            !currentInputState.lInput.trim()
           )
-            throw new Error('All HSL inputs are required.');
-          const hNum = parseInt(currentToolState.h, 10),
-            sNum = parseInt(currentToolState.s, 10),
-            lNum = parseInt(currentToolState.l, 10);
-          inputDetails = {
-            h: currentToolState.h,
-            s: currentToolState.s,
-            l: currentToolState.l,
-          };
+            throw new Error('empty');
           if (
-            isNaN(hNum) ||
-            isNaN(sNum) ||
-            isNaN(lNum) ||
-            hNum < 0 ||
-            hNum > 360 ||
-            sNum < 0 ||
-            sNum > 100 ||
-            lNum < 0 ||
-            lNum > 100
+            !currentInputState.hInput.trim() ||
+            !currentInputState.sInput.trim() ||
+            !currentInputState.lInput.trim()
+          )
+            throw new Error('All HSL inputs required if any is present.');
+          const h = parseInt(currentInputState.hInput, 10),
+            s = parseInt(currentInputState.sInput, 10),
+            l = parseInt(currentInputState.lInput, 10);
+          if (
+            isNaN(h) ||
+            isNaN(s) ||
+            isNaN(l) ||
+            h < 0 ||
+            h > 360 ||
+            s < 0 ||
+            s > 100 ||
+            l < 0 ||
+            l > 100
           ) {
-            throw new Error('Invalid HSL. H:0-360, S/L:0-100.');
+            throw new Error('Invalid HSL. H: 0-360, S/L: 0-100.');
           }
-          const rgbResult = hslToRgb(hNum, sNum, lNum);
-          newHex = rgbToHex(rgbResult.r, rgbResult.g, rgbResult.b);
-          newR = String(rgbResult.r);
-          newG = String(rgbResult.g);
-          newB = String(rgbResult.b);
-          // Ensure h,s,l in state match parsed numbers if they were valid
-          newH = String(hNum);
-          newS = String(sNum);
-          newL = String(lNum);
-          outputDetails = { hex: newHex, rgb: `rgb(${newR},${newG},${newB})` };
-        } else {
-          throw new Error('Invalid conversion source.');
+          const rgb = hslToRgb(h, s, l);
+          const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+          newValidValues = { hex, ...rgb, h, s, l };
+          tempHex = hex;
+          tempR = String(rgb.r);
+          tempG = String(rgb.g);
+          tempB = String(rgb.b);
+          // Keep user's valid number input string for h,s,l
+          tempH = String(h);
+          tempS = String(s);
+          tempL = String(l);
         }
-
-        setToolState({
-          hex: newHex,
-          r: newR,
-          g: newG,
-          b: newB,
-          h: newH,
-          s: newS,
-          l: newL,
-          lastEditedField: sourceMode,
-        });
       } catch (err) {
-        currentError =
+        if (err instanceof Error && err.message === 'empty') {
+          // If all relevant inputs for the sourceMode are empty, reset to default.
+          // This means user cleared the source input field.
+          setToolState(DEFAULT_COLOR_TOOL_STATE);
+          setUiError(''); // Clear any previous error
+          return; // Exit early
+        }
+        currentErrorMsg =
           err instanceof Error ? err.message : 'Unknown conversion error.';
-        setError(currentError);
-        status = 'error';
-        if (sourceMode === 'hex')
-          inputDetails = { hex: currentToolState.hex, error: currentError };
-        else if (sourceMode === 'rgb')
-          inputDetails = {
-            r: currentToolState.r,
-            g: currentToolState.g,
-            b: currentToolState.b,
-            error: currentError,
-          };
-        else if (sourceMode === 'hsl')
-          inputDetails = {
-            h: currentToolState.h,
-            s: currentToolState.s,
-            l: currentToolState.l,
-            error: currentError,
-          };
-        else inputDetails = { error: currentError };
-        // Don't clear other fields on error, let user see what they typed
       }
-      // Only log history if there was a definitive input attempt
-      if (
-        Object.keys(inputDetails).length > 0 &&
-        !(Object.keys(inputDetails).length === 1 && inputDetails.error)
-      ) {
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: triggerType,
-          input: inputDetails,
-          output:
-            status === 'success' ? outputDetails : `Error: ${currentError}`,
-          status: status,
-          eventTimestamp: Date.now(),
-        });
-      }
+
+      setToolState({
+        hexInput: tempHex,
+        rInput: tempR,
+        gInput: tempG,
+        bInput: tempB,
+        hInput: tempH,
+        sInput: tempS,
+        lInput: tempL,
+        lastEditedField: sourceMode,
+        validColorValues: newValidValues,
+      });
+
+      if (currentErrorMsg && uiError !== currentErrorMsg)
+        setUiError(currentErrorMsg);
+      else if (!currentErrorMsg && uiError) setUiError('');
     },
-    [addHistoryEntry, toolTitle, toolRoute, setToolState]
+    [setToolState, uiError] // Added uiError to dependencies
   );
 
-  const debouncedConvertColors = useDebouncedCallback(
-    convertColors,
+  const debouncedConvertAndSetColors = useDebouncedCallback(
+    convertAndSetColors,
     AUTO_PROCESS_DEBOUNCE_MS
   );
 
-  // In ColorConverterClient.tsx
-
-  // Effect for initial URL param load
+  // Effect for URL Param Loading
   useEffect(() => {
-    if (!isLoadingToolState && urlStateParams?.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      let determinedSourceToUse: InputMode | null = null;
-      const newStateFromUrl: Partial<ColorConverterToolState> = {};
-      let changedByUrl = false;
+    if (isLoadingToolState || !urlStateParams || urlStateParams.length === 0)
+      return;
 
-      // Check Hex first
-      const pHex = params.get('hex');
-      if (pHex !== null && pHex.trim()) {
-        if (pHex !== toolState.hex) {
-          newStateFromUrl.hex = pHex;
-          changedByUrl = true;
-        }
-        determinedSourceToUse = 'hex';
-      }
+    const params = new URLSearchParams(window.location.search);
+    const updates: Partial<ColorConverterToolState> = {};
+    let sourceForProcessing: InputMode | null = null;
 
-      // Check RGB
-      const pR = params.get('r');
-      const pG = params.get('g');
-      const pB = params.get('b');
-      if (pR !== null && pG !== null && pB !== null) {
-        // All RGB params must be present
-        if (pR.trim() || pG.trim() || pB.trim()) {
-          // At least one must have content
-          if (pR !== toolState.r || pG !== toolState.g || pB !== toolState.b) {
-            newStateFromUrl.r = pR;
-            newStateFromUrl.g = pG;
-            newStateFromUrl.b = pB;
-            changedByUrl = true;
-          }
-          if (!determinedSourceToUse) determinedSourceToUse = 'rgb';
-        }
-      }
+    // Prioritize Hex from URL
+    const pHex = params.get('hex');
+    if (pHex !== null && pHex !== toolState.hexInput) {
+      updates.hexInput = pHex;
+      sourceForProcessing = 'hex';
+    }
 
-      // Check HSL
-      const pH = params.get('h');
-      const pS = params.get('s');
-      const pL = params.get('l');
-      if (pH !== null && pS !== null && pL !== null) {
-        // All HSL params must be present
-        if (pH.trim() || pS.trim() || pL.trim()) {
-          // At least one must have content
-          if (pH !== toolState.h || pS !== toolState.s || pL !== toolState.l) {
-            newStateFromUrl.h = pH;
-            newStateFromUrl.s = pS;
-            newStateFromUrl.l = pL;
-            changedByUrl = true;
-          }
-          if (!determinedSourceToUse) determinedSourceToUse = 'hsl';
-        }
-      }
-
-      if (changedByUrl && Object.keys(newStateFromUrl).length > 0) {
-        setToolState((prev) => ({
-          ...prev,
-          ...newStateFromUrl,
-          lastEditedField: determinedSourceToUse || prev.lastEditedField,
-        }));
-        // Auto-conversion will be triggered by the other useEffect watching toolState changes
-      } else if (determinedSourceToUse) {
-        // URL params were present but matched current state, or only one part of a group was present
-        // but enough to determine a source. We might still want to trigger a conversion
-        // if, for example, only 'hex' was in URL and it matches toolState.hex, but RGB/HSL in toolState are empty.
-        // The `convertColors` function itself handles empty source fields.
-        // We also need to make sure there's *some* content to trigger a conversion.
-        let hasContentForSource = false;
-        if (determinedSourceToUse === 'hex' && toolState.hex.trim())
-          hasContentForSource = true;
-        else if (
-          determinedSourceToUse === 'rgb' &&
-          (toolState.r.trim() || toolState.g.trim() || toolState.b.trim())
-        )
-          hasContentForSource = true;
-        else if (
-          determinedSourceToUse === 'hsl' &&
-          (toolState.h.trim() || toolState.s.trim() || toolState.l.trim())
-        )
-          hasContentForSource = true;
-
-        if (hasContentForSource) {
-          setTimeout(
-            () => convertColors(determinedSourceToUse, toolState, 'query'),
-            0
-          );
-        }
+    // Then RGB from URL (all must be present to be considered an RGB update attempt)
+    const pR = params.get('r');
+    const pG = params.get('g');
+    const pB = params.get('b');
+    if (pR !== null && pG !== null && pB !== null) {
+      if (
+        pR !== toolState.rInput ||
+        pG !== toolState.gInput ||
+        pB !== toolState.bInput
+      ) {
+        updates.rInput = pR;
+        updates.gInput = pG;
+        updates.bInput = pB;
+        if (!sourceForProcessing) sourceForProcessing = 'rgb';
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolState, urlStateParams, setToolState]); // convertColors and toolState are intentionally omitted
 
-  // Effect for auto-processing on toolState change (except lastEditedField if only that changes)
-  useEffect(() => {
-    if (!isLoadingToolState) {
-      // Don't run on initial load before state is settled
-      const { lastEditedField, ...colorValues } = toolState; // Get current values
-      const stateToProcess: ColorConverterToolState = {
-        ...colorValues,
-        lastEditedField,
-      }; // Reconstruct with current lastEditedField
-
-      // Check if any actual color value is present before debouncing
-      const hasAnyColorValue =
-        toolState.hex.trim() ||
-        toolState.r.trim() ||
-        toolState.g.trim() ||
-        toolState.b.trim() ||
-        toolState.h.trim() ||
-        toolState.s.trim() ||
-        toolState.l.trim();
-
-      if (hasAnyColorValue) {
-        debouncedConvertColors(
-          toolState.lastEditedField,
-          stateToProcess,
-          'auto'
-        );
-      } else {
-        // If all inputs are cleared, reset everything
-        setError('');
-        setToolState(DEFAULT_COLOR_TOOL_STATE); // Reset to default if all inputs become empty
+    // Then HSL from URL
+    const pH = params.get('h');
+    const pS = params.get('s');
+    const pL = params.get('l');
+    if (pH !== null && pS !== null && pL !== null) {
+      if (
+        pH !== toolState.hInput ||
+        pS !== toolState.sInput ||
+        pL !== toolState.lInput
+      ) {
+        updates.hInput = pH;
+        updates.sInput = pS;
+        updates.lInput = pL;
+        if (!sourceForProcessing) sourceForProcessing = 'hsl';
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    if (Object.keys(updates).length > 0) {
+      updates.lastEditedField =
+        sourceForProcessing || toolState.lastEditedField;
+      updates.validColorValues = null; // Clear valid values, will be recalculated
+      setToolState(updates);
+    } else if (sourceForProcessing) {
+      // URL params matched current state, but ensure processing happens for initial display
+      const currentInputState = {
+        hexInput: toolState.hexInput,
+        rInput: toolState.rInput,
+        gInput: toolState.gInput,
+        bInput: toolState.bInput,
+        hInput: toolState.hInput,
+        sInput: toolState.sInput,
+        lInput: toolState.lInput,
+      };
+      convertAndSetColors(sourceForProcessing, currentInputState);
+    }
+  }, [isLoadingToolState, urlStateParams, setToolState, convertAndSetColors]); // toolState parts removed from deps
+
+  // Main Effect for Processing input changes
+  useEffect(() => {
+    if (isLoadingToolState) return;
+
+    const currentInputState = {
+      hexInput: toolState.hexInput,
+      rInput: toolState.rInput,
+      gInput: toolState.gInput,
+      bInput: toolState.bInput,
+      hInput: toolState.hInput,
+      sInput: toolState.sInput,
+      lInput: toolState.lInput,
+    };
+    // Don't trigger if all inputs are effectively empty
+    const hasAnyInput = Object.values(currentInputState).some(
+      (val) => val.trim() !== ''
+    );
+    if (!hasAnyInput && !toolState.validColorValues && !uiError) {
+      // if all inputs empty and no current valid color or error
+      if (
+        toolState.hexInput !== '' ||
+        toolState.rInput !== '' ||
+        toolState.gInput !== '' ||
+        toolState.bInput !== '' ||
+        toolState.hInput !== '' ||
+        toolState.sInput !== '' ||
+        toolState.lInput !== '' ||
+        toolState.validColorValues !== null
+      ) {
+        // If any part of toolState is not default for empty, reset it.
+        setToolState(DEFAULT_COLOR_TOOL_STATE);
+      }
+      if (uiError) setUiError('');
+      return;
+    }
+
+    debouncedConvertAndSetColors(toolState.lastEditedField, currentInputState);
   }, [
-    toolState.hex,
-    toolState.r,
-    toolState.g,
-    toolState.b,
-    toolState.h,
-    toolState.s,
-    toolState.l,
+    toolState.hexInput,
+    toolState.rInput,
+    toolState.gInput,
+    toolState.bInput,
+    toolState.hInput,
+    toolState.sInput,
+    toolState.lInput,
     toolState.lastEditedField,
     isLoadingToolState,
-    debouncedConvertColors,
-  ]); // Added setToolState to deps if clearing to default
+    debouncedConvertAndSetColors,
+    setToolState,
+    toolState.validColorValues,
+    uiError,
+  ]);
 
   const createChangeHandler =
-    (field: keyof ColorConverterToolState, mode: InputMode) =>
+    (
+      field: keyof Omit<
+        ColorConverterToolState,
+        'lastEditedField' | 'validColorValues'
+      >,
+      mode: InputMode
+    ) =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({
         [field]: event.target.value,
         lastEditedField: mode,
+        validColorValues: null, // Clear valid color on input change, it will be re-calculated
       } as Partial<ColorConverterToolState>);
-      // Debounced conversion will be triggered by useEffect
-      setCopiedFormat(null); // Reset copy success on any input change
+      setCopiedFormat(null);
     };
 
-  const handleHexChange = createChangeHandler('hex', 'hex');
-  const handleRChange = createChangeHandler('r', 'rgb');
-  const handleGChange = createChangeHandler('g', 'rgb');
-  const handleBChange = createChangeHandler('b', 'rgb');
-  const handleHChange = createChangeHandler('h', 'hsl');
-  const handleSChange = createChangeHandler('s', 'hsl');
-  const handleLChange = createChangeHandler('l', 'hsl');
+  const handleHexChange = createChangeHandler('hexInput', 'hex');
+  const handleRChange = createChangeHandler('rInput', 'rgb');
+  const handleGChange = createChangeHandler('gInput', 'rgb');
+  const handleBChange = createChangeHandler('bInput', 'rgb');
+  const handleHChange = createChangeHandler('hInput', 'hsl');
+  const handleSChange = createChangeHandler('sInput', 'hsl');
+  const handleLChange = createChangeHandler('lInput', 'hsl');
 
-  const handleClear = useCallback(() => {
-    setToolState(DEFAULT_COLOR_TOOL_STATE);
-    setError('');
+  const handleClear = useCallback(async () => {
+    await persistentClearState(); // This sets toolState to default and clears Dexie
+    setUiError('');
     setCopiedFormat(null);
-    debouncedConvertColors.cancel();
-  }, [setToolState, debouncedConvertColors]);
+    debouncedConvertAndSetColors.cancel();
+  }, [persistentClearState, debouncedConvertAndSetColors]);
 
   const handleCopy = useCallback(
-    async (format: CopiedFormat) => {
-      // ... (Copy logic remains the same, using toolState values)
-      if (!format) return;
+    async (format: InputMode) => {
+      if (!toolState.validColorValues) {
+        setUiError('No valid color to copy.');
+        return;
+      }
       let textToCopy = '';
-      setError(''); // Clear previous errors
-      // setCopiedFormat(null); // Cleared by input change or new convert
-
       try {
-        if (format === 'hex') textToCopy = toolState.hex;
+        if (format === 'hex') textToCopy = toolState.validColorValues.hex;
         else if (format === 'rgb')
-          textToCopy = `rgb(${toolState.r}, ${toolState.g}, ${toolState.b})`;
+          textToCopy = `rgb(${toolState.validColorValues.r}, ${toolState.validColorValues.g}, ${toolState.validColorValues.b})`;
         else if (format === 'hsl')
-          textToCopy = `hsl(${toolState.h}, ${toolState.s}%, ${toolState.l}%)`;
+          textToCopy = `hsl(${toolState.validColorValues.h}, ${toolState.validColorValues.s}%, ${toolState.validColorValues.l}%)`;
 
-        if (
-          !textToCopy.trim() ||
-          (format === 'hex' && !toolState.hex.trim()) ||
-          (format === 'rgb' &&
-            (!toolState.r.trim() ||
-              !toolState.g.trim() ||
-              !toolState.b.trim())) ||
-          (format === 'hsl' &&
-            (!toolState.h.trim() || !toolState.s.trim() || !toolState.l.trim()))
-        ) {
-          throw new Error('No valid color value to copy.');
-        }
+        if (!textToCopy) throw new Error('Selected format has no value.');
+
         await navigator.clipboard.writeText(textToCopy);
         setCopiedFormat(format);
+        if (uiError) setUiError('');
         setTimeout(() => setCopiedFormat(null), 2000);
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to copy.';
-        setError(`Copy Error: ${message}`);
+        setUiError(
+          `Copy Error: ${err instanceof Error ? err.message : 'Failed to copy.'}`
+        );
       }
     },
-    [
-      toolState.hex,
-      toolState.r,
-      toolState.g,
-      toolState.b,
-      toolState.h,
-      toolState.s,
-      toolState.l,
-    ]
+    [toolState.validColorValues, uiError]
   );
 
   const colorSwatchStyle = useMemo(() => {
-    /* ... as before, using toolState ... */
     let backgroundColor = 'transparent';
-    let borderColor = 'rgb(var(--color-input-border))'; // Default border
-    if (
-      !error &&
-      toolState.r.trim() &&
-      toolState.g.trim() &&
-      toolState.b.trim()
-    ) {
-      // Check if RGB values are non-empty
-      const rNum = parseInt(toolState.r, 10);
-      const gNum = parseInt(toolState.g, 10);
-      const bNum = parseInt(toolState.b, 10);
-      if (
-        !isNaN(rNum) &&
-        !isNaN(gNum) &&
-        !isNaN(bNum) &&
-        rNum >= 0 &&
-        rNum <= 255 &&
-        gNum >= 0 &&
-        gNum <= 255 &&
-        bNum >= 0 &&
-        bNum <= 255
-      ) {
-        backgroundColor = `rgb(${rNum}, ${gNum}, ${bNum})`;
-      } else {
-        backgroundColor = 'transparent'; // Invalid RGB numbers, keep transparent
-      }
-    } else if (!error && toolState.hex.trim() && hexToRgb(toolState.hex)) {
-      // if hex is valid, try to use it
-      const rgbFromHex = hexToRgb(toolState.hex);
-      if (rgbFromHex)
-        backgroundColor = `rgb(${rgbFromHex.r}, ${rgbFromHex.g}, ${rgbFromHex.b})`;
-    }
-
-    if (error) {
+    let borderColor = 'rgb(var(--color-input-border))';
+    if (toolState.validColorValues) {
+      backgroundColor = toolState.validColorValues.hex;
+    } else if (uiError) {
       borderColor = 'rgb(var(--color-border-error))';
     }
     return {
@@ -532,7 +436,7 @@ export default function ColorConverterClient({
       borderWidth: '2px',
       borderStyle: 'solid',
     };
-  }, [toolState.r, toolState.g, toolState.b, toolState.hex, error]);
+  }, [toolState.validColorValues, uiError]);
 
   if (isLoadingToolState) {
     return (
@@ -542,7 +446,6 @@ export default function ColorConverterClient({
     );
   }
 
-  // Common input classes
   const inputBaseClasses =
     'p-2 border rounded-md shadow-sm focus:outline-none text-base bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] placeholder:text-[rgb(var(--color-input-placeholder))] disabled:bg-gray-100 disabled:cursor-not-allowed';
   const inputBorderNormal =
@@ -553,7 +456,6 @@ export default function ColorConverterClient({
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-5">
-        {/* Hex Input */}
         <div className="md:col-span-1 space-y-1">
           <label
             htmlFor="hex-input"
@@ -565,15 +467,17 @@ export default function ColorConverterClient({
             <input
               type="text"
               id="hex-input"
-              value={toolState.hex}
+              value={toolState.hexInput}
               onChange={handleHexChange}
               placeholder="#ffffff"
-              className={`${inputBaseClasses} flex-grow rounded-l-md font-mono ${error && toolState.lastEditedField === 'hex' ? inputBorderError : inputBorderNormal}`}
+              className={`${inputBaseClasses} flex-grow rounded-l-md font-mono ${uiError && toolState.lastEditedField === 'hex' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'hex' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'hex'
+                  ? 'true'
+                  : 'false'
               }
               aria-describedby={
-                error && toolState.lastEditedField === 'hex'
+                uiError && toolState.lastEditedField === 'hex'
                   ? 'input-error-feedback'
                   : undefined
               }
@@ -582,7 +486,7 @@ export default function ColorConverterClient({
               variant={copiedFormat === 'hex' ? 'secondary' : 'neutral'}
               onClick={() => handleCopy('hex')}
               className="rounded-l-none px-3 border-l-0"
-              disabled={!toolState.hex.trim() || !!error}
+              disabled={!toolState.validColorValues}
               iconLeft={
                 copiedFormat === 'hex' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -600,7 +504,6 @@ export default function ColorConverterClient({
             </Button>
           </div>
         </div>
-        {/* RGB Inputs */}
         <div className="md:col-span-1 space-y-1">
           <label
             className={`block text-sm font-medium mb-1 ${toolState.lastEditedField === 'rgb' ? 'text-[rgb(var(--color-text-base))] font-semibold' : 'text-[rgb(var(--color-text-muted))]'}`}
@@ -612,51 +515,52 @@ export default function ColorConverterClient({
               type="number"
               min="0"
               max="255"
-              value={toolState.r}
+              value={toolState.rInput}
               placeholder="R"
               onChange={handleRChange}
               aria-label="RGB Red"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'rgb' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'rgb'
+                  ? 'true'
+                  : 'false'
               }
             />
             <input
               type="number"
               min="0"
               max="255"
-              value={toolState.g}
+              value={toolState.gInput}
               placeholder="G"
               onChange={handleGChange}
               aria-label="RGB Green"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'rgb' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'rgb'
+                  ? 'true'
+                  : 'false'
               }
             />
             <input
               type="number"
               min="0"
               max="255"
-              value={toolState.b}
+              value={toolState.bInput}
               placeholder="B"
               onChange={handleBChange}
               aria-label="RGB Blue"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'rgb' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'rgb'
+                  ? 'true'
+                  : 'false'
               }
             />
             <Button
               variant={copiedFormat === 'rgb' ? 'secondary' : 'neutral'}
               onClick={() => handleCopy('rgb')}
               className="px-3"
-              disabled={
-                !toolState.r.trim() ||
-                !toolState.g.trim() ||
-                !toolState.b.trim() ||
-                !!error
-              }
+              disabled={!toolState.validColorValues}
               iconLeft={
                 copiedFormat === 'rgb' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -674,7 +578,6 @@ export default function ColorConverterClient({
             </Button>
           </div>
         </div>
-        {/* HSL Inputs */}
         <div className="md:col-span-1 space-y-1">
           <label
             className={`block text-sm font-medium mb-1 ${toolState.lastEditedField === 'hsl' ? 'text-[rgb(var(--color-text-base))] font-semibold' : 'text-[rgb(var(--color-text-muted))]'}`}
@@ -686,51 +589,52 @@ export default function ColorConverterClient({
               type="number"
               min="0"
               max="360"
-              value={toolState.h}
+              value={toolState.hInput}
               placeholder="H"
               onChange={handleHChange}
               aria-label="HSL Hue"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'hsl' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'hsl'
+                  ? 'true'
+                  : 'false'
               }
             />
             <input
               type="number"
               min="0"
               max="100"
-              value={toolState.s}
+              value={toolState.sInput}
               placeholder="S"
               onChange={handleSChange}
               aria-label="HSL Saturation"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'hsl' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'hsl'
+                  ? 'true'
+                  : 'false'
               }
             />
             <input
               type="number"
               min="0"
               max="100"
-              value={toolState.l}
+              value={toolState.lInput}
               placeholder="L"
               onChange={handleLChange}
               aria-label="HSL Lightness"
-              className={`w-1/3 ${inputBaseClasses} ${error && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
+              className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
               aria-invalid={
-                error && toolState.lastEditedField === 'hsl' ? 'true' : 'false'
+                uiError && toolState.lastEditedField === 'hsl'
+                  ? 'true'
+                  : 'false'
               }
             />
             <Button
               variant={copiedFormat === 'hsl' ? 'secondary' : 'neutral'}
               onClick={() => handleCopy('hsl')}
               className="px-3"
-              disabled={
-                !toolState.h.trim() ||
-                !toolState.s.trim() ||
-                !toolState.l.trim() ||
-                !!error
-              }
+              disabled={!toolState.validColorValues}
               iconLeft={
                 copiedFormat === 'hsl' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -750,11 +654,7 @@ export default function ColorConverterClient({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 items-center border-t border-[rgb(var(--color-border-base))] pt-4 mt-1">
-        {/* Convert button removed, auto-processing is active */}
-        <Button variant="neutral" onClick={handleClear} className="ml-auto">
-          Clear All
-        </Button>
+      <div className="flex flex-wrap gap-4 items-center border-t border-[rgb(var(--color-border-base))] pt-4 mt-1 ml-auto">
         <div className="flex items-center gap-2 order-first md:order-none md:ml-0">
           <span className="text-sm text-[rgb(var(--color-text-muted))]">
             Preview:
@@ -764,9 +664,12 @@ export default function ColorConverterClient({
             style={colorSwatchStyle}
           ></div>
         </div>
+        <Button variant="neutral" onClick={handleClear}>
+          Clear All
+        </Button>
       </div>
 
-      {error && (
+      {uiError && (
         <div
           role="alert"
           id="input-error-feedback"
@@ -777,7 +680,7 @@ export default function ColorConverterClient({
             aria-hidden="true"
           />
           <div>
-            <strong className="font-semibold">Error:</strong> {error}
+            <strong className="font-semibold">Error:</strong> {uiError}
           </div>
         </div>
       )}

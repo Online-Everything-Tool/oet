@@ -1,4 +1,4 @@
-// FILE: app/tool/_components/FileSelectionModal.tsx
+// FILE: app/tool/_components/file-storage/FileSelectionModal.tsx
 'use client';
 
 import React, {
@@ -17,6 +17,7 @@ import { formatBytes, getFileIconClassName } from '@/app/lib/utils';
 import Button from '../form/Button';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import Checkbox from '../form/Checkbox';
+import { v4 as uuidv4 } from 'uuid';
 
 type ModalMode =
   | 'addNewFiles'
@@ -29,9 +30,11 @@ interface FileSelectionModalProps {
   onFilesSelected: (
     files: StoredFile[],
     source: 'library' | 'upload',
-    saveUploadedToLibrary?: boolean,
     filterToThese?: boolean
   ) => void;
+
+  slurpContentOnly?: boolean;
+  defaultSaveUploadsToLibrary?: boolean;
 
   className?: string;
   accept?: string;
@@ -39,7 +42,7 @@ interface FileSelectionModalProps {
   mode: ModalMode;
   libraryFilter?: { category?: string; type?: string };
   initialTab?: 'library' | 'upload';
-  showFilterAfterUploadCheckbox?: boolean;
+  showFilterAfterUploadCheckbox?: boolean; // Controls visibility of the checkbox
 }
 
 const mapTypeToCategory = (mimeType: string | undefined): string => {
@@ -59,43 +62,48 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   isOpen,
   onClose,
   onFilesSelected,
+  slurpContentOnly = false,
+  defaultSaveUploadsToLibrary = false,
   className,
   accept = '*/*',
   libraryFilter: libraryFilterProp = {},
   selectionMode = 'multiple',
   mode,
   initialTab,
-  showFilterAfterUploadCheckbox = false,
+  showFilterAfterUploadCheckbox = false, // Default to false if not provided
 }) => {
   const {
     listFiles,
     addFile,
     getFile,
     loading: libraryLoading,
-    error: libraryError,
   } = useFileLibrary();
 
   const [libraryFiles, setLibraryFiles] = useState<StoredFile[]>([]);
-  const [modalLoading, setModalLoading] = useState<boolean>(false);
+  const [modalProcessingLoading, setModalProcessingLoading] =
+    useState<boolean>(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [previewObjectUrls, setPreviewObjectUrls] = useState<
     Map<string, string>
   >(new Map());
   const managedUrlsRef = useRef<Map<string, string>>(new Map());
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [savePreference, setSavePreference] = useState<boolean>(
-    mode === 'addNewFiles'
+  const [selectedIdsFromLibrary, setSelectedIdsFromLibrary] = useState<
+    Set<string>
+  >(new Set());
+
+  const [saveUploadsPreference, setSaveUploadsPreference] = useState<boolean>(
+    mode === 'addNewFiles' ? true : defaultSaveUploadsToLibrary
   );
   const uploadInputRef = useRef<HTMLInputElement>(null);
-
+  // Default filterAfterUploadChecked to false
   const [filterAfterUploadChecked, setFilterAfterUploadChecked] =
-    useState(true);
+    useState(false);
 
-  const showLibraryTabActive = useMemo(
+  const showLibraryTab = useMemo(
     () => mode === 'selectExistingOrUploadNew' || mode === 'selectExistingOnly',
     [mode]
   );
-  const showUploadTabActive = useMemo(
+  const showUploadTab = useMemo(
     () => mode === 'selectExistingOrUploadNew' || mode === 'addNewFiles',
     [mode]
   );
@@ -103,10 +111,10 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   const getEffectiveInitialTab = useCallback(() => {
     if (mode === 'addNewFiles') return 'upload';
     if (mode === 'selectExistingOnly') return 'library';
-    if (initialTab === 'library' && showLibraryTabActive) return 'library';
-    if (initialTab === 'upload' && showUploadTabActive) return 'upload';
-    return showLibraryTabActive ? 'library' : 'upload';
-  }, [mode, initialTab, showLibraryTabActive, showUploadTabActive]);
+    if (initialTab === 'library' && showLibraryTab) return 'library';
+    if (initialTab === 'upload' && showUploadTab) return 'upload';
+    return showLibraryTab ? 'library' : 'upload';
+  }, [mode, initialTab, showLibraryTab, showUploadTab]);
 
   const [activeTab, setActiveTab] = useState<'library' | 'upload'>(
     getEffectiveInitialTab()
@@ -115,8 +123,26 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setActiveTab(getEffectiveInitialTab());
+      if (mode === 'selectExistingOrUploadNew') {
+        setSaveUploadsPreference(defaultSaveUploadsToLibrary);
+      } else if (mode === 'addNewFiles') {
+        setSaveUploadsPreference(true);
+      }
+      setSelectedIdsFromLibrary(new Set());
+      setModalError(null);
+      // Reset filterAfterUploadChecked to false when modal opens if the checkbox is shown
+      // Or to its default if a prop for its default was added. For now, false.
+      if (showFilterAfterUploadCheckbox) {
+        setFilterAfterUploadChecked(false);
+      }
     }
-  }, [isOpen, mode, initialTab, getEffectiveInitialTab]);
+  }, [
+    isOpen,
+    mode,
+    defaultSaveUploadsToLibrary,
+    getEffectiveInitialTab,
+    showFilterAfterUploadCheckbox,
+  ]);
 
   const revokeAndClearManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -125,79 +151,59 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   }, []);
 
   useEffect(() => {
-    const categoryFilterValue = libraryFilterProp?.category;
-    const typeFilterValue = libraryFilterProp?.type;
-
-    if (isOpen && activeTab === 'library' && showLibraryTabActive) {
-      setModalLoading(true);
+    if (isOpen && activeTab === 'library' && showLibraryTab) {
+      setModalProcessingLoading(true);
       setModalError(null);
-      setSelectedIds(new Set());
-
       listFiles(200, false)
         .then((allPermanentFiles) => {
           let filteredFiles = allPermanentFiles;
+          const categoryFilterValue = libraryFilterProp?.category;
+          const typeFilterValue = libraryFilterProp?.type;
           if (categoryFilterValue) {
             filteredFiles = filteredFiles.filter(
-              (file) => mapTypeToCategory(file.type) === categoryFilterValue
+              (f) => mapTypeToCategory(f.type) === categoryFilterValue
             );
           }
           if (typeFilterValue) {
             filteredFiles = filteredFiles.filter(
-              (file) => file.type === typeFilterValue
+              (f) => f.type === typeFilterValue
             );
           }
-          const finalFiles = filteredFiles.slice(0, 100);
-          setLibraryFiles(finalFiles);
+          setLibraryFiles(filteredFiles.slice(0, 100));
         })
         .catch((err) => {
-          const message =
-            err instanceof Error ? err.message : 'Failed to load files';
-          setModalError(`Library Error: ${message}`);
+          setModalError(
+            `Library Error: ${err instanceof Error ? err.message : 'Failed to load files'}`
+          );
           setLibraryFiles([]);
         })
         .finally(() => {
-          setModalLoading(false);
+          setModalProcessingLoading(false);
         });
-    } else if (isOpen) {
+    } else if (!isOpen) {
       setLibraryFiles([]);
-    } else {
-      setLibraryFiles([]);
-      setSelectedIds(new Set());
     }
-  }, [
-    isOpen,
-    activeTab,
-    listFiles,
-    libraryFilterProp?.category,
-    libraryFilterProp?.type,
-    showLibraryTabActive,
-  ]);
+  }, [isOpen, activeTab, showLibraryTab, listFiles, libraryFilterProp]);
 
   useEffect(() => {
-    if (!isOpen) return;
-
-    const currentFileIds = new Set(libraryFiles.map((f) => f.id));
-    const urlsToRevokeFromManaged = new Map<string, string>();
-
+    if (!isOpen || activeTab !== 'library' || libraryFiles.length === 0) {
+      if (previewObjectUrls.size > 0) revokeAndClearManagedUrls();
+      return;
+    }
+    const currentFileIdsInView = new Set(libraryFiles.map((f) => f.id));
     managedUrlsRef.current.forEach((url, id) => {
-      if (!currentFileIds.has(id)) {
-        urlsToRevokeFromManaged.set(id, url);
+      if (!currentFileIdsInView.has(id)) {
+        URL.revokeObjectURL(url);
+        managedUrlsRef.current.delete(id);
       }
     });
-
-    urlsToRevokeFromManaged.forEach((url, id) => {
-      URL.revokeObjectURL(url);
-      managedUrlsRef.current.delete(id);
-    });
-
     const newPreviewMap = new Map<string, string>();
+    let mapChanged = false;
     libraryFiles.forEach((file) => {
       if (!file.id) return;
-
       const blobToUse =
         file.thumbnailBlob ||
         (file.type?.startsWith('image/') ? file.blob : null);
-
       if (blobToUse) {
         if (managedUrlsRef.current.has(file.id)) {
           newPreviewMap.set(file.id, managedUrlsRef.current.get(file.id)!);
@@ -206,6 +212,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             const url = URL.createObjectURL(blobToUse);
             newPreviewMap.set(file.id, url);
             managedUrlsRef.current.set(file.id, url);
+            mapChanged = true;
           } catch (e) {
             console.error(
               `[Modal] Error creating Object URL for file ID ${file.id}:`,
@@ -215,51 +222,41 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         }
       }
     });
-
-    setPreviewObjectUrls((prevMap) => {
-      if (prevMap.size === newPreviewMap.size) {
-        let mapsIdentical = true;
-
-        for (const [key, value] of newPreviewMap) {
-          if (prevMap.get(key) !== value) {
-            mapsIdentical = false;
-            break;
-          }
-        }
-
-        if (mapsIdentical) {
-          for (const key of prevMap.keys()) {
-            if (!newPreviewMap.has(key)) {
-              mapsIdentical = false;
-              break;
-            }
-          }
-        }
-
-        if (mapsIdentical) return prevMap;
-      }
-
-      return newPreviewMap;
-    });
-  }, [libraryFiles, isOpen]);
+    if (
+      mapChanged ||
+      newPreviewMap.size !== previewObjectUrls.size ||
+      Array.from(newPreviewMap.entries()).some(
+        ([key, val]) => previewObjectUrls.get(key) !== val
+      )
+    ) {
+      setPreviewObjectUrls(newPreviewMap);
+    }
+  }, [
+    libraryFiles,
+    isOpen,
+    activeTab,
+    revokeAndClearManagedUrls,
+    previewObjectUrls,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
       revokeAndClearManagedUrls();
       setModalError(null);
-      setFilterAfterUploadChecked(true);
+      // setFilterAfterUploadChecked(true); // No, reset to false is handled in isOpen effect
     }
   }, [isOpen, revokeAndClearManagedUrls]);
 
   useEffect(() => {
+    const urlsToRevokeOnUnmount = new Map(managedUrlsRef.current);
     return () => {
-      revokeAndClearManagedUrls();
+      urlsToRevokeOnUnmount.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [revokeAndClearManagedUrls]);
+  }, []);
 
-  const handleFileClick = (file: StoredFile) => {
+  const handleLibraryFileClick = (file: StoredFile) => {
     if (!file || !file.id) return;
-    setSelectedIds((prevSelected) => {
+    setSelectedIdsFromLibrary((prevSelected) => {
       const newSelected = new Set(prevSelected);
       if (selectionMode === 'single') {
         newSelected.clear();
@@ -272,98 +269,164 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     });
   };
 
-  const handleConfirmSelection = useCallback(
-    async (idsToConfirm?: Set<string>) => {
-      const finalIds = idsToConfirm || selectedIds;
-      if (finalIds.size === 0) return;
-      setModalLoading(true);
-      setModalError(null);
+  const handleConfirmLibrarySelection = useCallback(async () => {
+    if (selectedIdsFromLibrary.size === 0) return;
+    setModalProcessingLoading(true);
+    setModalError(null);
+    try {
       const selectedFilesArray: StoredFile[] = [];
-      try {
-        const promises = Array.from(finalIds).map((id) => getFile(id));
-        const results = await Promise.all(promises);
-        results.forEach((file) => {
-          if (file) selectedFilesArray.push(file);
-        });
-        if (selectedFilesArray.length > 0) {
-          onFilesSelected(selectedFilesArray, 'library', true, false);
-          onClose();
-        } else {
-          throw new Error('No valid files found for the selected IDs.');
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to get selected files';
-        setModalError(`Selection Error: ${message}`);
-      } finally {
-        setModalLoading(false);
+      const promises = Array.from(selectedIdsFromLibrary).map((id) =>
+        getFile(id)
+      );
+      const results = await Promise.all(promises);
+      results.forEach((file) => {
+        if (file) selectedFilesArray.push(file);
+      });
+
+      if (selectedFilesArray.length > 0) {
+        onFilesSelected(
+          selectedFilesArray,
+          'library',
+          showFilterAfterUploadCheckbox && filterAfterUploadChecked
+            ? true
+            : undefined
+        );
+        onClose();
+      } else {
+        throw new Error('No valid files found for the selected library IDs.');
       }
-    },
-    [selectedIds, getFile, onFilesSelected, onClose]
-  );
+    } catch (err) {
+      setModalError(
+        `Library Selection Error: ${err instanceof Error ? err.message : 'Failed to get selected files'}`
+      );
+    } finally {
+      setModalProcessingLoading(false);
+    }
+  }, [
+    selectedIdsFromLibrary,
+    getFile,
+    onFilesSelected,
+    onClose,
+    showFilterAfterUploadCheckbox,
+    filterAfterUploadChecked,
+  ]);
 
   const handleFilesAddedFromUpload = useCallback(
     async (addedFiles: File[]) => {
       if (!addedFiles || addedFiles.length === 0) return;
-      setModalLoading(true);
+
+      setModalProcessingLoading(true);
       setModalError(null);
-      const processedFiles: StoredFile[] = [];
+      const resolvedFileObjects: StoredFile[] = [];
 
-      const makePermanent =
+      const persistThisUploadBatch =
         mode === 'addNewFiles' ||
-        (mode === 'selectExistingOrUploadNew' && savePreference);
+        (!slurpContentOnly && mode === 'selectExistingOrUploadNew') ||
+        (slurpContentOnly && saveUploadsPreference);
 
-      try {
-        const processPromises = addedFiles.map(async (file) => {
-          let storedFile: StoredFile | undefined;
-          try {
-            const fileId = await addFile(
-              file,
-              file.name,
-              file.type,
-              !makePermanent
-            );
-            storedFile = await getFile(fileId);
-            if (!storedFile)
-              throw new Error(`Failed to retrieve saved file: ${file.name}`);
-          } catch (saveError) {
-            console.error(
-              `[Modal] Error saving uploaded file "${file.name}" to library:`,
-              saveError
-            );
-            throw new Error(`Failed to save "${file.name}" to library.`);
-          }
-          if (storedFile) processedFiles.push(storedFile);
-        });
-        await Promise.all(processPromises);
+      for (const browserFile of addedFiles) {
+        const now = new Date();
+        let newFileIdIfPersisted: string | null = null;
+        let isTemporaryForDbWrite = true;
 
-        if (processedFiles.length > 0) {
-          onFilesSelected(
-            processedFiles,
-            'upload',
-            makePermanent,
-            filterAfterUploadChecked
-          );
-          onClose();
-        } else if (addedFiles.length > 0) {
-          throw new Error('No files were successfully processed from upload.');
+        if (
+          mode === 'addNewFiles' ||
+          (persistThisUploadBatch && saveUploadsPreference)
+        ) {
+          isTemporaryForDbWrite = false;
+        } else if (!slurpContentOnly && defaultSaveUploadsToLibrary) {
+          isTemporaryForDbWrite = false;
         }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to process uploads';
-        setModalError(`Upload Error: ${message}`);
-      } finally {
-        setModalLoading(false);
+
+        if (persistThisUploadBatch) {
+          try {
+            newFileIdIfPersisted = await addFile(
+              browserFile,
+              browserFile.name,
+              browserFile.type,
+              isTemporaryForDbWrite
+            );
+          } catch (saveErr) {
+            console.error(
+              `[FSM] Error persisting ${browserFile.name} to Dexie:`,
+              saveErr
+            );
+            setModalError(
+              (prev) =>
+                (prev ? prev + '; ' : '') +
+                `Failed to save ${browserFile.name}.`
+            );
+            continue;
+          }
+        }
+
+        let resolvedFile: StoredFile;
+        if (newFileIdIfPersisted) {
+          const fetchedFile = await getFile(newFileIdIfPersisted);
+          if (fetchedFile) {
+            resolvedFile = fetchedFile;
+          } else {
+            resolvedFile = {
+              id: newFileIdIfPersisted,
+              name: browserFile.name,
+              type: browserFile.type,
+              size: browserFile.size,
+              blob: browserFile,
+              createdAt: now,
+              lastModified: now,
+              isTemporary: isTemporaryForDbWrite,
+            };
+          }
+        } else {
+          resolvedFile = {
+            id: `phantom-${uuidv4()}`,
+            name: browserFile.name,
+            type: browserFile.type,
+            size: browserFile.size,
+            blob: browserFile,
+            createdAt: now,
+            lastModified: now,
+            isTemporary: true,
+          };
+        }
+        resolvedFileObjects.push(resolvedFile);
+      }
+
+      setModalProcessingLoading(false);
+
+      console.log(showFilterAfterUploadCheckbox, filterAfterUploadChecked);
+      if (resolvedFileObjects.length > 0) {
+        onFilesSelected(
+          resolvedFileObjects,
+          'upload',
+          showFilterAfterUploadCheckbox && filterAfterUploadChecked
+            ? true
+            : undefined
+        );
+      }
+
+      if (!modalError && resolvedFileObjects.length > 0) {
+        onClose();
+      } else if (
+        resolvedFileObjects.length === 0 &&
+        !modalError &&
+        addedFiles.length > 0
+      ) {
+        setModalError('No files were successfully processed from the upload.');
       }
     },
     [
-      mode,
-      savePreference,
       addFile,
       getFile,
+      mode,
+      slurpContentOnly,
+      saveUploadsPreference,
+      defaultSaveUploadsToLibrary,
       onFilesSelected,
       onClose,
       filterAfterUploadChecked,
+      showFilterAfterUploadCheckbox, // Dependencies for correct filterToThese
+      setModalError, // Local state setter
     ]
   );
 
@@ -378,11 +441,8 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     [handleFilesAddedFromUpload]
   );
 
-  const triggerUploadInput = () => {
-    uploadInputRef.current?.click();
-  };
-
-  const renderDefaultPreview = useCallback(
+  const triggerUploadInput = () => uploadInputRef.current?.click();
+  const renderDefaultLibraryPreview = useCallback(
     (file: StoredFile): React.ReactNode => {
       const objectUrl = previewObjectUrls.get(file.id);
       const fileType = file.type || '';
@@ -398,15 +458,13 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           />
         );
       }
-      const iconClassName = getFileIconClassName(file.name);
       return (
         <span className="flex items-center justify-center h-full w-full">
-          {' '}
           <span
             aria-hidden="true"
-            className={`${iconClassName} text-4xl`}
+            className={`${getFileIconClassName(file.name)} text-4xl`}
             title={file.type || 'File'}
-          ></span>{' '}
+          ></span>
         </span>
       );
     },
@@ -414,10 +472,14 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   );
 
   if (!isOpen) return null;
-  const combinedLoading = modalLoading || libraryLoading;
-  const combinedError = modalError || libraryError;
-  const canShowSavePreferenceCheckbox =
+
+  const isLoadingOverall = modalProcessingLoading || libraryLoading;
+  // Visibility of "Add to Library" checkbox on Upload tab
+  const canShowSaveUploadsPreferenceCheckbox =
     mode === 'selectExistingOrUploadNew' && activeTab === 'upload';
+  // Visibility of "Filter view to only added" checkbox on Upload tab
+  const actualShowFilterAfterUploadCheckbox =
+    showFilterAfterUploadCheckbox && activeTab === 'upload';
 
   return (
     <div
@@ -431,10 +493,9 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         className={`bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] ${className || ''}`}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="p-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
           <div className="flex">
-            {showLibraryTabActive && (
+            {showLibraryTab && (
               <Button
                 variant={
                   activeTab === 'library'
@@ -443,19 +504,19 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('library')}
-                className={`${showUploadTabActive ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`${showUploadTab ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Select from Library
               </Button>
             )}
-            {showUploadTabActive && (
+            {showUploadTab && (
               <Button
                 variant={
                   activeTab === 'upload' ? 'primary-outline' : 'neutral-outline'
                 }
                 size="sm"
                 onClick={() => setActiveTab('upload')}
-                className={`${showLibraryTabActive ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`${showLibraryTab ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Upload New
               </Button>
@@ -472,61 +533,62 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           </Button>
         </div>
 
-        {/* Body */}
         <div className="p-4 overflow-y-auto flex-grow min-h-[300px]">
-          {combinedLoading && (
+          {isLoadingOverall && !modalError && (
             <div className="flex items-center justify-center h-full">
               <p className="text-center text-gray-500 italic animate-pulse py-8">
                 Loading...
               </p>
             </div>
           )}
-          {combinedError && !combinedLoading && (
+          {modalError && (
             <div className="flex items-center justify-center h-full">
               <p className="text-center text-red-600 p-4 bg-red-50 border border-red-200 rounded">
-                Error: {combinedError}
+                Error: {modalError}
               </p>
             </div>
           )}
+
           {activeTab === 'library' &&
-            showLibraryTabActive &&
-            !combinedLoading &&
-            !combinedError && (
+            showLibraryTab &&
+            !isLoadingOverall &&
+            !modalError && (
               <>
-                {' '}
                 {libraryFiles.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-center text-gray-500 italic py-8">
-                      Your file library {/* filter message */} is empty...
+                      Your file library{' '}
+                      {libraryFilterProp?.category || libraryFilterProp?.type
+                        ? `(filtered for ${libraryFilterProp.category || libraryFilterProp.type}) `
+                        : ''}
+                      is empty...
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {' '}
                     {libraryFiles.map((file) => {
-                      const isSelected = selectedIds.has(file.id);
+                      const isSelected = selectedIdsFromLibrary.has(file.id);
                       return (
                         <button
                           key={file.id}
                           type="button"
-                          onClick={() => handleFileClick(file)}
+                          onClick={() => handleLibraryFileClick(file)}
                           className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 hover:border-blue-400'}`}
                           aria-pressed={isSelected}
                           aria-label={`Select file: ${file.name || 'Untitled'}`}
                         >
-                          {' '}
                           <div className="aspect-square w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
-                            {renderDefaultPreview(file)}
-                          </div>{' '}
+                            {renderDefaultLibraryPreview(file)}
+                          </div>
                           <p
                             className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none"
                             title={file.name}
                           >
                             {file.name || 'Untitled'}
-                          </p>{' '}
+                          </p>
                           <p className="text-[10px] text-gray-500 pointer-events-none">
                             {formatBytes(file.size)}
-                          </p>{' '}
+                          </p>
                           {isSelected && (
                             <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center pointer-events-none">
                               <svg
@@ -540,22 +602,22 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                                 ></path>
                               </svg>
                             </div>
-                          )}{' '}
+                          )}
                         </button>
                       );
-                    })}{' '}
+                    })}
                   </div>
-                )}{' '}
+                )}
               </>
             )}
 
           {activeTab === 'upload' &&
-            showUploadTabActive &&
-            !combinedLoading &&
-            !combinedError && (
+            showUploadTab &&
+            !isLoadingOverall &&
+            !modalError && (
               <FileDropZone
                 onFilesAdded={handleFilesAddedFromUpload}
-                isLoading={combinedLoading}
+                isLoading={isLoadingOverall}
                 className="min-h-[300px] flex flex-col items-center justify-center border-gray-300 hover:border-blue-400"
               >
                 <div className="text-center p-6 pointer-events-none">
@@ -566,18 +628,16 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                     onChange={handleUploadInputChange}
                     className="hidden"
                     multiple={selectionMode === 'multiple'}
-                    disabled={combinedLoading}
+                    disabled={isLoadingOverall}
                   />
                   <div className="mb-4 pointer-events-auto">
-                    {' '}
                     <Button
                       variant="primary"
                       onClick={triggerUploadInput}
-                      disabled={combinedLoading}
+                      disabled={isLoadingOverall}
                     >
-                      {' '}
-                      Select File(s){' '}
-                    </Button>{' '}
+                      Select File(s)
+                    </Button>
                   </div>
                   <p className="text-sm text-gray-500 mb-4">or Drag & Drop</p>
                   <svg
@@ -594,18 +654,20 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                       d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                     />
                   </svg>
-                  {/* --- Conditionally render checkboxes based on props --- */}
-                  {canShowSavePreferenceCheckbox && (
+                  {canShowSaveUploadsPreferenceCheckbox && (
                     <div className="mt-6 flex items-center justify-center pointer-events-auto">
                       <Checkbox
                         label="Add uploaded file(s) to Library"
                         id="modalSavePreferenceCheckbox"
-                        checked={savePreference}
-                        onChange={(e) => setSavePreference(e.target.checked)}
+                        checked={saveUploadsPreference}
+                        onChange={(e) =>
+                          setSaveUploadsPreference(e.target.checked)
+                        }
+                        disabled={isLoadingOverall}
                       />
                     </div>
                   )}
-                  {showFilterAfterUploadCheckbox && (
+                  {actualShowFilterAfterUploadCheckbox && ( // Use actualShow... for visibility
                     <div className="mt-4 flex items-center justify-center pointer-events-auto">
                       <Checkbox
                         label="Filter view to show only added file(s)"
@@ -614,47 +676,44 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                         onChange={(e) =>
                           setFilterAfterUploadChecked(e.target.checked)
                         }
+                        disabled={isLoadingOverall}
                       />
                     </div>
                   )}
-                  {/* --- End conditional render --- */}
                 </div>
               </FileDropZone>
             )}
         </div>
 
-        {/* Footer */}
         <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center gap-3 flex-shrink-0">
           <div>
-            {' '}
             {activeTab === 'library' &&
-              showLibraryTabActive &&
+              showLibraryTab &&
               selectionMode === 'multiple' && (
                 <span className="text-sm text-gray-600">
-                  {selectedIds.size} selected
+                  {selectedIdsFromLibrary.size} selected
                 </span>
-              )}{' '}
+              )}
             {!(
               activeTab === 'library' &&
-              showLibraryTabActive &&
+              showLibraryTab &&
               selectionMode === 'multiple'
-            ) && <span> </span>}{' '}
+            ) && <span> </span>}
           </div>
           <div className="flex gap-3">
             <Button variant="neutral" onClick={onClose}>
               Cancel
             </Button>
-            {activeTab === 'library' && showLibraryTabActive && (
+            {activeTab === 'library' && showLibraryTab && (
               <Button
                 variant="primary"
-                onClick={() => handleConfirmSelection()}
-                disabled={selectedIds.size === 0 || combinedLoading}
-                isLoading={combinedLoading && selectedIds.size > 0}
+                onClick={handleConfirmLibrarySelection}
+                disabled={selectedIdsFromLibrary.size === 0 || isLoadingOverall}
+                isLoading={isLoadingOverall && selectedIdsFromLibrary.size > 0}
               >
                 Confirm Selection
               </Button>
             )}
-            {/* Maybe add confirm button for upload tab too? No, action happens on upload */}
           </div>
         </div>
       </div>

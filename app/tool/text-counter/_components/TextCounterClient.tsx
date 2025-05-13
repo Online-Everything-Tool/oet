@@ -8,7 +8,6 @@ import React, {
   useRef,
   useEffect,
 } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState from '../../_hooks/useToolUrlState';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -40,8 +39,6 @@ const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
   lastLoadedFilename: null,
 };
 
-const HISTORY_LOG_DEBOUNCE_MS = 1500;
-
 interface TextCounterClientProps {
   urlStateParams: ParamConfig[];
   toolTitle: string;
@@ -59,7 +56,6 @@ export default function TextCounterClient({
     isLoadingState,
   } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
-  const { addHistoryEntry } = useHistory();
   const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
     useToolUrlState(urlStateParams);
 
@@ -122,75 +118,17 @@ export default function TextCounterClient({
     return { words, characters, lines, search: searchString, customCount };
   }, [toolState.inputText, toolState.searchText]);
 
-  // Debounced history logging
-  const debouncedLogHistoryAction = useDebouncedCallback(
-    (currentState: TextCounterToolState, counts: TextCounts) => {
-      if (
-        // Don't log if input is effectively empty unless search text is also changing from a non-empty state
-        (!currentState.inputText.trim() &&
-          !currentState.searchText.trim() &&
-          !lastLoggedStateRef.current?.searchText?.trim()) ||
-        JSON.stringify(currentState) ===
-          JSON.stringify(lastLoggedStateRef.current)
-      ) {
-        // If it became empty, but was not empty before, DO log it.
-        if (
-          !currentState.inputText.trim() &&
-          !currentState.searchText.trim() &&
-          (lastLoggedStateRef.current?.inputText?.trim() ||
-            lastLoggedStateRef.current?.searchText?.trim()) &&
-          JSON.stringify(currentState) !==
-            JSON.stringify(lastLoggedStateRef.current)
-        ) {
-          // Proceed to log the "cleared" state
-        } else {
-          return; // Otherwise, skip logging if state is identical or effectively empty and was already empty
-        }
-      }
-
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'auto',
-        input: {
-          text:
-            currentState.inputText.length > 500
-              ? currentState.inputText.substring(0, 500) + '...'
-              : currentState.inputText,
-          search: currentState.searchText,
-          source: currentState.lastLoadedFilename || 'pasted/typed',
-        },
-        output: {
-          words: counts.words, // Using 'words' as summaryField from metadata
-          characters: counts.characters,
-          lines: counts.lines,
-          customCount: counts.customCount,
-        },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
-      lastLoggedStateRef.current = currentState;
-    },
-    HISTORY_LOG_DEBOUNCE_MS
-  );
-
-  // Effect to log history on state changes
   useEffect(() => {
     if (isLoadingState) {
       lastLoggedStateRef.current = toolState;
       return;
     }
-    // Log if the state is different from the last logged state.
-    // The debounced function itself has further checks for empty input.
     if (
-      JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
+      JSON.stringify(toolState) === JSON.stringify(lastLoggedStateRef.current)
     ) {
-      debouncedLogHistoryAction(toolState, allCounts);
-    } else {
-      // If state is same, ensure ref is aligned (e.g. on initial load after URL params)
       lastLoggedStateRef.current = toolState;
     }
-  }, [toolState, allCounts, isLoadingState, debouncedLogHistoryAction]);
+  }, [toolState, allCounts, isLoadingState]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -212,7 +150,7 @@ export default function TextCounterClient({
   );
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[]) => {
       setIsLoadFileModalOpen(false);
       setClientError(null);
       if (files.length === 0) return;
@@ -253,7 +191,6 @@ export default function TextCounterClient({
           inputText: textContent,
           lastLoadedFilename: file.name,
         });
-        // History will be logged by the useEffect watching toolState
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setClientError(`Error reading file "${file.name}": ${msg}`);

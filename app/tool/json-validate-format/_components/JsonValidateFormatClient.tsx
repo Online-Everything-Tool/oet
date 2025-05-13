@@ -2,9 +2,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext'; // Added for saving output
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Checkbox from '../../_components/form/Checkbox';
@@ -74,7 +72,6 @@ export default function JsonValidateFormatClient({
   const [isValid, setIsValid] = useState<boolean | null>(null);
   const [error, setError] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { addHistoryEntry } = useHistory();
   const { addFile: addFileToLibrary } = useFileLibrary(); // Get addFile function
 
   const [copySuccess, setCopySuccess] = useState(false);
@@ -119,7 +116,6 @@ export default function JsonValidateFormatClient({
       if (shouldValidateAfterLoad && initialJsonInput.trim()) {
         setTimeout(() => {
           handleFormatValidate(
-            'query',
             initialJsonInput,
             initialIndent,
             toolState.sortKeys
@@ -132,7 +128,6 @@ export default function JsonValidateFormatClient({
 
   const handleFormatValidate = useCallback(
     (
-      triggerType: TriggerType,
       textToProcess = toolState.jsonInput,
       currentIndent = toolState.indent,
       currentSortKeys = toolState.sortKeys
@@ -140,8 +135,6 @@ export default function JsonValidateFormatClient({
       let currentIsValid: boolean | null = null;
       let currentError = '';
       let currentOutput = '';
-      let status: 'success' | 'error' = 'success';
-      let historyOutputObj: Record<string, unknown> = {};
       const trimmedInput = textToProcess.trim();
 
       setError('');
@@ -154,17 +147,6 @@ export default function JsonValidateFormatClient({
         setToolState((prev) => ({ ...prev, lastLoadedFilename: null }));
         return;
       }
-
-      const inputDetailsForHistory = {
-        source: toolState.lastLoadedFilename || 'pasted/typed',
-        jsonInputTruncated:
-          trimmedInput.length > 500
-            ? trimmedInput.substring(0, 500) + '...'
-            : trimmedInput,
-        indent: currentIndent,
-        sortKeys: currentSortKeys,
-      };
-
       try {
         let parsedJson = JSON.parse(trimmedInput);
         if (currentSortKeys) parsedJson = sortObjectKeys(parsedJson);
@@ -176,11 +158,6 @@ export default function JsonValidateFormatClient({
         currentIsValid = true;
         setOutputValue(currentOutput);
         setIsValid(currentIsValid);
-        status = 'success';
-        historyOutputObj = {
-          validationStatus: 'Valid JSON',
-          outputLength: currentOutput.length,
-        };
       } catch (err) {
         currentError =
           err instanceof Error
@@ -190,31 +167,13 @@ export default function JsonValidateFormatClient({
         currentIsValid = false;
         setError(currentError);
         setIsValid(currentIsValid);
-        status = 'error';
-        (inputDetailsForHistory as Record<string, unknown>).error =
-          currentError;
-        historyOutputObj = {
-          validationStatus: 'Invalid JSON',
-          errorMessage: currentError,
-        };
       }
-
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: triggerType,
-        input: inputDetailsForHistory,
-        output: historyOutputObj,
-        status: status,
-        eventTimestamp: Date.now(),
-      });
     },
     [
       toolState.jsonInput,
       toolState.indent,
       toolState.sortKeys,
       toolState.lastLoadedFilename,
-      addHistoryEntry,
       toolTitle,
       toolRoute,
       setToolState,
@@ -241,12 +200,7 @@ export default function JsonValidateFormatClient({
   const reformatCurrentJson = useCallback(
     (newIndent: number, newSortKeys: boolean) => {
       if (isValid && toolState.jsonInput.trim()) {
-        handleFormatValidate(
-          'click',
-          toolState.jsonInput,
-          newIndent,
-          newSortKeys
-        );
+        handleFormatValidate(toolState.jsonInput, newIndent, newSortKeys);
       } else if (!toolState.jsonInput.trim()) {
         setOutputValue('');
         setCopySuccess(false);
@@ -271,7 +225,7 @@ export default function JsonValidateFormatClient({
   };
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[]) => {
       setIsModalOpen(false);
       if (files.length === 0) return;
       const file = files[0];
@@ -283,12 +237,7 @@ export default function JsonValidateFormatClient({
         const text = await file.blob.text();
         setToolState({ jsonInput: text, lastLoadedFilename: file.name });
         setTimeout(() => {
-          handleFormatValidate(
-            source === 'upload' ? 'upload' : 'transfer',
-            text,
-            toolState.indent,
-            toolState.sortKeys
-          );
+          handleFormatValidate(text, toolState.indent, toolState.sortKeys);
         }, 0);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -309,27 +258,9 @@ export default function JsonValidateFormatClient({
       setCopySuccess(true);
       setError('');
       setTimeout(() => setCopySuccess(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput', length: outputValue.length },
-        output: { message: 'Copied to clipboard' },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       setError('Failed to copy to clipboard.');
       console.error('Clipboard copy error:', err);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'copyOutput' },
-        output: { error: 'Failed to copy' },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
     }
   };
 
@@ -352,27 +283,9 @@ export default function JsonValidateFormatClient({
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       setError('');
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'downloadOutput', length: outputValue.length },
-        output: { filename: link.download },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       setError('Failed to prepare download.');
       console.error('Download error:', err);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'downloadOutput' },
-        output: { error: 'Download failed' },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
     }
   };
 
@@ -396,32 +309,9 @@ export default function JsonValidateFormatClient({
       setSaveSuccess(true);
       setError('');
       setTimeout(() => setSaveSuccess(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'saveOutputToLibrary', length: outputValue.length },
-        output: {
-          message: 'Saved to library',
-          fileId: newFileId,
-          filename: filename,
-        },
-        status: 'success',
-        eventTimestamp: Date.now(),
-        outputFileIds: [newFileId],
-      });
     } catch (err) {
       setError('Failed to save to library.');
       console.error('Save to library error:', err);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute,
-        trigger: 'click',
-        input: { action: 'saveOutputToLibrary' },
-        output: { error: 'Save to library failed' },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
     }
   };
 

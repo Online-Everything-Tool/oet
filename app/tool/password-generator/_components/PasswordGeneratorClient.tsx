@@ -2,8 +2,6 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
-import type { TriggerType } from '@/src/types/history';
 import useToolState from '../../_hooks/useToolState';
 import Input from '../../_components/form/Input';
 import Button from '../../_components/form/Button';
@@ -59,8 +57,6 @@ export default function PasswordGeneratorClient({
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [uiError, setUiError] = useState<string>(''); // For UI-related errors/warnings
 
-  const { addHistoryEntry } = useHistory();
-
   // Effect to clear generated password if options change and not loading
   useEffect(() => {
     if (!isLoadingState) {
@@ -76,113 +72,68 @@ export default function PasswordGeneratorClient({
     isLoadingState,
   ]);
 
-  const generatePassword = useCallback(
-    (trigger: TriggerType = 'click') => {
-      let currentError = '';
-      let newPassword = '';
-      let historyStatus: 'success' | 'error' = 'success';
+  const generatePassword = useCallback(() => {
+    let currentError = '';
+    let newPassword = '';
 
-      setUiError('');
-      setIsCopied(false);
-      setGeneratedPassword(''); // Clear previous password before generating
+    setUiError('');
+    setIsCopied(false);
+    setGeneratedPassword(''); // Clear previous password before generating
 
-      let charset = '';
-      if (toolState.includeLowercase) charset += LOWERCASE;
-      if (toolState.includeUppercase) charset += UPPERCASE;
-      if (toolState.includeNumbers) charset += NUMBERS;
-      if (toolState.includeSymbols) charset += SYMBOLS;
+    let charset = '';
+    if (toolState.includeLowercase) charset += LOWERCASE;
+    if (toolState.includeUppercase) charset += UPPERCASE;
+    if (toolState.includeNumbers) charset += NUMBERS;
+    if (toolState.includeSymbols) charset += SYMBOLS;
 
-      if (!charset) {
-        currentError = 'Please select at least one character type.';
-        historyStatus = 'error';
-      } else if (toolState.length <= 0 || !Number.isInteger(toolState.length)) {
-        currentError = 'Password length must be a positive whole number.';
-        historyStatus = 'error';
-      } else if (toolState.length > 256) {
-        // This is a UI warning, not a generation error for history
-        setUiError(
-          'Warning: Password length is very long (> 256). Generation might be slow or browser may struggle.'
-        );
-        // Proceed with generation, but log the warning. History status remains success if generation works.
-      }
+    if (!charset) {
+      currentError = 'Please select at least one character type.';
+    } else if (toolState.length <= 0 || !Number.isInteger(toolState.length)) {
+      currentError = 'Password length must be a positive whole number.';
+    } else if (toolState.length > 256) {
+      setUiError(
+        'Warning: Password length is very long (> 256). Generation might be slow or browser may struggle.'
+      );
+    }
 
-      if (historyStatus === 'success' && charset) {
-        try {
-          if (
-            typeof window !== 'undefined' &&
-            window.crypto &&
-            window.crypto.getRandomValues
-          ) {
-            const randomValues = new Uint32Array(toolState.length);
-            window.crypto.getRandomValues(randomValues);
-            for (let i = 0; i < toolState.length; i++) {
-              newPassword += charset[randomValues[i] % charset.length];
-            }
-          } else {
-            console.warn(
-              'Using Math.random for password generation as window.crypto is not available.'
-            );
-            for (let i = 0; i < toolState.length; i++) {
-              const randomIndex = Math.floor(Math.random() * charset.length);
-              newPassword += charset[randomIndex];
-            }
+    if (charset) {
+      try {
+        if (
+          typeof window !== 'undefined' &&
+          window.crypto &&
+          window.crypto.getRandomValues
+        ) {
+          const randomValues = new Uint32Array(toolState.length);
+          window.crypto.getRandomValues(randomValues);
+          for (let i = 0; i < toolState.length; i++) {
+            newPassword += charset[randomValues[i] % charset.length];
           }
-          setGeneratedPassword(newPassword);
-        } catch (err) {
-          console.error('Password Generation Error:', err);
-          currentError =
-            'An unexpected error occurred during password generation.';
-          historyStatus = 'error';
-          newPassword = ''; // Ensure no password shown on error
+        } else {
+          console.warn(
+            'Using Math.random for password generation as window.crypto is not available.'
+          );
+          for (let i = 0; i < toolState.length; i++) {
+            const randomIndex = Math.floor(Math.random() * charset.length);
+            newPassword += charset[randomIndex];
+          }
         }
+        setGeneratedPassword(newPassword);
+      } catch (err) {
+        console.error('Password Generation Error:', err);
+        currentError =
+          'An unexpected error occurred during password generation.';
+        newPassword = ''; // Ensure no password shown on error
       }
-
-      if (historyStatus === 'error' && currentError) {
-        setUiError(currentError); // Show hard errors in UI
-        setGeneratedPassword(''); // Clear password on hard error
-      }
-
-      const historyInput: Record<string, unknown> = {
-        length: toolState.length,
-        uppercase: toolState.includeUppercase,
-        lowercase: toolState.includeLowercase,
-        numbers: toolState.includeNumbers,
-        symbols: toolState.includeSymbols,
-      };
-      if (historyStatus === 'error') {
-        historyInput.error = currentError;
-      }
-
-      // For history output, we use generatedLength as per metadata,
-      // and also include the password itself. HistoryContext will redact if needed.
-      const historyOutput =
-        historyStatus === 'success'
-          ? {
-              generatedLength: newPassword.length, // Matches outputConfig.summaryField
-              passwordValue: newPassword, // Actual password for context if allowed
-            }
-          : {
-              generatedLength: 0,
-              errorMessage: currentError,
-            };
-
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: trigger,
-        input: historyInput,
-        output: historyOutput,
-        status: historyStatus,
-        eventTimestamp: Date.now(),
-      });
-    },
-    [
-      toolState, // Now depends on the whole toolState object
-      addHistoryEntry,
-      toolTitle,
-      toolRoute,
-    ]
-  );
+    }
+    if (currentError) {
+      setUiError(currentError); // Show hard errors in UI
+      setGeneratedPassword(''); // Clear password on hard error
+    }
+  }, [
+    toolState, // Now depends on the whole toolState object
+    toolTitle,
+    toolRoute,
+  ]);
 
   const handleCopy = useCallback(async () => {
     if (!generatedPassword || !navigator.clipboard) {
@@ -199,8 +150,6 @@ export default function PasswordGeneratorClient({
       await navigator.clipboard.writeText(generatedPassword);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      // Optionally log copy action to history if desired
-      // addHistoryEntry({ ... type: 'copy_action' ... });
     } catch (err: unknown) {
       console.error('Failed to copy password: ', err);
       setUiError('Failed to copy password to clipboard.');
@@ -383,7 +332,7 @@ export default function PasswordGeneratorClient({
 
       <Button
         variant="primary"
-        onClick={() => generatePassword('click')}
+        onClick={generatePassword}
         disabled={!canGenerate}
         fullWidth
         size="lg"

@@ -1,7 +1,6 @@
 // --- FILE: /app/page.tsx ---
 import fs from 'fs/promises';
 import path from 'path';
-import RecentlyUsedWidget from '@/app/_components/RecentlyUsedWidget';
 import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget';
@@ -160,8 +159,6 @@ export default async function Home() {
       </div>
 
       <FavoriteToolsWidget />
-
-      <RecentlyUsedWidget limit={5} displayMode="homepage" />
 
       <ToolListWidget initialTools={availableTools} />
 

@@ -1,10 +1,5 @@
 // FILE: app/tool/_hooks/useImageProcessing.ts
 import { useState, useCallback } from 'react';
-import {
-  useHistory,
-  TriggerType,
-  NewHistoryData,
-} from '../../context/HistoryContext';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
@@ -37,7 +32,6 @@ interface UseImageProcessingReturn {
   processImage: (
     inputFile: StoredFile,
     processingFunction: ProcessingFunction,
-    trigger: TriggerType,
     outputFileName: string,
     options?: Record<string, unknown>,
     saveOutputToLibrary?: boolean
@@ -61,8 +55,6 @@ const useImageProcessing = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { addHistoryEntry } = useHistory();
-
   const { addImage } = useImageLibrary();
 
   const clearProcessingOutput = useCallback(() => {
@@ -76,7 +68,6 @@ const useImageProcessing = ({
     async (
       inputFile: StoredFile,
       processingFunction: ProcessingFunction,
-      trigger: TriggerType,
       outputFileName: string,
       options: Record<string, unknown> = {},
 
@@ -86,7 +77,6 @@ const useImageProcessing = ({
         'process image:',
         inputFile,
         processingFunction,
-        trigger,
         outputFileName,
         options,
         createPermanentEntry
@@ -113,18 +103,6 @@ const useImageProcessing = ({
         dataUrl: null,
         blob: null,
       };
-      let historyStatus: 'success' | 'error' = 'success';
-      let historyOutputDetails: Record<string, unknown> = {};
-      const historyInputDetails: Record<string, unknown> = {
-        inputFileId: inputFile.id,
-        fileName: inputFile.name,
-        originalSize: inputFile.size,
-        originalType: inputFile.type,
-        requestedSavePreference: createPermanentEntry,
-        ...options,
-      };
-      let fileIdForHistory: string | null = null;
-
       try {
         const img = new window.Image();
         tempOriginalObjectUrl = URL.createObjectURL(inputFile.blob);
@@ -182,20 +160,10 @@ const useImageProcessing = ({
           );
 
         result.id = newFileId;
-        fileIdForHistory = newFileId;
 
         setProcessedImageSrc(result.dataUrl);
         setProcessedImageBlob(result.blob);
         setProcessedFileId(result.id);
-
-        historyStatus = 'success';
-        historyOutputDetails = {
-          message: `Image processed ${isTemporary ? '(temporary)' : '(saved permanently)'}.`,
-          outputFileId: result.id,
-          outputType: outputMimeType,
-          outputSize: result.blob.size,
-          isTemporary: isTemporary,
-        };
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : 'Unknown processing error.';
@@ -204,31 +172,15 @@ const useImageProcessing = ({
 
         setOriginalImageSrc(null);
         clearProcessingOutput();
-        historyStatus = 'error';
-        historyOutputDetails = { error: message };
-        historyInputDetails.error = message;
       } finally {
         setIsLoading(false);
         if (tempOriginalObjectUrl) {
           URL.revokeObjectURL(tempOriginalObjectUrl);
         }
-
-        const historyEntryData: NewHistoryData = {
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: trigger,
-          input: historyInputDetails,
-          output: historyOutputDetails,
-          status: historyStatus,
-          eventTimestamp: Date.now(),
-
-          outputFileIds: fileIdForHistory ? [fileIdForHistory] : [],
-        };
-        await addHistoryEntry(historyEntryData);
       }
       return result;
     },
-    [toolTitle, toolRoute, addImage, addHistoryEntry, clearProcessingOutput]
+    [toolTitle, toolRoute, addImage, clearProcessingOutput]
   );
 
   return {

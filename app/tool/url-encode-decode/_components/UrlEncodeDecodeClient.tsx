@@ -2,11 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useHistory, NewHistoryData } from '../../../context/HistoryContext';
-import useToolUrlState, {
-  UseToolUrlStateReturn,
-} from '../../_hooks/useToolUrlState';
-import useToolState, { UseToolStateReturn } from '../../_hooks/useToolState';
+import useToolUrlState from '../../_hooks/useToolUrlState';
+import useToolState from '../../_hooks/useToolState';
 import type { ParamConfig } from '@/src/types/tools';
 import Textarea from '../../_components/form/Textarea';
 import RadioGroup from '../../_components/form/RadioGroup';
@@ -65,8 +62,6 @@ export default function UrlEncodeDecodeClient({
     clearState,
     errorLoadingState,
   } = useToolState<UrlToolState>(toolRoute, DEFAULT_STATE);
-  const { addHistoryEntry } = useHistory();
-
   const [isComponentInitialized, setIsComponentInitialized] = useState(false);
   const didInitialize = useRef(false);
 
@@ -86,22 +81,6 @@ export default function UrlEncodeDecodeClient({
       if (JSON.stringify(mergedState) !== JSON.stringify(state)) {
         if (JSON.stringify(state) !== JSON.stringify(DEFAULT_STATE)) {
           stateWasOverridden = true;
-          addHistoryEntry({
-            toolName: toolTitle,
-            toolRoute: toolRoute,
-            trigger: 'query',
-            input: {
-              note: 'State before URL override',
-              overriddenState: state,
-            },
-            output: {
-              message:
-                'Persistent state backed up before applying URL parameters.',
-            },
-            status: 'success',
-            eventTimestamp: Date.now(),
-            outputFileIds: [],
-          });
         }
         initialState = mergedState;
       }
@@ -120,7 +99,6 @@ export default function UrlEncodeDecodeClient({
     urlProvidedAnyValue,
     isComponentInitialized,
     setState,
-    addHistoryEntry,
     toolTitle,
     toolRoute,
   ]);
@@ -212,20 +190,6 @@ export default function UrlEncodeDecodeClient({
       await navigator.clipboard.writeText(outputValue);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: {
-          text: state.text,
-          operation: state.operation,
-          ...(state.operation === 'encode' && { encodeMode: state.encodeMode }),
-        },
-        output: { operationResult: outputValue },
-        status: 'success',
-        eventTimestamp: Date.now(),
-        outputFileIds: [],
-      });
     } catch (err) {
       setError('Could not copy text to clipboard.');
     }
@@ -235,7 +199,6 @@ export default function UrlEncodeDecodeClient({
     state.text,
     state.operation,
     state.encodeMode,
-    addHistoryEntry,
     toolRoute,
     toolTitle,
   ]);
@@ -256,20 +219,6 @@ export default function UrlEncodeDecodeClient({
       URL.revokeObjectURL(url);
       setIsDownloaded(true);
       setTimeout(() => setIsDownloaded(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: {
-          text: state.text,
-          operation: state.operation,
-          ...(state.operation === 'encode' && { encodeMode: state.encodeMode }),
-        },
-        output: { operationResult: `Downloaded as ${filename}` },
-        status: 'success',
-        eventTimestamp: Date.now(),
-        outputFileIds: [],
-      });
     } catch (err) {
       setError('Could not prepare text for download.');
     }
@@ -278,7 +227,6 @@ export default function UrlEncodeDecodeClient({
     state.text,
     state.operation,
     state.encodeMode,
-    addHistoryEntry,
     toolRoute,
     toolTitle,
   ]);

@@ -8,7 +8,6 @@ import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 
 import useToolState from '../../_hooks/useToolState';
-import { useHistory } from '../../../context/HistoryContext';
 import EmojiExplorerModal from '../../_components/shared/EmojiExplorerModal';
 import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
@@ -230,7 +229,6 @@ export default function LinkedinPostFormatterClient({
     togglePersistence,
     errorLoadingState,
   } = useToolState<LinkedinFormatterState>(toolRoute, DEFAULT_STATE);
-  const { addHistoryEntry } = useHistory();
   const [isCopied, setIsCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEmojiModalOpen, setIsEmojiModalOpen] = useState(false);
@@ -371,48 +369,18 @@ export default function LinkedinPostFormatterClient({
       await navigator.clipboard.writeText(textToCopy);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: { action: 'copy', characterCount: textToCopy.length },
-        output: { message: `Copied ${textToCopy.length} characters.` },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setActionError(`Could not copy text: ${message}`);
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: { action: 'copy' },
-        output: { error: `Could not copy text: ${message}` },
-        status: 'error',
-        eventTimestamp: Date.now(),
-      });
     }
-  }, [editor, addHistoryEntry, toolRoute, toolTitle, generateUnicodeText]);
+  }, [editor, toolRoute, toolTitle, generateUnicodeText]);
 
   const handleClear = useCallback(async () => {
     // ... (handleClear logic as before, no changes needed to it for Unicode)
-    const hadContent = editor && editor.getText().length > 0;
     editor?.commands.clearContent(true);
     setActionError(null);
     setIsCopied(false);
-    if (hadContent) {
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'click',
-        input: { action: 'clear' },
-        output: { message: `Content cleared.` },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
-    }
-  }, [editor, addHistoryEntry, toolRoute, toolTitle]);
+  }, [editor, toolRoute, toolTitle]);
 
   const toggleBold = useCallback(
     () => editor?.chain().focus().toggleBold().run(),
@@ -443,19 +411,10 @@ export default function LinkedinPostFormatterClient({
       // ... (handleEmojiSelect logic as before)
       if (editor && emoji) {
         editor.chain().focus().insertContent(emoji).run();
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute: toolRoute,
-          trigger: 'click',
-          input: { action: 'insertEmoji', emoji: emoji },
-          output: { message: `Inserted emoji: ${emoji}` },
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
       }
       setIsEmojiModalOpen(false);
     },
-    [editor, addHistoryEntry, toolTitle, toolRoute]
+    [editor, toolTitle, toolRoute]
   );
 
   if (isLoadingState && !editor) {

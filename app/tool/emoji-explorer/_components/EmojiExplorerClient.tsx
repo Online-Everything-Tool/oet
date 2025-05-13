@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input'; // Using shared Input
@@ -56,10 +55,6 @@ export default function EmojiSearchClient({
     type: string;
     value: string;
   } | null>(null);
-
-  const { addHistoryEntry } = useHistory();
-
-  // Removed the initialEmojis warning useEffect as it was for debugging
 
   const availableGroups = useMemo(
     () => getUniqueSortedValues(initialEmojis, 'group', 'asc'),
@@ -161,40 +156,11 @@ export default function EmojiSearchClient({
         await navigator.clipboard.writeText(textToCopy);
         setLastCopiedValue({ type: copyContentType, value: textToCopy });
         setTimeout(() => setLastCopiedValue(null), 1500);
-        addHistoryEntry({
-          toolName: 'Emoji Explorer',
-          toolRoute: '/tool/emoji-explorer',
-          trigger: 'click',
-          input: {
-            action: 'copy',
-            contentType: copyContentType,
-            valueCopied: textToCopy,
-            emojiName: emojiName || 'N/A',
-          },
-          output: { message: `Copied ${copyContentType}` },
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
       } catch (err) {
         console.error(`Failed to copy ${copyContentType}:`, err);
-        addHistoryEntry({
-          toolName: 'Emoji Explorer',
-          toolRoute: '/tool/emoji-explorer',
-          trigger: 'click',
-          input: {
-            action: 'copy',
-            contentType: copyContentType,
-            valueCopied: textToCopy,
-            emojiName: emojiName || 'N/A',
-            error: `Clipboard Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          },
-          output: { message: `Failed to copy ${copyContentType}` },
-          status: 'error',
-          eventTimestamp: Date.now(),
-        });
       }
     },
-    [addHistoryEntry]
+    []
   );
 
   const handleEmojiClick = useCallback(

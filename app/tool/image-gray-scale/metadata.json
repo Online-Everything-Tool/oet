@@ -2,13 +2,14 @@
   "title": "Image GrayScale",
   "description": "Converts an image to grayscale.",
   "outputConfig": {
-    "summaryField": "message",
-    "referenceType": "imageLibraryId",
-    "referenceField": "imageId"
+    "transferableContent": {
+      "dataType": "fileReference",
+      "fileIdStateKey": "outputImageId",
+      "fileCategory": "image"
+    }
   },
   "tags": ["image", "grayscale"],
   "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }

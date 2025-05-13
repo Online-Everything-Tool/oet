@@ -8,7 +8,6 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState from '../../_hooks/useToolUrlState';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -36,8 +35,6 @@ const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
   color: '#dc2626', // Default red from original component
 };
 
-const HISTORY_LOG_DEBOUNCE_MS = 1500; // Debounce for logging history on state change
-
 export default function TextStrikeThroughClient({
   urlStateParams,
   toolTitle,
@@ -52,7 +49,6 @@ export default function TextStrikeThroughClient({
     DEFAULT_TEXT_STRIKE_THROUGH_STATE
   );
 
-  const { addHistoryEntry } = useHistory();
   const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
     useToolUrlState(urlStateParams);
 
@@ -93,38 +89,6 @@ export default function TextStrikeThroughClient({
     setToolState,
   ]);
 
-  // Debounced history logging function
-  const debouncedLogHistoryAction = useDebouncedCallback(
-    (currentState: TextStrikeThroughToolState) => {
-      if (
-        !currentState.inputText.trim() || // Don't log if input is effectively empty
-        JSON.stringify(currentState) ===
-          JSON.stringify(lastLoggedStateRef.current) // Don't log if state hasn't changed meaningfully
-      ) {
-        return;
-      }
-
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'auto', // Or 'input_change' / 'option_change'
-        input: {
-          text:
-            currentState.inputText.length > 500
-              ? currentState.inputText.substring(0, 500) + '...'
-              : currentState.inputText,
-          skipSpaces: currentState.skipSpaces,
-          color: currentState.color,
-        },
-        output: { formattingStatus: 'Formatting Updated' },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
-      lastLoggedStateRef.current = currentState;
-    },
-    HISTORY_LOG_DEBOUNCE_MS
-  );
-
   // Effect to log history on state changes
   useEffect(() => {
     if (isLoadingState) {
@@ -133,36 +97,21 @@ export default function TextStrikeThroughClient({
       lastLoggedStateRef.current = toolState;
       return;
     }
-    // Only log if input text is present and state has actually changed
     if (toolState.inputText.trim()) {
       if (
         JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
       ) {
-        debouncedLogHistoryAction(toolState);
       }
     } else {
-      // If input text becomes empty, we might want to log a "cleared" state or just update ref
-      // For now, if it's empty, the debounced action won't log due to the check inside it.
-      // If the previous state had text, and now it's empty, this change *should* be logged if different from last log.
       if (
         lastLoggedStateRef.current?.inputText &&
         JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
       ) {
-        // Log if it meaningfully changed to an empty state from a non-empty one
-        debouncedLogHistoryAction(toolState);
       } else {
-        // If it was already empty or effectively empty, just update the ref
         lastLoggedStateRef.current = toolState;
       }
     }
-  }, [
-    toolState,
-    isLoadingState,
-    debouncedLogHistoryAction,
-    addHistoryEntry,
-    toolTitle,
-    toolRoute,
-  ]);
+  }, [toolState, isLoadingState, toolTitle, toolRoute]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -197,19 +146,8 @@ export default function TextStrikeThroughClient({
     setToolState(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
     setIsCopied(false);
 
-    // The history logging useEffect will handle logging this state change
-    // if it's different from the last logged state.
-    // If wasChangedFromDefault is true and the default state means empty inputText,
-    // the history log condition (inputText.trim()) might prevent logging.
-    // We might explicitly log a "cleared" action if needed, but for now,
-    // letting the standard state change logic handle it is simpler.
-    // Ensure lastLoggedStateRef is updated to prevent re-logging default on next interaction.
-    // If DEFAULT_TEXT_STRIKE_THROUGH_STATE's inputText is empty, logging will be skipped by debouncedLogHistoryAction check.
-    // So, we might need to force a log if we want "cleared" action.
-    // For now, let's rely on the main history effect. It will log if default is different from last logged.
-    debouncedLogHistoryAction.cancel(); // Cancel any pending logs
     lastLoggedStateRef.current = DEFAULT_TEXT_STRIKE_THROUGH_STATE; // Align ref with cleared state
-  }, [setToolState, toolState, debouncedLogHistoryAction]);
+  }, [setToolState, toolState]);
 
   const handleCopy = useCallback(() => {
     if (!toolState.inputText || !navigator.clipboard) return;
@@ -217,25 +155,13 @@ export default function TextStrikeThroughClient({
       () => {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 1500);
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute,
-          trigger: 'click',
-          input: {
-            action: 'copyInputText',
-            length: toolState.inputText.length,
-          },
-          output: { message: 'Input text copied to clipboard' },
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
       },
       (err) => {
         console.error('Failed to copy text: ', err);
         // Optionally add an error state or notification
       }
     );
-  }, [toolState.inputText, addHistoryEntry, toolTitle, toolRoute]);
+  }, [toolState.inputText, toolTitle, toolRoute]);
 
   const renderedOutput = useMemo(() => {
     if (!toolState.inputText) {

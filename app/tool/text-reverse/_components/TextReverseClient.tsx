@@ -8,7 +8,6 @@ import React, {
   useEffect,
   useRef,
 } from 'react';
-import { useHistory } from '../../../context/HistoryContext';
 import useToolUrlState from '../../_hooks/useToolUrlState';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -30,8 +29,6 @@ const DEFAULT_TEXT_REVERSE_STATE: TextReverseToolState = {
   reverseMode: 'character', // Default remains character
 };
 
-const HISTORY_LOG_DEBOUNCE_MS = 1500;
-
 interface TextReverseClientProps {
   urlStateParams: ParamConfig[];
   toolTitle: string;
@@ -49,7 +46,6 @@ const TextReverseClient = ({
     isLoadingState,
   } = useToolState<TextReverseToolState>(toolRoute, DEFAULT_TEXT_REVERSE_STATE);
 
-  const { addHistoryEntry } = useHistory();
   const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
     useToolUrlState(urlStateParams);
 
@@ -111,45 +107,6 @@ const TextReverseClient = ({
     return toolState.inputText; // Fallback, should not be reached
   }, [toolState.inputText, toolState.reverseMode]);
 
-  // Debounced history logging function
-  const debouncedLogHistoryAction = useDebouncedCallback(
-    (currentState: TextReverseToolState, currentReversedText: string) => {
-      if (
-        !currentState.inputText.trim() ||
-        JSON.stringify(currentState) ===
-          JSON.stringify(lastLoggedStateRef.current)
-      ) {
-        return;
-      }
-
-      const limitedOutput =
-        currentReversedText.length > 500
-          ? currentReversedText.substring(0, 500) + '...'
-          : currentReversedText;
-
-      addHistoryEntry({
-        toolName: toolTitle,
-        toolRoute: toolRoute,
-        trigger: 'auto',
-        input: {
-          text:
-            currentState.inputText.length > 500
-              ? currentState.inputText.substring(0, 500) + '...'
-              : currentState.inputText,
-          reverseMode: currentState.reverseMode,
-        },
-        output: {
-          reversalType: currentState.reverseMode,
-          limitedReversedText: limitedOutput,
-        },
-        status: 'success',
-        eventTimestamp: Date.now(),
-      });
-      lastLoggedStateRef.current = currentState;
-    },
-    HISTORY_LOG_DEBOUNCE_MS
-  );
-
   // Effect to log history on state changes
   useEffect(() => {
     if (isLoadingState) {
@@ -160,25 +117,15 @@ const TextReverseClient = ({
       toolState.inputText.trim() &&
       JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
     ) {
-      debouncedLogHistoryAction(toolState, reversedText);
     } else if (
       !toolState.inputText.trim() &&
       lastLoggedStateRef.current?.inputText &&
       JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
     ) {
-      debouncedLogHistoryAction(toolState, reversedText);
     } else {
       lastLoggedStateRef.current = toolState;
     }
-  }, [
-    toolState,
-    reversedText,
-    isLoadingState,
-    debouncedLogHistoryAction,
-    addHistoryEntry,
-    toolTitle,
-    toolRoute,
-  ]);
+  }, [toolState, reversedText, isLoadingState, toolTitle, toolRoute]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -199,9 +146,8 @@ const TextReverseClient = ({
   const handleClear = useCallback(() => {
     setToolState(DEFAULT_TEXT_REVERSE_STATE);
     setIsOutputCopied(false);
-    debouncedLogHistoryAction.cancel();
     lastLoggedStateRef.current = DEFAULT_TEXT_REVERSE_STATE;
-  }, [setToolState, debouncedLogHistoryAction]);
+  }, [setToolState]);
 
   const handleCopyOutput = useCallback(() => {
     if (!reversedText || !navigator.clipboard) return;
@@ -209,21 +155,12 @@ const TextReverseClient = ({
       () => {
         setIsOutputCopied(true);
         setTimeout(() => setIsOutputCopied(false), 1500);
-        addHistoryEntry({
-          toolName: toolTitle,
-          toolRoute,
-          trigger: 'click',
-          input: { action: 'copyOutputText', length: reversedText.length },
-          output: { message: 'Reversed text copied to clipboard' },
-          status: 'success',
-          eventTimestamp: Date.now(),
-        });
       },
       (err) => {
         console.error('Failed to copy reversed text: ', err);
       }
     );
-  }, [reversedText, addHistoryEntry, toolTitle, toolRoute]);
+  }, [reversedText, toolTitle, toolRoute]);
 
   if (isLoadingState) {
     return (

@@ -2,11 +2,13 @@
   "title": "Zip File Explorer",
   "description": "Safely explore the contents of zip files without extracting them locally",
   "outputConfig": {
-    "summaryField": "fileCount"
+    "transferableContent": {
+      "dataType": "selectionReferenceList",
+      "fileIdStateKey": "selectedFileIds",
+      "fileCategory": "*"
+    }
   },
   "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
-  "status": "stable",
-  "defaultLogging": "on"
+  "status": "stable"
 }
