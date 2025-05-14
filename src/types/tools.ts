@@ -9,6 +9,7 @@ export interface DiscoveredTarget {
   title: string;
   route: string;
   directive: string;
+  description: string;
 }
 
 export interface InputConfig {
@@ -57,8 +58,8 @@ export interface OutputConfig {
 export interface ToolMetadata {
   title: string;
   description: string;
-  inputConfig?: InputConfig[];
-  outputConfig?: OutputConfig;
+  inputConfig: InputConfig[];
+  outputConfig: OutputConfig;
   urlStateParams?: ParamConfig[];
   tags?: string[];
   includeInSitemap?: boolean;

@@ -41,7 +41,7 @@ interface UseImageProcessingReturn {
 const useImageProcessing = ({
   toolRoute,
 }: UseImageProcessingProps): UseImageProcessingReturn => {
-  console.log('useImageProcessing:', toolRoute);
+  //console.log('useImageProcessing:', toolRoute);
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(
     null

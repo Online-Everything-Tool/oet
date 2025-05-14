@@ -1,6 +1,11 @@
 {
   "title": "Zip File Explorer",
   "description": "Safely explore the contents of zip files without extracting them locally",
+  "inputConfig": [
+    {
+      "acceptsMimeTypes": ["application/zip"]
+    }
+  ],
   "outputConfig": {
     "transferableContent": {
       "dataType": "selectionReferenceList",

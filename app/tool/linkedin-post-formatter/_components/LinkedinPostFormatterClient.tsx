@@ -10,7 +10,6 @@ import Placeholder from '@tiptap/extension-placeholder';
 import useToolState from '../../_hooks/useToolState';
 import EmojiExplorerModal from '../../_components/shared/EmojiExplorerModal';
 import Button from '../../_components/form/Button';
-import Checkbox from '../../_components/form/Checkbox';
 import {
   ListBulletIcon,
   Bars3BottomLeftIcon,
@@ -161,14 +160,8 @@ interface LinkedinPostFormatterClientProps {
 export default function LinkedinPostFormatterClient({
   toolRoute,
 }: LinkedinPostFormatterClientProps) {
-  const {
-    state,
-    setState,
-    isLoadingState,
-    isPersistent,
-    togglePersistence,
-    errorLoadingState,
-  } = useToolState<LinkedinFormatterState>(toolRoute, DEFAULT_STATE);
+  const { state, setState, isLoadingState, errorLoadingState } =
+    useToolState<LinkedinFormatterState>(toolRoute, DEFAULT_STATE);
   const [isCopied, setIsCopied] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isEmojiModalOpen, setIsEmojiModalOpen] = useState(false);
@@ -491,13 +484,6 @@ export default function LinkedinPostFormatterClient({
             {actionError}
           </p>
         )}
-        <Checkbox
-          label={<span className="text-xs">Remember Content</span>}
-          id="persistence-toggle-linkedin"
-          checked={isPersistent}
-          onChange={togglePersistence}
-          disabled={isLoadingState}
-        />
       </div>
       <EmojiExplorerModal
         isOpen={isEmojiModalOpen}

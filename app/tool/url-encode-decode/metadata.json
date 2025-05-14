@@ -13,6 +13,7 @@
       "defaultValue": "encode"
     }
   ],
+  "inputConfig": [],
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",

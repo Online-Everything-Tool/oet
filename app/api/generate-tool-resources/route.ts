@@ -35,29 +35,59 @@ const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const CORE_CONTEXT_FILES = [
+  // Project & Config
   'package.json',
   'tsconfig.json',
+  'app/layout.tsx',
+  'app/globals.css',
 
+  // Core Types
   'src/types/tools.ts',
-  'src/types/image.ts',
-  'src/types/build.ts',
+  'src/types/storage.ts',
 
+  // Core Hooks (Tool Specific)
+  'app/tool/_hooks/useToolState.ts',
   'app/tool/_hooks/useToolUrlState.ts',
   'app/tool/_hooks/useImageProcessing.ts',
 
-  'app/tool/_components/ImageSelectionModal.tsx',
+  // Shared UI Components (Forms & Modals)
+  'app/tool/_components/form/Button.tsx',
+  'app/tool/_components/form/Checkbox.tsx',
+  'app/tool/_components/form/Input.tsx',
+  'app/tool/_components/form/RadioGroup.tsx',
+  'app/tool/_components/form/Select.tsx',
+  'app/tool/_components/form/Textarea.tsx',
+  'app/tool/_components/form/Range.tsx',
+  'app/tool/_components/file-storage/FileSelectionModal.tsx',
+  'app/tool/_components/shared/FilenamePromptModal.tsx',
 
+  // Core Context Providers
+  'app/context/FileLibraryContext.tsx',
   'app/context/ImageLibraryContext.tsx',
+  'app/context/MetadataContext.tsx',
 
+  // ITDE Utilities & Hooks
+  'app/lib/itdeSignalStorageUtils.ts', // Or localStorageSignalUtils.ts
+  'app/tool/_hooks/useItdeDiscovery.ts',
+  'app/tool/_hooks/useItdeTargetHandler.ts',
+
+  // ITDE Shared UI Components
+  'app/tool/_components/shared/SendToToolButton.tsx',
+  'app/tool/_components/shared/IncomingDataModal.tsx',
+  'app/tool/_components/shared/ReceiveItdeDataTrigger.tsx',
+
+  // Other Important Libs/Utils
   'app/lib/utils.ts',
   'app/lib/colorUtils.ts',
   'app/lib/db.ts',
 
+  // Constants
   'src/constants/charset.ts',
-  'src/constants/history.ts',
   'src/constants/text.ts',
 ];
 
+// Converts kebab-case to PascalCase (e.g., "my-tool" to "MyTool")
+// Still needed for generating expected output filenames.
 function toPascalCase(kebabCase: string): string {
   if (!kebabCase) return '';
   return kebabCase
@@ -69,37 +99,67 @@ function toPascalCase(kebabCase: string): string {
 async function getExampleFileContent(
   directive: string
 ): Promise<{ filePath: string; content: string }[]> {
-  const filePathsToTry = [
-    `app/tool/${directive}/page.tsx`,
-    `app/tool/${directive}/_components/${toPascalCase(directive)}Client.tsx`,
-    `app/tool/${directive}/metadata.json`,
-  ];
+  const toolDirectoryPath = path.join(process.cwd(), 'app', 'tool', directive);
   const results: { filePath: string; content: string }[] = [];
 
-  for (const relativePath of filePathsToTry) {
-    const fullPath = path.join(process.cwd(), relativePath);
-    try {
-      await fs.access(fullPath);
-      const content = await fs.readFile(fullPath, 'utf-8');
-      results.push({ filePath: relativePath, content });
-    } catch (error: unknown) {
-      const isFsError =
-        typeof error === 'object' && error !== null && 'code' in error;
-      const errorCode = isFsError ? (error as { code: string }).code : null;
+  try {
+    await fs.access(toolDirectoryPath); // Check if base directory exists
 
-      if (errorCode === 'ENOENT') {
-        console.log(
-          `[API generate-tool/getExample] Optional example file not found: ${relativePath}`
-        );
-      } else {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[API generate-tool/getExample] Error reading example file ${relativePath}:`,
-          message
-        );
+    const getAllFiles = async (
+      dirPath: string,
+      baseDirForRelativePath: string
+    ): Promise<void> => {
+      const entries = await fs.readdir(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          // Can add exclusions here, e.g., if (entry.name === '__tests__') continue;
+          await getAllFiles(fullPath, baseDirForRelativePath);
+        } else if (entry.isFile()) {
+          const relativePathToToolRoot = path.relative(
+            baseDirForRelativePath,
+            fullPath
+          );
+          // Ensure consistent path separators for the AI prompt
+          const projectRelativePath = path
+            .join('app', 'tool', directive, relativePathToToolRoot)
+            .replace(/\\/g, '/');
+          try {
+            const content = await fs.readFile(fullPath, 'utf-8');
+            results.push({ filePath: projectRelativePath, content });
+          } catch (readError: unknown) {
+            const message =
+              readError instanceof Error
+                ? readError.message
+                : String(readError);
+            console.warn(
+              `[API generate-tool/getExample] Error reading file ${projectRelativePath} for tool ${directive}:`,
+              message
+            );
+          }
+        }
       }
+    };
+    await getAllFiles(toolDirectoryPath, toolDirectoryPath);
+  } catch (dirError: unknown) {
+    const isFsError =
+      typeof dirError === 'object' && dirError !== null && 'code' in dirError;
+    const errorCode = isFsError ? (dirError as { code: string }).code : null;
+    if (errorCode === 'ENOENT') {
+      console.log(
+        `[API generate-tool/getExample] Example tool directory not found: app/tool/${directive}`
+      );
+    } else {
+      const message =
+        dirError instanceof Error ? dirError.message : String(dirError);
+      console.warn(
+        `[API generate-tool/getExample] Error accessing example tool directory app/tool/${directive}:`,
+        message
+      );
     }
+    return [];
   }
+  results.sort((a, b) => a.filePath.localeCompare(b.filePath));
   return results;
 }
 
@@ -137,7 +197,6 @@ export async function POST(req: NextRequest) {
     }
 
     let exampleFileContext = '';
-
     const directivesToFetch = [
       ...new Set(
         [
@@ -160,6 +219,8 @@ export async function POST(req: NextRequest) {
             const lang = file.filePath.split('.').pop() || '';
             exampleFileContext += `\n\`\`\`${lang}\n// File: ${file.filePath}\n${file.content}\n\`\`\`\n`;
           });
+        } else {
+          exampleFileContext += `\n// No files found or error reading for example tool: ${directive}\n`;
         }
       }
       exampleFileContext += '\n--- End Example File Content ---\n';
@@ -179,7 +240,6 @@ export async function POST(req: NextRequest) {
         const content = await fs.readFile(fullPath, 'utf-8');
         const lang = filePath.split('.').pop() || '';
         coreContextContent += `\n\`\`\`${lang}\n// File: ${filePath}\n${content}\n\`\`\`\n`;
-        console.log(`[API generate-tool]   Added context: ${filePath}`);
       } catch (error: unknown) {
         const isFsError =
           typeof error === 'object' && error !== null && 'code' in error;
@@ -239,7 +299,8 @@ export async function POST(req: NextRequest) {
     const clientComponentPath = `${toolBasePath}/_components/${componentName}Client.tsx`;
     const metadataPath = `${toolBasePath}/metadata.json`;
 
-    const prompt = `You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
+    const prompt = `
+You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
 
 **Task:** Generate the necessary code resources for a new client-side utility tool.
 
@@ -250,43 +311,55 @@ export async function POST(req: NextRequest) {
 **Project Structure & Rules:**
 1.  **Client-Side Focus:** Core tool logic MUST execute entirely in the user's browser. No backend needed for the main functionality unless explicitly stated otherwise (rare).
 2.  **Core File Structure:** Each tool lives in \`app/tool/<directive>/\` and typically requires THREE core files:
-    *   \`${serverComponentPath}\`: Standard **React Server Component** wrapper. Imports metadata, ToolHeader, ToolSuspenseWrapper, and the main client component. Renders these, passing necessary props. Follow patterns from examples.
-    *   \`${clientComponentPath}\`: Contains core state (useState), logic (handlers, effects), and UI (HTML). Uses provided hooks (useToolUrlState, useToolState, useToolUrlState, useImageLibrary, useImageProcessing etc.).
-    *   \`${metadataPath}\`: Contains tool metadata (title, description, inputConfig, urlStateParams, outputConfig etc.). Use the 'ToolMetadata' type definition.
-3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), **DO NOT put everything into the main Client Component.** Instead, decompose the logic and UI by generating additional helper files:
-    *   **Custom Hooks:** If complex state logic, side effects, or reusable calculations are needed *specifically for this tool*, create custom hooks. Place them in \`${toolBasePath}/_hooks/<hookName>.ts\`. (e.g., \`${toolBasePath}/_hooks/useMontageState.ts\`).
-    *   **Sub-Components:** If the UI is complex, break it down into smaller, focused presentational components. Place them in \`${toolBasePath}/_components/<ComponentName>.tsx\`. (e.g., \`${toolBasePath}/_components/ImageAdjustmentCard.tsx\`). The main Client Component should then import and use these.
-4.  **UI:** Use standard HTML elements. Style with Tailwind CSS using project's \`rgb(var(--color-...))\` variables. Keep UI clean and functional.
-5.  **State Management:** Use React hooks (useState, useCallback, useEffect, useMemo, useRef) within Client Components or Custom Hooks.
-6.  **URL State Syncing (\`useToolUrlState\`):** If simple state needs persistence, define \`urlStateParams\` in \`metadata.json\` and use the \`useToolUrlState\` hook in the Client Component.
-7.  **Types & Constants:** Use the types and constants defined in the Core Project Definitions below.
+    *   \`${serverComponentPath}\`: Standard React Server Component wrapper. Imports metadata, ToolHeader, ToolSuspenseWrapper, and the main client component. Renders these, passing necessary props. Follow patterns from examples.
+    *   \`${clientComponentPath}\`: Main Client Component named \`${componentName}Client.tsx\`. Contains core state (useState), logic (handlers, effects), and UI (HTML).
+    *   \`${metadataPath}\`: Contains tool metadata (title, description, inputConfig, outputConfig etc.). Use the 'ToolMetadata' type definition from \`src/types/tools.ts\`.
+3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
+    *   **Custom Hooks:** For tool-specific complex state logic, side effects, or reusable calculations, create custom hooks in \`${toolBasePath}/_hooks/<hookName>.ts\`.
+    *   **Sub-Components:** For complex UI sections, break them into smaller, focused presentational components in \`${toolBasePath}/_components/<SubComponentName>.tsx\`.
+4.  **UI:** Use standard HTML elements. Style with Tailwind CSS using project's CSS variables from \`app/globals.css\` (e.g., \`rgb(var(--color-text-base))\`). Keep UI clean and functional.
+5.  **State Management:**
+    *   Primary tool state (inputs, outputs that need to persist, user settings for the tool) MUST use the \`useToolState\` hook for persistence in Dexie. Structure the state object logically.
+    *   Simple state that represents a meaningful input, configuration, or result that could be shared between users via a URL link can use the \`useToolUrlState\` hook. Define corresponding \`urlStateParams\` in \`metadata.json\` for such cases. For most other internal tool state and primary input/output references, prefer \`useToolState\`.
+    *   Standard React hooks (useState, useCallback, useEffect, etc.) should be used for local component state.
+6.  **Inter-Tool Data Exchange (ITDE) - CRUCIAL:** New tools should be designed to participate in ITDE where applicable.
+    *   **Metadata Configuration:** The \`metadata.json\` file MUST accurately define its \`inputConfig\` (array) and \`outputConfig\` (object). Refer to \`src/types/tools.ts\`. This is vital for discovery.
+        *   \`inputConfig\` should list MIME types the tool can receive (e.g., "image/*", "text/plain").
+        *   \`outputConfig\` should describe the \`dataType\` (e.g., "fileReference", "text", "none"), any relevant state keys from the tool's \`useToolState\` (like \`processedFileId\` or \`outputText\`) for accessing the output, and the \`fileCategory\` if applicable.
+    *   **Sending Data:** If the tool produces shareable output, its Client Component should implement UI elements (e.g., a "Send To..." button) that allow users to select a compatible target tool. This involves using discovery mechanisms (see \`useItdeDiscovery\` hook pattern in examples) and signaling the target tool (see \`itdeSignalStorageUtils.ts\` patterns in examples).
+    *   **Receiving Data:** If the tool accepts data via ITDE, its Client Component should:
+        *   Employ a handler (see \`useItdeTargetHandler\` hook pattern in examples) to detect incoming signals.
+        *   Provide a UI mechanism (e.g., a modal) for the user to accept or ignore incoming data.
+        *   When data is accepted (e.g., in an \`onProcessSignal\` callback), the tool must fetch the data from the source tool. This involves:
+            1.  Consulting the source tool's \`outputConfig\` (via \`MetadataContext\`).
+            2.  Retrieving the source tool's persisted state (from Dexie, likely using \`FileLibraryContext\` to get the state file by the source's state ID: \`state-<sourceDirective>\`).
+            3.  Extracting the specific output data (e.g., a \`processedFileId\` or \`outputText\` value) from that source state.
+            4.  Setting the current tool's own input state (e.g., using its \`setToolState\` to update a \`selectedFileId\` or input text field) with the received data, and then triggering its own processing logic if appropriate.
+7.  **Shared Components & Hooks:** Utilize the provided shared components (e.g., \`Button\`, \`Input\`, \`FileSelectionModal\`) and hooks (e.g., \`useImageProcessing\`, \`useFileLibrary\`) from the Core Project Definitions where appropriate. Study their usage in the examples.
 
 ${coreContextContent}
 
-**Provided Examples:** (Study these carefully for patterns, including potential decomposition in complex examples if provided)
+**Provided Examples:** (Study these carefully for patterns, including state management, ITDE implementation, UI component usage, and decomposition. The examples provide the full source code for each listed example tool.)
 ${exampleFileContext}
 
 **Generation Task:**
-Generate the FULL, COMPLETE, and VALID source code for the new tool "${toolDirective}", strictly adhering to all the rules, types, hooks, and patterns demonstrated above and in the examples.
+Generate the FULL, COMPLETE, and VALID source code for the new tool "${toolDirective}", strictly adhering to all the rules, ITDE patterns, types, hooks, and components demonstrated above and in the examples/core context.
 This includes generating the **three core files** (\`${serverComponentPath}\`, \`${clientComponentPath}\`, \`${metadataPath}\`) AND **any necessary additional custom hook or sub-component files** (in \`${toolBasePath}/_hooks/\` or \`${toolBasePath}/_components/\`) if the tool's complexity warrants decomposition according to Rule #3.
+Ensure the \`metadata.json\` file always includes \`inputConfig\` (as an array) and \`outputConfig\` (as an object), as these are mandatory fields. If a tool does not accept any specific inputs, provide an empty array for \`inputConfig\` (e.g., \`"inputConfig": []\`). If a tool does not have a transferable output, use \`"outputConfig": { "transferableContent": { "dataType": "none" } }\`.
 
 Also, identify any potential *external* npm libraries needed (beyond React, Next.js, and those defined in the core context like Dexie, uuid, etc.).
 
 **Output Format:**
 Return ONLY a valid JSON object adhering EXACTLY to the following structure. Do NOT include any extra text, explanations, or markdown formatting outside the JSON structure itself.
-The \`generatedFiles\` object MUST be a map where keys are the full relative file paths from the project root (e.g., "app/tool/my-tool/page.tsx", "app/tool/my-tool/_components/MyToolClient.tsx", "app/tool/my-tool/_hooks/useLogic.ts") and values are the complete source code strings for EACH generated file.
-The value for the metadata file (\`app/tool/<directive>/metadata.json\`) MUST be a valid JSON *string*.
+The \`generatedFiles\` object MUST be a map where keys are the full relative file paths from the project root (e.g., "app/tool/${toolDirective}/page.tsx", "app/tool/${toolDirective}/_components/${componentName}Client.tsx", "app/tool/${toolDirective}/_hooks/useLogic.ts") and values are the complete source code strings for EACH generated file.
+The value for the metadata file (\`app/tool/${toolDirective}/metadata.json\`) MUST be a valid JSON *string*.
 \`\`\`json
 {
   "message": "<Brief message about generation success or any warnings>",
   "generatedFiles": {
-    "app/tool/your-tool-directive/page.tsx": "<Full source code for server component wrapper>",
-    "app/tool/your-tool-directive/_components/YourToolDirectiveClient.tsx": "<Full source code for main client component>",
-    "app/tool/your-tool-directive/metadata.json": "<JSON STRING for metadata file>",
-   
-    "app/tool/your-tool-directive/_hooks/useSomeToolLogic.ts": "<Full source code for custom hook>",
-    "app/tool/your-tool-directive/_components/SubComponentUI.tsx": "<Full source code for sub-component>"
-   
+    "app/tool/${toolDirective}/page.tsx": "<Full source code for server component wrapper>",
+    "app/tool/${toolDirective}/_components/${componentName}Client.tsx": "<Full source code for main client component>",
+    "app/tool/${toolDirective}/metadata.json": "<JSON STRING for metadata file>"
   },
   "identifiedDependencies": [
     { "packageName": "string", "reason": "string (optional)", "importUsed": "string (optional)" }
@@ -310,12 +383,12 @@ Ensure the code within "generatedFiles" values is complete and valid source code
     if (!result.response) {
       throw new Error('Gemini API call failed: No response received.');
     }
-
     const responseText = result.response.text();
-
-    console.log('--- RAW AI Response Text ---');
-    console.log(responseText);
-    console.log('--- END RAW AI Response Text ---');
+    console.log('--- RAW AI Response Text (generate-tool-resources) ---');
+    // console.log(responseText); // Full log can be very large
+    console.log(
+      `--- END RAW AI Response Text (length: ${responseText.length}) ---`
+    );
 
     let parsedResponse: GeminiGenerationResponse;
     try {
@@ -336,11 +409,6 @@ Ensure the code within "generatedFiles" values is complete and valid source code
           "[API generate-tool] Parsed response missing core 'generatedFiles' or insufficient files.",
           parsedResponse?.generatedFiles
         );
-
-        console.error(
-          '[API generate-tool] Parsed object structure:',
-          JSON.stringify(parsedResponse, null, 2)
-        );
         throw new Error(
           'AI response missing expected core generated files or invalid structure.'
         );
@@ -352,17 +420,18 @@ Ensure the code within "generatedFiles" values is complete and valid source code
         !fileKeys.includes(metadataPath)
       ) {
         console.warn(
-          `[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}`
+          `[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}. Found: ${fileKeys.join(', ')}`
         );
       }
     } catch (e) {
       console.error(
         '[API generate-tool] Failed to parse Gemini JSON response:',
-        e
+        e,
+        '\nRaw Response Text Snippet:\n',
+        responseText.substring(0, 1000) + '...'
       );
-
       throw new Error(
-        'Failed to parse generation response from AI. Response was not valid JSON.'
+        'Failed to parse generation response from AI. Response was not valid JSON or had unexpected structure.'
       );
     }
 
@@ -383,7 +452,6 @@ Ensure the code within "generatedFiles" values is complete and valid source code
       throw new Error('Received malformed generation data structure from AI.');
     }
 
-    let parsedMetadata;
     const metadataContent = parsedResponse.generatedFiles[metadataPath];
     if (typeof metadataContent !== 'string') {
       console.error(
@@ -394,16 +462,17 @@ Ensure the code within "generatedFiles" values is complete and valid source code
       );
     }
     try {
-      parsedMetadata = JSON.parse(metadataContent);
-
+      const parsedMetadata = JSON.parse(metadataContent);
       if (
         typeof parsedMetadata !== 'object' ||
         parsedMetadata === null ||
         typeof parsedMetadata.title !== 'string' ||
-        typeof parsedMetadata.description !== 'string'
+        typeof parsedMetadata.description !== 'string' ||
+        !Array.isArray(parsedMetadata.inputConfig) ||
+        typeof parsedMetadata.outputConfig !== 'object'
       ) {
         console.warn(
-          '[API generate-tool] Generated metadata JSON string seems to be missing required fields (title, description).'
+          '[API generate-tool] Generated metadata JSON string missing required fields (title, description, inputConfig, outputConfig) or wrong types.'
         );
       }
     } catch (jsonError) {
@@ -412,7 +481,6 @@ Ensure the code within "generatedFiles" values is complete and valid source code
         metadataContent,
         jsonError
       );
-
       throw new Error('AI generated invalid JSON string for metadata.json.');
     }
 
@@ -420,7 +488,6 @@ Ensure the code within "generatedFiles" values is complete and valid source code
       success: true,
       message: parsedResponse.message,
       generatedFiles: parsedResponse.generatedFiles,
-
       identifiedDependencies: parsedResponse.identifiedDependencies ?? null,
     };
 
@@ -448,7 +515,6 @@ Ensure the code within "generatedFiles" values is complete and valid source code
         { status: 400 }
       );
     }
-
     return NextResponse.json(
       {
         success: false,

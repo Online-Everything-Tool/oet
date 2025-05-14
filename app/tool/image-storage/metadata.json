@@ -1,6 +1,7 @@
 {
   "title": "Image Storage",
   "description": "Upload images or paste your clipboard to store it locally in your browser using IndexedDB.",
+  "inputConfig": [],
   "outputConfig": {
     "transferableContent": {
       "dataType": "selectionReferenceList",

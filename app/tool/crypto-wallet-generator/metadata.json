@@ -8,6 +8,7 @@
       "defaultValue": "bitcoin"
     }
   ],
+  "inputConfig": [],
   "outputConfig": {
     "transferableContent": {
       "dataType": "none"
