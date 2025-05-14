@@ -7,7 +7,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-} from 'react'; // Added useRef
+} from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -36,9 +36,8 @@ interface HashGeneratorToolState {
   inputText: string;
   algorithm: HashAlgorithm;
   lastLoadedFilename?: string | null;
-  outputValue: string; // Persisted output hash
-  errorMsg: string; // Persisted error message
-  // No outputFilename, save/download will generate names
+  outputValue: string;
+  errorMsg: string;
 }
 
 const DEFAULT_HASH_TOOL_STATE: HashGeneratorToolState = {
@@ -62,10 +61,10 @@ export default function HashGeneratorClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState, // For the clear button
+    clearState: persistentClearState,
   } = useToolState<HashGeneratorToolState>(toolRoute, DEFAULT_HASH_TOOL_STATE);
 
-  const [isProcessing, setIsProcessing] = useState<boolean>(false); // Local UI state for processing indication
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
   const [filenameActionType, setFilenameActionType] = useState<
@@ -92,14 +91,13 @@ export default function HashGeneratorClient({
   const handleGenerateHashInternal = useCallback(
     async (textToProcess: string, algo: HashAlgorithm) => {
       setIsProcessing(true);
-      // Reset parts of toolState related to output before new processing
+
       setToolState({ outputValue: '', errorMsg: '' });
       setCopySuccess(false);
       setSaveSuccess(false);
 
       const trimmedTextToProcess = textToProcess.trim();
       if (!trimmedTextToProcess) {
-        // setToolState({ outputValue: '', errorMsg: '' }); // Already done above
         setIsProcessing(false);
         return;
       }
@@ -117,7 +115,7 @@ export default function HashGeneratorClient({
           }
           const encoder = new TextEncoder();
           const dataBuffer = encoder.encode(trimmedTextToProcess);
-          const subtleAlgo = algo as AlgorithmIdentifier; // SHA-1, SHA-256, SHA-512 are valid
+          const subtleAlgo = algo as AlgorithmIdentifier;
           const hashBuffer = await crypto.subtle.digest(subtleAlgo, dataBuffer);
           newOutputValue = bufferToHex(hashBuffer);
         }
@@ -128,7 +126,7 @@ export default function HashGeneratorClient({
         setIsProcessing(false);
       }
     },
-    [setToolState] // Only setToolState as external dependency
+    [setToolState]
   );
 
   const debouncedGenerateHash = useDebouncedCallback(
@@ -136,7 +134,6 @@ export default function HashGeneratorClient({
     AUTO_PROCESS_DEBOUNCE_MS
   );
 
-  // Effect for URL parameter handling
   useEffect(() => {
     if (
       isLoadingToolState ||
@@ -170,13 +167,10 @@ export default function HashGeneratorClient({
     }
 
     if (Object.keys(updates).length > 0) {
-      updates.outputValue = ''; // Invalidate old output
+      updates.outputValue = '';
       updates.errorMsg = '';
       setToolState(updates);
-      // The main processing useEffect will pick up these changes.
     } else if (needsProcessingAfterUpdate && toolState.inputText.trim()) {
-      // This case should be rare if setToolState above triggers the main effect.
-      // But as a fallback if URL params match current state exactly yet processing is desired.
       handleGenerateHashInternal(toolState.inputText, toolState.algorithm);
     }
   }, [
@@ -188,12 +182,10 @@ export default function HashGeneratorClient({
     handleGenerateHashInternal,
   ]);
 
-  // Main effect to generate hash when inputText or algorithm changes
   useEffect(() => {
-    if (isLoadingToolState || !initialUrlLoadProcessedRef.current) return; // Wait for tool state and URL processing
+    if (isLoadingToolState || !initialUrlLoadProcessedRef.current) return;
 
     if (!toolState.inputText.trim()) {
-      // If input is cleared, clear output
       if (toolState.outputValue !== '' || toolState.errorMsg !== '') {
         setToolState({ outputValue: '', errorMsg: '' });
       }
@@ -215,7 +207,7 @@ export default function HashGeneratorClient({
     setToolState({
       inputText: event.target.value,
       lastLoadedFilename: null,
-      outputValue: '', // Clear output, debouncedGenerateHash will run
+      outputValue: '',
       errorMsg: '',
     });
     setCopySuccess(false);
@@ -227,7 +219,7 @@ export default function HashGeneratorClient({
   ) => {
     setToolState({
       algorithm: event.target.value as HashAlgorithm,
-      outputValue: '', // Clear output, debouncedGenerateHash will run
+      outputValue: '',
       errorMsg: '',
     });
     setCopySuccess(false);
@@ -235,9 +227,9 @@ export default function HashGeneratorClient({
   };
 
   const handleClear = useCallback(async () => {
-    await persistentClearState(); // This resets toolState to DEFAULT_HASH_TOOL_STATE
-    // outputValue, errorMsg are part of toolState, so they are reset too.
-    setIsProcessing(false); // Reset local processing flag
+    await persistentClearState();
+
+    setIsProcessing(false);
     setCopySuccess(false);
     setSaveSuccess(false);
     debouncedGenerateHash.cancel();
@@ -260,16 +252,15 @@ export default function HashGeneratorClient({
         file.type === 'application/octet-stream' ||
         file.name.endsWith('.txt')
       ) {
-        setIsProcessing(true); // Indicate loading file content
+        setIsProcessing(true);
         try {
           const text = await file.blob.text();
           setToolState({
             inputText: text,
             lastLoadedFilename: file.name,
-            outputValue: '', // Clear old output
+            outputValue: '',
             errorMsg: '',
           });
-          // debouncedGenerateHash will be triggered by inputText change in useEffect
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
           setToolState({
@@ -291,7 +282,6 @@ export default function HashGeneratorClient({
   );
 
   const generateOutputFilenameForAction = useCallback((): string => {
-    // Renamed
     const base =
       toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') || 'hashed-output';
     const algoLabel = toolState.algorithm.toLowerCase().replace('-', '');
@@ -299,7 +289,6 @@ export default function HashGeneratorClient({
   }, [toolState.lastLoadedFilename, toolState.algorithm]);
 
   const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
-    // Renamed
     if (!toolState.outputValue.trim() || toolState.errorMsg) {
       setToolState({
         errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
@@ -317,7 +306,7 @@ export default function HashGeneratorClient({
       setIsFilenameModalOpen(false);
       setFilenameActionType(null);
 
-      if (!action || !toolState.outputValue) return; // Already checked isValid via errorMsg
+      if (!action || !toolState.outputValue) return;
 
       let finalFilename = chosenFilename.trim();
       if (!finalFilename) finalFilename = generateOutputFilenameForAction();
@@ -336,7 +325,7 @@ export default function HashGeneratorClient({
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          setToolState({ errorMsg: '' }); // Clear any previous non-fatal error
+          setToolState({ errorMsg: '' });
         } catch (_err) {
           setToolState({ errorMsg: 'Failed to prepare download.' });
         }

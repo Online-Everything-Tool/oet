@@ -39,7 +39,7 @@ export default function ImageMontageClient({
     handleMoveUp,
     handleMoveDown,
     handleEffectChange,
-    // handleAutoSaveChange, // Removed
+
     setProcessedFileIdInState,
     setOutputFilenameInState,
     isLoadingState,

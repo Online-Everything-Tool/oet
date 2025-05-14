@@ -1,7 +1,7 @@
 // --- FILE: app/tool/json-validate-format/_components/JsonValidateFormatClient.tsx ---
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react'; // Added useRef
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -9,7 +9,7 @@ import Checkbox from '../../_components/form/Checkbox';
 import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
-import FilenamePromptModal from '../../_components/shared/FilenamePromptModal'; // For Save/Download
+import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {
@@ -18,13 +18,12 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   DocumentPlusIcon,
-  ExclamationTriangleIcon, // For error display
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 interface JsonValidateFormatClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
-  // toolTitle is not used in this client's logic
 }
 
 interface JsonToolState {
@@ -32,10 +31,9 @@ interface JsonToolState {
   indent: number;
   sortKeys: boolean;
   lastLoadedFilename?: string | null;
-  outputValue: string; // Persisted output
-  isValid: boolean | null; // Persisted validation status
-  errorMsg: string; // Persisted error message
-  // No outputFilename needed if each save/download is a new timestamped file
+  outputValue: string;
+  isValid: boolean | null;
+  errorMsg: string;
 }
 
 const DEFAULT_JSON_TOOL_STATE: JsonToolState = {
@@ -69,14 +67,14 @@ export default function JsonValidateFormatClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState, // Use this for the clear button
+    clearState: persistentClearState,
   } = useToolState<JsonToolState>(toolRoute, DEFAULT_JSON_TOOL_STATE);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { addFile: addFileToLibrary } = useFileLibrary();
 
   const [copySuccess, setCopySuccess] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false); // For "Save to Library"
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
   const [filenameActionType, setFilenameActionType] = useState<
     'download' | 'save' | null
@@ -88,7 +86,7 @@ export default function JsonValidateFormatClient({
 
   const handleFormatValidate = useCallback(
     (
-      textToProcess: string = toolState.jsonInput, // Default to current state
+      textToProcess: string = toolState.jsonInput,
       currentIndent: number = toolState.indent,
       currentSortKeys: boolean = toolState.sortKeys
     ) => {
@@ -143,7 +141,7 @@ export default function JsonValidateFormatClient({
     ) {
       return;
     }
-    initialUrlLoadProcessedRef.current = true; // Mark as processed
+    initialUrlLoadProcessedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
     const updates: Partial<JsonToolState> = {};
@@ -155,7 +153,7 @@ export default function JsonValidateFormatClient({
       updates.lastLoadedFilename = '(loaded from URL)';
       updates.outputValue = '';
       updates.isValid = null;
-      updates.errorMsg = ''; // Invalidate output
+      updates.errorMsg = '';
       needsProcessingAfterUpdate = true;
     }
 
@@ -170,7 +168,7 @@ export default function JsonValidateFormatClient({
         updates.indent = numIndent;
         updates.outputValue = '';
         updates.isValid = null;
-        updates.errorMsg = ''; // Invalidate output
+        updates.errorMsg = '';
         needsProcessingAfterUpdate = true;
       }
     }
@@ -178,8 +176,6 @@ export default function JsonValidateFormatClient({
     if (Object.keys(updates).length > 0) {
       setToolState(updates);
     } else if (needsProcessingAfterUpdate && toolState.jsonInput.trim()) {
-      // If only URL params matched current state, but we decided it needs processing (e.g. jsonInput was set by URL)
-      // and there wasn't a setToolState call to trigger the other effect.
       handleFormatValidate(
         updates.jsonInput || toolState.jsonInput,
         updates.indent || toolState.indent,
@@ -218,7 +214,7 @@ export default function JsonValidateFormatClient({
     setToolState({
       jsonInput: event.target.value,
       lastLoadedFilename: null,
-      outputValue: '', // Clear output, validation will be triggered by button or settings change
+      outputValue: '',
       isValid: null,
       errorMsg: '',
     });
@@ -227,7 +223,7 @@ export default function JsonValidateFormatClient({
   };
 
   const handleClear = useCallback(async () => {
-    await persistentClearState(); // Resets toolState to default via useToolState
+    await persistentClearState();
     setCopySuccess(false);
     setSaveSuccess(false);
   }, [persistentClearState]);
@@ -236,13 +232,13 @@ export default function JsonValidateFormatClient({
     event: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const newIndentation = parseInt(event.target.value, 10);
-    // setToolState will trigger the useEffect for indent/sortKeys change if jsonInput is present
+
     setToolState({ indent: newIndentation });
   };
 
   const handleSortKeysChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newSortKeys = event.target.checked;
-    // setToolState will trigger the useEffect for indent/sortKeys change if jsonInput is present
+
     setToolState({ sortKeys: newSortKeys });
   };
 
@@ -260,10 +256,9 @@ export default function JsonValidateFormatClient({
       try {
         const text = await file.blob.text();
         setToolState({
-          // This will update jsonInput, and the effect for indent/sortKeys will kick in
           jsonInput: text,
           lastLoadedFilename: file.name,
-          outputValue: '', // Clear previous output
+          outputValue: '',
           isValid: null,
           errorMsg: '',
         });
@@ -278,7 +273,7 @@ export default function JsonValidateFormatClient({
         });
       }
     },
-    [setToolState] // Removed handleFormatValidate, indent, sortKeys. Effect will handle processing.
+    [setToolState]
   );
 
   const handleCopyToClipboard = async () => {
@@ -414,7 +409,7 @@ export default function JsonValidateFormatClient({
         value={toolState.jsonInput}
         onChange={handleInputChange}
         placeholder={`Paste your JSON here or load from a file...\n{\n  "example": "data",\n  "isValid": true\n}`}
-        error={toolState.isValid === false ? toolState.errorMsg : null} // Show error from state
+        error={toolState.isValid === false ? toolState.errorMsg : null}
         textareaClassName="text-sm font-mono"
         spellCheck="false"
         aria-invalid={toolState.isValid === false}

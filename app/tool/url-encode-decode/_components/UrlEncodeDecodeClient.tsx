@@ -56,7 +56,7 @@ export default function UrlEncodeDecodeClient({
   const {
     state: toolState,
     setState: setToolState,
-    isLoadingState, //isLoadingToolState before
+    isLoadingState,
     clearState: persistentClearState,
     errorLoadingState,
   } = useToolState<UrlToolState>(toolRoute, DEFAULT_URL_TOOL_STATE);
@@ -89,8 +89,8 @@ export default function UrlEncodeDecodeClient({
 
     const params = new URLSearchParams(window.location.search);
     const updates: Partial<UrlToolState> = {};
-    let needsUpdate = false; // Flag to check if setToolState is necessary
-    let textForImmediateProcessing: string | null = null; // Text to process if URL matches state
+    let needsUpdate = false;
+    let textForImmediateProcessing: string | null = null;
 
     const textFromUrl = params.get('text');
     if (textFromUrl !== null) {
@@ -99,9 +99,9 @@ export default function UrlEncodeDecodeClient({
         updates.lastLoadedFilename = '(loaded from URL)';
         needsUpdate = true;
       }
-      textForImmediateProcessing = textFromUrl; // Potentially process this
+      textForImmediateProcessing = textFromUrl;
     } else {
-      textForImmediateProcessing = toolState.inputText; // Use current state text if no URL text
+      textForImmediateProcessing = toolState.inputText;
     }
 
     const opFromUrl = params.get('operation') as Operation | null;
@@ -124,8 +124,6 @@ export default function UrlEncodeDecodeClient({
       !toolState.outputValue.trim() &&
       !toolState.errorMsg
     ) {
-      // If URL params matched current state (no 'needsUpdate'), but output is empty, process.
-      // Or if no URL params, but there's text in state and no output.
       console.log(
         '[UrlEncodeDecodeClient URL Effect] No state update from URL, but processing initial/persisted text.'
       );
@@ -136,8 +134,7 @@ export default function UrlEncodeDecodeClient({
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingState, urlStateParams, setToolState]); // Removed toolState.text, toolState.operation as direct changes are handled by other effect
-  // performEncodeDecode is stable
+  }, [isLoadingState, urlStateParams, setToolState]);
 
   const performEncodeDecode = useCallback(
     (text: string, operation: Operation, mode: EncodeMode) => {
@@ -191,15 +188,13 @@ export default function UrlEncodeDecodeClient({
       debouncedProcess.cancel();
       return;
     }
-    // Only call debouncedProcess if text, operation, or encodeMode actually relevant to current state has changed
-    // and resulted in a different state object identity from useToolState.
-    // useToolState's state object itself being in dependency array handles this.
+
     debouncedProcess(
       toolState.inputText,
       toolState.operation,
       toolState.encodeMode
     );
-  }, [toolState, isLoadingState, debouncedProcess, setToolState]); // Simplified: toolState covers its relevant parts
+  }, [toolState, isLoadingState, debouncedProcess, setToolState]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setToolState({

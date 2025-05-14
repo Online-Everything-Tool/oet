@@ -5,11 +5,10 @@ import React, {
   useState,
   useMemo,
   useCallback,
-  // useRef, // Not needed if lastLoggedStateRef is removed
   useEffect,
   useRef,
 } from 'react';
-// import useToolUrlState from '../../_hooks/useToolUrlState'; // Not strictly needed if useToolState handles URL params adequately on init
+
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -20,7 +19,7 @@ import type { StoredFile } from '@/src/types/storage';
 import {
   ArrowUpTrayIcon,
   ExclamationTriangleIcon,
-} from '@heroicons/react/24/outline'; // Added ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
 
 interface TextCounts {
   words: number;
@@ -34,7 +33,6 @@ interface TextCounterToolState {
   inputText: string;
   searchText: string;
   lastLoadedFilename?: string | null;
-  // No outputValue to persist, counts are derived
 }
 
 const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
@@ -56,18 +54,14 @@ export default function TextCounterClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    errorLoadingState, // Added from useToolState
+    errorLoadingState,
   } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
-  // Removed useToolUrlState as useToolState can handle initial URL params if designed to,
-  // or we can use a simpler effect as done previously. Let's refine the URL param effect.
   const initialUrlLoadProcessedRef = useRef(false);
 
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
-  const [clientError, setClientError] = useState<string | null>(null); // For file loading errors etc.
-  // const lastLoggedStateRef = useRef<TextCounterToolState | null>(null); // Removed
+  const [clientError, setClientError] = useState<string | null>(null);
 
-  // Effect for URL parameter handling
   useEffect(() => {
     if (
       isLoadingState ||
@@ -107,7 +101,7 @@ export default function TextCounterClient({
     toolState.inputText,
     toolState.searchText,
     setToolState,
-  ]); // Dependencies refined
+  ]);
 
   const allCounts = useMemo((): TextCounts => {
     const inputText = toolState.inputText;
@@ -122,12 +116,10 @@ export default function TextCounterClient({
     let customCount = 0;
     if (inputText && searchString) {
       try {
-        // Basic string split counting. For regex, a more complex approach would be needed.
-        // Ensure searchString is not empty to avoid infinite loop or incorrect count with empty string.
         if (searchString.length > 0) {
           customCount = inputText.split(searchString).length - 1;
         } else {
-          customCount = 0; // Or perhaps an error/warning state
+          customCount = 0;
         }
       } catch (e) {
         console.warn('Error counting occurrences with search string:', e);
@@ -137,15 +129,13 @@ export default function TextCounterClient({
     return { words, characters, lines, search: searchString, customCount };
   }, [toolState.inputText, toolState.searchText]);
 
-  // Removed the lastLoggedStateRef useEffect as history logging is out of scope for this refactor
-
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       setToolState({
         inputText: event.target.value,
         lastLoadedFilename: null,
       });
-      setClientError(null); // Clear client-side errors on new input
+      setClientError(null);
     },
     [setToolState]
   );
@@ -153,7 +143,7 @@ export default function TextCounterClient({
   const handleSearchChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ searchText: event.target.value });
-      setClientError(null); // Clear client-side errors on new search
+      setClientError(null);
     },
     [setToolState]
   );
@@ -169,7 +159,7 @@ export default function TextCounterClient({
         setClientError(`Error: File "${file.name}" has no content.`);
         return;
       }
-      // More permissive text check for file loading
+
       if (
         !file.type?.startsWith('text/') &&
         !['application/json', 'application/xml', 'application/csv'].includes(
@@ -190,7 +180,6 @@ export default function TextCounterClient({
         setToolState({
           inputText: textContent,
           lastLoadedFilename: file.name,
-          // searchText: toolState.searchText // Keep existing search text or clear? Let's keep.
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -198,14 +187,12 @@ export default function TextCounterClient({
         setToolState({ inputText: '', lastLoadedFilename: null });
       }
     },
-    [setToolState] // Removed toolState.searchText from deps as it's read from prevState if needed
+    [setToolState]
   );
 
   const handleClearText = useCallback(async () => {
-    // If only clearing text, keep search term. If clearing all, use persistentClearState.
-    // For now, this button only clears the main text input.
     setToolState((prevState) => ({
-      ...prevState, // Preserve other parts of state like searchText
+      ...prevState,
       inputText: '',
       lastLoadedFilename: null,
     }));
@@ -266,7 +253,7 @@ export default function TextCounterClient({
         spellCheck="false"
       />
 
-      {(clientError || errorLoadingState) && ( // Consolidate error display
+      {(clientError || errorLoadingState) && (
         <div
           role="alert"
           className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
@@ -361,7 +348,7 @@ export default function TextCounterClient({
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
         mode="selectExistingOrUploadNew"
-        accept=".txt,text/*,.csv,.md,.json,.xml,.log,.js,.ts,.css,.html" // Expanded common text types
+        accept=".txt,text/*,.csv,.md,.json,.xml,.log,.js,.ts,.css,.html"
         selectionMode="single"
         libraryFilter={{ category: 'text' }}
         initialTab="upload"

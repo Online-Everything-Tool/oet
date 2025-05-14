@@ -6,7 +6,7 @@ import React, {
   useCallback,
   useMemo,
   useEffect,
-  useRef, // Added useRef
+  useRef,
 } from 'react';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -14,12 +14,12 @@ import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
 import Input from '../../_components/form/Input';
 import type { ParamConfig } from '@/src/types/tools';
-// No useDebouncedCallback needed if processing is instant via useMemo
-import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline'; // Or solid
+
+import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
-  // toolTitle: string; // Not directly used in client logic
+
   toolRoute: string;
 }
 
@@ -27,7 +27,6 @@ interface TextStrikeThroughToolState {
   inputText: string;
   skipSpaces: boolean;
   color: string;
-  // No outputValue here as output is visual styling of inputText
 }
 
 const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
@@ -38,25 +37,23 @@ const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
 
 export default function TextStrikeThroughClient({
   urlStateParams,
-  // toolTitle,
+
   toolRoute,
 }: TextStrikeThroughClientProps) {
   const {
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearState: persistentClearState, // For the clear button
-    errorLoadingState, // From useToolState
+    clearState: persistentClearState,
+    errorLoadingState,
   } = useToolState<TextStrikeThroughToolState>(
     toolRoute,
     DEFAULT_TEXT_STRIKE_THROUGH_STATE
   );
 
-  // Local UI state
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const initialUrlLoadProcessedRef = useRef(false); // To handle URL params only once
+  const initialUrlLoadProcessedRef = useRef(false);
 
-  // Effect for URL parameter handling
   useEffect(() => {
     if (
       isLoadingState ||
@@ -90,7 +87,7 @@ export default function TextStrikeThroughClient({
     }
 
     const colorFromUrl = params.get('color');
-    // Basic validation for color - could be more robust (e.g. regex for hex)
+
     if (
       colorFromUrl &&
       /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorFromUrl) &&
@@ -103,7 +100,7 @@ export default function TextStrikeThroughClient({
     if (needsUpdate) {
       setToolState(updates);
     }
-  }, [isLoadingState, urlStateParams, toolState, setToolState]); // toolState parts removed from deps for initial load
+  }, [isLoadingState, urlStateParams, toolState, setToolState]);
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -130,12 +127,11 @@ export default function TextStrikeThroughClient({
   );
 
   const handleClear = useCallback(async () => {
-    await persistentClearState(); // Resets toolState to default
+    await persistentClearState();
     setIsCopied(false);
   }, [persistentClearState]);
 
   const handleCopyInput = useCallback(() => {
-    // Renamed to handleCopyInput for clarity
     if (!toolState.inputText || !navigator.clipboard) return;
     navigator.clipboard.writeText(toolState.inputText).then(
       () => {
@@ -144,7 +140,6 @@ export default function TextStrikeThroughClient({
       },
       (err) => {
         console.error('Failed to copy input text: ', err);
-        // Optionally add an error state or notification to toolState.errorMsg
       }
     );
   }, [toolState.inputText]);
@@ -161,20 +156,16 @@ export default function TextStrikeThroughClient({
       textDecoration: 'line-through',
       textDecorationColor: toolState.color,
       textDecorationStyle: 'solid',
-      // Potentially add textDecorationThickness if desired and broadly supported
     };
 
     if (!toolState.skipSpaces) {
       return <span style={strikeStyle}>{toolState.inputText}</span>;
     } else {
-      // Split by spaces, apply strikethrough only to non-space segments
-      const segments = toolState.inputText.split(/(\s+)/); // Capture spaces to preserve them
+      const segments = toolState.inputText.split(/(\s+)/);
       return segments.map((segment, index) => {
         if (segment.match(/\s+/)) {
-          // If it's one or more whitespace characters
           return <React.Fragment key={index}>{segment}</React.Fragment>;
         } else if (segment) {
-          // If it's a non-empty, non-whitespace segment
           return (
             <span key={index} style={strikeStyle}>
               {segment}
@@ -228,7 +219,7 @@ export default function TextStrikeThroughClient({
           <div
             id="outputTextDisplay"
             aria-live="polite"
-            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow min-h-[calc(8*1.5rem+2*0.75rem+2px)] text-base" // Added text-base
+            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow min-h-[calc(8*1.5rem+2*0.75rem+2px)] text-base"
           >
             {renderedOutput}
           </div>
@@ -257,7 +248,7 @@ export default function TextStrikeThroughClient({
               name="color"
               value={toolState.color}
               onChange={handleColorChange}
-              inputClassName="h-7 w-10 p-0.5" // Adjusted for better color input appearance
+              inputClassName="h-7 w-10 p-0.5"
               aria-label="Strikethrough color picker"
             />
           </div>
