@@ -596,7 +596,6 @@ export default function ZipFileExplorerClient({
       nodesToFilter = filterByExtRec(nodesToFilter);
     }
 
-    // Date Filtering (Placeholder - needs actual date comparison logic)
     if (persistentState.filterMinDate || persistentState.filterMaxDate) {
       const minDate = persistentState.filterMinDate
         ? new Date(persistentState.filterMinDate).getTime()
@@ -604,7 +603,7 @@ export default function ZipFileExplorerClient({
       const maxDate = persistentState.filterMaxDate
         ? new Date(persistentState.filterMaxDate).getTime() +
           (24 * 60 * 60 * 1000 - 1)
-        : Infinity; // End of day
+        : Infinity;
 
       const filterByDateRec = (nodes: TreeNodeData[]): TreeNodeData[] =>
         nodes.reduce((acc, node) => {
@@ -650,7 +649,7 @@ export default function ZipFileExplorerClient({
             node.children = pruneEmptyRec(node.children);
             return node.children.length > 0;
           }
-          return false; // Folder with no children defined
+          return false;
         });
       nodesToFilter = pruneEmptyRec(nodesToFilter);
     }

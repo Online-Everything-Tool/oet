@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Button from '../form/Button'; // Assuming Button is in form folder
+import Button from '../form/Button';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface FilenamePromptModalProps {
@@ -31,8 +31,8 @@ export default function FilenamePromptModal({
 
   useEffect(() => {
     if (isOpen) {
-      setFilename(initialFilename || `download-${Date.now()}.txt`); // Default if empty
-      // Focus the input when the modal opens
+      setFilename(initialFilename || `download-${Date.now()}.txt`);
+
       setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [isOpen, initialFilename]);
@@ -57,7 +57,7 @@ export default function FilenamePromptModal({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
-      onClick={onClose} // Close on overlay click
+      onClick={onClose}
       onKeyDown={handleKeyDown}
       role="dialog"
       aria-modal="true"
@@ -65,7 +65,7 @@ export default function FilenamePromptModal({
     >
       <div
         className="bg-[rgb(var(--color-bg-component))] rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()} // Prevent close on modal content click
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center">
           <h2

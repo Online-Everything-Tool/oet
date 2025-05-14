@@ -1,4 +1,4 @@
-// FILE: app/tool/text-strike-through/_components/TextStrikeThroughClient.tsx
+// --- FILE: app/tool/text-strike-through/_components/TextStrikeThroughClient.tsx ---
 'use client';
 
 import React, {
@@ -6,18 +6,20 @@ import React, {
   useCallback,
   useMemo,
   useEffect,
-  useRef,
+  useRef, // Added useRef
 } from 'react';
-import useToolUrlState from '../../_hooks/useToolUrlState';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
-import Input from '../../_components/form/Input'; // For color picker
+import Input from '../../_components/form/Input';
 import type { ParamConfig } from '@/src/types/tools';
+// No useDebouncedCallback needed if processing is instant via useMemo
+import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline'; // Or solid
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
+  // toolTitle: string; // Not directly used in client logic
   toolRoute: string;
 }
 
@@ -25,90 +27,83 @@ interface TextStrikeThroughToolState {
   inputText: string;
   skipSpaces: boolean;
   color: string;
+  // No outputValue here as output is visual styling of inputText
 }
 
 const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
   inputText: '',
   skipSpaces: false,
-  color: '#dc2626', // Default red from original component
+  color: '#dc2626',
 };
 
 export default function TextStrikeThroughClient({
   urlStateParams,
+  // toolTitle,
   toolRoute,
 }: TextStrikeThroughClientProps) {
   const {
     state: toolState,
     setState: setToolState,
     isLoadingState,
+    clearState: persistentClearState, // For the clear button
+    errorLoadingState, // From useToolState
   } = useToolState<TextStrikeThroughToolState>(
     toolRoute,
     DEFAULT_TEXT_STRIKE_THROUGH_STATE
   );
 
-  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
-    useToolUrlState(urlStateParams);
-
+  // Local UI state
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const lastLoggedStateRef = useRef<TextStrikeThroughToolState | null>(null);
+  const initialUrlLoadProcessedRef = useRef(false); // To handle URL params only once
 
-  // Effect to initialize state from URL parameters
+  // Effect for URL parameter handling
   useEffect(() => {
-    if (!isLoadingState && !isLoadingUrlState && urlProvidedAnyValue) {
-      const updates: Partial<TextStrikeThroughToolState> = {};
-      const urlInputText = urlState.text as string | undefined;
-      const urlSkipSpaces = urlState.skipSpaces as boolean | undefined;
-      const urlColor = urlState.color as string | undefined;
-
-      if (urlInputText !== undefined && urlInputText !== toolState.inputText) {
-        updates.inputText = urlInputText;
-      }
-      if (
-        urlSkipSpaces !== undefined &&
-        urlSkipSpaces !== toolState.skipSpaces
-      ) {
-        updates.skipSpaces = urlSkipSpaces;
-      }
-      if (urlColor !== undefined && urlColor !== toolState.color) {
-        updates.color = urlColor;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        setToolState(updates);
-      }
-    }
-  }, [
-    isLoadingState,
-    isLoadingUrlState,
-    urlProvidedAnyValue,
-    urlState,
-    toolState,
-    setToolState,
-  ]);
-
-  // Effect to log history on state changes
-  useEffect(() => {
-    if (isLoadingState) {
-      // If still loading, initialize lastLoggedStateRef with the current toolState
-      // to prevent logging the initial loaded state as a "change".
-      lastLoggedStateRef.current = toolState;
+    if (
+      isLoadingState ||
+      initialUrlLoadProcessedRef.current ||
+      !urlStateParams ||
+      urlStateParams.length === 0
+    ) {
+      if (!isLoadingState && !initialUrlLoadProcessedRef.current)
+        initialUrlLoadProcessedRef.current = true;
       return;
     }
-    if (toolState.inputText.trim()) {
-      if (
-        JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
-      ) {
-      }
-    } else {
-      if (
-        lastLoggedStateRef.current?.inputText &&
-        JSON.stringify(toolState) !== JSON.stringify(lastLoggedStateRef.current)
-      ) {
-      } else {
-        lastLoggedStateRef.current = toolState;
+    initialUrlLoadProcessedRef.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const updates: Partial<TextStrikeThroughToolState> = {};
+    let needsUpdate = false;
+
+    const textFromUrl = params.get('text');
+    if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
+      updates.inputText = textFromUrl;
+      needsUpdate = true;
+    }
+
+    const skipSpacesFromUrl = params.get('skipSpaces');
+    if (skipSpacesFromUrl !== null) {
+      const skipBool = skipSpacesFromUrl.toLowerCase() === 'true';
+      if (skipBool !== toolState.skipSpaces) {
+        updates.skipSpaces = skipBool;
+        needsUpdate = true;
       }
     }
-  }, [toolState, isLoadingState, toolRoute]);
+
+    const colorFromUrl = params.get('color');
+    // Basic validation for color - could be more robust (e.g. regex for hex)
+    if (
+      colorFromUrl &&
+      /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorFromUrl) &&
+      colorFromUrl !== toolState.color
+    ) {
+      updates.color = colorFromUrl;
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      setToolState(updates);
+    }
+  }, [isLoadingState, urlStateParams, toolState, setToolState]); // toolState parts removed from deps for initial load
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -134,14 +129,13 @@ export default function TextStrikeThroughClient({
     [setToolState]
   );
 
-  const handleClear = useCallback(() => {
-    setToolState(DEFAULT_TEXT_STRIKE_THROUGH_STATE);
+  const handleClear = useCallback(async () => {
+    await persistentClearState(); // Resets toolState to default
     setIsCopied(false);
+  }, [persistentClearState]);
 
-    lastLoggedStateRef.current = DEFAULT_TEXT_STRIKE_THROUGH_STATE; // Align ref with cleared state
-  }, [setToolState]);
-
-  const handleCopy = useCallback(() => {
+  const handleCopyInput = useCallback(() => {
+    // Renamed to handleCopyInput for clarity
     if (!toolState.inputText || !navigator.clipboard) return;
     navigator.clipboard.writeText(toolState.inputText).then(
       () => {
@@ -149,8 +143,8 @@ export default function TextStrikeThroughClient({
         setTimeout(() => setIsCopied(false), 1500);
       },
       (err) => {
-        console.error('Failed to copy text: ', err);
-        // Optionally add an error state or notification
+        console.error('Failed to copy input text: ', err);
+        // Optionally add an error state or notification to toolState.errorMsg
       }
     );
   }, [toolState.inputText]);
@@ -167,16 +161,20 @@ export default function TextStrikeThroughClient({
       textDecoration: 'line-through',
       textDecorationColor: toolState.color,
       textDecorationStyle: 'solid',
+      // Potentially add textDecorationThickness if desired and broadly supported
     };
 
     if (!toolState.skipSpaces) {
       return <span style={strikeStyle}>{toolState.inputText}</span>;
     } else {
-      const segments = toolState.inputText.split(/(\s+)/);
+      // Split by spaces, apply strikethrough only to non-space segments
+      const segments = toolState.inputText.split(/(\s+)/); // Capture spaces to preserve them
       return segments.map((segment, index) => {
         if (segment.match(/\s+/)) {
+          // If it's one or more whitespace characters
           return <React.Fragment key={index}>{segment}</React.Fragment>;
         } else if (segment) {
+          // If it's a non-empty, non-whitespace segment
           return (
             <span key={index} style={strikeStyle}>
               {segment}
@@ -188,11 +186,18 @@ export default function TextStrikeThroughClient({
     }
   }, [toolState.inputText, toolState.skipSpaces, toolState.color]);
 
-  if (isLoadingState) {
+  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Strike Through Tool...
       </p>
+    );
+  }
+  if (errorLoadingState) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
+        Error loading saved state: {errorLoadingState}
+      </div>
     );
   }
 
@@ -223,7 +228,7 @@ export default function TextStrikeThroughClient({
           <div
             id="outputTextDisplay"
             aria-live="polite"
-            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow min-h-[calc(8*1.5rem+2*0.75rem+2px)]" // Approximate height match for textarea
+            className="block w-full p-3 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-bg-subtle))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm resize-none overflow-auto whitespace-pre-wrap flex-grow min-h-[calc(8*1.5rem+2*0.75rem+2px)] text-base" // Added text-base
           >
             {renderedOutput}
           </div>
@@ -252,7 +257,7 @@ export default function TextStrikeThroughClient({
               name="color"
               value={toolState.color}
               onChange={handleColorChange}
-              inputClassName="h-7 w-10 p-5" // Adjusted padding for color input
+              inputClassName="h-7 w-10 p-0.5" // Adjusted for better color input appearance
               aria-label="Strikethrough color picker"
             />
           </div>
@@ -260,11 +265,18 @@ export default function TextStrikeThroughClient({
         <div className="flex items-center space-x-3 ml-auto">
           <Button
             variant={isCopied ? 'secondary' : 'accent2'}
-            onClick={handleCopy}
-            disabled={!toolState.inputText.trim()}
+            onClick={handleCopyInput}
+            disabled={!toolState.inputText.trim() || isCopied}
+            iconLeft={
+              isCopied ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <ClipboardDocumentIcon className="h-5 w-5" />
+              )
+            }
             className="transition-colors duration-150 ease-in-out"
           >
-            {isCopied ? 'Copied!' : 'Copy Input'}
+            {isCopied ? 'Copied Input!' : 'Copy Input Text'}
           </Button>
           <Button
             variant="neutral"

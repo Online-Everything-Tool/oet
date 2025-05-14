@@ -16,13 +16,12 @@ import FileListView from '../../_components/file-storage/FileListView';
 import FileGridView from '../../_components/file-storage/FileGridView';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import { getFileIconClassName, isTextBasedMimeType } from '@/app/lib/utils';
-import useToolState from '../../_hooks/useToolState'; // Import useToolState
+import useToolState from '../../_hooks/useToolState';
 
 interface FileStorageClientProps {
   toolRoute: string;
 }
 
-// Define the state structure for persistence
 interface PersistedFileStorageState {
   selectedFileIds: string[];
   layout: 'list' | 'grid';
@@ -31,7 +30,7 @@ interface PersistedFileStorageState {
 
 const DEFAULT_FILE_STORAGE_STATE: PersistedFileStorageState = {
   selectedFileIds: [],
-  layout: 'grid', // Default to grid view
+  layout: 'grid',
   isFilterSelectedActive: false,
 };
 
@@ -39,7 +38,7 @@ export default function FileStorageClient({
   toolRoute,
 }: FileStorageClientProps) {
   const [storedFiles, setStoredFiles] = useState<StoredFile[]>([]);
-  const [clientIsLoading, setClientIsLoading] = useState<boolean>(true); // Renamed from isLoading to avoid conflict
+  const [clientIsLoading, setClientIsLoading] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
@@ -57,29 +56,22 @@ export default function FileStorageClient({
 
   const { listFiles, deleteFile, clearAllFiles, getFile } = useFileLibrary();
 
-  // --- Integrate useToolState ---
   const {
     state: persistentState,
     setState: setPersistentState,
     isLoadingState: isLoadingToolState,
     errorLoadingState: toolStateError,
-    // clearState: clearToolSavedState, // We can use this if needed
-    // isPersistent, // Can be used to show persistence status or allow toggling
-    // togglePersistence,
   } = useToolState<PersistedFileStorageState>(
     toolRoute,
     DEFAULT_FILE_STORAGE_STATE
   );
 
-  // Derive state from persistentState
   const selectedFileIds = useMemo(
     () => new Set(persistentState.selectedFileIds),
     [persistentState.selectedFileIds]
   );
   const layout = persistentState.layout;
   const isFilterSelectedActive = persistentState.isFilterSelectedActive;
-
-  // --- End useToolState Integration ---
 
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -184,7 +176,7 @@ export default function FileStorageClient({
     setError(null);
     setClientIsLoading(true);
     try {
-      const files = await listFiles(500, false); // Only load permanent files
+      const files = await listFiles(500, false);
       setStoredFiles(files);
     } catch (err) {
       setError(
@@ -198,7 +190,6 @@ export default function FileStorageClient({
 
   useEffect(() => {
     if (!isLoadingToolState) {
-      // Only load files after tool state is loaded
       loadAndDisplayFiles();
     }
   }, [loadAndDisplayFiles, isLoadingToolState]);
@@ -207,7 +198,6 @@ export default function FileStorageClient({
     setIsModalOpen(true);
   };
 
-  // Update setPersistentState for layout and filter toggle
   const handleLayoutChange = useCallback(
     (newLayout: 'list' | 'grid') => {
       setPersistentState({ layout: newLayout });
@@ -246,8 +236,6 @@ export default function FileStorageClient({
         });
         console.log('[FileStorageClient] Filtering view to newly added files.');
       } else {
-        // Optionally clear selection or keep existing if not filtering to new
-        // setPersistentState({ selectedFileIds: [], isFilterSelectedActive: false });
       }
       setIsProcessing(false);
     },
@@ -264,7 +252,7 @@ export default function FileStorageClient({
       try {
         await deleteFile(fileId);
         setStoredFiles((prev) => prev.filter((f) => f.id !== fileId));
-        // Update persistent state for selectedFileIds
+
         setPersistentState((prev) => ({
           selectedFileIds: prev.selectedFileIds.filter((id) => id !== fileId),
         }));
@@ -281,14 +269,14 @@ export default function FileStorageClient({
       selectedFileIds,
       storedFiles,
       deleteFile,
-      setPersistentState, // Added
+      setPersistentState,
     ]
   );
 
   const handleClearAll = useCallback(async () => {
     if (
-      clientIsLoading || // Use clientIsLoading
-      isLoadingToolState || // And isLoadingToolState
+      clientIsLoading ||
+      isLoadingToolState ||
       isProcessing ||
       isBulkDeleting ||
       storedFiles.length === 0 ||
@@ -298,9 +286,9 @@ export default function FileStorageClient({
     setError(null);
     setIsProcessing(true);
     try {
-      await clearAllFiles(false); // false means only permanent files (non-temporary)
+      await clearAllFiles(false);
       loadAndDisplayFiles();
-      // Clear selectedFileIds in persistent state
+
       setPersistentState({
         selectedFileIds: [],
         isFilterSelectedActive: false,
@@ -322,7 +310,7 @@ export default function FileStorageClient({
     selectedFileIds,
     clearAllFiles,
     loadAndDisplayFiles,
-    setPersistentState, // Added
+    setPersistentState,
   ]);
 
   const handleDownloadFile = useCallback(
@@ -373,7 +361,6 @@ export default function FileStorageClient({
     [getFile, setItemFeedback]
   );
 
-  // Update to use setPersistentState for selectedFileIds
   const handleToggleSelection = useCallback(
     (fileId: string) => {
       setPersistentState((prev) => {
@@ -389,8 +376,8 @@ export default function FileStorageClient({
   const handleDeleteSelected = useCallback(async () => {
     if (
       selectedFileIds.size === 0 ||
-      clientIsLoading || // Use clientIsLoading
-      isLoadingToolState || // And isLoadingToolState
+      clientIsLoading ||
+      isLoadingToolState ||
       isProcessing ||
       isBulkDeleting
     )
@@ -411,7 +398,7 @@ export default function FileStorageClient({
         errorsEncountered.push(`Failed to delete "${name}": ${message}`);
       }
     }
-    // Clear selectedFileIds in persistent state
+
     setPersistentState({ selectedFileIds: [], isFilterSelectedActive: false });
 
     if (errorsEncountered.length !== 0) {
@@ -429,7 +416,7 @@ export default function FileStorageClient({
     storedFiles,
     deleteFile,
     loadAndDisplayFiles,
-    setPersistentState, // Added
+    setPersistentState,
   ]);
 
   const renderDefaultPreview = useCallback(
@@ -461,7 +448,6 @@ export default function FileStorageClient({
     [previewUrls]
   );
 
-  // Combine loading states
   const combinedClientAndViewLoading = clientIsLoading || isLoadingToolState;
   const controlsAreLoading =
     combinedClientAndViewLoading || isProcessing || isBulkDeleting;
@@ -469,6 +455,9 @@ export default function FileStorageClient({
   const itemsToShow = isFilterSelectedActive
     ? storedFiles.filter((file) => selectedFileIds.has(file.id))
     : storedFiles;
+  if (itemsToShow.length === 0 && isFilterSelectedActive) {
+    handleToggleFilterSelected();
+  }
   const showEmpty =
     !combinedClientAndViewLoading &&
     itemsToShow.length === 0 &&
@@ -488,7 +477,7 @@ export default function FileStorageClient({
         onToggleFilterSelected={handleToggleFilterSelected}
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
-        onLayoutChange={handleLayoutChange} // Use the new handler
+        onLayoutChange={handleLayoutChange}
         onDeleteSelectedClick={handleDeleteSelected}
         itemNameSingular={'File'}
         itemNamePlural={'Files'}
@@ -504,7 +493,7 @@ export default function FileStorageClient({
       )}
 
       <div className="border-2 border-dashed border-gray-300 rounded-md min-h-[200px] p-1">
-        {combinedClientAndViewLoading && // Use combined loading state
+        {combinedClientAndViewLoading &&
           !isProcessing &&
           !isBulkDeleting &&
           storedFiles.length === 0 && (
@@ -525,7 +514,7 @@ export default function FileStorageClient({
             </p>
           </div>
         )}
-        {!combinedClientAndViewLoading && // Use combined loading state
+        {!combinedClientAndViewLoading &&
           !showEmpty &&
           (layout === 'list' ? (
             <FileListView
@@ -559,11 +548,10 @@ export default function FileStorageClient({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onFilesSelected={handleModalFilesSelected}
-        mode="addNewFiles" // Or "selectExistingOrUploadNew" if you want library tab
-        accept="*/*" // Or be more specific e.g. "image/*,application/pdf"
-        selectionMode="multiple" // Or "single"
+        mode="addNewFiles"
+        accept="*/*"
+        selectionMode="multiple"
         showFilterAfterUploadCheckbox={true}
-        // libraryFilter={{ category: "image" }} // Example if you add library tab
       />
     </div>
   );

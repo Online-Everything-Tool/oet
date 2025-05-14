@@ -112,7 +112,6 @@ export function safeStringify(
 
     return stringifiedValue;
   } catch (stringifyError: unknown) {
-    // This catch is more for unexpected errors during the String() conversion or other logic
     console.error('Error in safeStringify function:', stringifyError);
     return '[Error displaying value]';
   }

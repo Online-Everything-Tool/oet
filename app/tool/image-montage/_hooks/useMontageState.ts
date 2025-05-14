@@ -265,7 +265,6 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
       .filter((img): img is MontageImage => img !== null);
   }, [toolState.persistedImages, loadedImageElements, imageLoadingStatus]);
 
-  // USING YOUR CORRECTED addStoredFiles LOGIC
   const addStoredFiles = useCallback(
     async (storedFiles: StoredFile[]): Promise<void> => {
       if (!storedFiles || storedFiles.length === 0) return;
@@ -280,7 +279,6 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
           -1
         );
 
-        // Define newPersistedImagesToAdd before using its length
         const newlyAddedImagesThisCall: PersistedMontageImage[] = [];
         storedFiles.forEach((file) => {
           if (file.type?.startsWith('image/') && !existingIds.has(file.id)) {
@@ -289,7 +287,7 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
               imageId: file.id,
               name: file.name,
               tilt: getRandomTilt(),
-              // Corrected overlapPercent logic: use prevState.persistedImages.length + current count of newlyAddedImagesThisCall
+
               overlapPercent:
                 prevState.persistedImages.length +
                   newlyAddedImagesThisCall.length ===

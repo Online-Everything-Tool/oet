@@ -15,7 +15,7 @@ import StorageControls from '../../_components/file-storage/StorageControls';
 import FileListView from '../../_components/file-storage/FileListView';
 import FileGridView from '../../_components/file-storage/FileGridView';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
-import useToolState from '../../_hooks/useToolState'; // Import useToolState
+import useToolState from '../../_hooks/useToolState';
 
 import { PhotoIcon } from '@heroicons/react/20/solid';
 
@@ -23,7 +23,6 @@ interface ImageStorageClientProps {
   toolRoute: string;
 }
 
-// Define the state structure for persistence
 interface PersistedImageStorageState {
   selectedImageIds: string[];
   layout: 'list' | 'grid';
@@ -32,7 +31,7 @@ interface PersistedImageStorageState {
 
 const DEFAULT_IMAGE_STORAGE_STATE: PersistedImageStorageState = {
   selectedImageIds: [],
-  layout: 'grid', // Default to grid view
+  layout: 'grid',
   isFilterSelectedActive: false,
 };
 
@@ -59,7 +58,6 @@ export default function ImageStorageClient({
   const { listImages, deleteImage, clearAllImages, getImage } =
     useImageLibrary();
 
-  // --- Integrate useToolState ---
   const {
     state: persistentState,
     setState: setPersistentState,
@@ -70,14 +68,12 @@ export default function ImageStorageClient({
     DEFAULT_IMAGE_STORAGE_STATE
   );
 
-  // Derive state from persistentState
   const selectedImageIds = useMemo(
     () => new Set(persistentState.selectedImageIds),
     [persistentState.selectedImageIds]
   );
   const layout = persistentState.layout;
   const isFilterSelectedActive = persistentState.isFilterSelectedActive;
-  // --- End useToolState Integration ---
 
   const revokeManagedUrls = useCallback(() => {
     managedUrlsRef.current.forEach(URL.revokeObjectURL);
@@ -184,7 +180,7 @@ export default function ImageStorageClient({
     setError(null);
     setClientIsLoading(true);
     try {
-      const images = await listImages(100); // listImages only gets permanent images
+      const images = await listImages(100);
       setStoredImages(images);
     } catch (err) {
       setError(
@@ -198,7 +194,6 @@ export default function ImageStorageClient({
 
   useEffect(() => {
     if (!isLoadingToolState) {
-      // Only load after tool state is ready
       loadAndDisplayImages();
     }
   }, [loadAndDisplayImages, isLoadingToolState]);
@@ -207,7 +202,6 @@ export default function ImageStorageClient({
     setIsModalOpen(true);
   };
 
-  // Update setPersistentState for layout and filter toggle
   const handleLayoutChange = useCallback(
     (newLayout: 'list' | 'grid') => {
       setPersistentState({ layout: newLayout });
@@ -237,7 +231,7 @@ export default function ImageStorageClient({
       setError(null);
       setIsProcessing(true);
 
-      await loadAndDisplayImages(); // Refresh the list
+      await loadAndDisplayImages();
 
       if (filterToThese) {
         const addedImageIdsArray = imageFilesToAdd
@@ -263,7 +257,7 @@ export default function ImageStorageClient({
       try {
         await deleteImage(imageId);
         setStoredImages((prev) => prev.filter((f) => f.id !== imageId));
-        // Update persistent state
+
         setPersistentState((prev) => ({
           selectedImageIds: prev.selectedImageIds.filter(
             (id) => id !== imageId
@@ -282,14 +276,14 @@ export default function ImageStorageClient({
       selectedImageIds,
       storedImages,
       deleteImage,
-      setPersistentState, // Added
+      setPersistentState,
     ]
   );
 
   const handleClearAll = useCallback(async () => {
     if (
-      clientIsLoading || // Use clientIsLoading
-      isLoadingToolState || // And isLoadingToolState
+      clientIsLoading ||
+      isLoadingToolState ||
       isProcessing ||
       isBulkDeleting ||
       storedImages.length === 0 ||
@@ -299,9 +293,9 @@ export default function ImageStorageClient({
     setError(null);
     setIsProcessing(true);
     try {
-      await clearAllImages(); // This should only clear images now
+      await clearAllImages();
       loadAndDisplayImages();
-      // Clear selectedImageIds in persistent state
+
       setPersistentState({
         selectedImageIds: [],
         isFilterSelectedActive: false,
@@ -323,7 +317,7 @@ export default function ImageStorageClient({
     selectedImageIds,
     clearAllImages,
     loadAndDisplayImages,
-    setPersistentState, // Added
+    setPersistentState,
   ]);
 
   const handleDownloadFile = useCallback(
@@ -376,7 +370,6 @@ export default function ImageStorageClient({
     [getImage, setItemFeedback]
   );
 
-  // Update to use setPersistentState
   const handleToggleSelection = useCallback(
     (imageId: string) => {
       setPersistentState((prev) => {
@@ -392,8 +385,8 @@ export default function ImageStorageClient({
   const handleDeleteSelected = useCallback(async () => {
     if (
       selectedImageIds.size === 0 ||
-      clientIsLoading || // Use clientIsLoading
-      isLoadingToolState || // And isLoadingToolState
+      clientIsLoading ||
+      isLoadingToolState ||
       isProcessing ||
       isBulkDeleting
     )
@@ -414,7 +407,7 @@ export default function ImageStorageClient({
         errorsEncountered.push(`Failed to delete "${name}": ${message}`);
       }
     }
-    // Clear selectedImageIds in persistent state
+
     setPersistentState({ selectedImageIds: [], isFilterSelectedActive: false });
 
     if (errorsEncountered.length !== 0) {
@@ -432,7 +425,7 @@ export default function ImageStorageClient({
     storedImages,
     deleteImage,
     loadAndDisplayImages,
-    setPersistentState, // Added
+    setPersistentState,
   ]);
 
   const renderPreview = useCallback(
@@ -457,7 +450,6 @@ export default function ImageStorageClient({
     [previewUrls]
   );
 
-  // Combine loading states
   const combinedClientAndViewLoading = clientIsLoading || isLoadingToolState;
   const controlsAreLoading =
     combinedClientAndViewLoading || isProcessing || isBulkDeleting;
@@ -465,6 +457,9 @@ export default function ImageStorageClient({
   const itemsToShow = isFilterSelectedActive
     ? storedImages.filter((img) => selectedImageIds.has(img.id))
     : storedImages;
+  if (itemsToShow.length === 0 && isFilterSelectedActive) {
+    handleToggleFilterSelected();
+  }
   const showEmpty =
     !combinedClientAndViewLoading &&
     itemsToShow.length === 0 &&
@@ -484,7 +479,7 @@ export default function ImageStorageClient({
         onToggleFilterSelected={handleToggleFilterSelected}
         onAddClick={handleAddClick}
         onClearAllClick={handleClearAll}
-        onLayoutChange={handleLayoutChange} // Use the new handler
+        onLayoutChange={handleLayoutChange}
         onDeleteSelectedClick={handleDeleteSelected}
         itemNameSingular={'Image'}
         itemNamePlural={'Images'}
@@ -500,7 +495,7 @@ export default function ImageStorageClient({
       )}
 
       <div className="border-2 border-dashed border-gray-300 rounded-md min-h-[200px] p-1">
-        {combinedClientAndViewLoading && // Use combined loading state
+        {combinedClientAndViewLoading &&
           !isProcessing &&
           !isBulkDeleting &&
           storedImages.length === 0 && (
@@ -521,7 +516,7 @@ export default function ImageStorageClient({
             </p>
           </div>
         )}
-        {!combinedClientAndViewLoading && // Use combined loading state
+        {!combinedClientAndViewLoading &&
           !showEmpty &&
           (layout === 'list' ? (
             <FileListView

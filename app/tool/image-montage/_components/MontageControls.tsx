@@ -108,7 +108,7 @@ export default function MontageControls({
               variant="primary-outline"
               onClick={onSaveAsNewClick}
               disabled={generalActionsDisabled || !canSaveOrUpdate}
-              isLoading={isGeneratingMontageForAction} // Corrected
+              isLoading={isGeneratingMontageForAction}
               loadingText="Saving As..."
               iconLeft={<DocumentDuplicateIcon className="h-5 w-5" />}
             >

@@ -16,7 +16,7 @@ import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectio
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
-// No ParamConfig needed as we're forgoing URL params for this image tool
+
 import {
   PhotoIcon,
   ArrowDownTrayIcon,
@@ -71,7 +71,7 @@ export default function ImageGrayScaleClient({
     useState<boolean>(false);
   const [manualSaveSuccess, setManualSaveSuccess] = useState<boolean>(false);
 
-  const initialSetupRanRef = useRef(false); // Only for tool state loading, not URL params
+  const initialSetupRanRef = useRef(false);
 
   const { getImage, makeImagePermanent } = useImageLibrary();
   const {
@@ -81,7 +81,6 @@ export default function ImageGrayScaleClient({
     clearProcessingOutput: clearProcessingHookOutput,
   } = useImageProcessing({ toolRoute });
 
-  // Effect 1: Mark initial setup as complete once tool settings are loaded
   useEffect(() => {
     console.log(
       `[ImageGrayScale InitialSetupEffect] Running. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}`
@@ -96,7 +95,6 @@ export default function ImageGrayScaleClient({
     );
   }, [isLoadingToolSettings, toolState]);
 
-  // Effect 2: Load image previews based on IDs in toolState
   useEffect(() => {
     let origObjUrl: string | null = null;
     let procObjUrl: string | null = null;
@@ -185,7 +183,6 @@ export default function ImageGrayScaleClient({
     []
   );
 
-  // Effect 3: Image Processing Logic
   useEffect(() => {
     if (
       isLoadingToolSettings ||
@@ -230,7 +227,7 @@ export default function ImageGrayScaleClient({
     triggerProcessing();
   }, [
     toolState.selectedFileId,
-    toolState.processedFileId, // Process if this is null
+    toolState.processedFileId,
     toolState.autoSaveProcessed,
     isLoadingToolSettings,
     isProcessingImage,

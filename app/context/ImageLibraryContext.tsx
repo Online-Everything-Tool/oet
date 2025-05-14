@@ -58,7 +58,7 @@ interface ImageLibraryProviderProps {
 export const ImageLibraryProvider = ({
   children,
 }: ImageLibraryProviderProps) => {
-  const fileLibrary = useFileLibrary(); // This is the dependency
+  const fileLibrary = useFileLibrary();
 
   const { loading, error } = fileLibrary;
 
@@ -159,7 +159,7 @@ export const ImageLibraryProvider = ({
         .filter((file) => file.type?.startsWith('image/'))
         .slice(0, limit);
     },
-    [fileLibrary] // Added fileLibrary
+    []
   );
 
   const getImage = useCallback(
@@ -173,7 +173,7 @@ export const ImageLibraryProvider = ({
       }
       return undefined;
     },
-    [fileLibrary] // Added fileLibrary
+    []
   );
 
   const updateBlob = useCallback(
@@ -221,11 +221,10 @@ export const ImageLibraryProvider = ({
             );
           }
         } else {
-          // console.log(`[ImageCtx updateBlob] No new thumbnail generated for ${id} (or regeneration failed).`)
         }
       }
     },
-    [fileLibrary, generateThumbnail] // Added fileLibrary
+    [generateThumbnail]
   );
 
   const addImage = useCallback(
@@ -266,21 +265,18 @@ export const ImageLibraryProvider = ({
       }
       return id;
     },
-    [fileLibrary, generateThumbnail] // Added fileLibrary
+    [generateThumbnail]
   );
 
-  const deleteImage = useCallback(
-    async (id: string): Promise<void> => {
-      await fileLibrary.deleteFile(id);
-    },
-    [fileLibrary] // Added fileLibrary
-  );
+  const deleteImage = useCallback(async (id: string): Promise<void> => {
+    await fileLibrary.deleteFile(id);
+  }, []);
 
   const clearAllImages = useCallback(async (): Promise<void> => {
-    // Re-fetch listImages inside or pass listImages as dependency
-    const currentListImages = fileLibrary.listFiles; // Get a stable reference if listImages itself is memoized
-    const images = await currentListImages(100000, false) // Use the stable reference
-      .then((files) => files.filter((file) => file.type?.startsWith('image/')));
+    const currentListImages = fileLibrary.listFiles;
+    const images = await currentListImages(100000, false).then((files) =>
+      files.filter((file) => file.type?.startsWith('image/'))
+    );
 
     const imageIds = images.map((img) => img.id);
     if (imageIds.length > 0) {
@@ -295,20 +291,17 @@ export const ImageLibraryProvider = ({
         }
       }
     }
-  }, [fileLibrary]); // Added fileLibrary (covers listFiles and deleteFile)
+  }, []);
 
-  const makeImagePermanent = useCallback(
-    async (id: string): Promise<void> => {
-      const file = await fileLibrary.getFile(id);
-      if (!file || !file.type?.startsWith('image/')) {
-        throw new Error(
-          `File ID ${id} is not an image or does not exist for makeImagePermanent.`
-        );
-      }
-      await fileLibrary.makeFilePermanent(id);
-    },
-    [fileLibrary] // Added fileLibrary
-  );
+  const makeImagePermanent = useCallback(async (id: string): Promise<void> => {
+    const file = await fileLibrary.getFile(id);
+    if (!file || !file.type?.startsWith('image/')) {
+      throw new Error(
+        `File ID ${id} is not an image or does not exist for makeImagePermanent.`
+      );
+    }
+    await fileLibrary.makeFilePermanent(id);
+  }, []);
 
   const imageFunctions = useMemo(
     () => ({
@@ -321,7 +314,6 @@ export const ImageLibraryProvider = ({
       updateBlob,
     }),
     [
-      // Add all functions that now depend on fileLibrary (or their stable components)
       listImages,
       getImage,
       addImage,

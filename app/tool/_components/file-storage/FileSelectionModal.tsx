@@ -19,9 +19,10 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import Checkbox from '../form/Checkbox';
 import { v4 as uuidv4 } from 'uuid';
 
-// Export ModalMode
-export type ModalMode = // Added export
-  'addNewFiles' | 'selectExistingOrUploadNew' | 'selectExistingOnly';
+export type ModalMode =
+  | 'addNewFiles'
+  | 'selectExistingOrUploadNew'
+  | 'selectExistingOnly';
 
 interface FileSelectionModalProps {
   isOpen: boolean;
@@ -38,7 +39,7 @@ interface FileSelectionModalProps {
   className?: string;
   accept?: string;
   selectionMode?: 'single' | 'multiple';
-  mode: ModalMode; // Uses the exported type
+  mode: ModalMode;
   libraryFilter?: { category?: string; type?: string };
   initialTab?: 'library' | 'upload';
   showFilterAfterUploadCheckbox?: boolean;
@@ -75,7 +76,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   const logPrefix = `[FSM ${instanceId}]`;
 
   const libraryFilesRef = useRef<StoredFile[]>([]);
-  // console.log(`${logPrefix} Render. isOpen: ${isOpen}, mode: ${mode}, initialTab: ${initialTab}, libraryFilesRefCount: ${libraryFilesRef.current.length}`);
 
   const {
     listFiles,
@@ -128,7 +128,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   const hasFetchedForCurrentOpenStateRef = useRef(false);
 
   useEffect(() => {
-    // console.log(`${logPrefix} MOUNT`); // Reduced frequency
     return () => {
       console.log(
         `${logPrefix} UNMOUNT. Revoking all managed URLs: ${managedUrlsRef.current.size} URLs`
@@ -142,7 +141,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   }, []);
 
   useEffect(() => {
-    // console.log(`${logPrefix} isOpen changed: ${isOpen}. Current activeTab: ${activeTab}`);
     if (isOpen && !prevIsOpenRef.current) {
       const effectiveTab = getEffectiveInitialTab();
       if (activeTab !== effectiveTab) {
@@ -157,13 +155,11 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       setModalError(null);
       if (showFilterAfterUploadCheckbox) setFilterAfterUploadChecked(false);
       hasFetchedForCurrentOpenStateRef.current = false;
-      // console.log(`${logPrefix} Modal state reset on open. hasFetchedForCurrentOpenStateRef set to false.`);
     } else if (!isOpen && prevIsOpenRef.current) {
       setDisplayedLibraryFiles([]);
       libraryFilesRef.current = [];
       hasFetchedForCurrentOpenStateRef.current = false;
       if (managedUrlsRef.current.size > 0) {
-        // console.log(`${logPrefix} Modal closed, revoking ${managedUrlsRef.current.size} managed URLs.`);
         managedUrlsRef.current.forEach(URL.revokeObjectURL);
         managedUrlsRef.current.clear();
         setPreviewObjectUrls(new Map());
@@ -181,8 +177,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
   ]);
 
   useEffect(() => {
-    // console.log(`${logPrefix} Fetch & Preview Effect. isOpen: ${isOpen}, activeTab: ${activeTab}, showLibTab: ${showLibraryTab}, hasFetched: ${hasFetchedForCurrentOpenStateRef.current}, modalLoading: ${modalProcessingLoading}`);
-
     if (
       isOpen &&
       activeTab === 'library' &&
@@ -190,14 +184,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       !hasFetchedForCurrentOpenStateRef.current &&
       !modalProcessingLoading
     ) {
-      // console.log(`${logPrefix} Fetch & Preview: Conditions MET. Filter:`, JSON.stringify(libraryFilterProp));
       setModalProcessingLoading(true);
       hasFetchedForCurrentOpenStateRef.current = true;
       setModalError(null);
 
       listFiles(200, false)
         .then((allPermanentFiles) => {
-          // console.log(`${logPrefix} Fetch & Preview: listFiles returned ${allPermanentFiles.length} files.`);
           let filteredRawFiles = allPermanentFiles;
           const categoryFilterValue = libraryFilterProp?.category;
           const typeFilterValue = libraryFilterProp?.type;
@@ -211,7 +203,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             );
 
           const filesForDisplay = filteredRawFiles.slice(0, 100);
-          // console.log(`${logPrefix} Fetch & Preview: Filtered to ${filesForDisplay.length} files for display.`);
 
           const newManagedUrls = new Map<string, string>();
           const currentFileIdsInDisplay = new Set(
@@ -233,7 +224,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 try {
                   const url = URL.createObjectURL(blobToUse);
                   newManagedUrls.set(file.id, url);
-                  // console.log(`${logPrefix} Fetch & Preview: CREATED URL for ${file.id}`);
                 } catch (e) {
                   console.error(
                     `${logPrefix} Fetch & Preview: Error creating URL for ${file.id}:`,
@@ -246,14 +236,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
 
           managedUrlsRef.current.forEach((url, id) => {
             if (!currentFileIdsInDisplay.has(id)) {
-              // console.log(`${logPrefix} Fetch & Preview: REVOKING stale URL for ${id}`);
               URL.revokeObjectURL(url);
             }
           });
 
           managedUrlsRef.current = newManagedUrls;
 
-          // console.log(`${logPrefix} Fetch & Preview: Setting displayedLibraryFiles (${filesForDisplay.length}) and previewObjectUrls (${newManagedUrls.size})`);
           setDisplayedLibraryFiles(filesForDisplay);
           setPreviewObjectUrls(new Map(newManagedUrls));
         })
@@ -268,16 +256,13 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           hasFetchedForCurrentOpenStateRef.current = false;
         })
         .finally(() => {
-          // console.log(`${logPrefix} Fetch & Preview: Finished. Setting modalProcessingLoading to false.`);
           setModalProcessingLoading(false);
         });
     } else if (!isOpen || activeTab !== 'library') {
       if (displayedLibraryFiles.length > 0) {
-        // console.log(`${logPrefix} Fetch & Preview: Not on library tab or modal closed. Clearing displayed files.`);
         setDisplayedLibraryFiles([]);
       }
       if (managedUrlsRef.current.size > 0) {
-        // console.log(`${logPrefix} Fetch & Preview: Not on library tab or modal closed. Revoking managed URLs.`);
         managedUrlsRef.current.forEach(URL.revokeObjectURL);
         managedUrlsRef.current.clear();
         setPreviewObjectUrls(new Map());

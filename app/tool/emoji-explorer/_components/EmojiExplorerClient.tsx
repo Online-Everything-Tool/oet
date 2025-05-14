@@ -4,15 +4,14 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
-import Input from '../../_components/form/Input'; // Using shared Input
-// Select component will be used when we refactor filter dropdowns
-// import Select from '../../_components/form/Select';
+import Input from '../../_components/form/Input';
+
 import { getUniqueSortedValues } from '@/app/lib/utils';
 import { RichEmojiData } from '@/src/constants/emojis';
 import {
   FunnelIcon,
   CheckIcon,
-  XMarkIcon, // For clearing recently copied
+  XMarkIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
@@ -87,7 +86,7 @@ export default function EmojiSearchClient({
 
   const filteredEmojis = useMemo(() => {
     const lowerCaseSearchTerm = toolState.searchTerm.toLowerCase().trim();
-    // If no filters/search and not a featured page with few items, return all
+
     if (
       !lowerCaseSearchTerm &&
       !toolState.selectedGroup &&
@@ -95,8 +94,7 @@ export default function EmojiSearchClient({
     ) {
       return initialEmojis;
     }
-    // If it's a featured page and user hasn't interacted with filters/search, maybe show all.
-    // For now, filtering applies universally.
+
     return initialEmojis.filter((emoji) => {
       if (
         lowerCaseSearchTerm &&
@@ -242,13 +240,10 @@ export default function EmojiSearchClient({
             value={toolState.searchTerm}
             onChange={handleSearchChange}
             placeholder="Search by name (e.g., smile, cat, star)..."
-            // Pass Tailwind classes directly to inputClassName to style the <input>
-            inputClassName="p-3 text-base" // Adjust padding as needed, base styles handle border/bg etc.
-            // Or, if your Input component's wrapper should be full width, you might not need containerClassName
-            // containerClassName="w-full"
+            inputClassName="p-3 text-base"
             iconLeft={
               <MagnifyingGlassIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))]" />
-            } // Example search icon
+            }
           />
         </div>
         <div className="relative">

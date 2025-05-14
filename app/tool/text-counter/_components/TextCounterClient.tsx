@@ -1,14 +1,15 @@
-// FILE: app/tool/text-counter/_components/TextCounterClient.tsx
+// --- FILE: app/tool/text-counter/_components/TextCounterClient.tsx ---
 'use client';
 
 import React, {
   useState,
   useMemo,
   useCallback,
-  useRef,
+  // useRef, // Not needed if lastLoggedStateRef is removed
   useEffect,
+  useRef,
 } from 'react';
-import useToolUrlState from '../../_hooks/useToolUrlState';
+// import useToolUrlState from '../../_hooks/useToolUrlState'; // Not strictly needed if useToolState handles URL params adequately on init
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -16,7 +17,10 @@ import Input from '../../_components/form/Input';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
-import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowUpTrayIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline'; // Added ExclamationTriangleIcon
 
 interface TextCounts {
   words: number;
@@ -30,6 +34,7 @@ interface TextCounterToolState {
   inputText: string;
   searchText: string;
   lastLoadedFilename?: string | null;
+  // No outputValue to persist, counts are derived
 }
 
 const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
@@ -51,45 +56,58 @@ export default function TextCounterClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
+    errorLoadingState, // Added from useToolState
   } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
-  const { urlState, isLoadingUrlState, urlProvidedAnyValue } =
-    useToolUrlState(urlStateParams);
+  // Removed useToolUrlState as useToolState can handle initial URL params if designed to,
+  // or we can use a simpler effect as done previously. Let's refine the URL param effect.
+  const initialUrlLoadProcessedRef = useRef(false);
 
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
-  const [clientError, setClientError] = useState<string | null>(null); // For file loading errors
-  const lastLoggedStateRef = useRef<TextCounterToolState | null>(null);
+  const [clientError, setClientError] = useState<string | null>(null); // For file loading errors etc.
+  // const lastLoggedStateRef = useRef<TextCounterToolState | null>(null); // Removed
 
-  // Effect to initialize state from URL parameters
+  // Effect for URL parameter handling
   useEffect(() => {
-    if (!isLoadingState && !isLoadingUrlState && urlProvidedAnyValue) {
-      const updates: Partial<TextCounterToolState> = {};
-      const urlInputText = urlState.text as string | undefined;
-      const urlSearchText = urlState.search as string | undefined;
+    if (
+      isLoadingState ||
+      initialUrlLoadProcessedRef.current ||
+      !urlStateParams ||
+      urlStateParams.length === 0
+    ) {
+      if (!isLoadingState && !initialUrlLoadProcessedRef.current)
+        initialUrlLoadProcessedRef.current = true;
+      return;
+    }
+    initialUrlLoadProcessedRef.current = true;
 
-      if (urlInputText !== undefined && urlInputText !== toolState.inputText) {
-        updates.inputText = urlInputText;
-        updates.lastLoadedFilename = '(loaded from URL)';
-      }
-      if (
-        urlSearchText !== undefined &&
-        urlSearchText !== toolState.searchText
-      ) {
-        updates.searchText = urlSearchText;
-      }
+    const params = new URLSearchParams(window.location.search);
+    const updates: Partial<TextCounterToolState> = {};
+    let needsUpdate = false;
 
-      if (Object.keys(updates).length > 0) {
-        setToolState(updates);
-      }
+    const textFromUrl = params.get('text');
+    if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
+      updates.inputText = textFromUrl;
+      updates.lastLoadedFilename = '(loaded from URL)';
+      needsUpdate = true;
+    }
+
+    const searchFromUrl = params.get('search');
+    if (searchFromUrl !== null && searchFromUrl !== toolState.searchText) {
+      updates.searchText = searchFromUrl;
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      setToolState(updates);
     }
   }, [
     isLoadingState,
-    isLoadingUrlState,
-    urlProvidedAnyValue,
-    urlState,
-    toolState,
+    urlStateParams,
+    toolState.inputText,
+    toolState.searchText,
     setToolState,
-  ]);
+  ]); // Dependencies refined
 
   const allCounts = useMemo((): TextCounts => {
     const inputText = toolState.inputText;
@@ -105,27 +123,21 @@ export default function TextCounterClient({
     if (inputText && searchString) {
       try {
         // Basic string split counting. For regex, a more complex approach would be needed.
-        customCount = inputText.split(searchString).length - 1;
+        // Ensure searchString is not empty to avoid infinite loop or incorrect count with empty string.
+        if (searchString.length > 0) {
+          customCount = inputText.split(searchString).length - 1;
+        } else {
+          customCount = 0; // Or perhaps an error/warning state
+        }
       } catch (e) {
-        // Handle potential errors if searchString is a complex regex special character
         console.warn('Error counting occurrences with search string:', e);
-        customCount = -1; // Indicate error or invalid search
+        customCount = -1;
       }
     }
     return { words, characters, lines, search: searchString, customCount };
   }, [toolState.inputText, toolState.searchText]);
 
-  useEffect(() => {
-    if (isLoadingState) {
-      lastLoggedStateRef.current = toolState;
-      return;
-    }
-    if (
-      JSON.stringify(toolState) === JSON.stringify(lastLoggedStateRef.current)
-    ) {
-      lastLoggedStateRef.current = toolState;
-    }
-  }, [toolState, allCounts, isLoadingState]);
+  // Removed the lastLoggedStateRef useEffect as history logging is out of scope for this refactor
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -133,7 +145,7 @@ export default function TextCounterClient({
         inputText: event.target.value,
         lastLoadedFilename: null,
       });
-      setClientError(null);
+      setClientError(null); // Clear client-side errors on new input
     },
     [setToolState]
   );
@@ -141,7 +153,7 @@ export default function TextCounterClient({
   const handleSearchChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ searchText: event.target.value });
-      setClientError(null);
+      setClientError(null); // Clear client-side errors on new search
     },
     [setToolState]
   );
@@ -157,29 +169,20 @@ export default function TextCounterClient({
         setClientError(`Error: File "${file.name}" has no content.`);
         return;
       }
-      if (!file.type?.startsWith('text/')) {
-        // Heuristic: if no type, but common text extension, allow it.
-        const commonTextExtensions = [
-          '.txt',
-          '.md',
-          '.csv',
-          '.json',
-          '.xml',
-          '.log',
-          '.js',
-          '.ts',
-          '.css',
-          '.html',
-        ];
-        const hasTextExtension = commonTextExtensions.some((ext) =>
-          file.name.toLowerCase().endsWith(ext)
+      // More permissive text check for file loading
+      if (
+        !file.type?.startsWith('text/') &&
+        !['application/json', 'application/xml', 'application/csv'].includes(
+          file.type || ''
+        ) &&
+        !/\.(txt|md|csv|json|xml|log|js|ts|css|html|htm|ini|cfg|sh|py|rb|php|sql)$/i.test(
+          file.name
+        )
+      ) {
+        setClientError(
+          `Error: File "${file.name}" doesn't appear to be a text-based file.`
         );
-        if (!hasTextExtension) {
-          setClientError(
-            `Error: File "${file.name}" is not a recognized text file type.`
-          );
-          return;
-        }
+        return;
       }
 
       try {
@@ -187,6 +190,7 @@ export default function TextCounterClient({
         setToolState({
           inputText: textContent,
           lastLoadedFilename: file.name,
+          // searchText: toolState.searchText // Keep existing search text or clear? Let's keep.
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -194,28 +198,37 @@ export default function TextCounterClient({
         setToolState({ inputText: '', lastLoadedFilename: null });
       }
     },
-    [setToolState]
+    [setToolState] // Removed toolState.searchText from deps as it's read from prevState if needed
   );
 
-  const handleClearText = useCallback(() => {
+  const handleClearText = useCallback(async () => {
+    // If only clearing text, keep search term. If clearing all, use persistentClearState.
+    // For now, this button only clears the main text input.
     setToolState((prevState) => ({
-      ...prevState,
+      ...prevState, // Preserve other parts of state like searchText
       inputText: '',
       lastLoadedFilename: null,
     }));
     setClientError(null);
   }, [setToolState]);
 
-  const handleClearSearch = useCallback(() => {
+  const handleClearSearch = useCallback(async () => {
     setToolState((prevState) => ({ ...prevState, searchText: '' }));
     setClientError(null);
   }, [setToolState]);
 
-  if (isLoadingState) {
+  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Counter Tool...
       </p>
+    );
+  }
+  if (errorLoadingState) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
+        Error loading saved state: {errorLoadingState}
+      </div>
     );
   }
 
@@ -226,7 +239,7 @@ export default function TextCounterClient({
           htmlFor="text-input"
           className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
         >
-          Your Text:
+          Input Text:
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
               (from: {toolState.lastLoadedFilename})
@@ -253,10 +266,17 @@ export default function TextCounterClient({
         spellCheck="false"
       />
 
-      {clientError && (
-        <p role="alert" className="text-sm text-red-600 -mt-2">
-          {clientError}
-        </p>
+      {(clientError || errorLoadingState) && ( // Consolidate error display
+        <div
+          role="alert"
+          className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
+        >
+          <ExclamationTriangleIcon
+            className="h-5 w-5 flex-shrink-0"
+            aria-hidden="true"
+          />
+          {clientError || errorLoadingState}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center gap-4 p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
@@ -341,9 +361,9 @@ export default function TextCounterClient({
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
         mode="selectExistingOrUploadNew"
-        accept=".txt,text/*" // Common text file types
+        accept=".txt,text/*,.csv,.md,.json,.xml,.log,.js,.ts,.css,.html" // Expanded common text types
         selectionMode="single"
-        libraryFilter={{ category: 'text' }} // Suggests filtering library for text files
+        libraryFilter={{ category: 'text' }}
         initialTab="upload"
       />
     </div>

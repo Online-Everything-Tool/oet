@@ -24,18 +24,18 @@ interface MontageImage {
 interface ImageAdjustmentCardProps {
   image: MontageImage;
   index: number;
-  imageCount: number; // Added: total number of images in the montage
+  imageCount: number;
   isFirst: boolean;
   isLast: boolean;
-  isTopZIndex: boolean; // Renamed for clarity
-  isBottomZIndex: boolean; // Renamed for clarity
+  isTopZIndex: boolean;
+  isBottomZIndex: boolean;
   isLoading: boolean;
   onTiltChange: (imageId: string, value: number) => void;
   onOverlapChange: (imageId: string, value: number) => void;
   onMoveLeft: (imageId: string) => void;
   onMoveRight: (imageId: string) => void;
-  onMoveUpZIndex: (imageId: string) => void; // Renamed for clarity
-  onMoveDownZIndex: (imageId: string) => void; // Renamed for clarity
+  onMoveUpZIndex: (imageId: string) => void;
+  onMoveDownZIndex: (imageId: string) => void;
 }
 
 const MAX_TILT_DEG = 25;
@@ -44,7 +44,7 @@ const MAX_OVERLAP_PERCENT = 80;
 export default function ImageAdjustmentCard({
   image,
   index,
-  imageCount, // Consuming new prop
+  imageCount,
   isFirst,
   isLast,
   isTopZIndex,
@@ -65,7 +65,7 @@ export default function ImageAdjustmentCard({
           size="sm"
           className="!p-1 mb-0.5"
           onClick={() => onMoveUpZIndex(image.imageId)}
-          disabled={isLoading || imageCount <= 1 || isTopZIndex} // Updated disabled logic
+          disabled={isLoading || imageCount <= 1 || isTopZIndex}
           aria-label="Move image forward (increase stacking order)"
           title="Move Forward (Z-Index)"
         >
@@ -77,7 +77,7 @@ export default function ImageAdjustmentCard({
             size="sm"
             className="!p-1"
             onClick={() => onMoveLeft(image.imageId)}
-            disabled={isLoading || isFirst} // Layout move still depends on isFirst/isLast
+            disabled={isLoading || isFirst}
             aria-label="Move image left in layout"
             title="Move Left (Layout)"
           >
@@ -94,7 +94,7 @@ export default function ImageAdjustmentCard({
             size="sm"
             className="!p-1"
             onClick={() => onMoveRight(image.imageId)}
-            disabled={isLoading || isLast} // Layout move still depends on isFirst/isLast
+            disabled={isLoading || isLast}
             aria-label="Move image right in layout"
             title="Move Right (Layout)"
           >
@@ -106,7 +106,7 @@ export default function ImageAdjustmentCard({
           size="sm"
           className="!p-1 mt-0.5"
           onClick={() => onMoveDownZIndex(image.imageId)}
-          disabled={isLoading || imageCount <= 1 || isBottomZIndex} // Updated disabled logic
+          disabled={isLoading || imageCount <= 1 || isBottomZIndex}
           aria-label="Move image backward (decrease stacking order)"
           title="Move Backward (Z-Index)"
         >

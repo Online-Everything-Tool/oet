@@ -32,7 +32,7 @@ interface ImageFlipToolState {
   flipType: FlipType;
   autoSaveProcessed: boolean;
   selectedFileId: string | null;
-  processedFileId: string | null; // This ID will point to a permanent or temporary file based on autoSaveProcessed at time of creation
+  processedFileId: string | null;
 }
 
 const DEFAULT_FLIP_TOOL_STATE: ImageFlipToolState = {
@@ -60,7 +60,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     string | null
   >(null);
 
-  // UI state for image display, derived from toolState IDs
   const [originalImageSrcForUI, setOriginalImageSrcForUI] = useState<
     string | null
   >(null);
@@ -81,7 +80,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     clearProcessingOutput: clearProcessingHookOutput,
   } = useImageProcessing({ toolRoute });
 
-  // Effect 2: Load image previews based on IDs in toolState
   useEffect(() => {
     let origObjUrl: string | null = null;
     let procObjUrl: string | null = null;
@@ -89,7 +87,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
     const loadPreviews = async () => {
       if (!mounted) return;
-      // Load original image preview
+
       if (toolState.selectedFileId) {
         try {
           const file = await getImage(toolState.selectedFileId);
@@ -97,7 +95,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
           if (file?.blob) {
             origObjUrl = URL.createObjectURL(file.blob);
             setOriginalImageSrcForUI(origObjUrl);
-            setOriginalFilenameForDisplay(file.name); // Set original filename for UI
+            setOriginalFilenameForDisplay(file.name);
             console.log(
               `[ImageFlip PreviewEffect] Original preview set for ${toolState.selectedFileId}`
             );
@@ -120,7 +118,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         setOriginalFilenameForDisplay(null);
       }
 
-      // Load processed image preview
       if (toolState.processedFileId) {
         try {
           const file = await getImage(toolState.processedFileId);
@@ -128,7 +125,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
           if (file?.blob) {
             procObjUrl = URL.createObjectURL(file.blob);
             setProcessedImageSrcForUI(procObjUrl);
-            setWasLastProcessedOutputPermanent(file.isTemporary === false); // Check if loaded processed file is permanent
+            setWasLastProcessedOutputPermanent(file.isTemporary === false);
             console.log(
               `[ImageFlip PreviewEffect] Processed preview set for ${toolState.processedFileId}. Permanent: ${file.isTemporary === false}`
             );
@@ -177,7 +174,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         ctx.scale(-1, 1);
         ctx.translate(-w, 0);
       } else {
-        // vertical
         ctx.scale(1, -1);
         ctx.translate(0, -h);
       }
@@ -187,7 +183,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     [toolState.flipType]
   );
 
-  // Effect 3: Image Processing Logic
   useEffect(() => {
     console.log(
       `[ImageFlip ProcessingEffect] Running. selectedFileId: ${toolState.selectedFileId}, processedFileId: ${toolState.processedFileId}, flipType: ${toolState.flipType}, isLoadingSettings: ${isLoadingToolSettings}, initialSetupDone: ${initialSetupRanRef.current}`
@@ -199,7 +194,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       toolState.processedFileId ||
       isProcessingImage
     ) {
-      // console.log(`[ImageFlip ProcessingEffect] Bailing. Conditions: selId: ${!!toolState.selectedFileId}, procId: ${!!toolState.processedFileId}, isProcessing: ${isProcessingImage}`);
       return;
     }
 
@@ -230,7 +224,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         flipDrawFunction,
         outputFileName,
         {},
-        toolState.autoSaveProcessed // This dictates if processImage saves it as permanent
+        toolState.autoSaveProcessed
       );
 
       if (result.id) {
@@ -238,8 +232,8 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
           `[ImageFlip triggerProcessing] Processed successfully. New processedFileId: ${result.id}. AutoSaved as permanent: ${toolState.autoSaveProcessed}`
         );
         setToolState({ processedFileId: result.id });
-        setWasLastProcessedOutputPermanent(toolState.autoSaveProcessed); // Reflect the nature of the save
-        setManualSaveSuccess(false); // Reset manual save success if new image processed
+        setWasLastProcessedOutputPermanent(toolState.autoSaveProcessed);
+        setManualSaveSuccess(false);
       } else if (processingErrorHook) {
         setUiError(`Processing failed: ${processingErrorHook}`);
         console.error(
@@ -277,7 +271,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
             selectedFileId: firstFile.id,
             processedFileId: null,
           });
-          // originalFilenameForDisplay will be set by the preview effect
+
           clearProcessingHookOutput();
           setManualSaveSuccess(false);
         } else {
@@ -315,9 +309,9 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
       const currentProcessedId = toolState.processedFileId;
       if (
-        newAutoSaveState === true && // If turning ON
-        currentProcessedId && // And there's a processed file
-        !wasLastProcessedOutputPermanent && // And it was temporary
+        newAutoSaveState === true &&
+        currentProcessedId &&
+        !wasLastProcessedOutputPermanent &&
         !isProcessingImage &&
         !isManuallySaving
       ) {
@@ -343,8 +337,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         currentProcessedId &&
         wasLastProcessedOutputPermanent
       ) {
-        // If turning OFF and it WAS permanent, it remains permanent.
-        // The next processing run will create a temporary file if autoSave is off.
         console.log(
           `[ImageFlip] Auto-save OFF. Future processed images will be temporary. Current permanent file ${currentProcessedId} remains permanent.`
         );
@@ -444,9 +436,9 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
   const showSaveButton =
     toolState.processedFileId &&
-    !toolState.autoSaveProcessed && // Show if auto-save is OFF
-    !wasLastProcessedOutputPermanent && // And it's not already permanent (from a previous manual save or auto-save ON session)
-    !manualSaveSuccess && // And manual save hasn't just succeeded
+    !toolState.autoSaveProcessed &&
+    !wasLastProcessedOutputPermanent &&
+    !manualSaveSuccess &&
     !isProcessingImage &&
     !isManuallySaving;
 
@@ -524,7 +516,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
                 <Button
                   variant="secondary"
                   iconLeft={<CheckBadgeIcon className="h-5 w-5" />}
-                  disabled={true} // Visually indicate saved
+                  disabled={true}
                   className="!opacity-100 !cursor-default"
                 >
                   Saved to Library

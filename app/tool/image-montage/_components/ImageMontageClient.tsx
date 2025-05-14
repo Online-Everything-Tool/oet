@@ -11,7 +11,6 @@ import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import type { StoredFile } from '@/src/types/storage';
 import RadioGroup from '../../_components/form/RadioGroup';
-// Checkbox for auto-save removed
 import {
   XCircleIcon,
   ArrowPathIcon,
@@ -28,7 +27,6 @@ export default function ImageMontageClient({
   const {
     persistedImages,
     effect,
-    // autoSaveProcessed, // Removed
     montageImagesForCanvas,
     processedFileId,
     outputFilename,
@@ -82,43 +80,30 @@ export default function ImageMontageClient({
   const combinedError = uiError || errorLoadingState || imageLoadingError;
   const hasInputs = persistedImages.length > 0;
 
-  // Effect to check the status of the processedFileId when it changes or on load
   useEffect(() => {
     let mounted = true;
     const checkProcessedFileStatus = async () => {
       if (processedFileId) {
-        console.log(
-          `[MontageClient StatusEffect] Checking status for processedFileId: ${processedFileId}`
-        );
         try {
           const file = await getImage(processedFileId);
           if (mounted && file) {
             setIsCurrentOutputPermanentInDb(file.isTemporary === false);
-            console.log(
-              `[MontageClient StatusEffect] File ${processedFileId} isPermanent: ${!file.isTemporary}`
-            );
           } else if (mounted) {
-            setIsCurrentOutputPermanentInDb(false); // Not found or no blob
+            setIsCurrentOutputPermanentInDb(false);
           }
-        } catch (e) {
-          console.error(
-            '[MontageClient StatusEffect] Error fetching processed file status:',
-            e
-          );
+        } catch (_e) {
           if (mounted) setIsCurrentOutputPermanentInDb(false);
         }
       } else {
         setIsCurrentOutputPermanentInDb(false);
       }
     };
-    if (!isLoadingState) checkProcessedFileStatus(); // Ensure tool state (and thus processedFileId) is loaded
+    if (!isLoadingState) checkProcessedFileStatus();
     return () => {
       mounted = false;
     };
   }, [processedFileId, getImage, isLoadingState]);
 
-  // This function generates, and then saves/updates the file in Dexie.
-  // It's called by "Save" or "Save As" confirmed actions. Always saves/updates as permanent.
   const performSaveOrUpdateMontage = useCallback(
     async (
       chosenFilename: string,
@@ -140,35 +125,19 @@ export default function ImageMontageClient({
 
       try {
         let finalFileId: string;
-        // Scenario: Updating an existing permanent file because ID and filename match
+
         if (
           idToUpdateIfMatching &&
           idToUpdateIfMatching === processedFileId &&
           isCurrentOutputPermanentInDb &&
           outputFilename === chosenFilename
         ) {
-          console.log(
-            `[MontageClient SaveOrUpdate] Updating existing permanent file: ${idToUpdateIfMatching} with name ${chosenFilename}`
-          );
           await updateBlob(idToUpdateIfMatching, true, blob);
           finalFileId = idToUpdateIfMatching;
         } else {
-          // Scenario: Saving as a new file, or "Save As" for an existing file, or promoting a temp file to permanent
-          console.log(
-            `[MontageClient SaveOrUpdate] Saving as new/overwriting temp as permanent. Chosen Filename: ${chosenFilename}`
-          );
-          // If there was a previous temporary processedFileId and this save is for a *different* filename or as new, delete the old temp.
-          // If it's the same filename but was temporary, addImage (as permanent) will effectively replace.
-          if (
-            processedFileId &&
-            !isCurrentOutputPermanentInDb &&
-            (outputFilename !== chosenFilename || !idToUpdateIfMatching)
-          ) {
+          if (processedFileId && !isCurrentOutputPermanentInDb) {
             try {
               await deleteImage(processedFileId);
-              console.log(
-                `[MontageClient SaveOrUpdate] Deleted old temporary file ${processedFileId}.`
-              );
             } catch (delErr) {
               console.warn(
                 `[MontageClient SaveOrUpdate] Could not delete old temporary file ${processedFileId}:`,
@@ -181,11 +150,10 @@ export default function ImageMontageClient({
             chosenFilename,
             'image/png',
             false
-          ); // false = permanent
+          );
           finalFileId = newId;
           setProcessedFileIdInState(newId);
           setOutputFilenameInState(chosenFilename);
-          // isCurrentOutputPermanentInDb will be updated by the StatusEffect watching processedFileId
         }
 
         setManualSaveSuccessFeedback(true);
@@ -234,35 +202,25 @@ export default function ImageMontageClient({
     setManualSaveSuccessFeedback(false);
   }, [clearMontage]);
 
-  // Combined handler for "Save to Library" / "Update Saved Montage" button
   const handleSaveOrUpdateClick = () => {
     if (!hasInputs) {
       setUiError('Add some images first.');
       return;
     }
-    // If a permanent output already exists with a name, we are "updating" it.
-    // No need to prompt for filename again, use the existing one.
     if (processedFileId && isCurrentOutputPermanentInDb && outputFilename) {
-      console.log(
-        `[MontageClient] UpdateSavedMontage clicked for ${outputFilename} (ID: ${processedFileId})`
-      );
       performSaveOrUpdateMontage(outputFilename, processedFileId);
     } else {
-      // This is a "Save New" (or first save, or saving a temporary one permanently with a new/confirmed name)
       const suggestedName =
         outputFilename || `MyMontage-${effect}-${Date.now()}.png`;
-      console.log(
-        `[MontageClient] SaveToLibrary (new/temp) clicked. Suggesting name: ${suggestedName}`
-      );
       setFilenameActionContext({
         type: 'save_new',
         currentFilenameToPrompt: suggestedName,
+        idToUpdate: processedFileId,
       });
       setIsFilenameModalOpen(true);
     }
   };
 
-  // Handler for "Save As New..." button
   const handleSaveAsNewClick = () => {
     if (!hasInputs) {
       setUiError("Add some images first to 'Save As New'.");
@@ -270,10 +228,6 @@ export default function ImageMontageClient({
     }
     const suggestedName =
       outputFilename || `MyMontage-${effect}-${Date.now()}.png`;
-    console.log(
-      `[MontageClient] SaveAsNew clicked. Suggesting name: ${suggestedName}`
-    );
-    // Always treat "Save As New" as creating a new file, so no idToUpdate.
     setFilenameActionContext({
       type: 'save_new',
       currentFilenameToPrompt: suggestedName,
@@ -318,10 +272,6 @@ export default function ImageMontageClient({
       actionContext.type === 'save_new' ||
       actionContext.type === 'update_existing'
     ) {
-      // For 'save_new', idToUpdate will be null. For 'update_existing' from the combined button, it would be processedFileId.
-      // However, our current SaveOrUpdateClick only passes processedFileId if it's an update.
-      // So, for 'save_new' from "Save As New", idToUpdate should be null.
-      // For 'save_new' from the main save button (when no prior save), idToUpdate is also null.
       await performSaveOrUpdateMontage(
         chosenFilename,
         actionContext.idToUpdate
@@ -358,7 +308,7 @@ export default function ImageMontageClient({
     return { min: Math.min(...validZIndexes), max: Math.max(...validZIndexes) };
   }, [persistedImages]);
 
-  const effectivelySaved = !!(
+  const shouldShowSavedBadge = !!(
     processedFileId &&
     (isCurrentOutputPermanentInDb || manualSaveSuccessFeedback)
   );
@@ -399,7 +349,6 @@ export default function ImageMontageClient({
             disabled={isLoadingOverall}
             radioClassName="text-sm"
           />
-          {/* Auto-save checkbox removed */}
         </div>
       </div>
 
@@ -423,7 +372,7 @@ export default function ImageMontageClient({
           <h2 className="text-base font-semibold mb-2 text-[rgb(var(--color-text-muted))]">
             Adjust & Reorder Input Images ({persistedImages.length})
           </h2>
-          <div className="flex space-x-4 overflow-x-auto py-2 px-8">
+          <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-center">
             {persistedImages.map((imgData, index) => (
               <ImageAdjustmentCard
                 key={imgData.imageId}
@@ -459,7 +408,7 @@ export default function ImageMontageClient({
         </div>
       )}
 
-      <div className="flex-grow overflow-auto border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] p-2 min-h-[300px] flex items-center justify-start relative">
+      <div className="flex-grow overflow-auto border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] p-2 min-h-[300px] flex items-center justify-center relative">
         {montageImagesForCanvas.length > 0 ? (
           <canvas
             ref={canvasRef}
@@ -481,7 +430,7 @@ export default function ImageMontageClient({
             <ArrowPathIcon className="h-8 w-8 animate-spin text-[rgb(var(--color-text-link))]" />
           </div>
         )}
-        {effectivelySaved && outputFilename && (
+        {shouldShowSavedBadge && outputFilename && (
           <div className="absolute top-2 right-2 bg-green-100 text-green-700 px-2 py-1 text-xs rounded-full flex items-center gap-1 shadow z-10">
             <CheckBadgeIcon className="h-4 w-4" /> Saved: {outputFilename}
           </div>

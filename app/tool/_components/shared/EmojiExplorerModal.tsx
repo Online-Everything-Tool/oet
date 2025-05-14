@@ -24,7 +24,7 @@ export default function EmojiExplorerModal({
   onClose,
   onEmojiSelect,
 }: EmojiExplorerModalProps) {
-  const allEmojis: RichEmojiData[] = getEmojis(); // Load all emojis directly
+  const allEmojis: RichEmojiData[] = getEmojis();
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
@@ -32,7 +32,6 @@ export default function EmojiExplorerModal({
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const modalBodyRef = useRef<HTMLDivElement>(null);
 
-  // Reset filters and search when modal is opened/closed
   useEffect(() => {
     if (!isOpen) {
       setSearchTerm('');
@@ -60,14 +59,14 @@ export default function EmojiExplorerModal({
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (selectedGroup) count++;
-    if (selectedSubgroup && selectedGroup) count++; // Subgroup only counts if group is also selected
+    if (selectedSubgroup && selectedGroup) count++;
     if (selectedVersion) count++;
     return count;
   }, [selectedGroup, selectedSubgroup, selectedVersion]);
 
   const filteredEmojis = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
-    // Start with all emojis if no primary filters are active
+
     let emojisToFilter = allEmojis;
 
     if (selectedGroup) {
@@ -75,7 +74,6 @@ export default function EmojiExplorerModal({
         (emoji) => emoji.group === selectedGroup
       );
       if (selectedSubgroup) {
-        // Only filter subgroup if a group is selected
         emojisToFilter = emojisToFilter.filter(
           (emoji) => emoji.subgroup === selectedSubgroup
         );
@@ -111,10 +109,10 @@ export default function EmojiExplorerModal({
 
   const sortedGroupNames = useMemo(() => {
     return Object.keys(emojisGroupedByName).sort((a, b) => {
-      const indexA = allEmojis.findIndex((e) => e.group === a); // Maintain original group order if possible
+      const indexA = allEmojis.findIndex((e) => e.group === a);
       const indexB = allEmojis.findIndex((e) => e.group === b);
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      return a.localeCompare(b); // Fallback sort
+      return a.localeCompare(b);
     });
   }, [emojisGroupedByName, allEmojis]);
 
@@ -156,7 +154,7 @@ export default function EmojiExplorerModal({
     if (modalBodyRef.current) {
       modalBodyRef.current.scrollTop = 0;
     }
-  }, [filteredEmojis, selectedGroup, selectedSubgroup, selectedVersion]); // Scroll on any filter change
+  }, [filteredEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
 
   if (!isOpen) {
     return null;

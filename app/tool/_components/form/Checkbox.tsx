@@ -9,7 +9,7 @@ interface CheckboxProps
   id?: string;
   checked: boolean;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  isIndeterminate?: boolean; // New prop for indeterminate state
+  isIndeterminate?: boolean;
   disabled?: boolean;
   className?: string;
   labelClassName?: string;
@@ -21,7 +21,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
   id: providedId,
   checked,
   onChange,
-  isIndeterminate = false, // Default to false
+  isIndeterminate = false,
   disabled = false,
   className = '',
   labelClassName = '',
@@ -40,9 +40,6 @@ const Checkbox: React.FC<CheckboxProps> = ({
     }
   }, [isIndeterminate]);
 
-  // Tailwind doesn't have a built-in variant for :indeterminate pseudo-class easily.
-  // We can add a class to style it, or rely on browser default.
-  // For a simple visual cue if browser default isn't strong:
   const indeterminateStyle = isIndeterminate && !checked ? 'bg-gray-400' : '';
 
   return (

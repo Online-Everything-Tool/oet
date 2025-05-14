@@ -29,7 +29,6 @@ export const emojiTextData: string = `# emoji-test.txt
 #   • The file is in CLDR order, not codepoint order. This is recommended (but not required!) for keyboard palettes.
 #   • The groups and subgroups are illustrative. See the Emoji Order chart for more information.
 
-
 # group: Smileys & Emotion
 
 # subgroup: face-smiling

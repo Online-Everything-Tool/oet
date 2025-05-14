@@ -3,7 +3,6 @@
 
 import React, { useId } from 'react';
 
-// Define common HTML input types, can be expanded
 type InputType =
   | 'text'
   | 'number'
@@ -42,7 +41,7 @@ const Input: React.FC<InputProps> = ({
   disabled = false,
   containerClassName = '',
   labelClassName = '',
-  inputClassName = '', // This will be key for styling the color input
+  inputClassName = '',
   iconLeft,
   iconRight,
   placeholder,
@@ -61,9 +60,9 @@ const Input: React.FC<InputProps> = ({
     bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
     placeholder:text-[rgb(var(--color-input-placeholder))]
     focus:outline-none focus:ring-1
-  `; // Removed w-full from here
+  `;
 
-  const widthStyle = type === 'color' ? '' : 'w-full'; // Apply w-full conditionally
+  const widthStyle = type === 'color' ? '' : 'w-full';
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
   const errorBorder =
@@ -75,11 +74,9 @@ const Input: React.FC<InputProps> = ({
     ? 'disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed opacity-60'
     : '';
 
-  // Padding: For type="color", we'll rely more on inputClassName.
-  // For other types, maintain standard padding.
   const paddingStyles =
     type === 'color'
-      ? '' // Minimal internal padding for color, let inputClassName handle it
+      ? ''
       : `${iconLeft ? 'pl-10' : 'px-3'} ${iconRight ? 'pr-10' : 'px-3'} py-2`;
 
   return (
@@ -120,7 +117,6 @@ const Input: React.FC<InputProps> = ({
           aria-invalid={hasError ? 'true' : 'false'}
           aria-describedby={hasError ? `${effectiveId}-error` : undefined}
           {...rest}
-          // Specific style for color input to ensure it's not scaled by text properties
           style={
             type === 'color'
               ? { padding: '0px', lineHeight: 'normal', ...rest.style }

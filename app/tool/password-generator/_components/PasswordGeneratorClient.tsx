@@ -1,7 +1,7 @@
-// FILE: app/tool/password-generator/_components/PasswordGeneratorClient.tsx
+// --- FILE: app/tool/password-generator/_components/PasswordGeneratorClient.tsx ---
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react'; // Added useRef
 import useToolState from '../../_hooks/useToolState';
 import Input from '../../_components/form/Input';
 import Button from '../../_components/form/Button';
@@ -17,10 +17,12 @@ import {
   CheckIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
-} from '@heroicons/react/24/outline'; // Using outline for better visual distinction from solid elsewhere
+  ArrowPathIcon, // For the generate button
+} from '@heroicons/react/24/outline';
 
 interface PasswordGeneratorClientProps {
   toolRoute: string;
+  // No urlStateParams needed for this tool as per metadata
 }
 
 interface PasswordGeneratorToolState {
@@ -29,6 +31,7 @@ interface PasswordGeneratorToolState {
   includeLowercase: boolean;
   includeNumbers: boolean;
   includeSymbols: boolean;
+  // generatedPassword is NOT part of the persisted state
 }
 
 const DEFAULT_PASSWORD_GENERATOR_STATE: PasswordGeneratorToolState = {
@@ -43,74 +46,95 @@ export default function PasswordGeneratorClient({
   toolRoute,
 }: PasswordGeneratorClientProps) {
   const {
-    state: toolState,
-    setState: setToolState,
+    state: toolSettings, // Renamed for clarity, these are the settings
+    setState: setToolSettings, // Renamed
     isLoadingState,
+    errorLoadingState, // From useToolState
+    // clearState, isPersistent, togglePersistence could be used for ToolSettings.tsx
   } = useToolState<PasswordGeneratorToolState>(
     toolRoute,
     DEFAULT_PASSWORD_GENERATOR_STATE
   );
 
-  const [generatedPassword, setGeneratedPassword] = useState<string>('');
+  const [generatedPassword, setGeneratedPassword] = useState<string>(''); // Local state for the current password
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [uiError, setUiError] = useState<string>(''); // For UI-related errors/warnings
 
-  // Effect to clear generated password if options change and not loading
+  const initialSettingsLoadedRef = useRef(false);
+
+  // Effect to clear generated password if settings change (after initial load)
   useEffect(() => {
-    if (!isLoadingState) {
+    if (!isLoadingState && initialSettingsLoadedRef.current) {
+      // Only clear if settings changed *after* initial load and settings application
+      console.log(
+        '[PasswordGenerator] Settings changed, clearing old generated password.'
+      );
       setGeneratedPassword('');
-      setIsCopied(false);
+      setIsCopied(false); // Reset copy status as well
+      setUiError(''); // Clear any errors related to previous password
+    } else if (!isLoadingState && !initialSettingsLoadedRef.current) {
+      initialSettingsLoadedRef.current = true; // Mark initial load complete
+      console.log('[PasswordGenerator] Initial settings loaded/applied.');
     }
   }, [
-    toolState.length,
-    toolState.includeUppercase,
-    toolState.includeLowercase,
-    toolState.includeNumbers,
-    toolState.includeSymbols,
-    isLoadingState,
+    toolSettings.length,
+    toolSettings.includeUppercase,
+    toolSettings.includeLowercase,
+    toolSettings.includeNumbers,
+    toolSettings.includeSymbols,
+    isLoadingState, // Ensure this runs after settings are truly loaded
   ]);
 
-  const generatePassword = useCallback(() => {
+  const handleGeneratePassword = useCallback(() => {
+    // Renamed for clarity
     let currentError = '';
     let newPassword = '';
 
     setUiError('');
     setIsCopied(false);
-    setGeneratedPassword(''); // Clear previous password before generating
+    // setGeneratedPassword(''); // Clear previous password - done by useEffect or explicitly below
 
     let charset = '';
-    if (toolState.includeLowercase) charset += LOWERCASE;
-    if (toolState.includeUppercase) charset += UPPERCASE;
-    if (toolState.includeNumbers) charset += NUMBERS;
-    if (toolState.includeSymbols) charset += SYMBOLS;
+    if (toolSettings.includeLowercase) charset += LOWERCASE;
+    if (toolSettings.includeUppercase) charset += UPPERCASE;
+    if (toolSettings.includeNumbers) charset += NUMBERS;
+    if (toolSettings.includeSymbols) charset += SYMBOLS;
 
     if (!charset) {
       currentError = 'Please select at least one character type.';
-    } else if (toolState.length <= 0 || !Number.isInteger(toolState.length)) {
+    } else if (
+      toolSettings.length <= 0 ||
+      !Number.isInteger(toolSettings.length)
+    ) {
       currentError = 'Password length must be a positive whole number.';
-    } else if (toolState.length > 256) {
+    } else if (toolSettings.length > 256) {
+      // This is a warning, not a hard error for generation itself
       setUiError(
         'Warning: Password length is very long (> 256). Generation might be slow or browser may struggle.'
       );
+    } else if (toolSettings.length < 4 && charset.length < 20) {
+      // Arbitrary threshold for very weak
+      setUiError('Warning: Settings may result in a very weak password.');
     }
 
-    if (charset) {
+    if (charset && !currentError) {
+      // Only proceed if no hard errors yet
       try {
         if (
           typeof window !== 'undefined' &&
           window.crypto &&
           window.crypto.getRandomValues
         ) {
-          const randomValues = new Uint32Array(toolState.length);
+          const randomValues = new Uint32Array(toolSettings.length);
           window.crypto.getRandomValues(randomValues);
-          for (let i = 0; i < toolState.length; i++) {
+          for (let i = 0; i < toolSettings.length; i++) {
             newPassword += charset[randomValues[i] % charset.length];
           }
         } else {
           console.warn(
-            'Using Math.random for password generation as window.crypto is not available.'
+            '[PasswordGenerator] Using Math.random for password generation as window.crypto is not available.'
           );
-          for (let i = 0; i < toolState.length; i++) {
+          for (let i = 0; i < toolSettings.length; i++) {
             const randomIndex = Math.floor(Math.random() * charset.length);
             newPassword += charset[randomIndex];
           }
@@ -122,14 +146,19 @@ export default function PasswordGeneratorClient({
           'An unexpected error occurred during password generation.';
         newPassword = ''; // Ensure no password shown on error
       }
+    } else if (!charset) {
+      // If charset was empty, ensure generatedPassword is also empty
+      setGeneratedPassword('');
     }
+
     if (currentError) {
-      setUiError(currentError); // Show hard errors in UI
+      // If there was a hard error during validation or generation
+      setUiError((prevError) =>
+        prevError.startsWith('Warning:') ? prevError : currentError
+      ); // Don't overwrite warning with hard error unless no warning
       setGeneratedPassword(''); // Clear password on hard error
     }
-  }, [
-    toolState, // Now depends on the whole toolState object
-  ]);
+  }, [toolSettings]);
 
   const handleCopy = useCallback(async () => {
     if (!generatedPassword || !navigator.clipboard) {
@@ -140,7 +169,8 @@ export default function PasswordGeneratorClient({
       );
       return;
     }
-    setUiError(''); // Clear previous errors on successful action attempt
+    // Don't clear uiError here if it's a warning
+    if (uiError && !uiError.startsWith('Warning:')) setUiError('');
 
     try {
       await navigator.clipboard.writeText(generatedPassword);
@@ -150,57 +180,72 @@ export default function PasswordGeneratorClient({
       console.error('Failed to copy password: ', err);
       setUiError('Failed to copy password to clipboard.');
     }
-  }, [generatedPassword]);
+  }, [generatedPassword, uiError]); // Added uiError
 
   const handleOptionChange = useCallback(
-    (option: keyof PasswordGeneratorToolState, value: boolean | number) => {
+    (optionKey: keyof PasswordGeneratorToolState, value: boolean | number) => {
+      const newUiError = uiError; // Preserve existing warning if any
       if (typeof value === 'boolean') {
-        // For checkboxes: ensure at least one character type remains selected
         const currentOptions = {
-          includeUppercase: toolState.includeUppercase,
-          includeLowercase: toolState.includeLowercase,
-          includeNumbers: toolState.includeNumbers,
-          includeSymbols: toolState.includeSymbols,
+          includeUppercase: toolSettings.includeUppercase,
+          includeLowercase: toolSettings.includeLowercase,
+          includeNumbers: toolSettings.includeNumbers,
+          includeSymbols: toolSettings.includeSymbols,
         };
-        const changingToFalse =
-          currentOptions[option as keyof typeof currentOptions] === true &&
-          value === false;
-        const numChecked = Object.values(currentOptions).filter(
-          (v) => v
+        // Temporarily apply the change to check number of selected options
+        const tempOptions = { ...currentOptions, [optionKey]: value };
+        const numChecked = Object.values(tempOptions).filter(
+          (v) => v === true
         ).length;
 
-        if (changingToFalse && numChecked <= 1) {
-          setUiError('At least one character type must be selected.');
+        if (numChecked < 1) {
+          setUiError('At least one character type must be selected.'); // This is a hard error
           return; // Prevent unchecking the last one
         }
       }
-      setToolState({ [option]: value });
+      // If we pass the check or it's not a boolean option change
+      setToolSettings({ [optionKey]: value });
+      // Clear specific errors if the change makes the options valid again
       if (
-        uiError === 'Please select at least one character type.' ||
-        uiError === 'At least one character type must be selected.' ||
-        uiError === 'Password length must be a positive whole number.' ||
-        uiError.includes('length is very long')
+        newUiError === 'Please select at least one character type.' ||
+        newUiError === 'At least one character type must be selected.' ||
+        newUiError === 'Password length must be a positive whole number.'
       ) {
-        setUiError(''); // Clear specific errors when options are validly changed
+        setUiError('');
+      } else if (
+        newUiError.startsWith('Warning:') &&
+        optionKey === 'length' &&
+        typeof value === 'number' &&
+        value <= 256 &&
+        value >= 4
+      ) {
+        // Clear length related warnings if length is now in a reasonable range
+        setUiError('');
       }
-      // Clearing generatedPassword and isCopied is now handled by the useEffect
     },
-    [toolState, setToolState, uiError]
+    [toolSettings, setToolSettings, uiError] // Added uiError
   );
 
   const canGenerate =
-    toolState.length > 0 &&
-    toolState.length <= 256 &&
-    (toolState.includeLowercase ||
-      toolState.includeUppercase ||
-      toolState.includeNumbers ||
-      toolState.includeSymbols);
+    toolSettings.length > 0 &&
+    toolSettings.length <= 256 && // Keep practical upper limit for UI
+    (toolSettings.includeLowercase ||
+      toolSettings.includeUppercase ||
+      toolSettings.includeNumbers ||
+      toolSettings.includeSymbols);
 
-  if (isLoadingState) {
+  if (isLoadingState && !initialSettingsLoadedRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Password Generator...
       </p>
+    );
+  }
+  if (errorLoadingState) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
+        Error loading saved settings: {errorLoadingState}
+      </div>
     );
   }
 
@@ -222,13 +267,12 @@ export default function PasswordGeneratorClient({
             inputClassName="text-base font-mono flex-grow"
             placeholder="Click 'Generate New Password' below"
             aria-label="Generated Password"
-            aria-describedby="password-generation-success" // Consider changing this if success message is removed
-            onChange={() => {}} // Added onChange as it's required by the Input component
+            onChange={() => {}}
           />
           <Button
             variant={isCopied ? 'secondary' : 'neutral'}
             onClick={handleCopy}
-            disabled={!generatedPassword.trim()}
+            disabled={!generatedPassword.trim() || isCopied}
             iconLeft={
               isCopied ? (
                 <CheckIcon className="h-5 w-5" />
@@ -242,30 +286,32 @@ export default function PasswordGeneratorClient({
             {isCopied ? 'Copied!' : 'Copy'}
           </Button>
         </div>
-        {uiError && !uiError.startsWith('Warning:') && (
+        {uiError && (
           <div
             role="alert"
-            className="mt-2 p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
+            className={`mt-2 p-3 border rounded-md text-sm flex items-start gap-2 ${
+              uiError.startsWith('Warning:')
+                ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                : 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]'
+            }`}
           >
-            <ExclamationTriangleIcon
-              className="h-5 w-5 flex-shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
+            {uiError.startsWith('Warning:') ? (
+              <InformationCircleIcon
+                className="h-5 w-5 flex-shrink-0 mt-0.5 text-yellow-600"
+                aria-hidden="true"
+              />
+            ) : (
+              <ExclamationTriangleIcon
+                className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-600"
+                aria-hidden="true"
+              />
+            )}
             <div>
-              <strong className="font-semibold">Error:</strong> {uiError}
+              {!uiError.startsWith('Warning:') && (
+                <strong className="font-semibold">Error: </strong>
+              )}
+              {uiError}
             </div>
-          </div>
-        )}
-        {uiError && uiError.startsWith('Warning:') && (
-          <div
-            role="alert"
-            className="mt-2 p-3 bg-yellow-100 border border-yellow-300 text-yellow-800 rounded-md text-sm flex items-start gap-2"
-          >
-            <InformationCircleIcon
-              className="h-5 w-5 flex-shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
-            <div>{uiError}</div>
           </div>
         )}
       </div>
@@ -275,13 +321,13 @@ export default function PasswordGeneratorClient({
           Options
         </h2>
         <Input
-          label={`Password Length: ${toolState.length}`}
+          label={`Password Length: ${toolSettings.length}`}
           id="password-length"
           type="number"
           min={1}
           max={256}
           step={1}
-          value={toolState.length}
+          value={toolSettings.length}
           onChange={(e) =>
             handleOptionChange('length', parseInt(e.target.value, 10) || 0)
           }
@@ -293,7 +339,7 @@ export default function PasswordGeneratorClient({
             <Checkbox
               id="include-uppercase"
               label="Uppercase (A-Z)"
-              checked={toolState.includeUppercase}
+              checked={toolSettings.includeUppercase}
               onChange={(e) =>
                 handleOptionChange('includeUppercase', e.target.checked)
               }
@@ -301,7 +347,7 @@ export default function PasswordGeneratorClient({
             <Checkbox
               id="include-lowercase"
               label="Lowercase (a-z)"
-              checked={toolState.includeLowercase}
+              checked={toolSettings.includeLowercase}
               onChange={(e) =>
                 handleOptionChange('includeLowercase', e.target.checked)
               }
@@ -309,7 +355,7 @@ export default function PasswordGeneratorClient({
             <Checkbox
               id="include-numbers"
               label="Numbers (0-9)"
-              checked={toolState.includeNumbers}
+              checked={toolSettings.includeNumbers}
               onChange={(e) =>
                 handleOptionChange('includeNumbers', e.target.checked)
               }
@@ -317,7 +363,7 @@ export default function PasswordGeneratorClient({
             <Checkbox
               id="include-symbols"
               label="Symbols (!@#...)"
-              checked={toolState.includeSymbols}
+              checked={toolSettings.includeSymbols}
               onChange={(e) =>
                 handleOptionChange('includeSymbols', e.target.checked)
               }
@@ -328,10 +374,11 @@ export default function PasswordGeneratorClient({
 
       <Button
         variant="primary"
-        onClick={generatePassword}
+        onClick={handleGeneratePassword}
         disabled={!canGenerate}
         fullWidth
         size="lg"
+        iconLeft={<ArrowPathIcon className="h-5 w-5" />}
       >
         Generate New Password
       </Button>

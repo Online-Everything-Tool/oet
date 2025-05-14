@@ -1,7 +1,7 @@
 // FILE: app/tool/html-entity-explorer/_components/HtmlEntityExplorerClient.tsx
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react'; // useEffect might be needed if we add more complex effects
+import React, { useState, useMemo, useCallback } from 'react';
 import type { RichEntityData } from '../page';
 import useToolState from '../../_hooks/useToolState';
 import Button from '../../_components/form/Button';
@@ -36,7 +36,6 @@ export default function HtmlEntityExplorerClient({
   initialEntities,
   availableCategories,
 }: EntitySearchClientProps) {
-  // --- ALL HOOKS AT THE TOP ---
   const {
     state: toolState,
     setState: setToolState,
@@ -52,7 +51,6 @@ export default function HtmlEntityExplorerClient({
   } | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
 
-  // --- MEMOIZED VALUES (HOOKS) ---
   const filteredEntities = useMemo(() => {
     const categoryFiltered = toolState.selectedCategory
       ? initialEntities.filter(
@@ -83,7 +81,6 @@ export default function HtmlEntityExplorerClient({
     [availableCategories]
   );
 
-  // --- CALLBACKS (HOOKS) ---
   const handleSearchChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState((prev) => ({ ...prev, searchTerm: event.target.value }));
@@ -142,10 +139,9 @@ export default function HtmlEntityExplorerClient({
         setCopyError(errorMsg);
       }
     },
-    [setToolState] // Removed toolState from deps as it's accessed via functional update in setToolState
+    [setToolState]
   );
 
-  // --- CONDITIONAL RETURN MOVED AFTER ALL HOOKS ---
   if (isLoadingToolState) {
     return (
       <div className="text-center p-4 text-gray-500 italic animate-pulse">
@@ -154,7 +150,6 @@ export default function HtmlEntityExplorerClient({
     );
   }
 
-  // --- JSX RENDER ---
   return (
     <div className="flex flex-col gap-6 text-[rgb(var(--color-text-base))] p-1">
       {/* Recently Copied Section */}

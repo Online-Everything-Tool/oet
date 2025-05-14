@@ -311,7 +311,7 @@ export default function Base64EncodeDecodeClient({
       if (currentContextLikelihood !== base64Likelihood)
         setBase64Likelihood(currentContextLikelihood);
 
-      handleEncodeDecode(textToSetForState, opToSetForState); // Direct call, not debounced for initial load
+      handleEncodeDecode(textToSetForState, opToSetForState);
     } else if (!textToSetForState.trim() && base64Likelihood !== 'unknown') {
       setBase64Likelihood('unknown');
     }
@@ -355,12 +355,12 @@ export default function Base64EncodeDecodeClient({
   }, [
     toolState.inputText,
     toolState.operation,
-    isLoadingToolState, // Keep this to prevent running before state is loaded
-    debouncedProcess, // Stable ref
-    setToolState, // Stable ref
-    base64Likelihood, // For comparison before setting
-    error, // To clear it if processing becomes successful
-    toolState.outputValue, // Re-added: if output changes externally, might need to re-eval some things
+    isLoadingToolState,
+    debouncedProcess,
+    setToolState,
+    base64Likelihood,
+    error,
+    toolState.outputValue,
   ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -368,7 +368,7 @@ export default function Base64EncodeDecodeClient({
     setToolState({
       inputText: newText,
       lastLoadedFilename: null,
-      outputValue: '', // Clear output, main useEffect will trigger re-processing
+      outputValue: '',
     });
     setCopySuccess(false);
     setSaveSuccess(false);
@@ -382,12 +382,12 @@ export default function Base64EncodeDecodeClient({
     console.log(
       '[Base64Client handleClear] Clearing state via persistentClearState.'
     );
-    debouncedProcess.cancel(); // Cancel any pending debounced processing first
+    debouncedProcess.cancel();
 
-    await persistentClearState(); // This will set toolState to default and delete the Dexie record
+    await persistentClearState();
 
     setError('');
-    setBase64Likelihood('unknown'); // Reflect the cleared input state
+    setBase64Likelihood('unknown');
     setCopySuccess(false);
     setSaveSuccess(false);
     console.log('[Base64Client handleClear] State cleared.');
@@ -436,7 +436,6 @@ export default function Base64EncodeDecodeClient({
             );
             opForFileLoad = 'decode';
             likelihoodForUI = 'likely_base64';
-            // console.log('[handleFileSelected] Immediate decode SUCCESSFUL.');
           } catch (decodeError) {
             opForFileLoad = 'encode';
             outputForState = '';
@@ -449,7 +448,6 @@ export default function Base64EncodeDecodeClient({
               text,
               'encode'
             );
-            // console.warn('[handleFileSelected] Immediate decode FAILED. Op: encode, Likelihood:', likelihoodForUI, 'Error:', errorForUI);
           }
         } else {
           opForFileLoad = 'encode';
@@ -458,7 +456,6 @@ export default function Base64EncodeDecodeClient({
             'encode'
           );
           outputForState = '';
-          // console.log('[handleFileSelected] Initial guess was encode. Op: encode, Likelihood:', likelihoodForUI);
         }
 
         setToolState({
@@ -478,9 +475,7 @@ export default function Base64EncodeDecodeClient({
           outputValue: '',
         });
         setBase64Likelihood('unknown');
-        // console.error('[handleFileSelected] Outer catch during file read:', e);
       }
-      // console.log('[handleFileSelected] END.');
     },
     [setToolState]
   );

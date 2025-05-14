@@ -75,7 +75,7 @@ export default function CryptoWalletGeneratorClient({
   const [lastCopiedId, setLastCopiedId] = useState<string | null>(null);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
 
-  const initialSetupRanRef = useRef(false); // To ensure setup logic runs only once
+  const initialSetupRanRef = useRef(false);
 
   console.log(
     `[CryptoGenerator] Render. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}, toolSettings.walletType: ${toolSettings.walletType}, generatedWallets: ${generatedWallets.length}`
@@ -152,9 +152,8 @@ export default function CryptoWalletGeneratorClient({
       }
     },
     [generating]
-  ); // Removed toolSettings.walletType, pass typeForGeneration explicitly
+  );
 
-  // Single effect for initial setup after tool state is loaded
   useEffect(() => {
     console.log(
       `[CryptoGenerator InitialSetupEffect] Running. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}`
@@ -217,12 +216,11 @@ export default function CryptoWalletGeneratorClient({
       setToolSettings({ walletType: finalWalletTypeForSettings });
     }
 
-    // Auto-generation logic: only if a typeFromUrl was valid AND wallets are empty
     if (typeFromUrl && generatedWallets.length === 0 && !generating) {
       console.log(
         `[CryptoGenerator InitialSetupEffect] Auto-generating wallet of type: ${typeFromUrl} (wallets empty, URL param was present)`
       );
-      handleGenerateWallet(typeFromUrl); // Generate with the type from URL
+      handleGenerateWallet(typeFromUrl);
     } else if (typeFromUrl && generatedWallets.length > 0) {
       console.log(
         `[CryptoGenerator InitialSetupEffect] URL param present, but wallets NOT empty. No auto-generation.`
@@ -234,8 +232,7 @@ export default function CryptoWalletGeneratorClient({
     }
     console.log(`[CryptoGenerator InitialSetupEffect] END.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolSettings, urlStateParams, toolSettings.walletType]); // Key dependencies: isLoading, urlStateParams, and toolSettings.walletType to react if it changes *before* this effect runs (e.g. from persistence)
-  // handleGenerateWallet and setToolSettings are stable due to useCallback/dispatch pattern
+  }, [isLoadingToolSettings, urlStateParams, toolSettings.walletType]);
 
   const toggleSpecificPrivateKeyVisibility = useCallback((id: string) => {
     setGeneratedWallets((prevWallets) =>
@@ -387,7 +384,7 @@ export default function CryptoWalletGeneratorClient({
         <div className="flex flex-wrap gap-2 sm:ml-auto">
           <Button
             variant="primary"
-            onClick={() => handleGenerateWallet(toolSettings.walletType)} // Pass current type for manual generation
+            onClick={() => handleGenerateWallet(toolSettings.walletType)}
             disabled={generating}
             isLoading={generating}
             loadingText="Generating..."

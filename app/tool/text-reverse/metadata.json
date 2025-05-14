@@ -1,6 +1,11 @@
 {
   "title": "Text Reverse",
   "description": "Reverse the order of characters, words, or lines in text.",
+  "inputConfig": [
+    {
+      "acceptsMimeTypes": ["text/plain"]
+    }
+  ],
   "urlStateParams": [
     {
       "paramName": "text",

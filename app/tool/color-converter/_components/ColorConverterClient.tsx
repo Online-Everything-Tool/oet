@@ -16,9 +16,8 @@ import {
 type InputMode = 'hex' | 'rgb' | 'hsl';
 type CopiedFormat = InputMode | null;
 
-// For storing the validated, numeric color values
 interface ValidColorValues {
-  hex: string; // Normalized hex (e.g., #RRGGBB)
+  hex: string;
   r: number;
   g: number;
   b: number;
@@ -28,7 +27,6 @@ interface ValidColorValues {
 }
 
 interface ColorConverterToolState {
-  // User input fields - always strings
   hexInput: string;
   rInput: string;
   gInput: string;
@@ -38,7 +36,7 @@ interface ColorConverterToolState {
   lInput: string;
 
   lastEditedField: InputMode;
-  // Holds the structured, validated color data if current inputs are valid
+
   validColorValues: ValidColorValues | null;
 }
 
@@ -51,7 +49,7 @@ const DEFAULT_COLOR_TOOL_STATE: ColorConverterToolState = {
   sInput: '',
   lInput: '',
   lastEditedField: 'hex',
-  validColorValues: null, // Initialize as null
+  validColorValues: null,
 };
 
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
@@ -75,10 +73,8 @@ export default function ColorConverterClient({
     DEFAULT_COLOR_TOOL_STATE
   );
 
-  const [uiError, setUiError] = useState<string>(''); // For UI display of errors
+  const [uiError, setUiError] = useState<string>('');
   const [copiedFormat, setCopiedFormat] = useState<CopiedFormat>(null);
-
-  // console.log(`[ColorConverter] RENDER. LastEdited: ${toolState.lastEditedField}, Hex: ${toolState.hexInput}, Valid: ${!!toolState.validColorValues}, Error: "${uiError}"`);
 
   const convertAndSetColors = useCallback(
     (
@@ -88,7 +84,6 @@ export default function ColorConverterClient({
         'validColorValues' | 'lastEditedField'
       >
     ) => {
-      // console.log(`[convertAndSetColors] Source: ${sourceMode}, Inputs:`, currentInputState);
       let newValidValues: ValidColorValues | null = null;
       let currentErrorMsg = '';
 
@@ -118,7 +113,7 @@ export default function ColorConverterClient({
           tempH = String(hsl.h);
           tempS = String(hsl.s);
           tempL = String(hsl.l);
-          tempHex = newValidValues.hex; // Use normalized hex
+          tempHex = newValidValues.hex;
         } else if (sourceMode === 'rgb') {
           if (
             !currentInputState.rInput.trim() &&
@@ -155,7 +150,7 @@ export default function ColorConverterClient({
           tempH = String(hsl.h);
           tempS = String(hsl.s);
           tempL = String(hsl.l);
-          // Keep user's valid number input string for r,g,b if they are valid numbers
+
           tempR = String(r);
           tempG = String(g);
           tempB = String(b);
@@ -195,18 +190,16 @@ export default function ColorConverterClient({
           tempR = String(rgb.r);
           tempG = String(rgb.g);
           tempB = String(rgb.b);
-          // Keep user's valid number input string for h,s,l
+
           tempH = String(h);
           tempS = String(s);
           tempL = String(l);
         }
       } catch (err) {
         if (err instanceof Error && err.message === 'empty') {
-          // If all relevant inputs for the sourceMode are empty, reset to default.
-          // This means user cleared the source input field.
           setToolState(DEFAULT_COLOR_TOOL_STATE);
-          setUiError(''); // Clear any previous error
-          return; // Exit early
+          setUiError('');
+          return;
         }
         currentErrorMsg =
           err instanceof Error ? err.message : 'Unknown conversion error.';
@@ -228,7 +221,7 @@ export default function ColorConverterClient({
         setUiError(currentErrorMsg);
       else if (!currentErrorMsg && uiError) setUiError('');
     },
-    [setToolState, uiError] // Added uiError to dependencies
+    [setToolState, uiError]
   );
 
   const debouncedConvertAndSetColors = useDebouncedCallback(
@@ -236,7 +229,6 @@ export default function ColorConverterClient({
     AUTO_PROCESS_DEBOUNCE_MS
   );
 
-  // Effect for URL Param Loading
   useEffect(() => {
     if (isLoadingToolState || !urlStateParams || urlStateParams.length === 0)
       return;
@@ -245,14 +237,12 @@ export default function ColorConverterClient({
     const updates: Partial<ColorConverterToolState> = {};
     let sourceForProcessing: InputMode | null = null;
 
-    // Prioritize Hex from URL
     const pHex = params.get('hex');
     if (pHex !== null && pHex !== toolState.hexInput) {
       updates.hexInput = pHex;
       sourceForProcessing = 'hex';
     }
 
-    // Then RGB from URL (all must be present to be considered an RGB update attempt)
     const pR = params.get('r');
     const pG = params.get('g');
     const pB = params.get('b');
@@ -269,7 +259,6 @@ export default function ColorConverterClient({
       }
     }
 
-    // Then HSL from URL
     const pH = params.get('h');
     const pS = params.get('s');
     const pL = params.get('l');
@@ -289,10 +278,9 @@ export default function ColorConverterClient({
     if (Object.keys(updates).length > 0) {
       updates.lastEditedField =
         sourceForProcessing || toolState.lastEditedField;
-      updates.validColorValues = null; // Clear valid values, will be recalculated
+      updates.validColorValues = null;
       setToolState(updates);
     } else if (sourceForProcessing) {
-      // URL params matched current state, but ensure processing happens for initial display
       const currentInputState = {
         hexInput: toolState.hexInput,
         rInput: toolState.rInput,
@@ -319,7 +307,6 @@ export default function ColorConverterClient({
     toolState.sInput,
   ]);
 
-  // Main Effect for Processing input changes
   useEffect(() => {
     if (isLoadingToolState) return;
 
@@ -332,12 +319,11 @@ export default function ColorConverterClient({
       sInput: toolState.sInput,
       lInput: toolState.lInput,
     };
-    // Don't trigger if all inputs are effectively empty
+
     const hasAnyInput = Object.values(currentInputState).some(
       (val) => val.trim() !== ''
     );
     if (!hasAnyInput && !toolState.validColorValues && !uiError) {
-      // if all inputs empty and no current valid color or error
       if (
         toolState.hexInput !== '' ||
         toolState.rInput !== '' ||
@@ -348,7 +334,6 @@ export default function ColorConverterClient({
         toolState.lInput !== '' ||
         toolState.validColorValues !== null
       ) {
-        // If any part of toolState is not default for empty, reset it.
         setToolState(DEFAULT_COLOR_TOOL_STATE);
       }
       if (uiError) setUiError('');
@@ -384,7 +369,7 @@ export default function ColorConverterClient({
       setToolState({
         [field]: event.target.value,
         lastEditedField: mode,
-        validColorValues: null, // Clear valid color on input change, it will be re-calculated
+        validColorValues: null,
       } as Partial<ColorConverterToolState>);
       setCopiedFormat(null);
     };
@@ -398,7 +383,7 @@ export default function ColorConverterClient({
   const handleLChange = createChangeHandler('lInput', 'hsl');
 
   const handleClear = useCallback(async () => {
-    await persistentClearState(); // This sets toolState to default and clears Dexie
+    await persistentClearState();
     setUiError('');
     setCopiedFormat(null);
     debouncedConvertAndSetColors.cancel();

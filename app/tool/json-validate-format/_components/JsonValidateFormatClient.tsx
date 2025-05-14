@@ -1,27 +1,30 @@
-// FILE: app/tool/json-validate-format/_components/JsonValidateFormatClient.tsx
+// --- FILE: app/tool/json-validate-format/_components/JsonValidateFormatClient.tsx ---
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { useFileLibrary } from '@/app/context/FileLibraryContext'; // Added for saving output
+import React, { useState, useCallback, useEffect, useRef } from 'react'; // Added useRef
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Checkbox from '../../_components/form/Checkbox';
 import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import FilenamePromptModal from '../../_components/shared/FilenamePromptModal'; // For Save/Download
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {
   ArrowUpTrayIcon,
-  ArrowDownTrayIcon, // For Download
-  ClipboardDocumentIcon, // For Copy
-  CheckIcon, // For success indication
-  DocumentPlusIcon, // For Save to Library
+  ArrowDownTrayIcon,
+  ClipboardDocumentIcon,
+  CheckIcon,
+  DocumentPlusIcon,
+  ExclamationTriangleIcon, // For error display
 } from '@heroicons/react/24/outline';
 
 interface JsonValidateFormatClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
+  // toolTitle is not used in this client's logic
 }
 
 interface JsonToolState {
@@ -29,6 +32,10 @@ interface JsonToolState {
   indent: number;
   sortKeys: boolean;
   lastLoadedFilename?: string | null;
+  outputValue: string; // Persisted output
+  isValid: boolean | null; // Persisted validation status
+  errorMsg: string; // Persisted error message
+  // No outputFilename needed if each save/download is a new timestamped file
 }
 
 const DEFAULT_JSON_TOOL_STATE: JsonToolState = {
@@ -36,17 +43,15 @@ const DEFAULT_JSON_TOOL_STATE: JsonToolState = {
   indent: 2,
   sortKeys: false,
   lastLoadedFilename: null,
+  outputValue: '',
+  isValid: null,
+  errorMsg: '',
 };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const sortObjectKeys = (obj: any): any => {
-  if (typeof obj !== 'object' || obj === null) {
-    return obj; // Primitives or null
-  }
-  if (Array.isArray(obj)) {
-    // For arrays, we map over elements and apply sorting to any nested objects
-    return obj.map(sortObjectKeys);
-  }
-  // For objects, sort keys and then recursively sort values
+  if (typeof obj !== 'object' || obj === null) return obj;
+  if (Array.isArray(obj)) return obj.map(sortObjectKeys);
   const sortedKeys = Object.keys(obj).sort((a, b) => a.localeCompare(b));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: { [key: string]: any } = {};
@@ -64,154 +69,181 @@ export default function JsonValidateFormatClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
+    clearState: persistentClearState, // Use this for the clear button
   } = useToolState<JsonToolState>(toolRoute, DEFAULT_JSON_TOOL_STATE);
 
-  const [outputValue, setOutputValue] = useState<string>('');
-  const [isValid, setIsValid] = useState<boolean | null>(null);
-  const [error, setError] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { addFile: addFileToLibrary } = useFileLibrary(); // Get addFile function
+  const { addFile: addFileToLibrary } = useFileLibrary();
 
   const [copySuccess, setCopySuccess] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false); // For "Save to Library"
+  const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
+  const [filenameActionType, setFilenameActionType] = useState<
+    'download' | 'save' | null
+  >(null);
+  const [suggestedFilenameForPrompt, setSuggestedFilenameForPrompt] =
+    useState('');
 
-  // Effect to handle initial load from URL params
-  useEffect(() => {
-    if (!isLoadingToolState && urlStateParams?.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      let shouldValidateAfterLoad = false;
-      let initialJsonInput = toolState.jsonInput;
-      let initialIndent = toolState.indent;
-
-      const jsonFromUrl = params.get('json');
-      if (jsonFromUrl !== null) {
-        initialJsonInput = jsonFromUrl;
-        shouldValidateAfterLoad = true;
-      }
-      const indentFromUrl = params.get('indent');
-      if (indentFromUrl !== null) {
-        const numIndent = parseInt(indentFromUrl, 10);
-        if (!isNaN(numIndent) && [0, 2, 4].includes(numIndent)) {
-          initialIndent = numIndent;
-          shouldValidateAfterLoad = true;
-        }
-      }
-
-      if (
-        initialJsonInput !== toolState.jsonInput ||
-        initialIndent !== toolState.indent
-      ) {
-        setToolState((prev) => ({
-          ...prev,
-          jsonInput: initialJsonInput,
-          indent: initialIndent,
-          lastLoadedFilename:
-            jsonFromUrl !== null
-              ? '(loaded from URL)'
-              : prev.lastLoadedFilename,
-        }));
-      }
-      if (shouldValidateAfterLoad && initialJsonInput.trim()) {
-        setTimeout(() => {
-          handleFormatValidate(
-            initialJsonInput,
-            initialIndent,
-            toolState.sortKeys
-          );
-        }, 0);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolState, urlStateParams]);
+  const initialUrlLoadProcessedRef = useRef(false);
 
   const handleFormatValidate = useCallback(
     (
-      textToProcess = toolState.jsonInput,
-      currentIndent = toolState.indent,
-      currentSortKeys = toolState.sortKeys
+      textToProcess: string = toolState.jsonInput, // Default to current state
+      currentIndent: number = toolState.indent,
+      currentSortKeys: boolean = toolState.sortKeys
     ) => {
-      let currentIsValid: boolean | null = null;
-      let currentError = '';
-      let currentOutput = '';
       const trimmedInput = textToProcess.trim();
-
-      setError('');
-      setIsValid(null);
-      setOutputValue('');
-      setCopySuccess(false); // Reset feedback
-      setSaveSuccess(false);
-
       if (!trimmedInput) {
-        setToolState((prev) => ({ ...prev, lastLoadedFilename: null }));
+        setToolState({
+          outputValue: '',
+          isValid: null,
+          errorMsg: '',
+          lastLoadedFilename: null,
+        });
         return;
       }
+
+      let newIsValid: boolean | null = null;
+      let newErrorMsg = '';
+      let newOutputValue = '';
+
       try {
         let parsedJson = JSON.parse(trimmedInput);
         if (currentSortKeys) parsedJson = sortObjectKeys(parsedJson);
-        currentOutput = JSON.stringify(
+        newOutputValue = JSON.stringify(
           parsedJson,
           null,
           currentIndent === 0 ? undefined : currentIndent
         );
-        currentIsValid = true;
-        setOutputValue(currentOutput);
-        setIsValid(currentIsValid);
+        newIsValid = true;
       } catch (err) {
-        currentError =
+        newErrorMsg =
           err instanceof Error
             ? `Invalid JSON: ${err.message}`
-            : 'Invalid JSON: Unknown parsing error.';
-        currentOutput = '';
-        currentIsValid = false;
-        setError(currentError);
-        setIsValid(currentIsValid);
+            : 'Invalid JSON: Unknown error.';
+        newIsValid = false;
       }
+      setToolState({
+        outputValue: newOutputValue,
+        isValid: newIsValid,
+        errorMsg: newErrorMsg,
+      });
+      setCopySuccess(false);
+      setSaveSuccess(false);
     },
     [toolState.jsonInput, toolState.indent, toolState.sortKeys, setToolState]
   );
 
+  useEffect(() => {
+    if (
+      isLoadingToolState ||
+      initialUrlLoadProcessedRef.current ||
+      !urlStateParams ||
+      urlStateParams.length === 0
+    ) {
+      return;
+    }
+    initialUrlLoadProcessedRef.current = true; // Mark as processed
+
+    const params = new URLSearchParams(window.location.search);
+    const updates: Partial<JsonToolState> = {};
+    let needsProcessingAfterUpdate = false;
+
+    const jsonFromUrl = params.get('json');
+    if (jsonFromUrl !== null && jsonFromUrl !== toolState.jsonInput) {
+      updates.jsonInput = jsonFromUrl;
+      updates.lastLoadedFilename = '(loaded from URL)';
+      updates.outputValue = '';
+      updates.isValid = null;
+      updates.errorMsg = ''; // Invalidate output
+      needsProcessingAfterUpdate = true;
+    }
+
+    const indentFromUrl = params.get('indent');
+    if (indentFromUrl !== null) {
+      const numIndent = parseInt(indentFromUrl, 10);
+      if (
+        !isNaN(numIndent) &&
+        [0, 2, 4].includes(numIndent) &&
+        numIndent !== toolState.indent
+      ) {
+        updates.indent = numIndent;
+        updates.outputValue = '';
+        updates.isValid = null;
+        updates.errorMsg = ''; // Invalidate output
+        needsProcessingAfterUpdate = true;
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setToolState(updates);
+    } else if (needsProcessingAfterUpdate && toolState.jsonInput.trim()) {
+      // If only URL params matched current state, but we decided it needs processing (e.g. jsonInput was set by URL)
+      // and there wasn't a setToolState call to trigger the other effect.
+      handleFormatValidate(
+        updates.jsonInput || toolState.jsonInput,
+        updates.indent || toolState.indent,
+        toolState.sortKeys
+      );
+    }
+  }, [
+    isLoadingToolState,
+    urlStateParams,
+    toolState,
+    setToolState,
+    handleFormatValidate,
+  ]);
+
+  useEffect(() => {
+    if (isLoadingToolState || !initialUrlLoadProcessedRef.current) return;
+    if (toolState.jsonInput.trim()) {
+      console.log(
+        '[JsonClient] Indent or SortKeys changed, re-validating/formatting.'
+      );
+      handleFormatValidate(
+        toolState.jsonInput,
+        toolState.indent,
+        toolState.sortKeys
+      );
+    }
+  }, [
+    toolState.indent,
+    toolState.sortKeys,
+    isLoadingToolState,
+    toolState.jsonInput,
+    handleFormatValidate,
+  ]);
+
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setToolState({ jsonInput: event.target.value, lastLoadedFilename: null });
-    setIsValid(null);
-    setError('');
+    setToolState({
+      jsonInput: event.target.value,
+      lastLoadedFilename: null,
+      outputValue: '', // Clear output, validation will be triggered by button or settings change
+      isValid: null,
+      errorMsg: '',
+    });
     setCopySuccess(false);
     setSaveSuccess(false);
   };
 
-  const handleClear = useCallback(() => {
-    setToolState(DEFAULT_JSON_TOOL_STATE);
-    setOutputValue('');
-    setIsValid(null);
-    setError('');
+  const handleClear = useCallback(async () => {
+    await persistentClearState(); // Resets toolState to default via useToolState
     setCopySuccess(false);
     setSaveSuccess(false);
-  }, [setToolState]);
-
-  const reformatCurrentJson = useCallback(
-    (newIndent: number, newSortKeys: boolean) => {
-      if (isValid && toolState.jsonInput.trim()) {
-        handleFormatValidate(toolState.jsonInput, newIndent, newSortKeys);
-      } else if (!toolState.jsonInput.trim()) {
-        setOutputValue('');
-        setCopySuccess(false);
-        setSaveSuccess(false);
-      }
-    },
-    [isValid, toolState.jsonInput, handleFormatValidate]
-  );
+  }, [persistentClearState]);
 
   const handleIndentationChange = (
     event: React.ChangeEvent<HTMLSelectElement>
   ) => {
     const newIndentation = parseInt(event.target.value, 10);
+    // setToolState will trigger the useEffect for indent/sortKeys change if jsonInput is present
     setToolState({ indent: newIndentation });
-    reformatCurrentJson(newIndentation, toolState.sortKeys);
   };
 
   const handleSortKeysChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newSortKeys = event.target.checked;
+    // setToolState will trigger the useEffect for indent/sortKeys change if jsonInput is present
     setToolState({ sortKeys: newSortKeys });
-    reformatCurrentJson(toolState.indent, newSortKeys);
   };
 
   const handleFileSelectedFromModal = useCallback(
@@ -220,90 +252,130 @@ export default function JsonValidateFormatClient({
       if (files.length === 0) return;
       const file = files[0];
       if (!file.blob) {
-        setError(`Error: File "${file.name}" has no content.`);
+        setToolState({
+          errorMsg: `Error: File "${file.name}" has no content.`,
+        });
         return;
       }
       try {
         const text = await file.blob.text();
-        setToolState({ jsonInput: text, lastLoadedFilename: file.name });
-        setTimeout(() => {
-          handleFormatValidate(text, toolState.indent, toolState.sortKeys);
-        }, 0);
+        setToolState({
+          // This will update jsonInput, and the effect for indent/sortKeys will kick in
+          jsonInput: text,
+          lastLoadedFilename: file.name,
+          outputValue: '', // Clear previous output
+          isValid: null,
+          errorMsg: '',
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
-        setError(`Error reading file "${file.name}": ${msg}`);
-        setToolState({ jsonInput: '', lastLoadedFilename: null });
+        setToolState({
+          errorMsg: `Error reading file "${file.name}": ${msg}`,
+          jsonInput: '',
+          lastLoadedFilename: null,
+          outputValue: '',
+          isValid: null,
+        });
       }
     },
-    [setToolState, handleFormatValidate, toolState.indent, toolState.sortKeys]
+    [setToolState] // Removed handleFormatValidate, indent, sortKeys. Effect will handle processing.
   );
 
   const handleCopyToClipboard = async () => {
-    if (!outputValue || !navigator.clipboard) {
-      setError('Clipboard API not available or no output to copy.');
+    if (!toolState.outputValue || !navigator.clipboard) {
+      setToolState({
+        errorMsg: 'Clipboard API not available or no output to copy.',
+      });
       return;
     }
     try {
-      await navigator.clipboard.writeText(outputValue);
+      await navigator.clipboard.writeText(toolState.outputValue);
       setCopySuccess(true);
-      setError('');
+      setToolState({ errorMsg: '' });
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
-      setError('Failed to copy to clipboard.');
+      setToolState({ errorMsg: 'Failed to copy to clipboard.' });
       console.error('Clipboard copy error:', err);
     }
   };
 
-  const handleDownloadOutput = () => {
-    if (!outputValue) {
-      setError('No output to download.');
-      return;
-    }
-    try {
-      const blob = new Blob([outputValue], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const originalFilename =
-        toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') ||
-        'formatted-json';
-      link.download = `${originalFilename}-${Date.now()}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setError('');
-    } catch (err) {
-      setError('Failed to prepare download.');
-      console.error('Download error:', err);
-    }
-  };
-
-  const handleSaveToLibrary = async () => {
-    if (!outputValue) {
-      setError('No output to save.');
-      return;
-    }
-    const blob = new Blob([outputValue], { type: 'application/json' });
-    const originalFilename =
+  const generateOutputFilename = useCallback((): string => {
+    const base =
       toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') ||
       'formatted-json';
-    const filename = `${originalFilename}-${Date.now()}.json`;
-    try {
-      await addFileToLibrary(
-        blob,
-        filename,
-        'application/json',
-        false /* isTemporary = false */
-      );
-      setSaveSuccess(true);
-      setError('');
-      setTimeout(() => setSaveSuccess(false), 2000);
-    } catch (err) {
-      setError('Failed to save to library.');
-      console.error('Save to library error:', err);
+    return `${base}-${Date.now()}.json`;
+  }, [toolState.lastLoadedFilename]);
+
+  const initiateOutputAction = (action: 'download' | 'save') => {
+    if (toolState.isValid !== true || !toolState.outputValue.trim()) {
+      setToolState({
+        errorMsg: `No valid output to ${action}. Please validate your JSON first.`,
+      });
+      return;
     }
+    setSuggestedFilenameForPrompt(generateOutputFilename());
+    setFilenameActionType(action);
+    setIsFilenameModalOpen(true);
   };
+
+  const handleFilenameConfirm = useCallback(
+    async (chosenFilename: string) => {
+      const action = filenameActionType;
+      setIsFilenameModalOpen(false);
+      setFilenameActionType(null);
+
+      if (!action || toolState.isValid !== true || !toolState.outputValue)
+        return;
+
+      let finalFilename = chosenFilename.trim();
+      if (!finalFilename) finalFilename = generateOutputFilename();
+      if (!/\.json$/i.test(finalFilename)) finalFilename += '.json';
+
+      if (action === 'download') {
+        try {
+          const blob = new Blob([toolState.outputValue], {
+            type: 'application/json',
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = finalFilename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+          setToolState({ errorMsg: '' });
+        } catch (_err) {
+          setToolState({ errorMsg: 'Failed to prepare download.' });
+        }
+      } else if (action === 'save') {
+        const blob = new Blob([toolState.outputValue], {
+          type: 'application/json',
+        });
+        try {
+          await addFileToLibrary(
+            blob,
+            finalFilename,
+            'application/json',
+            false
+          );
+          setSaveSuccess(true);
+          setToolState({ errorMsg: '' });
+          setTimeout(() => setSaveSuccess(false), 2000);
+        } catch (_err) {
+          setToolState({ errorMsg: 'Failed to save to library.' });
+        }
+      }
+    },
+    [
+      filenameActionType,
+      toolState.isValid,
+      toolState.outputValue,
+      generateOutputFilename,
+      addFileToLibrary,
+      setToolState,
+    ]
+  );
 
   if (isLoadingToolState) {
     return (
@@ -313,7 +385,8 @@ export default function JsonValidateFormatClient({
     );
   }
 
-  const canPerformOutputActions = isValid === true && outputValue.trim() !== '';
+  const canPerformOutputActions =
+    toolState.isValid === true && toolState.outputValue.trim() !== '';
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -341,19 +414,19 @@ export default function JsonValidateFormatClient({
         value={toolState.jsonInput}
         onChange={handleInputChange}
         placeholder={`Paste your JSON here or load from a file...\n{\n  "example": "data",\n  "isValid": true\n}`}
-        error={isValid === false ? error : null}
+        error={toolState.isValid === false ? toolState.errorMsg : null} // Show error from state
         textareaClassName="text-sm font-mono"
         spellCheck="false"
-        aria-invalid={isValid === false}
+        aria-invalid={toolState.isValid === false}
         aria-describedby={
-          isValid === false ? 'json-validation-feedback' : undefined
+          toolState.isValid === false ? 'json-validation-feedback' : undefined
         }
       />
 
       <div className="flex flex-wrap gap-x-4 gap-y-3 items-center p-3 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <Button
           variant="accent"
-          onClick={() => handleFormatValidate('click')}
+          onClick={() => handleFormatValidate()}
           disabled={!toolState.jsonInput.trim()}
         >
           Validate & Format
@@ -396,48 +469,26 @@ export default function JsonValidateFormatClient({
         </Button>
       </div>
 
-      {isValid !== null && (
+      {toolState.isValid !== null && (
         <div
           id="json-validation-feedback"
-          className={`p-3 border rounded-md text-sm flex items-start sm:items-center gap-2 ${isValid ? 'bg-green-100 border-green-300 text-green-800' : 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]'}`}
+          className={`p-3 border rounded-md text-sm flex items-start sm:items-center gap-2 ${toolState.isValid ? 'bg-green-100 border-green-300 text-green-800' : 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]'}`}
           role="alert"
         >
-          {isValid ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 flex-shrink-0"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clipRule="evenodd"
-              />
-            </svg>
+          {toolState.isValid ? (
+            <CheckIcon className="h-5 w-5 flex-shrink-0 text-green-600" />
           ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-5 w-5 flex-shrink-0"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clipRule="evenodd"
-              />
-            </svg>
+            <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 text-red-500" />
           )}
           <div>
-            {' '}
-            {isValid ? (
+            {toolState.isValid ? (
               <strong>Valid JSON</strong>
             ) : (
               <>
-                <strong className="font-semibold">Error:</strong> {error}
+                <strong className="font-semibold">Error:</strong>{' '}
+                {toolState.errorMsg}
               </>
-            )}{' '}
+            )}
           </div>
         </div>
       )}
@@ -446,7 +497,7 @@ export default function JsonValidateFormatClient({
         label="Output:"
         id="json-output"
         rows={12}
-        value={outputValue}
+        value={toolState.outputValue}
         readOnly
         placeholder="Formatted JSON will appear here..."
         textareaClassName="text-sm font-mono bg-[rgb(var(--color-bg-subtle))]"
@@ -454,12 +505,11 @@ export default function JsonValidateFormatClient({
         aria-live="polite"
       />
 
-      {/* Output Actions */}
       {canPerformOutputActions && (
         <div className="flex flex-wrap gap-3 items-center p-3 border-t border-[rgb(var(--color-border-base))]">
           <Button
             variant="primary-outline"
-            onClick={handleSaveToLibrary}
+            onClick={() => initiateOutputAction('save')}
             disabled={saveSuccess}
             iconLeft={
               saveSuccess ? (
@@ -473,7 +523,7 @@ export default function JsonValidateFormatClient({
           </Button>
           <Button
             variant="secondary"
-            onClick={handleDownloadOutput}
+            onClick={() => initiateOutputAction('download')}
             iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
           >
             Download .json
@@ -502,8 +552,30 @@ export default function JsonValidateFormatClient({
         mode="selectExistingOrUploadNew"
         accept=".json,application/json,text/plain,.txt"
         selectionMode="single"
-        libraryFilter={{ category: 'text' }} // This might need adjustment based on how you categorize .json files
+        libraryFilter={{ category: 'text' }}
         initialTab="upload"
+      />
+      <FilenamePromptModal
+        isOpen={isFilenameModalOpen}
+        onClose={() => {
+          setIsFilenameModalOpen(false);
+          setFilenameActionType(null);
+        }}
+        onConfirm={handleFilenameConfirm}
+        initialFilename={suggestedFilenameForPrompt}
+        title={
+          filenameActionType === 'download'
+            ? 'Enter Download Filename'
+            : 'Enter Filename for Library'
+        }
+        promptMessage={
+          filenameActionType === 'download'
+            ? 'Please enter a filename for the download:'
+            : 'Please enter a filename to save to the library:'
+        }
+        confirmButtonText={
+          filenameActionType === 'download' ? 'Download' : 'Save to Library'
+        }
       />
     </div>
   );

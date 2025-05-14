@@ -14,7 +14,6 @@ interface MontageImage {
   originalHeight: number;
 }
 
-// --- Constants ---
 const POLAROID_IMAGE_WIDTH = 150;
 const POLAROID_IMAGE_HEIGHT = 150;
 const POLAROID_BORDER_PADDING = 10;
@@ -28,7 +27,6 @@ const FINAL_OUTPUT_PADDING = 30;
 const CANVAS_LEFT_PADDING = 30;
 const CANVAS_VERTICAL_PADDING_FACTOR = 0.15;
 
-// --- Helper Functions ---
 const calculateMaxBoundsNeeded = (
   width: number,
   height: number
@@ -58,18 +56,11 @@ const calculateAspectRatioFit = (
   };
 };
 
-// NEW: Shared Layout Calculation Function
 interface LayoutData {
-  centerPositions: Map<string, number>; // X-coordinate of the center of each image, padded from canvas left
+  centerPositions: Map<string, number>;
   finalCanvasWidth: number;
   finalCanvasHeight: number;
-  // contentTotalWidth: number; // Actual width of the laid-out images before canvas padding (not strictly needed by caller now)
-  // contentMaxItemHeight: number; // Max height of a rotated item for vertical sizing (not strictly needed by caller now)
 }
-
-// --- In app/tool/image-montage/_hooks/useMontageCanvas.ts ---
-
-// ... (constants and other helpers remain the same)
 
 const calculateLayout = (
   images: MontageImage[],
@@ -79,10 +70,9 @@ const calculateLayout = (
 
   let currentLayoutX = 0;
   let totalContentWidth = 0;
-  let maxItemHeightForLayout = 0; // Max height of any single rotated item
+  let maxItemHeightForLayout = 0;
   const localCenterPositions = new Map<string, number>();
 
-  // First pass: Calculate initial layout, totalContentWidth, and maxItemHeightForLayout
   images.forEach((imgData, index) => {
     let itemRenderWidth = 0;
     let itemRenderHeight = 0;
@@ -137,10 +127,9 @@ const calculateLayout = (
     localCenterPositions.set(imgData.imageId, currentImageCenterX);
   });
 
-  // Calculate necessary padding based on potential tilt of end images
   let extraHorizontalPaddingForTilt = 0;
   const extraVerticalPaddingForTilt =
-    maxItemHeightForLayout * CANVAS_VERTICAL_PADDING_FACTOR; // Base vertical padding
+    maxItemHeightForLayout * CANVAS_VERTICAL_PADDING_FACTOR;
 
   if (images.length > 0) {
     const firstImage = images[0];
@@ -167,7 +156,6 @@ const calculateLayout = (
       const absCos = Math.abs(Math.cos(tiltRad));
       const absSin = Math.abs(Math.sin(tiltRad));
       const rotatedWidth = itemRenderWidth * absCos + itemRenderHeight * absSin;
-      // const rotatedHeight = itemRenderWidth * absSin + itemRenderHeight * absCos; // already handled by maxItemHeightForLayout
 
       extraHorizontalPaddingForTilt = Math.max(
         extraHorizontalPaddingForTilt,
@@ -181,7 +169,7 @@ const calculateLayout = (
   const canvasVerticalPadding = Math.max(
     20,
     Math.ceil(extraVerticalPaddingForTilt)
-  ); // Ensure a minimum padding
+  );
 
   const finalCanvasWidth = Math.ceil(totalContentWidth + canvasSidePadding * 2);
   const finalCanvasHeight = Math.ceil(
@@ -190,7 +178,7 @@ const calculateLayout = (
 
   const finalCenterPositions = new Map<string, number>();
   localCenterPositions.forEach((val, key) => {
-    finalCenterPositions.set(key, val + canvasSidePadding); // Apply final padding to X positions
+    finalCenterPositions.set(key, val + canvasSidePadding);
   });
 
   return {
@@ -219,7 +207,6 @@ export function useMontageCanvas(
       console.error('[MontageCanvas DrawEffect] Failed to get 2D context');
       return;
     }
-    // console.log(`[MontageCanvas DrawEffect] Running. Image count: ${montageImages.length}, Effect: ${effect}`);
 
     const computedStyle = getComputedStyle(document.documentElement);
     const subtleBgColor =
@@ -231,7 +218,7 @@ export function useMontageCanvas(
       canvas.height = 200;
       ctx.fillStyle = `rgb(${subtleBgColor})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // console.log(`[MontageCanvas DrawEffect] No images, canvas cleared.`);
+
       return;
     }
 
@@ -248,7 +235,6 @@ export function useMontageCanvas(
     canvas.height = finalCanvasHeight;
     ctx.fillStyle = `rgb(${subtleBgColor})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // console.log(`[MontageCanvas DrawEffect] Layout calculated & canvas sized. Canvas: ${finalCanvasWidth}x${finalCanvasHeight}.`);
 
     const imagesToDraw = [...montageImages].sort((a, b) => a.zIndex - b.zIndex);
     const componentBgColor =
@@ -372,7 +358,6 @@ export function useMontageCanvas(
           ctx.fillRect(imgAreaX, imgAreaY, targetW, targetH);
         }
       } else {
-        // 'natural' effect
         if (hasValidImageElement && widthToUse > 0 && heightToUse > 0) {
           const fit = calculateAspectRatioFit(
             widthToUse,
@@ -421,7 +406,6 @@ export function useMontageCanvas(
       }
       ctx.restore();
     });
-    // console.log(`[MontageCanvas DrawEffect] Drawing complete for ${imagesToDraw.length} images.`);
   }, [montageImages, effect]);
 
   const generateMontageBlob = useCallback(async (): Promise<Blob | null> => {
@@ -434,7 +418,6 @@ export function useMontageCanvas(
       return null;
     }
 
-    // Calculate layout based on current images and effect FOR THIS BLOB GENERATION
     const currentLayout = calculateLayout(montageImages, effect);
     if (!currentLayout) {
       console.error(

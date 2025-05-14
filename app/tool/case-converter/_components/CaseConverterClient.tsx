@@ -42,7 +42,7 @@ const DEFAULT_CASE_CONVERTER_STATE: CaseConverterToolState = {
 
 interface CaseConverterClientProps {
   urlStateParams: ParamConfig[];
-  toolRoute: string; // Keep for useToolState key
+  toolRoute: string;
 }
 
 export default function CaseConverterClient({
@@ -55,7 +55,7 @@ export default function CaseConverterClient({
     isLoadingState: isLoadingToolState,
     clearState: persistentClearState,
   } = useToolState<CaseConverterToolState>(
-    toolRoute, // Pass toolRoute to useToolState
+    toolRoute,
     DEFAULT_CASE_CONVERTER_STATE
   );
 
@@ -116,14 +116,14 @@ export default function CaseConverterClient({
                     ) {
                       return part;
                     }
-                    // Only attempt to uppercase if part is not empty
+
                     if (part && part.length > 0) {
                       return (
                         part.charAt(0).toUpperCase() +
                         part.slice(1).toLowerCase()
                       );
                     }
-                    return part; // Return empty or non-word parts as is
+                    return part;
                   })
                   .join('');
               })
@@ -159,11 +159,9 @@ export default function CaseConverterClient({
               .filter(Boolean)
               .join('-');
             break;
-          // Ensure no 'line' case here
+
           default:
-            // This default case should ideally not be reached if CaseType is properly constrained.
-            // If somehow an invalid caseType gets here:
-            const exhaustiveCheck: never = targetCase; // This will cause a compile-time error if not all CaseType values are handled
+            const exhaustiveCheck: never = targetCase;
             throw new Error(`Unsupported case type: ${exhaustiveCheck}`);
         }
         setToolState({ outputValue: result });
@@ -219,7 +217,6 @@ export default function CaseConverterClient({
         outputValue: '',
       });
     } else if (newText.trim() && !toolState.outputValue.trim() && !uiError) {
-      // Direct call for initial load if state didn't change but output should be populated
       performConversion(newText, newCase);
     }
   }, [
@@ -483,7 +480,7 @@ export default function CaseConverterClient({
             onChange={handleCaseTypeChange}
             layout="horizontal"
             className="flex-grow"
-            radioClassName="text-sm mb-2 mr-2" // Added mb-2 mr-2 for better spacing when wrapped
+            radioClassName="text-sm mb-2 mr-2"
             labelClassName="font-medium"
           />
           <Button

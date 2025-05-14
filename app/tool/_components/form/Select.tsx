@@ -14,13 +14,13 @@ interface SelectProps<T extends string | number>
   label?: string;
   id?: string;
   options: ReadonlyArray<SelectOption<T>>;
-  value: T | ''; // Allow empty string for "no selection"
+  value: T | '';
   onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
   error?: string | null;
   containerClassName?: string;
   labelClassName?: string;
   selectClassName?: string;
-  placeholder?: string; // For the initial unselected option
+  placeholder?: string;
 }
 
 export default function Select<T extends string | number>({

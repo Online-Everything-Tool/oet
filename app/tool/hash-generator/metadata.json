@@ -15,7 +15,8 @@
   ],
   "outputConfig": {
     "transferableContent": {
-      "dataType": "none"
+      "dataType": "text",
+      "textStateKey": "outputValue"
     }
   },
   "tags": ["security", "developer", "data"],

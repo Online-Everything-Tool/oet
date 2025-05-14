@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useEditor, EditorContent } from '@tiptap/react'; // Added Node
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -18,7 +18,6 @@ import {
   FaceSmileIcon,
 } from '@heroicons/react/20/solid';
 
-// --- Unicode Character Maps (Example - these would be extensive) ---
 const UNICODE_MAPS = {
   bold: {
     A: '𝗔',
@@ -137,9 +136,7 @@ const UNICODE_MAPS = {
     x: '𝘹',
     y: '𝘺',
     z: '𝘻',
-    // Italic numbers are less common and might not render well everywhere
   } as Record<string, string>,
-  // Add more maps: boldItalic, script, monospace if needed
 };
 
 function applyCharStyle(
@@ -149,7 +146,6 @@ function applyCharStyle(
   return UNICODE_MAPS[style]?.[char] || char;
 }
 
-// --- State Definition ---
 interface LinkedinFormatterState {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   contentJson: Record<string, any> | null;
@@ -276,7 +272,7 @@ export default function LinkedinPostFormatterClient({
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .map((char: any) => {
                 let tempChar = char;
-                // Apply italic first, then bold, so bold italic is BOLD(ITALIC(char))
+
                 if (isItalic) tempChar = applyCharStyle(tempChar, 'italic');
                 if (isBold) tempChar = applyCharStyle(tempChar, 'bold');
                 return tempChar;
@@ -285,7 +281,6 @@ export default function LinkedinPostFormatterClient({
           }
           result += styledText;
         } else if (node.content) {
-          // For other block types that might have content
           processContent(node.content);
         }
       });
@@ -294,8 +289,7 @@ export default function LinkedinPostFormatterClient({
     if (json.content) {
       processContent(json.content);
     }
-    // Normalize newlines: reduce 3+ newlines to 2, ensure single paragraphs are followed by double.
-    // This is a common LinkedIn formatting practice.
+
     const cleanedResult = result.replace(/\n{3,}/g, '\n\n').trim();
     return cleanedResult;
   }, [editor]);
@@ -319,7 +313,6 @@ export default function LinkedinPostFormatterClient({
   }, [editor, generateUnicodeText]);
 
   const handleClear = useCallback(async () => {
-    // ... (handleClear logic as before, no changes needed to it for Unicode)
     editor?.commands.clearContent(true);
     setActionError(null);
     setIsCopied(false);
@@ -351,7 +344,6 @@ export default function LinkedinPostFormatterClient({
   );
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
-      // ... (handleEmojiSelect logic as before)
       if (editor && emoji) {
         editor.chain().focus().insertContent(emoji).run();
       }
