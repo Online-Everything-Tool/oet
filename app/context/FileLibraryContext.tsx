@@ -381,8 +381,8 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
                   if (
                     Array.isArray(toolCurrentState[stateFileRef.arrayStateKey])
                   ) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       toolCurrentState[stateFileRef.arrayStateKey] as any[]
                     ).forEach((item) => {
                       if (
