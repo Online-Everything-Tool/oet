@@ -59,7 +59,7 @@ const TextReverseClient = ({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<TextReverseToolState>(toolRoute, DEFAULT_TEXT_REVERSE_STATE);
 
   const [isOutputCopied, setIsOutputCopied] = useState<boolean>(false);

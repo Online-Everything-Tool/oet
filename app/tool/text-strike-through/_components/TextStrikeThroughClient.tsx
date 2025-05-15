@@ -44,7 +44,7 @@ export default function TextStrikeThroughClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
     errorLoadingState,
   } = useToolState<TextStrikeThroughToolState>(
     toolRoute,

@@ -53,7 +53,7 @@ export default function CaseConverterClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<CaseConverterToolState>(
     toolRoute,
     DEFAULT_CASE_CONVERTER_STATE

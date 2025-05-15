@@ -80,7 +80,7 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearState: clearPersistentToolState,
+    clearStateAndPersist: clearPersistentToolState,
     errorLoadingState,
   } = useToolState<ImageMontageToolPersistedState>(
     toolRoute,

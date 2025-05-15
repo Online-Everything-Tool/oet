@@ -67,7 +67,7 @@ export default function JsonValidateFormatClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<JsonToolState>(toolRoute, DEFAULT_JSON_TOOL_STATE);
 
   const [isModalOpen, setIsModalOpen] = useState(false);

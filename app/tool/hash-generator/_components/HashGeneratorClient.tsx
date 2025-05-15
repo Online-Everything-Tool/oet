@@ -61,7 +61,7 @@ export default function HashGeneratorClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<HashGeneratorToolState>(toolRoute, DEFAULT_HASH_TOOL_STATE);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);

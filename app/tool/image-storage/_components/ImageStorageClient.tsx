@@ -211,6 +211,7 @@ export default function ImageStorageClient({
 
   const handleToggleFilterSelected = useCallback(() => {
     setPersistentState((prev) => ({
+      ...prev,
       isFilterSelectedActive: !prev.isFilterSelectedActive,
     }));
   }, [setPersistentState]);
@@ -259,6 +260,7 @@ export default function ImageStorageClient({
         setStoredImages((prev) => prev.filter((f) => f.id !== imageId));
 
         setPersistentState((prev) => ({
+          ...prev,
           selectedImageIds: prev.selectedImageIds.filter(
             (id) => id !== imageId
           ),
@@ -376,7 +378,7 @@ export default function ImageStorageClient({
         const newSelected = new Set(prev.selectedImageIds);
         if (newSelected.has(imageId)) newSelected.delete(imageId);
         else newSelected.add(imageId);
-        return { selectedImageIds: Array.from(newSelected) };
+        return { ...prev, selectedImageIds: Array.from(newSelected) };
       });
     },
     [setPersistentState]

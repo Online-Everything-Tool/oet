@@ -114,7 +114,7 @@ export default function Base64EncodeDecodeClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<Base64ToolState>(toolRoute, DEFAULT_BASE64_TOOL_STATE);
 
   const [error, setError] = useState<string>('');

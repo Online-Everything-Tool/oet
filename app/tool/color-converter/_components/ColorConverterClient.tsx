@@ -67,7 +67,7 @@ export default function ColorConverterClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
   } = useToolState<ColorConverterToolState>(
     toolRoute,
     DEFAULT_COLOR_TOOL_STATE

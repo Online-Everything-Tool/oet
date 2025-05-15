@@ -9,7 +9,7 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import { getDbInstance } from '../lib/db';
+import { getDbInstance, OetDatabase } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { useMetadata } from './MetadataContext';
@@ -29,6 +29,7 @@ interface FileLibraryFunctions {
     toolRoute?: string
   ) => Promise<string>;
   deleteFile: (id: string) => Promise<void>;
+  clearAllFiles: () => Promise<void>;
   makeFilePermanent: (id: string) => Promise<void>;
   updateFileBlob: (id: string, newBlob: Blob) => Promise<void>;
   cleanupOrphanedTemporaryFiles: (
@@ -265,6 +266,57 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     }
   }, []);
 
+  const clearAllFiles = useCallback(
+    async (): Promise<void> => {
+      const includeTemporary: boolean = false;
+      setLoading(true);
+      setError(null);
+      let db: OetDatabase | null = null;
+      try {
+        db = getDbInstance();
+      } catch (e: unknown) {
+        setLoading(false);
+        setError(
+          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
+        );
+        throw e;
+      }
+
+      if (!db) {
+        setLoading(false);
+        throw new Error(
+          'Database instance is null, cannot proceed with deleteFile.'
+        );
+      }
+
+      try {
+        if (!db?.files) throw new Error("DB 'files' table not available.");
+
+        let collectionToClear = db.files.filter(
+          (file) => file.type !== 'application/x-oet-tool-state+json'
+        );
+        if (!includeTemporary) {
+          collectionToClear = collectionToClear.filter(
+            (file) => file.isTemporary !== true
+          );
+        }
+        const keysToDelete = await collectionToClear.primaryKeys();
+
+        if (keysToDelete.length > 0) {
+          await db.files.bulkDelete(keysToDelete);
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown DB error';
+        setError(`Failed to clear files: ${message}`);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+
   const cleanupOrphanedTemporaryFiles = useCallback(
     async (
       fileIdsToPotentiallyDelete?: string[]
@@ -487,6 +539,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       deleteFile,
       makeFilePermanent,
       updateFileBlob,
+      clearAllFiles,
       cleanupOrphanedTemporaryFiles,
     }),
     [
@@ -496,6 +549,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       deleteFile,
       makeFilePermanent,
       updateFileBlob,
+      clearAllFiles,
       cleanupOrphanedTemporaryFiles,
     ]
   );

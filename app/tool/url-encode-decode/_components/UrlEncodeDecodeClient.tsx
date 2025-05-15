@@ -57,7 +57,7 @@ export default function UrlEncodeDecodeClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearState: persistentClearState,
+    clearStateAndPersist: persistentClearState,
     errorLoadingState,
   } = useToolState<UrlToolState>(toolRoute, DEFAULT_URL_TOOL_STATE);
 

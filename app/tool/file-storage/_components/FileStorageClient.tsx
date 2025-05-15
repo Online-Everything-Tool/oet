@@ -207,6 +207,7 @@ export default function FileStorageClient({
 
   const handleToggleFilterSelected = useCallback(() => {
     setPersistentState((prev) => ({
+      ...prev,
       isFilterSelectedActive: !prev.isFilterSelectedActive,
     }));
   }, [setPersistentState]);
@@ -254,6 +255,7 @@ export default function FileStorageClient({
         setStoredFiles((prev) => prev.filter((f) => f.id !== fileId));
 
         setPersistentState((prev) => ({
+          ...prev,
           selectedFileIds: prev.selectedFileIds.filter((id) => id !== fileId),
         }));
       } catch (err) {
@@ -286,7 +288,7 @@ export default function FileStorageClient({
     setError(null);
     setIsProcessing(true);
     try {
-      await clearAllFiles(false);
+      await clearAllFiles();
       loadAndDisplayFiles();
 
       setPersistentState({
@@ -367,7 +369,7 @@ export default function FileStorageClient({
         const newSelected = new Set(prev.selectedFileIds);
         if (newSelected.has(fileId)) newSelected.delete(fileId);
         else newSelected.add(fileId);
-        return { selectedFileIds: Array.from(newSelected) };
+        return { ...prev, selectedFileIds: Array.from(newSelected) };
       });
     },
     [setPersistentState]
