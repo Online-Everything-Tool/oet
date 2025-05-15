@@ -1,7 +1,10 @@
 {
   "title": "Password Generator",
   "description": "Generate strong, random passwords with customizable options.",
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "none"

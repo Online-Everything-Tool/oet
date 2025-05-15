@@ -13,7 +13,10 @@
       "defaultValue": "MD5"
     }
   ],
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/*"],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",

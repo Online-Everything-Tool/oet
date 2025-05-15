@@ -13,11 +13,10 @@
       "defaultValue": ""
     }
   ],
-  "inputConfig": [
-    {
-      "acceptsMimeTypes": ["text/plain"]
-    }
-  ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "none"

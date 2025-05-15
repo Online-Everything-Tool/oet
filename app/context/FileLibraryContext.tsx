@@ -9,9 +9,16 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import { getDbInstance, type OetDatabase } from '../lib/db';
+import { getDbInstance } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
+import { useMetadata } from './MetadataContext';
+import type {
+  InputConfig,
+  StateFiles,
+  ToolMetadata,
+  TransferableOutputDetails,
+} from '@/src/types/tools';
 
 interface FileLibraryFunctions {
   listFiles: (
@@ -26,11 +33,12 @@ interface FileLibraryFunctions {
     isTemporary?: boolean,
     toolRoute?: string
   ) => Promise<string>;
-  deleteFile: (id: string) => Promise<void>;
-  clearAllFiles: (includeTemporary?: boolean) => Promise<void>;
-  cleanupTemporaryFiles: () => Promise<void>;
+  deleteFile: (id: string) => Promise<void>; // For direct, unconditional deletes
   makeFilePermanent: (id: string) => Promise<void>;
   updateFileBlob: (id: string, newBlob: Blob) => Promise<void>;
+  cleanupOrphanedTemporaryFiles: (
+    fileIdsToPotentiallyDelete?: string[]
+  ) => Promise<{ deletedCount: number; candidatesChecked: number }>;
 }
 
 interface FileLibraryContextValue extends FileLibraryFunctions {
@@ -56,23 +64,22 @@ interface FileLibraryProviderProps {
 export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const { toolMetadataMap, isLoading: isLoadingMetadata } = useMetadata();
 
   const listFiles = useCallback(
     async (
       limit: number = 50,
       includeTemporary: boolean = false
     ): Promise<StoredFile[]> => {
-      let db: OetDatabase | null = null;
+      let db;
       try {
         db = getDbInstance();
-      } catch (e: unknown) {
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(`Database unavailable: ${msg}`);
+        console.error(`[FileLibrary ListFiles] DB Error: ${msg}`, e);
         return [];
       }
-
       setLoading(true);
       setError(null);
       try {
@@ -86,9 +93,10 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
           collection = collection.filter((file) => file.isTemporary !== true);
         }
         return await collection.limit(limit).toArray();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to list files: ${message}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to list files: ${msg}`);
+        console.error(`[FileLibrary ListFiles] Query Error: ${msg}`, err);
         return [];
       } finally {
         setLoading(false);
@@ -100,21 +108,26 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const getFile = useCallback(
     async (id: string): Promise<StoredFile | undefined> => {
       setError(null);
-      let db: OetDatabase | null = null;
+      let db;
       try {
         db = getDbInstance();
-      } catch (e: unknown) {
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(`Database unavailable: ${msg}`);
+        console.error(`[FileLibrary GetFile] DB Error for ID ${id}: ${msg}`, e);
         return undefined;
       }
       try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
+        if (!db?.files)
+          throw new Error("Database 'files' table is not available.");
         return await db.files.get(id);
-      } catch (err: unknown) {
-        const m = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to get file: ${m}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to get file ID ${id}: ${msg}`);
+        console.error(
+          `[FileLibrary GetFile] Query Error for ID ${id}: ${msg}`,
+          err
+        );
         return undefined;
       }
     },
@@ -132,27 +145,34 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       setLoading(true);
       setError(null);
       const id = uuidv4();
-      let db: OetDatabase | null = null;
+      let db;
       try {
         db = getDbInstance();
         if (!db?.files)
           throw new Error("Database 'files' table is not available.");
         const newFile: StoredFile = {
-          id: id,
-          name: name,
-          type: type,
+          id,
+          name,
+          type,
           size: blob.size,
-          blob: blob,
+          blob,
           createdAt: new Date(),
           lastModified: new Date(),
-          isTemporary: isTemporary,
-          ...(toolRoute && { toolRoute: toolRoute }),
+          isTemporary,
+          ...(toolRoute && { toolRoute }),
         };
         await db.files.add(newFile);
+        console.log(
+          `[FileLibrary AddFile] Added file: ${name} (ID: ${id}), Temporary: ${isTemporary}`
+        );
         return id;
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to add file: ${message}`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to add file ${name}: ${msg}`);
+        console.error(
+          `[FileLibrary AddFile] Error adding file ${name}: ${msg}`,
+          err
+        );
         throw err;
       } finally {
         setLoading(false);
@@ -164,19 +184,28 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const makeFilePermanent = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
-    let db: OetDatabase | null = null;
+    let db;
     try {
       db = getDbInstance();
-      if (!db?.files) throw new Error("DB 'files' table not available.");
+      if (!db?.files)
+        throw new Error("Database 'files' table is not available.");
       const count = await db.files.update(id, {
         isTemporary: false,
         lastModified: new Date(),
       });
-      if (count === 0)
-        console.warn(`makeFilePermanent: File ID ${id} not found.`);
-    } catch (err: unknown) {
-      const m = err instanceof Error ? err.message : 'Unknown DB error';
-      setError(`Failed to make file permanent: ${m}`);
+      if (count > 0)
+        console.log(`[FileLibrary MakePermanent] File ${id} made permanent.`);
+      else
+        console.warn(
+          `[FileLibrary MakePermanent] File ${id} not found or not updated.`
+        );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to make file ${id} permanent: ${msg}`);
+      console.error(
+        `[FileLibrary MakePermanent] Error for ID ${id}: ${msg}`,
+        err
+      );
       throw err;
     } finally {
       setLoading(false);
@@ -187,20 +216,29 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     async (id: string, newBlob: Blob): Promise<void> => {
       setLoading(true);
       setError(null);
-      let db: OetDatabase | null = null;
+      let db;
       try {
         db = getDbInstance();
-        if (!db?.files) throw new Error("DB 'files' table not available.");
+        if (!db?.files)
+          throw new Error("Database 'files' table is not available.");
         const count = await db.files.update(id, {
           blob: newBlob,
           size: newBlob.size,
           lastModified: new Date(),
         });
-        if (count === 0)
-          console.warn(`updateFileBlob: File ID ${id} not found.`);
-      } catch (err: unknown) {
-        const m = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to update file blob: ${m}`);
+        if (count > 0)
+          console.log(`[FileLibrary UpdateBlob] Blob updated for file ${id}.`);
+        else
+          console.warn(
+            `[FileLibrary UpdateBlob] File ${id} not found or not updated.`
+          );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to update blob for file ${id}: ${msg}`);
+        console.error(
+          `[FileLibrary UpdateBlob] Error for ID ${id}: ${msg}`,
+          err
+        );
         throw err;
       } finally {
         setLoading(false);
@@ -212,161 +250,241 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const deleteFile = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     setError(null);
-    let db: OetDatabase | null = null;
+    let db;
     try {
       db = getDbInstance();
-    } catch (e: unknown) {
-      setLoading(false);
-      setError(
-        `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-      );
-      throw e;
-    }
-
-    if (!db) {
-      setLoading(false);
-      throw new Error(
-        'Database instance is null, cannot proceed with deleteFile.'
-      );
-    }
-
-    try {
-      if (!db?.files) throw new Error("DB 'files' table not available.");
-
-      const stateFiles = await db.files
-        .where({ type: 'application/x-oet-tool-state+json' })
-        .toArray();
-      for (const stateFile of stateFiles) {
-        try {
-          const stateBlob = stateFile.blob;
-          if (!stateBlob) continue;
-          const stateText = await stateBlob.text();
-          const state = JSON.parse(stateText);
-          let updated = false;
-          const checkAndUpdateIds = (key: string) => {
-            /* ... includes logic ... */
-            if (Array.isArray(state[key]) && state[key].includes(id)) {
-              state[key] = state[key].filter((fileId: string) => fileId !== id);
-              updated = true;
-            }
-          };
-          checkAndUpdateIds('inputImageIds');
-          checkAndUpdateIds('inputFileIds');
-          if (updated) {
-            const newStateBlob = new Blob([JSON.stringify(state)], {
-              type: 'application/x-oet-tool-state+json',
-            });
-            await db.files.update(stateFile.id, {
-              blob: newStateBlob,
-              size: newStateBlob.size,
-              lastModified: new Date(),
-            });
-          }
-        } catch (stateErr) {
-          console.error(
-            `Error processing state file ${stateFile.id}:`,
-            stateErr
-          );
-        }
-      }
-
+      if (!db?.files)
+        throw new Error("Database 'files' table is not available.");
       await db.files.delete(id);
-    } catch (err: unknown) {
-      const m = err instanceof Error ? err.message : 'Unknown DB error';
-      setError(`Failed to delete file: ${m}`);
+      console.log(`[FileLibrary DeleteFile] Directly deleted file: ${id}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to delete file ${id}: ${msg}`);
+      console.error(
+        `[FileLibrary DeleteFile] Error deleting file ${id}: ${msg}`,
+        err
+      );
       throw err;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const clearAllFiles = useCallback(
-    async (includeTemporary: boolean = false): Promise<void> => {
+  const cleanupOrphanedTemporaryFiles = useCallback(
+    async (
+      fileIdsToPotentiallyDelete?: string[]
+    ): Promise<{ deletedCount: number; candidatesChecked: number }> => {
+      if (isLoadingMetadata) {
+        console.warn(
+          '[FileLibCleanup] Metadata not loaded yet, skipping cleanup.'
+        );
+        return { deletedCount: 0, candidatesChecked: 0 };
+      }
+      if (Object.keys(toolMetadataMap).length === 0 && !isLoadingMetadata) {
+        console.warn(
+          '[FileLibCleanup] No tool metadata available. Ensure MetadataProvider is above FileLibraryProvider and functional.'
+        );
+        return { deletedCount: 0, candidatesChecked: 0 };
+      }
+
+      console.log(
+        '[FileLibCleanup] Starting. Specific IDs to check first (if any):',
+        fileIdsToPotentiallyDelete
+      );
       setLoading(true);
       setError(null);
-      let db: OetDatabase | null = null;
-      try {
-        db = getDbInstance();
-      } catch (e: unknown) {
-        setLoading(false);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        throw e;
-      }
-
-      if (!db) {
-        setLoading(false);
-        throw new Error(
-          'Database instance is null, cannot proceed with deleteFile.'
-        );
-      }
+      let deletedCount = 0;
+      let initialCandidateCount = 0;
 
       try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
+        const db = getDbInstance();
+        if (!db?.files)
+          throw new Error("Database 'files' table not available.");
 
-        let collectionToClear = db.files.filter(
-          (file) => file.type !== 'application/x-oet-tool-state+json'
-        );
-        if (!includeTemporary) {
-          collectionToClear = collectionToClear.filter(
-            (file) => file.isTemporary !== true
+        let tempFilesToVerify: StoredFile[];
+        if (
+          fileIdsToPotentiallyDelete &&
+          fileIdsToPotentiallyDelete.length > 0
+        ) {
+          const validIds = fileIdsToPotentiallyDelete.filter(
+            (id) => typeof id === 'string' && id.trim() !== ''
+          );
+          initialCandidateCount = validIds.length;
+          if (initialCandidateCount === 0) {
+            console.log(
+              '[FileLibCleanup] No valid file IDs provided in fileIdsToPotentiallyDelete.'
+            );
+            setLoading(false);
+            return { deletedCount: 0, candidatesChecked: 0 };
+          }
+          const potentialFiles = (await db.files.bulkGet(validIds)).filter(
+            (f) => f !== undefined
+          ) as StoredFile[];
+          tempFilesToVerify = potentialFiles.filter(
+            (file) =>
+              file.isTemporary === true &&
+              file.type !== 'application/x-oet-tool-state+json'
+          );
+          console.log(
+            `[FileLibCleanup] From ${initialCandidateCount} provided IDs, found ${tempFilesToVerify.length} temporary files to verify.`
+          );
+        } else {
+          tempFilesToVerify = await db.files
+            .where('isTemporary')
+            .equals(true as any)
+            .and((file) => file.type !== 'application/x-oet-tool-state+json')
+            .toArray();
+          initialCandidateCount = tempFilesToVerify.length;
+          console.log(
+            `[FileLibCleanup] Full sweep: Found ${tempFilesToVerify.length} total temporary files to verify.`
           );
         }
-        const keysToDelete = await collectionToClear.primaryKeys();
 
-        if (keysToDelete.length > 0) {
-          await db.files.bulkDelete(keysToDelete);
+        if (tempFilesToVerify.length === 0) {
+          console.log(
+            '[FileLibCleanup] No temporary file candidates to verify.'
+          );
+          setLoading(false);
+          return { deletedCount: 0, candidatesChecked: initialCandidateCount };
+        }
+
+        const orphanedTempFileIds = new Set<string>(
+          tempFilesToVerify.map((f) => f.id)
+        );
+        console.log(
+          `[FileLibCleanup] Initial candidates for deletion if not in use: ${orphanedTempFileIds.size} IDs`
+        );
+
+        const allToolDirectives = Object.keys(toolMetadataMap);
+        for (const directive of allToolDirectives) {
+          if (orphanedTempFileIds.size === 0) {
+            console.log(
+              '[FileLibCleanup] All candidates verified as in use. Short-circuiting state scan.'
+            );
+            break;
+          }
+
+          const metadata: ToolMetadata | undefined = toolMetadataMap[directive];
+          if (!metadata?.inputConfig?.stateFiles) continue;
+
+          const stateFileId = `state-/tool/${directive}`;
+          try {
+            const toolStateFile = await db.files.get(stateFileId);
+            if (toolStateFile?.blob) {
+              const stateJson = await toolStateFile.blob.text();
+              const toolCurrentState = JSON.parse(stateJson) as Record<
+                string,
+                any
+              >;
+
+              for (const stateFileRef of metadata.inputConfig.stateFiles) {
+                // stateFiles is StateFiles[]
+                if (stateFileRef.dataType === 'none') continue;
+
+                // stateFileRef is InputFileDetails (which extends FileDetails)
+                // It always has dataType: 'fileReference'
+                if (stateFileRef.arrayStateKey) {
+                  // Array of objects, each object containing fileIdStateKey
+                  if (
+                    Array.isArray(toolCurrentState[stateFileRef.arrayStateKey])
+                  ) {
+                    (
+                      toolCurrentState[stateFileRef.arrayStateKey] as any[]
+                    ).forEach((item) => {
+                      if (
+                        item &&
+                        typeof item === 'object' &&
+                        item[stateFileRef.fileIdStateKey] &&
+                        orphanedTempFileIds.has(
+                          item[stateFileRef.fileIdStateKey] as string
+                        )
+                      ) {
+                        orphanedTempFileIds.delete(
+                          item[stateFileRef.fileIdStateKey] as string
+                        );
+                      }
+                    });
+                  }
+                } else {
+                  // Single file ID directly in fileIdStateKey
+                  if (toolCurrentState[stateFileRef.fileIdStateKey]) {
+                    const idInState = toolCurrentState[
+                      stateFileRef.fileIdStateKey
+                    ] as string;
+                    if (idInState && orphanedTempFileIds.has(idInState))
+                      orphanedTempFileIds.delete(idInState);
+                  }
+                }
+              }
+
+              const outputContent = metadata.outputConfig?.transferableContent;
+              if (outputContent) {
+                if (
+                  outputContent.dataType === 'fileReference' &&
+                  outputContent.fileIdStateKey &&
+                  toolCurrentState[outputContent.fileIdStateKey]
+                ) {
+                  const idInState = toolCurrentState[
+                    outputContent.fileIdStateKey
+                  ] as string;
+                  if (idInState && orphanedTempFileIds.has(idInState))
+                    orphanedTempFileIds.delete(idInState);
+                } else if (
+                  outputContent.dataType === 'selectionReferenceList' &&
+                  outputContent.selectionStateKey &&
+                  Array.isArray(
+                    toolCurrentState[outputContent.selectionStateKey]
+                  )
+                ) {
+                  (
+                    toolCurrentState[
+                      outputContent.selectionStateKey
+                    ] as string[]
+                  ).forEach((id) => {
+                    if (id && orphanedTempFileIds.has(id))
+                      orphanedTempFileIds.delete(id);
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(
+              `[FileLibCleanup] Error processing state for tool ${directive}:`,
+              e
+            );
+          }
+        }
+        console.log(
+          `[FileLibCleanup] After checking all states, ${orphanedTempFileIds.size} IDs remain as potential orphans.`
+        );
+
+        if (orphanedTempFileIds.size > 0) {
+          const idsToDeleteArray = Array.from(orphanedTempFileIds);
+          await db.files.bulkDelete(idsToDeleteArray);
+          deletedCount = idsToDeleteArray.length;
+          console.log(
+            `[FileLibCleanup] Successfully deleted ${deletedCount} orphaned temporary files:`,
+            idsToDeleteArray
+          );
+        } else {
+          console.log(
+            '[FileLibCleanup] No orphaned temporary files from candidates were ultimately deleted.'
+          );
         }
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to clear files: ${message}`);
-        throw err;
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Unknown DB error during cleanup';
+        setError(`Cleanup failed: ${message}`);
+        console.error('[FileLibCleanup] Error:', err);
       } finally {
         setLoading(false);
       }
+      return { deletedCount, candidatesChecked: initialCandidateCount };
     },
-    []
+    [toolMetadataMap, isLoadingMetadata]
   );
-
-  const cleanupTemporaryFiles = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    let db: OetDatabase | null = null;
-    try {
-      db = getDbInstance();
-      if (!db?.files) throw new Error("DB 'files' table not available.");
-
-      const allTempFiles = await db.files
-        .filter((file) => file.isTemporary === true)
-        .toArray();
-      const tempStateFiles = allTempFiles.filter(
-        (file) => file.type === 'application/x-oet-tool-state+json'
-      );
-      const tempOutputFiles = allTempFiles.filter(
-        (file) => file.type !== 'application/x-oet-tool-state+json'
-      );
-      const outputFilesToDelete = tempOutputFiles.map((file) => file.id);
-      const stateFilesToDelete = tempStateFiles.map((file) => file.id);
-      const allTempKeysToDelete = [
-        ...new Set([...outputFilesToDelete, ...stateFilesToDelete]),
-      ];
-
-      if (allTempKeysToDelete.length > 0) {
-        await db.files.bulkDelete(allTempKeysToDelete);
-        console.log(
-          `[Cleanup] Deleted ${allTempKeysToDelete.length} temporary files.`
-        );
-      } else {
-        console.log('[Cleanup] No temporary files needed cleanup.');
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unknown DB error';
-      console.error('[Cleanup] Error during temporary file cleanup:', message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   const functions = useMemo(
     () => ({
@@ -374,20 +492,18 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       getFile,
       addFile,
       deleteFile,
-      clearAllFiles,
-      cleanupTemporaryFiles,
       makeFilePermanent,
       updateFileBlob,
+      cleanupOrphanedTemporaryFiles,
     }),
     [
       listFiles,
       getFile,
       addFile,
       deleteFile,
-      clearAllFiles,
-      cleanupTemporaryFiles,
       makeFilePermanent,
       updateFileBlob,
+      cleanupOrphanedTemporaryFiles,
     ]
   );
 

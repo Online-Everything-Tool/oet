@@ -40,11 +40,9 @@ export default function useItdeTargetHandler({
 
   const refreshRawSignals = useCallback(() => {
     if (!targetToolDirective) {
-      console.log('targetToolDirective not defined');
       return;
     }
     const signals = getSourceSignalsForTarget(targetToolDirective);
-    console.log('signals:', signals);
     setRawSignals(signals);
   }, [targetToolDirective]);
 

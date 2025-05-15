@@ -13,7 +13,10 @@
       "defaultValue": "encode"
     }
   ],
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",

@@ -18,11 +18,10 @@
       "defaultValue": "#dc2626"
     }
   ],
-  "inputConfig": [
-    {
-      "acceptsMimeTypes": ["text/plain"]
-    }
-  ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",

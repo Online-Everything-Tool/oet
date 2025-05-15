@@ -8,7 +8,10 @@
       "defaultValue": "bitcoin"
     }
   ],
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "none"

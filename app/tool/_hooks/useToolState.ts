@@ -1,24 +1,23 @@
-// --- FILE: app/tool/_hooks/useToolState.ts --- [MODIFIED FOR DEBUGGING]
+// FILE: app/tool/_hooks/useToolState.ts
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
-import { useFileLibrary } from '@/app/context/FileLibraryContext';
-import { getDbInstance, OetDatabase } from '@/app/lib/db';
+import { getDbInstance, OetDatabase } from '@/app/lib/db'; // Assuming OetDatabase type is useful
 import type { StoredFile } from '@/src/types/storage';
 import { safeParseState } from '@/app/lib/utils';
-import Dexie from 'dexie';
+import Dexie from 'dexie'; // For Dexie.ModifyError if needed for specific error handling
 
 const SAVE_DEBOUNCE_MS = 1500;
 
 export interface UseToolStateReturn<T> {
   state: T;
-  setState: (newState: Partial<T> | ((prevState: T) => Partial<T>)) => void;
-  saveState: (stateToSave: T) => Promise<void>;
+  setState: (newState: Partial<T> | ((prevState: T) => T)) => void; // setState can now also take full state
+  saveStateNow: (optionalNewState?: T) => Promise<void>; // Saves current or provided state immediately
   isLoadingState: boolean;
-  isPersistent: boolean;
-  togglePersistence: () => Promise<void>;
-  clearState: () => Promise<void>;
+  isPersistent: boolean; // This might be better named something like 'isStateSavedToDexie'
+  togglePersistence: () => Promise<void>; // This function might need careful re-evaluation
+  clearStateAndPersist: () => Promise<void>; // Specific function for clearing and ensuring save
   errorLoadingState: string | null;
 }
 
@@ -26,114 +25,154 @@ export default function useToolState<T extends object>(
   toolRoute: string,
   defaultState: T
 ): UseToolStateReturn<T> {
-  const { getFile, deleteFile } = useFileLibrary();
-
   const [internalState, setInternalState] = useState<T>(defaultState);
+  const internalStateRef = useRef<T>(defaultState); // Ref to hold the latest state for immediate saves
   const [isLoadingState, setIsLoadingState] = useState<boolean>(true);
-  const [isPersistent, setIsPersistent] = useState<boolean>(true);
-  const [stateFileId] = useState<string>(`state-${toolRoute}`);
+  const [isPersistent, setIsPersistent] = useState<boolean>(true); // Tracks if the *current state in Dexie* is permanent or temporary
+  const stateFileId = useMemo(() => `state-${toolRoute}`, [toolRoute]);
   const [errorLoadingState, setErrorLoadingState] = useState<string | null>(
     null
   );
-  const isInitialized = useRef(false);
-  const isPersistentRef = useRef(isPersistent);
+
+  const isInitialized = useRef(false); // Tracks if initial load from Dexie is complete
   const defaultStateRef = useRef(defaultState);
 
   useEffect(() => {
+    // Keep refs in sync with state
+    internalStateRef.current = internalState;
     defaultStateRef.current = defaultState;
-  }, [defaultState]);
+  }, [internalState, defaultState]);
+
+  // Internal save function (the actual Dexie interaction)
+  const _saveStateToDexie = useCallback(
+    async (stateToPersist: T, makeTemporary: boolean) => {
+      console.log(
+        `[useToolState ${toolRoute}] _saveStateToDexie called. State:`,
+        stateToPersist,
+        `MakeTemporary: ${makeTemporary}`
+      );
+      const stateToSaveString = JSON.stringify(stateToPersist);
+      const defaultStateString = JSON.stringify(defaultStateRef.current);
+
+      try {
+        const db = getDbInstance();
+        if (stateToSaveString === defaultStateString && !makeTemporary) {
+          // Only delete if it's default AND we're not trying to make it temp
+          const existingFile = await db.files.get(stateFileId);
+          if (existingFile) {
+            console.log(
+              `[useToolState ${toolRoute}] State matches default, deleting existing file ${stateFileId}.`
+            );
+            await db.files.delete(stateFileId);
+          }
+          setIsPersistent(true); // Default state is conceptually "permanent" (or rather, not a temporary override)
+          return;
+        }
+
+        const stateBlob = new Blob([stateToSaveString], {
+          type: 'application/x-oet-tool-state+json',
+        });
+        const stateName = `State: ${toolRoute.split('/').pop() || 'unknown'}`;
+        const now = new Date();
+
+        const existingFile = await db.files.get(stateFileId);
+        const createdAt = existingFile?.createdAt || now;
+
+        const stateFileObject: StoredFile = {
+          id: stateFileId,
+          name: stateName,
+          type: 'application/x-oet-tool-state+json',
+          size: stateBlob.size,
+          blob: stateBlob,
+          isTemporary: makeTemporary, // Use the flag
+          toolRoute: toolRoute,
+          createdAt: createdAt,
+          lastModified: now,
+        };
+        await db.files.put(stateFileObject);
+        setIsPersistent(!makeTemporary); // Update persistence status
+        console.log(
+          `[useToolState ${toolRoute}] State saved to Dexie. Temporary: ${makeTemporary}. ID: ${stateFileId}`
+        );
+      } catch (saveError) {
+        const msg =
+          saveError instanceof Error ? saveError.message : String(saveError);
+        console.error(
+          `[useToolState ${toolRoute}] Error saving state:`,
+          msg,
+          saveError
+        );
+        setErrorLoadingState(`Failed to save state: ${msg}`);
+      }
+    },
+    [stateFileId, toolRoute /* defaultStateRef is stable */]
+  );
+
+  const debouncedSave = useDebouncedCallback((stateToSave: T) => {
+    if (isInitialized.current) {
+      // Only save if initial load is done
+      _saveStateToDexie(stateToSave, !isPersistentRef.current); // isPersistentRef reflects user's choice
+    }
+  }, SAVE_DEBOUNCE_MS);
+  const isPersistentRef = useRef(isPersistent); // Ref for debouncedSave
   useEffect(() => {
     isPersistentRef.current = isPersistent;
   }, [isPersistent]);
 
+  // Initial load from Dexie
   useEffect(() => {
     let isMounted = true;
     isInitialized.current = false;
     console.log(
-      `[useToolState ${toolRoute}] MOUNT/LOAD EFFECT: Starting load run...`
+      `[useToolState ${toolRoute}] MOUNT/LOAD: Starting initial load.`
     );
     setErrorLoadingState(null);
     setIsLoadingState(true);
 
-    getFile(stateFileId)
+    getDbInstance()
+      .files.get(stateFileId)
       .then(async (file) => {
-        if (!isMounted) {
+        if (!isMounted) return;
+        if (file && file.type === 'application/x-oet-tool-state+json') {
           console.log(
-            `[useToolState ${toolRoute}] LOAD: Aborted (unmounted during getFile).`
+            `[useToolState ${toolRoute}] LOAD: Found state file. isTemporary: ${file.isTemporary}`
           );
-          return;
-        }
-        if (file) {
-          console.log(
-            `[useToolState ${toolRoute}] LOAD: Found file ${file.id}, isTemporary: ${file.isTemporary}, type: ${file.type}`
-          );
-
-          if (file.type !== 'application/x-oet-tool-state+json') {
-            console.warn(
-              `[useToolState ${toolRoute}] LOAD: Found file with ID ${stateFileId}, but type is incorrect ('${file.type}'). Ignoring.`
-            );
-            setInternalState(defaultStateRef.current);
-            setIsPersistent(true);
-            return;
-          }
-
-          const loadedPersistence = file.isTemporary !== true;
-          setIsPersistent(loadedPersistence);
+          setIsPersistent(file.isTemporary !== true);
           try {
             const stateJson = await file.blob?.text();
-
-            console.log(
-              `[useToolState ${toolRoute}] LOAD: Raw blob text read (length: ${stateJson?.length}):\n${stateJson}`
-            );
-
-            if (stateJson === undefined || stateJson === null) {
-              console.warn(
-                `[useToolState ${toolRoute}] LOAD: Blob text was undefined/null.`
-              );
+            if (stateJson === undefined || stateJson === null)
               throw new Error('Blob content missing');
-            }
             const loadedState = safeParseState(
               stateJson,
               defaultStateRef.current
             );
-            console.log(
-              `[useToolState ${toolRoute}] LOAD: Parsed state:`,
-              loadedState
-            );
             setInternalState(loadedState);
           } catch (readError) {
-            console.error(
-              `[useToolState ${toolRoute}] LOAD: Error reading/parsing blob:`,
-              readError
-            );
-            setErrorLoadingState(
-              `Failed to read saved state: ${readError instanceof Error ? readError.message : 'Unknown error'}`
-            );
-            setInternalState(defaultStateRef.current);
-            setIsPersistent(true);
+            const msg =
+              readError instanceof Error
+                ? readError.message
+                : String(readError);
+            setErrorLoadingState(`Failed to read saved state: ${msg}`);
+            setInternalState(defaultStateRef.current); // Fallback to default
+            setIsPersistent(true); // Default to persistent on error
           }
         } else {
-          console.log(
-            `[useToolState ${toolRoute}] LOAD: No state file found (ID: ${stateFileId}). Using default.`
-          );
+          if (file)
+            console.warn(
+              `[useToolState ${toolRoute}] LOAD: Found file for state but type mismatch: ${file.type}. Using default.`
+            );
+          else
+            console.log(
+              `[useToolState ${toolRoute}] LOAD: No state file found. Using default.`
+            );
           setInternalState(defaultStateRef.current);
-          setIsPersistent(true);
+          setIsPersistent(true); // Default state implies it's persistent unless made temporary
         }
       })
       .catch((err) => {
-        if (!isMounted) {
-          console.log(
-            `[useToolState ${toolRoute}] LOAD: Aborted (unmounted during getFile catch).`
-          );
-          return;
-        }
-        const message =
-          err instanceof Error ? err.message : 'Unknown DB error during load';
-        console.error(
-          `[useToolState ${toolRoute}] LOAD: Error calling getFile:`,
-          err
-        );
-        setErrorLoadingState(`Error loading saved state: ${message}`);
+        if (!isMounted) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        setErrorLoadingState(`Error loading state: ${msg}`);
         setInternalState(defaultStateRef.current);
         setIsPersistent(true);
       })
@@ -142,210 +181,124 @@ export default function useToolState<T extends object>(
           setIsLoadingState(false);
           isInitialized.current = true;
           console.log(
-            `[useToolState ${toolRoute}] LOAD: Effect run finished. isInitialized=${isInitialized.current}. isPersistent=${isPersistentRef.current}`
-          );
-        } else {
-          console.log(
-            `[useToolState ${toolRoute}] LOAD: Finally block on unmounted component.`
+            `[useToolState ${toolRoute}] LOAD: Initial load finished. isInitialized: true, isPersistent (from loaded file): ${isPersistentRef.current}`
           );
         }
       });
-
     return () => {
       isMounted = false;
-      console.log(`[useToolState ${toolRoute}] CLEANUP/UNMOUNT load effect.`);
     };
-  }, [stateFileId, getFile, toolRoute]);
+  }, [stateFileId, toolRoute /* defaultStateRef is stable */]);
 
-  const saveState = useCallback(
-    async (stateToSave: T) => {
-      const currentPersistenceFlag = isPersistentRef.current;
+  const setState = useCallback(
+    (newStateOrFn: Partial<T> | ((prevState: T) => T)) => {
+      setInternalState((prevState) => {
+        const updatedState =
+          typeof newStateOrFn === 'function'
+            ? newStateOrFn(prevState)
+            : { ...prevState, ...newStateOrFn };
 
-      if (!isInitialized.current) {
+        if (JSON.stringify(prevState) !== JSON.stringify(updatedState)) {
+          internalStateRef.current = updatedState; // Keep ref updated for immediate saves
+          if (isInitialized.current) debouncedSave(updatedState); // Debounce normal state changes after init
+          return updatedState;
+        }
+        return prevState;
+      });
+    },
+    [debouncedSave]
+  );
+
+  const saveStateNow = useCallback(
+    async (optionalNewState?: T) => {
+      if (!isInitialized.current && !optionalNewState) {
         console.warn(
-          `[useToolState ${toolRoute}] SAVE: Skipping save (hook not initialized yet).`
+          `[useToolState ${toolRoute}] saveStateNow called before initialization without explicit state. Saving default.`
+        );
+        // If called very early without a state, it might save the default if internalStateRef isn't updated yet.
+        // Or, ensure internalStateRef is always up-to-date or error out.
+        // Forcing a save of default if not initialized might be a safe bet if this scenario is hit.
+        await _saveStateToDexie(
+          defaultStateRef.current,
+          !isPersistentRef.current
         );
         return;
       }
-
-      try {
-        console.log(
-          `[useToolState ${toolRoute}] SAVE: State object about to be stringified (isPersistent=${currentPersistenceFlag}):`,
-          JSON.parse(JSON.stringify(stateToSave))
-        );
-      } catch (logError) {
-        console.warn(
-          `[useToolState ${toolRoute}] SAVE: Could not deep-clone state for logging`,
-          logError
-        );
-        console.log(
-          `[useToolState ${toolRoute}] SAVE: State object reference (may be mutated):`,
-          stateToSave
-        );
+      debouncedSave.cancel();
+      const stateToPersist =
+        optionalNewState !== undefined
+          ? optionalNewState
+          : internalStateRef.current;
+      // If optionalNewState is provided, also update React state if it's different
+      if (
+        optionalNewState !== undefined &&
+        JSON.stringify(internalStateRef.current) !==
+          JSON.stringify(optionalNewState)
+      ) {
+        setInternalState(optionalNewState); // Update React state too
+        internalStateRef.current = optionalNewState;
       }
-
-      const stateToSaveString = JSON.stringify(stateToSave);
-      const defaultStateString = JSON.stringify(defaultStateRef.current);
-
-      try {
-        const db: OetDatabase | null = getDbInstance();
-        if (!db) throw new Error('DB instance not available for save');
-
-        if (stateToSaveString === defaultStateString) {
-          const existingFile = await db.files.get(stateFileId);
-          if (existingFile) {
-            console.log(
-              `[useToolState ${toolRoute}] SAVE: State matches default, deleting existing file ${stateFileId}.`
-            );
-            await deleteFile(stateFileId);
-          } else {
-          }
-          return;
-        }
-
-        console.log(
-          `[useToolState ${toolRoute}] SAVE: Saving non-default state via PUT (isPersistent=${currentPersistenceFlag}).`
-        );
-        const stateBlob = new Blob([stateToSaveString], {
-          type: 'application/x-oet-tool-state+json',
-        });
-        const stateName = `State: ${toolRoute.split('/tool/')[1]?.replace(/\/$/, '') || 'unknown'}`;
-        const targetIsTemporary = !currentPersistenceFlag;
-        const now = new Date();
-
-        const stateFileObject: StoredFile = {
-          id: stateFileId,
-          name: stateName,
-          type: 'application/x-oet-tool-state+json',
-          size: stateBlob.size,
-          blob: stateBlob,
-          isTemporary: targetIsTemporary,
-          toolRoute: toolRoute,
-          createdAt: now,
-          lastModified: now,
-        };
-
-        const existingFile = await db.files.get(stateFileId);
-        if (existingFile?.createdAt) {
-          stateFileObject.createdAt = existingFile.createdAt;
-        } else {
-        }
-
-        await db.files.put(stateFileObject);
-      } catch (saveError) {
-        console.error(
-          `[useToolState ${toolRoute}] SAVE: Error saving state:`,
-          saveError
-        );
-
-        if (!errorLoadingState) {
-          setErrorLoadingState(
-            `Failed to save state: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`
-          );
-        }
-      }
+      await _saveStateToDexie(stateToPersist, !isPersistentRef.current); // Save with current persistence setting
     },
-    [stateFileId, toolRoute, deleteFile, errorLoadingState]
-  );
-
-  const debouncedSaveState = useDebouncedCallback((currentState: T) => {
-    saveState(currentState);
-  }, SAVE_DEBOUNCE_MS);
-
-  const setState = useCallback(
-    (newStateOrFn: Partial<T> | ((prevState: T) => Partial<T>)) => {
-      setInternalState((prevState) => {
-        const partialNewState =
-          typeof newStateOrFn === 'function'
-            ? newStateOrFn(prevState)
-            : newStateOrFn;
-
-        if (Object.keys(partialNewState || {}).length === 0) {
-          return prevState;
-        }
-        const mergedState = { ...prevState, ...partialNewState };
-
-        if (JSON.stringify(prevState) !== JSON.stringify(mergedState)) {
-          debouncedSaveState(mergedState);
-          return mergedState;
-        } else {
-          return prevState;
-        }
-      });
-    },
-    [debouncedSaveState]
+    [
+      _saveStateToDexie,
+      debouncedSave,
+      toolRoute /* defaultStateRef, isPersistentRef are stable */,
+    ]
   );
 
   const togglePersistence = useCallback(async () => {
     if (isLoadingState) {
       console.warn(
-        `[useToolState ${toolRoute}] TOGGLE: Skipping toggle, still loading state.`
+        `[useToolState ${toolRoute}] Toggle persistence skipped: still loading.`
       );
       return;
     }
-    const newPersistenceFlag = !isPersistentRef.current;
-    setIsPersistent(newPersistenceFlag);
-
+    const newPersistedFlag = !isPersistentRef.current;
+    // The state to save is the current internalState. We are just changing its temporary flag.
+    // No need to call setInternalState here as the content isn't changing.
+    debouncedSave.cancel();
+    await _saveStateToDexie(internalStateRef.current, !newPersistedFlag); // Pass inverse: makeTemporary = !newPersistedFlag
+    // setIsPersistent(newPersistedFlag); // _saveStateToDexie will call setIsPersistent
     console.log(
-      `[useToolState ${toolRoute}] TOGGLE: Toggling persistence to ${newPersistenceFlag}. Triggering immediate save.`
+      `[useToolState ${toolRoute}] Toggled persistence. State in Dexie is now: ${newPersistedFlag ? 'Permanent' : 'Temporary'}`
     );
-    debouncedSaveState.cancel();
+  }, [
+    isLoadingState,
+    _saveStateToDexie,
+    toolRoute,
+    debouncedSave /* internalStateRef, isPersistentRef are stable */,
+  ]);
 
-    try {
-      isPersistentRef.current = newPersistenceFlag;
-      await saveState(internalState);
-    } catch (err) {
-      console.error(
-        `[useToolState ${toolRoute}] TOGGLE: Error during saveState after toggle:`,
-        err
+  const clearStateAndPersist = useCallback(async () => {
+    if (isLoadingState) {
+      console.warn(
+        `[useToolState ${toolRoute}] Clear state skipped: still loading.`
       );
-      setErrorLoadingState('Failed to update persistence setting.');
-
-      setIsPersistent(!newPersistenceFlag);
-      isPersistentRef.current = !newPersistenceFlag;
+      return;
     }
-  }, [isLoadingState, saveState, toolRoute, internalState, debouncedSaveState]);
-
-  const clearState = useCallback(async () => {
-    if (isLoadingState) return;
-    debouncedSaveState.cancel();
-    console.log(`[useToolState ${toolRoute}] CLEAR: Clearing state.`);
-    setInternalState(defaultStateRef.current);
-    setIsPersistent(true);
-    isPersistentRef.current = true;
-    setErrorLoadingState(null);
-    try {
-      await deleteFile(stateFileId).catch((err) => {
-        if (
-          !(
-            err instanceof Dexie.ModifyError &&
-            err.failures.length > 0 &&
-            err.failures[0].name === 'NotFoundError'
-          )
-        ) {
-          console.warn(
-            `[useToolState ${toolRoute}] CLEAR: Delete file error (maybe ok if not found):`,
-            err
-          );
-        }
-      });
-    } catch (err) {
-      console.error(
-        `[useToolState ${toolRoute}] CLEAR: Unexpected error during delete:`,
-        err
-      );
-      setErrorLoadingState('Failed to clear saved state.');
-    }
-  }, [isLoadingState, stateFileId, deleteFile, toolRoute, debouncedSaveState]);
+    debouncedSave.cancel();
+    setInternalState(defaultStateRef.current); // Update React state
+    internalStateRef.current = defaultStateRef.current; // Update ref
+    await _saveStateToDexie(defaultStateRef.current, false); // Save default as permanent (or delete if it matches)
+    console.log(
+      `[useToolState ${toolRoute}] State cleared and default state persisted.`
+    );
+  }, [
+    isLoadingState,
+    _saveStateToDexie,
+    debouncedSave,
+    toolRoute /* defaultStateRef is stable */,
+  ]);
 
   return {
     state: internalState,
     setState,
-    saveState,
+    saveStateNow,
     isLoadingState,
     isPersistent,
     togglePersistence,
-    clearState,
+    clearStateAndPersist,
     errorLoadingState,
   };
 }

@@ -1,7 +1,10 @@
 {
   "title": "Emoji Explorer",
   "description": "Search, filter, and copy emojis from the latest official Unicode emoji dataset.",
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "none"

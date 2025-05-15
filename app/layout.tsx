@@ -96,18 +96,18 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
-        <FileLibraryProvider>
-          <ImageLibraryProvider>
-            <FavoritesProvider>
-              <MetadataProvider>
+        <MetadataProvider>
+          <FileLibraryProvider>
+            <ImageLibraryProvider>
+              <FavoritesProvider>
                 <Header />
                 <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
                   {children}
                 </main>
-              </MetadataProvider>
-            </FavoritesProvider>
-          </ImageLibraryProvider>
-        </FileLibraryProvider>
+              </FavoritesProvider>
+            </ImageLibraryProvider>
+          </FileLibraryProvider>
+        </MetadataProvider>
       </body>
     </html>
   );

@@ -10,7 +10,10 @@
     { "paramName": "s", "type": "string", "defaultValue": "" },
     { "paramName": "l", "type": "string", "defaultValue": "" }
   ],
-  "inputConfig": [],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "jsonObject",

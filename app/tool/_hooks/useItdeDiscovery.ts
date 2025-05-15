@@ -47,7 +47,7 @@ export default function useItdeDiscovery({
 
     allOtherTools.forEach((targetToolMeta: ToolMetadata) => {
       // No longer need to check if targetToolMeta.inputConfig exists, as it's guaranteed.
-      if (targetToolMeta.inputConfig.length === 0) {
+      if (targetToolMeta.inputConfig.acceptsMimeTypes.length === 0) {
         return; // Target tool doesn't accept any input (empty array)
       }
 
@@ -57,23 +57,20 @@ export default function useItdeDiscovery({
 
       if (!targetDirective) return;
 
-      for (const targetInputConfig of targetToolMeta.inputConfig) {
-        if (
-          isOutputCompatibleWithInput(
-            outputDetails,
-            targetInputConfig,
-            selectedOutputItems
-          )
-        ) {
-          compatibleTargets.push({
-            title: targetToolMeta.title,
-            directive: targetDirective,
-            route: `/tool/${targetDirective}/`,
-            description:
-              targetToolMeta.description || 'No description available.',
-          });
-          break;
-        }
+      if (
+        isOutputCompatibleWithInput(
+          outputDetails,
+          targetToolMeta.inputConfig,
+          selectedOutputItems
+        )
+      ) {
+        compatibleTargets.push({
+          title: targetToolMeta.title,
+          directive: targetDirective,
+          route: `/tool/${targetDirective}/`,
+          description:
+            targetToolMeta.description || 'No description available.',
+        });
       }
     });
 

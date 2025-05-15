@@ -12,13 +12,23 @@ export interface DiscoveredTarget {
   description: string;
 }
 
-export interface InputConfig {
-  acceptsMimeTypes: string[];
-}
-
-interface OutputFileDetails {
+interface FileDetails {
   dataType: 'fileReference';
   fileIdStateKey: string;
+}
+
+interface InputFileDetails extends FileDetails {
+  arrayStateKey?: string;
+}
+
+export type StateFiles = InputFileDetails | { dataType: 'none' };
+
+export interface InputConfig {
+  acceptsMimeTypes: string[];
+  stateFiles: StateFiles[];
+}
+
+interface OutputFileDetails extends FileDetails {
   fileCategory: 'image' | 'text' | 'document' | 'archive' | 'other' | '*';
 }
 
@@ -58,7 +68,7 @@ export interface OutputConfig {
 export interface ToolMetadata {
   title: string;
   description: string;
-  inputConfig: InputConfig[];
+  inputConfig: InputConfig;
   outputConfig: OutputConfig;
   urlStateParams?: ParamConfig[];
   tags?: string[];

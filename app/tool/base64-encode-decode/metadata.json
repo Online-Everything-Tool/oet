@@ -13,11 +13,10 @@
       "defaultValue": "encode"
     }
   ],
-  "inputConfig": [
-    {
-      "acceptsMimeTypes": ["text/*"]
-    }
-  ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/*"],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",

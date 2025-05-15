@@ -1,11 +1,16 @@
 {
   "title": "Image Flip",
   "description": "Flips an image horizontally or vertically.",
-  "inputConfig": [
-    {
-      "acceptsMimeTypes": ["image/*"]
-    }
-  ],
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "dataType": "fileReference",
+        "fileIdStateKey": "selectedFileId",
+        "fileCategory": "image"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "fileReference",

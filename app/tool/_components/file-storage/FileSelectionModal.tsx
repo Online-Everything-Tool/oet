@@ -98,7 +98,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     Set<string>
   >(new Set());
   const [saveUploadsPreference, setSaveUploadsPreference] = useState<boolean>(
-    mode === 'addNewFiles' ? true : defaultSaveUploadsToLibrary
+    defaultSaveUploadsToLibrary
   );
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [filterAfterUploadChecked, setFilterAfterUploadChecked] =
@@ -345,7 +345,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         mode === 'addNewFiles' ||
         (!slurpContentOnly && mode === 'selectExistingOrUploadNew') ||
         (slurpContentOnly && saveUploadsPreference);
-
       for (const browserFile of addedFiles) {
         const now = new Date();
         let newFileIdIfPersisted: string | null = null;
@@ -358,7 +357,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               browserFile,
               browserFile.name,
               browserFile.type,
-              isTemporaryForDbWrite
+              !(mode === 'addNewFiles') || !saveUploadsPreference
             );
           } catch (_saveErr) {
             setModalError(

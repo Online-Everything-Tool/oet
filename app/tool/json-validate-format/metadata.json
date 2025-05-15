@@ -1,11 +1,6 @@
 {
   "title": "Json Validate Format",
   "description": "Easily validate and format JSON data.",
-  "inputConfig": [
-    {
-      "acceptsMimeTypes": ["application/json"]
-    }
-  ],
   "urlStateParams": [
     {
       "paramName": "json",
@@ -18,6 +13,10 @@
       "defaultValue": 2
     }
   ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/json"],
+    "stateFiles": [{ "dataType": "none " }]
+  },
   "outputConfig": {
     "transferableContent": {
       "dataType": "text",
