@@ -11,20 +11,20 @@ import { useMetadata } from '@/app/context/MetadataContext';
 
 export interface IncomingSignal {
   sourceDirective: string;
-  sourceToolTitle: string; // Now guaranteed to be resolved
+  sourceToolTitle: string;
 }
 
 interface UseItdeTargetHandlerOptions {
   targetToolDirective: string;
-  // onProcessSignal now takes the specific signal object
+
   onProcessSignal: (signal: IncomingSignal) => void;
 }
 
 export interface UseItdeTargetHandlerReturn {
   isModalOpen: boolean;
-  pendingSignals: IncomingSignal[]; // Array of resolved signal objects
+  pendingSignals: IncomingSignal[];
   openModalIfSignalsExist: () => boolean;
-  closeModal: () => void; // This will be our "defer" action from the modal
+  closeModal: () => void;
   acceptSignal: (sourceDirective: string) => void;
   ignoreSignal: (sourceDirective: string) => void;
   ignoreAllSignals: () => void;
@@ -70,12 +70,11 @@ export default function useItdeTargetHandler({
       setIsModalOpen(true);
       return true;
     }
-    setIsModalOpen(false); // Should not be needed if pendingSignals.length is 0
+    setIsModalOpen(false);
     return false;
   }, [pendingSignals]);
 
   const closeModal = useCallback(() => {
-    // This becomes our "Defer All" action from the modal
     setIsModalOpen(false);
   }, []);
 
@@ -107,7 +106,6 @@ export default function useItdeTargetHandler({
     setIsModalOpen(false);
   }, [targetToolDirective, refreshRawSignals]);
 
-  // Effect to close modal if all signals are cleared by other means (e.g., all ignored/accepted)
   useEffect(() => {
     if (pendingSignals.length === 0 && isModalOpen) {
       setIsModalOpen(false);
@@ -118,7 +116,7 @@ export default function useItdeTargetHandler({
     isModalOpen,
     pendingSignals,
     openModalIfSignalsExist,
-    closeModal, // Will be used as "Defer All (Close)" from the modal
+    closeModal,
     acceptSignal,
     ignoreSignal,
     ignoreAllSignals,

@@ -12,8 +12,8 @@ import { PaperAirplaneIcon, ChevronDownIcon } from '@heroicons/react/20/solid';
 
 interface SendToToolButtonProps {
   currentToolDirective: string;
-  currentToolOutputConfig: OutputConfig; // Assumed to be always provided if button is rendered
-  selectedOutputItems?: StoredFile[]; // For outputs like file-storage with category '*'
+  currentToolOutputConfig: OutputConfig;
+  selectedOutputItems?: StoredFile[];
   buttonText?: string;
   className?: string;
 }

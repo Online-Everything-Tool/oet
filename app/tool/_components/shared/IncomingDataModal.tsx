@@ -14,12 +14,11 @@ import type { IncomingSignal } from '../../_hooks/useItdeTargetHandler';
 
 interface IncomingDataModalProps {
   isOpen: boolean;
-  signals: IncomingSignal[]; // Expects an array of signals
+  signals: IncomingSignal[];
   onAccept: (sourceDirective: string) => void;
   onIgnore: (sourceDirective: string) => void;
-  onDeferAll: () => void; // Renamed from onClose for clarity
+  onDeferAll: () => void;
   onIgnoreAll: () => void;
-  // onClose prop can be removed if onDeferAll serves the same purpose of just closing
 }
 
 export default function IncomingDataModal({
@@ -27,7 +26,7 @@ export default function IncomingDataModal({
   signals,
   onAccept,
   onIgnore,
-  onDeferAll, // Changed from onClose
+  onDeferAll,
   onIgnoreAll,
 }: IncomingDataModalProps) {
   if (!isOpen || signals.length === 0) {
@@ -37,7 +36,7 @@ export default function IncomingDataModal({
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4"
-      onClick={onDeferAll} // General backdrop click defers all
+      onClick={onDeferAll}
       role="dialog"
       aria-modal="true"
       aria-labelledby="incoming-data-title"
@@ -59,7 +58,7 @@ export default function IncomingDataModal({
           <Button
             variant="link"
             size="sm"
-            onClick={onDeferAll} // X button also defers all
+            onClick={onDeferAll}
             aria-label="Close and defer all transfers"
             className="p-1 text-gray-400 hover:text-gray-600"
           >

@@ -3,21 +3,20 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
-import { getDbInstance, OetDatabase } from '@/app/lib/db'; // Assuming OetDatabase type is useful
+import { getDbInstance } from '@/app/lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { safeParseState } from '@/app/lib/utils';
-import Dexie from 'dexie'; // For Dexie.ModifyError if needed for specific error handling
 
 const SAVE_DEBOUNCE_MS = 1500;
 
 export interface UseToolStateReturn<T> {
   state: T;
-  setState: (newState: Partial<T> | ((prevState: T) => T)) => void; // setState can now also take full state
-  saveStateNow: (optionalNewState?: T) => Promise<void>; // Saves current or provided state immediately
+  setState: (newState: Partial<T> | ((prevState: T) => T)) => void;
+  saveStateNow: (optionalNewState?: T) => Promise<void>;
   isLoadingState: boolean;
-  isPersistent: boolean; // This might be better named something like 'isStateSavedToDexie'
-  togglePersistence: () => Promise<void>; // This function might need careful re-evaluation
-  clearStateAndPersist: () => Promise<void>; // Specific function for clearing and ensuring save
+  isPersistent: boolean;
+  togglePersistence: () => Promise<void>;
+  clearStateAndPersist: () => Promise<void>;
   errorLoadingState: string | null;
 }
 
@@ -26,24 +25,22 @@ export default function useToolState<T extends object>(
   defaultState: T
 ): UseToolStateReturn<T> {
   const [internalState, setInternalState] = useState<T>(defaultState);
-  const internalStateRef = useRef<T>(defaultState); // Ref to hold the latest state for immediate saves
+  const internalStateRef = useRef<T>(defaultState);
   const [isLoadingState, setIsLoadingState] = useState<boolean>(true);
-  const [isPersistent, setIsPersistent] = useState<boolean>(true); // Tracks if the *current state in Dexie* is permanent or temporary
+  const [isPersistent, setIsPersistent] = useState<boolean>(true);
   const stateFileId = useMemo(() => `state-${toolRoute}`, [toolRoute]);
   const [errorLoadingState, setErrorLoadingState] = useState<string | null>(
     null
   );
 
-  const isInitialized = useRef(false); // Tracks if initial load from Dexie is complete
+  const isInitialized = useRef(false);
   const defaultStateRef = useRef(defaultState);
 
   useEffect(() => {
-    // Keep refs in sync with state
     internalStateRef.current = internalState;
     defaultStateRef.current = defaultState;
   }, [internalState, defaultState]);
 
-  // Internal save function (the actual Dexie interaction)
   const _saveStateToDexie = useCallback(
     async (stateToPersist: T, makeTemporary: boolean) => {
       console.log(
@@ -57,7 +54,6 @@ export default function useToolState<T extends object>(
       try {
         const db = getDbInstance();
         if (stateToSaveString === defaultStateString && !makeTemporary) {
-          // Only delete if it's default AND we're not trying to make it temp
           const existingFile = await db.files.get(stateFileId);
           if (existingFile) {
             console.log(
@@ -65,7 +61,7 @@ export default function useToolState<T extends object>(
             );
             await db.files.delete(stateFileId);
           }
-          setIsPersistent(true); // Default state is conceptually "permanent" (or rather, not a temporary override)
+          setIsPersistent(true);
           return;
         }
 
@@ -84,13 +80,13 @@ export default function useToolState<T extends object>(
           type: 'application/x-oet-tool-state+json',
           size: stateBlob.size,
           blob: stateBlob,
-          isTemporary: makeTemporary, // Use the flag
+          isTemporary: makeTemporary,
           toolRoute: toolRoute,
           createdAt: createdAt,
           lastModified: now,
         };
         await db.files.put(stateFileObject);
-        setIsPersistent(!makeTemporary); // Update persistence status
+        setIsPersistent(!makeTemporary);
         console.log(
           `[useToolState ${toolRoute}] State saved to Dexie. Temporary: ${makeTemporary}. ID: ${stateFileId}`
         );
@@ -110,16 +106,14 @@ export default function useToolState<T extends object>(
 
   const debouncedSave = useDebouncedCallback((stateToSave: T) => {
     if (isInitialized.current) {
-      // Only save if initial load is done
-      _saveStateToDexie(stateToSave, !isPersistentRef.current); // isPersistentRef reflects user's choice
+      _saveStateToDexie(stateToSave, !isPersistentRef.current);
     }
   }, SAVE_DEBOUNCE_MS);
-  const isPersistentRef = useRef(isPersistent); // Ref for debouncedSave
+  const isPersistentRef = useRef(isPersistent);
   useEffect(() => {
     isPersistentRef.current = isPersistent;
   }, [isPersistent]);
 
-  // Initial load from Dexie
   useEffect(() => {
     let isMounted = true;
     isInitialized.current = false;
@@ -153,8 +147,8 @@ export default function useToolState<T extends object>(
                 ? readError.message
                 : String(readError);
             setErrorLoadingState(`Failed to read saved state: ${msg}`);
-            setInternalState(defaultStateRef.current); // Fallback to default
-            setIsPersistent(true); // Default to persistent on error
+            setInternalState(defaultStateRef.current);
+            setIsPersistent(true);
           }
         } else {
           if (file)
@@ -166,7 +160,7 @@ export default function useToolState<T extends object>(
               `[useToolState ${toolRoute}] LOAD: No state file found. Using default.`
             );
           setInternalState(defaultStateRef.current);
-          setIsPersistent(true); // Default state implies it's persistent unless made temporary
+          setIsPersistent(true);
         }
       })
       .catch((err) => {
@@ -199,8 +193,8 @@ export default function useToolState<T extends object>(
             : { ...prevState, ...newStateOrFn };
 
         if (JSON.stringify(prevState) !== JSON.stringify(updatedState)) {
-          internalStateRef.current = updatedState; // Keep ref updated for immediate saves
-          if (isInitialized.current) debouncedSave(updatedState); // Debounce normal state changes after init
+          internalStateRef.current = updatedState;
+          if (isInitialized.current) debouncedSave(updatedState);
           return updatedState;
         }
         return prevState;
@@ -215,9 +209,7 @@ export default function useToolState<T extends object>(
         console.warn(
           `[useToolState ${toolRoute}] saveStateNow called before initialization without explicit state. Saving default.`
         );
-        // If called very early without a state, it might save the default if internalStateRef isn't updated yet.
-        // Or, ensure internalStateRef is always up-to-date or error out.
-        // Forcing a save of default if not initialized might be a safe bet if this scenario is hit.
+
         await _saveStateToDexie(
           defaultStateRef.current,
           !isPersistentRef.current
@@ -229,16 +221,16 @@ export default function useToolState<T extends object>(
         optionalNewState !== undefined
           ? optionalNewState
           : internalStateRef.current;
-      // If optionalNewState is provided, also update React state if it's different
+
       if (
         optionalNewState !== undefined &&
         JSON.stringify(internalStateRef.current) !==
           JSON.stringify(optionalNewState)
       ) {
-        setInternalState(optionalNewState); // Update React state too
+        setInternalState(optionalNewState);
         internalStateRef.current = optionalNewState;
       }
-      await _saveStateToDexie(stateToPersist, !isPersistentRef.current); // Save with current persistence setting
+      await _saveStateToDexie(stateToPersist, !isPersistentRef.current);
     },
     [
       _saveStateToDexie,
@@ -255,11 +247,10 @@ export default function useToolState<T extends object>(
       return;
     }
     const newPersistedFlag = !isPersistentRef.current;
-    // The state to save is the current internalState. We are just changing its temporary flag.
-    // No need to call setInternalState here as the content isn't changing.
+
     debouncedSave.cancel();
-    await _saveStateToDexie(internalStateRef.current, !newPersistedFlag); // Pass inverse: makeTemporary = !newPersistedFlag
-    // setIsPersistent(newPersistedFlag); // _saveStateToDexie will call setIsPersistent
+    await _saveStateToDexie(internalStateRef.current, !newPersistedFlag);
+
     console.log(
       `[useToolState ${toolRoute}] Toggled persistence. State in Dexie is now: ${newPersistedFlag ? 'Permanent' : 'Temporary'}`
     );
@@ -278,9 +269,9 @@ export default function useToolState<T extends object>(
       return;
     }
     debouncedSave.cancel();
-    setInternalState(defaultStateRef.current); // Update React state
-    internalStateRef.current = defaultStateRef.current; // Update ref
-    await _saveStateToDexie(defaultStateRef.current, false); // Save default as permanent (or delete if it matches)
+    setInternalState(defaultStateRef.current);
+    internalStateRef.current = defaultStateRef.current;
+    await _saveStateToDexie(defaultStateRef.current, false);
     console.log(
       `[useToolState ${toolRoute}] State cleared and default state persisted.`
     );

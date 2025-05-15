@@ -3,15 +3,12 @@
 
 import React from 'react';
 import Button from '../form/Button';
-import { InboxArrowDownIcon } from '@heroicons/react/24/outline'; // Using outline for consistency if not filled by button variant
+import { InboxArrowDownIcon } from '@heroicons/react/24/outline';
 
-// This component now only needs to know IF there are deferred signals
-// and how many, plus a way to trigger the modal opening in the parent.
-// The actual modal and its detailed logic will reside in the parent tool client.
 interface ReceiveItdeDataTriggerProps {
-  hasDeferredSignals: boolean; // True if signals exist AND user has deferred the auto-popup
+  hasDeferredSignals: boolean;
   pendingSignalCount: number;
-  onReviewIncomingClick: () => void; // Parent tool provides function to open its modal
+  onReviewIncomingClick: () => void;
   className?: string;
 }
 
@@ -22,7 +19,7 @@ export default function ReceiveItdeDataTrigger({
   className = '',
 }: ReceiveItdeDataTriggerProps) {
   if (!hasDeferredSignals || pendingSignalCount === 0) {
-    return null; // Render nothing if no deferred signals
+    return null;
   }
 
   return (
@@ -30,7 +27,7 @@ export default function ReceiveItdeDataTrigger({
       {' '}
       {/* Changed to inline-block for better placement flexibility */}
       <Button
-        variant="accent-outline" // Or another appropriate variant
+        variant="accent-outline"
         onClick={onReviewIncomingClick}
         iconLeft={<InboxArrowDownIcon className="h-5 w-5" />}
         size="sm"

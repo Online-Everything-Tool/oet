@@ -44,7 +44,7 @@ export function signalTargetTool(
         console.warn(
           `[ITDE Utils] Corrupted data in sessionStorage for key ${key}. Resetting to signal from ${sourceDirective}.`
         );
-        sources = []; // Reset if data is not a string array
+        sources = [];
       }
     }
   } catch (e) {
@@ -52,7 +52,7 @@ export function signalTargetTool(
       `[ITDE Utils] Error parsing sessionStorage for key ${key}. Resetting to signal from ${sourceDirective}.`,
       e
     );
-    sources = []; // Reset on parse error
+    sources = [];
   }
 
   if (!sources.includes(sourceDirective)) {
@@ -111,14 +111,13 @@ export function clearSourceSignal(
   let sources = getSourceSignalsForTarget(targetDirective);
 
   if (sources.length === 0) {
-    return; // Nothing to clear
+    return;
   }
 
   const initialLength = sources.length;
   sources = sources.filter((s) => s !== sourceDirective);
 
   if (sources.length < initialLength) {
-    // Only update if something was actually removed
     if (sources.length === 0) {
       try {
         sessionStorage.removeItem(key);

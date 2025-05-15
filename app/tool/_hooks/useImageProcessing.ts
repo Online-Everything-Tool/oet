@@ -3,10 +3,6 @@ import { useState, useCallback } from 'react';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
-interface UseImageProcessingProps {
-  toolRoute: string;
-}
-
 type ProcessingFunction = (
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
@@ -38,10 +34,7 @@ interface UseImageProcessingReturn {
   clearProcessingOutput: () => void;
 }
 
-const useImageProcessing = ({
-  toolRoute,
-}: UseImageProcessingProps): UseImageProcessingReturn => {
-  //console.log('useImageProcessing:', toolRoute);
+const useImageProcessing = (): UseImageProcessingReturn => {
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(
     null

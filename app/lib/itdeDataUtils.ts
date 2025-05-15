@@ -1,5 +1,5 @@
 // FILE: app/lib/itdeDataUtils.ts
-import { getDbInstance } from './db'; // Removed OetDatabase and DexieStoredFile as direct imports if not strictly needed here
+import { getDbInstance } from './db';
 import type {
   OutputConfig,
   TransferableOutputDetails,
@@ -31,7 +31,7 @@ export async function resolveItdeData(
   sourceDirective: string,
   sourceOutputConfig: OutputConfig
 ): Promise<ResolvedItdeData> {
-  const db = getDbInstance(); // Assumes this can be called client-side when this util is used
+  const db = getDbInstance();
   const outputDetails = sourceOutputConfig.transferableContent;
   const stateFileId = `state-/tool/${sourceDirective}`;
 
@@ -135,7 +135,6 @@ export async function resolveItdeData(
           const fetchedFiles: AppStoredFile[] = [];
           for (const id of idList) {
             if (!id) {
-              // Skip if an ID in the list is null or empty
               console.warn(
                 `[ITDEDataResolver] Encountered null or empty ID in selection list for key '${outputDetails.selectionStateKey}'. Skipping.`
               );
@@ -148,7 +147,6 @@ export async function resolveItdeData(
               console.warn(
                 `[ITDEDataResolver] StoredFile object not found in DB for ID: ${id} during selection list processing.`
               );
-              // Optionally, collect errors or decide to fail the whole batch
             }
           }
           console.log(

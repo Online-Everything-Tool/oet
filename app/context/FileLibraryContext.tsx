@@ -13,12 +13,7 @@ import { getDbInstance } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { useMetadata } from './MetadataContext';
-import type {
-  InputConfig,
-  StateFiles,
-  ToolMetadata,
-  TransferableOutputDetails,
-} from '@/src/types/tools';
+import type { ToolMetadata } from '@/src/types/tools';
 
 interface FileLibraryFunctions {
   listFiles: (
@@ -33,7 +28,7 @@ interface FileLibraryFunctions {
     isTemporary?: boolean,
     toolRoute?: string
   ) => Promise<string>;
-  deleteFile: (id: string) => Promise<void>; // For direct, unconditional deletes
+  deleteFile: (id: string) => Promise<void>;
   makeFilePermanent: (id: string) => Promise<void>;
   updateFileBlob: (id: string, newBlob: Blob) => Promise<void>;
   cleanupOrphanedTemporaryFiles: (
@@ -331,6 +326,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         } else {
           tempFilesToVerify = await db.files
             .where('isTemporary')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .equals(true as any)
             .and((file) => file.type !== 'application/x-oet-tool-state+json')
             .toArray();
@@ -374,20 +370,18 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
               const stateJson = await toolStateFile.blob.text();
               const toolCurrentState = JSON.parse(stateJson) as Record<
                 string,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 any
               >;
 
               for (const stateFileRef of metadata.inputConfig.stateFiles) {
-                // stateFiles is StateFiles[]
                 if (stateFileRef.dataType === 'none') continue;
 
-                // stateFileRef is InputFileDetails (which extends FileDetails)
-                // It always has dataType: 'fileReference'
                 if (stateFileRef.arrayStateKey) {
-                  // Array of objects, each object containing fileIdStateKey
                   if (
                     Array.isArray(toolCurrentState[stateFileRef.arrayStateKey])
                   ) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     (
                       toolCurrentState[stateFileRef.arrayStateKey] as any[]
                     ).forEach((item) => {
@@ -406,7 +400,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
                     });
                   }
                 } else {
-                  // Single file ID directly in fileIdStateKey
                   if (toolCurrentState[stateFileRef.fileIdStateKey]) {
                     const idInState = toolCurrentState[
                       stateFileRef.fileIdStateKey

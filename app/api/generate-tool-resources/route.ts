@@ -35,22 +35,18 @@ const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const CORE_CONTEXT_FILES = [
-  // Project & Config
   'package.json',
   'tsconfig.json',
   'app/layout.tsx',
   'app/globals.css',
 
-  // Core Types
   'src/types/tools.ts',
   'src/types/storage.ts',
 
-  // Core Hooks (Tool Specific)
   'app/tool/_hooks/useToolState.ts',
   'app/tool/_hooks/useToolUrlState.ts',
   'app/tool/_hooks/useImageProcessing.ts',
 
-  // Shared UI Components (Forms & Modals)
   'app/tool/_components/form/Button.tsx',
   'app/tool/_components/form/Checkbox.tsx',
   'app/tool/_components/form/Input.tsx',
@@ -61,33 +57,26 @@ const CORE_CONTEXT_FILES = [
   'app/tool/_components/file-storage/FileSelectionModal.tsx',
   'app/tool/_components/shared/FilenamePromptModal.tsx',
 
-  // Core Context Providers
   'app/context/FileLibraryContext.tsx',
   'app/context/ImageLibraryContext.tsx',
   'app/context/MetadataContext.tsx',
 
-  // ITDE Utilities & Hooks
-  'app/lib/itdeSignalStorageUtils.ts', // Or localStorageSignalUtils.ts
+  'app/lib/itdeSignalStorageUtils.ts',
   'app/tool/_hooks/useItdeDiscovery.ts',
   'app/tool/_hooks/useItdeTargetHandler.ts',
 
-  // ITDE Shared UI Components
   'app/tool/_components/shared/SendToToolButton.tsx',
   'app/tool/_components/shared/IncomingDataModal.tsx',
   'app/tool/_components/shared/ReceiveItdeDataTrigger.tsx',
 
-  // Other Important Libs/Utils
   'app/lib/utils.ts',
   'app/lib/colorUtils.ts',
   'app/lib/db.ts',
 
-  // Constants
   'src/constants/charset.ts',
   'src/constants/text.ts',
 ];
 
-// Converts kebab-case to PascalCase (e.g., "my-tool" to "MyTool")
-// Still needed for generating expected output filenames.
 function toPascalCase(kebabCase: string): string {
   if (!kebabCase) return '';
   return kebabCase
@@ -103,7 +92,7 @@ async function getExampleFileContent(
   const results: { filePath: string; content: string }[] = [];
 
   try {
-    await fs.access(toolDirectoryPath); // Check if base directory exists
+    await fs.access(toolDirectoryPath);
 
     const getAllFiles = async (
       dirPath: string,
@@ -113,14 +102,13 @@ async function getExampleFileContent(
       for (const entry of entries) {
         const fullPath = path.join(dirPath, entry.name);
         if (entry.isDirectory()) {
-          // Can add exclusions here, e.g., if (entry.name === '__tests__') continue;
           await getAllFiles(fullPath, baseDirForRelativePath);
         } else if (entry.isFile()) {
           const relativePathToToolRoot = path.relative(
             baseDirForRelativePath,
             fullPath
           );
-          // Ensure consistent path separators for the AI prompt
+
           const projectRelativePath = path
             .join('app', 'tool', directive, relativePathToToolRoot)
             .replace(/\\/g, '/');
@@ -385,7 +373,7 @@ Ensure the code within "generatedFiles" values is complete and valid source code
     }
     const responseText = result.response.text();
     console.log('--- RAW AI Response Text (generate-tool-resources) ---');
-    // console.log(responseText); // Full log can be very large
+
     console.log(
       `--- END RAW AI Response Text (length: ${responseText.length}) ---`
     );

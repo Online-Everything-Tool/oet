@@ -12,7 +12,7 @@ import Image from 'next/image';
 import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
-import useToolState from '../../_hooks/useToolState'; // Import full return type if needed for clarity
+import useToolState from '../../_hooks/useToolState';
 import type { StoredFile as AppStoredFile } from '@/src/types/storage';
 import type { ToolMetadata, OutputConfig } from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
@@ -63,12 +63,10 @@ interface ImageFlipClientProps {
 export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   const {
     state: toolState,
-    setState, // Using the standard setState for most UI-driven changes (which debounces)
-    saveStateNow, // For immediate persistence
-    clearStateAndPersist, // For clearing and ensuring persistence of default
+    setState,
+    saveStateNow,
+    clearStateAndPersist,
     isLoadingState: isLoadingToolSettings,
-    // isPersistent, // We might use this later for UI indicators
-    // togglePersistence,
   } = useToolState<ImageFlipToolState>(toolRoute, DEFAULT_FLIP_TOOL_STATE);
 
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
@@ -104,7 +102,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     error: processingErrorHook,
     processImage,
     clearProcessingOutput: clearProcessingHookOutput,
-  } = useImageProcessing({ toolRoute });
+  } = useImageProcessing();
 
   const handleProcessIncomingSignal = useCallback(
     async (signal: IncomingSignal) => {
@@ -155,16 +153,16 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       }
 
       if (newSelectedFileId) {
-        const oldSelectedId = toolState.selectedFileId; // Capture before state change
-        const oldProcessedId = toolState.processedFileId; // Capture before state change
+        const oldSelectedId = toolState.selectedFileId;
+        const oldProcessedId = toolState.processedFileId;
 
         const newState = {
-          ...toolState, // Preserve other settings like flipType, autoSaveProcessed
+          ...toolState,
           selectedFileId: newSelectedFileId,
           processedFileId: null,
         };
-        setState(newState); // Update React state for UI
-        await saveStateNow(newState); // Persist immediately
+        setState(newState);
+        await saveStateNow(newState);
 
         setUserDeferredAutoPopup(false);
 
@@ -185,34 +183,28 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       saveStateNow,
       cleanupOrphanedTemporaryFiles,
     ]
-  ); // Added toolState, setState, saveStateNow
+  );
 
   const itdeTarget = useItdeTargetHandler({
     targetToolDirective: directiveName,
     onProcessSignal: handleProcessIncomingSignal,
   });
 
-  // Revised useEffect for initialToolStateLoadCompleteRef in ImageFlipClient.tsx
   useEffect(() => {
     if (!isLoadingToolSettings) {
-      // When loading finishes
       if (!initialToolStateLoadCompleteRef.current) {
-        // And if it wasn't already marked complete
         initialToolStateLoadCompleteRef.current = true;
         console.log(
           `[ImageFlip] initialToolStateLoadCompleteRef has been set to TRUE because isLoadingToolSettings is now false.`
         );
       }
     } else {
-      // isLoadingToolSettings is true
       if (initialToolStateLoadCompleteRef.current) {
-        // And if it was previously marked complete
         initialToolStateLoadCompleteRef.current = false;
         console.log(
           `[ImageFlip] initialToolStateLoadCompleteRef has been set to FALSE because isLoadingToolSettings is now true.`
         );
       }
-      // If it's already false and isLoadingToolSettings is true, no change needed.
     }
   }, [isLoadingToolSettings]);
 
@@ -226,14 +218,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     ) {
       itdeTarget.openModalIfSignalsExist();
     }
-  }, [
-    isLoadingToolSettings,
-    itdeTarget.pendingSignals,
-    itdeTarget.isModalOpen,
-    itdeTarget.openModalIfSignalsExist,
-    userDeferredAutoPopup,
-    directiveName,
-  ]);
+  }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
     let mounted = true;
@@ -308,8 +293,8 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   );
 
   useEffect(() => {
-    const currentSelectedId = toolState.selectedFileId; // Capture for logging
-    const currentProcessedId = toolState.processedFileId; // Capture for logging
+    const currentSelectedId = toolState.selectedFileId;
+    const currentProcessedId = toolState.processedFileId;
     console.log(
       `[ImageFlip triggerProcessing] Effect run. Current selectedFileId: ${currentSelectedId}, Current processedFileId: ${currentProcessedId}`
     );
@@ -357,7 +342,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         toolState.autoSaveProcessed
       );
       if (result.id) {
-        // setState will trigger debouncedSave. No need to call saveStateNow unless immediate persistence is critical before next step.
         setState((prev) => ({ ...prev, processedFileId: result.id }));
         setWasLastProcessedOutputPermanent(toolState.autoSaveProcessed);
         setManualSaveSuccess(false);
@@ -378,7 +362,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     getImage,
     setState,
     processingErrorHook,
-  ]); // Changed setToolState to setState
+  ]);
 
   const handleFilesSelectedFromModal = useCallback(
     async (files: AppStoredFile[]) => {
@@ -394,8 +378,8 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
           selectedFileId: newSelectedId,
           processedFileId: null,
         };
-        setState(newState); // Update React state for UI
-        await saveStateNow(newState); // Persist immediately
+        setState(newState);
+        await saveStateNow(newState);
 
         clearProcessingHookOutput();
         setManualSaveSuccess(false);
@@ -420,19 +404,19 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       clearProcessingHookOutput,
       cleanupOrphanedTemporaryFiles,
     ]
-  ); // Added toolState for capturing old IDs
+  );
 
   const handleFlipTypeChange = useCallback(
     async (newFlipType: FlipType) => {
-      const oldProcessedId = toolState.processedFileId; // Capture before state change
+      const oldProcessedId = toolState.processedFileId;
       const newState = {
         ...toolState,
         flipType: newFlipType,
         processedFileId: null,
       };
 
-      setState(newState); // Update React state for UI
-      await saveStateNow(newState); // Persist this discrete change immediately
+      setState(newState);
+      await saveStateNow(newState);
 
       setManualSaveSuccess(false);
       if (oldProcessedId) {
@@ -442,16 +426,16 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       }
     },
     [toolState, setState, saveStateNow, cleanupOrphanedTemporaryFiles]
-  ); // Added toolState for capturing oldProcessedId
+  );
 
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSave = e.target.checked;
-      const currentState = toolState; // Capture current state
+      const currentState = toolState;
       const newState = { ...currentState, autoSaveProcessed: newAutoSave };
 
-      setState(newState); // Update React state
-      await saveStateNow(newState); // Persist this toggle immediately
+      setState(newState);
+      await saveStateNow(newState);
 
       setUiError(null);
       setManualSaveSuccess(false);
@@ -485,20 +469,19 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       setState,
       saveStateNow,
     ]
-  ); // Added toolState and saveStateNow
+  );
 
   const handleClear = useCallback(async () => {
     const oldSelectedId = toolState.selectedFileId;
     const oldProcessedId = toolState.processedFileId;
 
-    await clearStateAndPersist(); // This sets state to default AND persists it
+    await clearStateAndPersist();
 
     clearProcessingHookOutput();
     setUiError(null);
     setWasLastProcessedOutputPermanent(false);
     setManualSaveSuccess(false);
     setUserDeferredAutoPopup(false);
-    // No itdeTarget.ignoreAllSignals() here
 
     const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter(
       (id) => id
@@ -523,10 +506,49 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   ]);
 
   const handleDownload = useCallback(async () => {
-    /* ... as before ... */
+    if (!processedImageSrcForUI || !originalFilenameForDisplay) {
+      setUiError('No image to download.');
+      return;
+    }
+    setUiError(null);
+    const link = document.createElement('a');
+    const base =
+      originalFilenameForDisplay.substring(
+        0,
+        originalFilenameForDisplay.lastIndexOf('.')
+      ) || originalFilenameForDisplay;
+    const ext =
+      processedImageSrcForUI.match(/data:image\/(\w+);base64,/)?.[1] || 'png';
+    link.download = `flipped-${toolState.flipType}-${base}.${ext}`;
+    link.href = processedImageSrcForUI;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }, [processedImageSrcForUI, originalFilenameForDisplay, toolState.flipType]);
+
   const handleSaveProcessedToLibrary = useCallback(async () => {
-    /* ... as before ... */
+    if (
+      !toolState.processedFileId ||
+      wasLastProcessedOutputPermanent ||
+      manualSaveSuccess
+    ) {
+      if (!toolState.processedFileId) setUiError('No processed image to save.');
+      return;
+    }
+    setIsManuallySaving(true);
+    setUiError(null);
+    try {
+      await makeImagePermanent(toolState.processedFileId);
+      setWasLastProcessedOutputPermanent(true);
+      setManualSaveSuccess(true);
+      setTimeout(() => setManualSaveSuccess(false), 2500);
+    } catch (err) {
+      setUiError(
+        `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsManuallySaving(false);
+    }
   }, [
     toolState.processedFileId,
     wasLastProcessedOutputPermanent,
@@ -561,7 +583,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   };
   const handleModalAccept = (sourceDirective: string) => {
     itdeTarget.acceptSignal(sourceDirective);
-  }; // setUserDeferred is handled in onProcessSignal
+  };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
     const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
