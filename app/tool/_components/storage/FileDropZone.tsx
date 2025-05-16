@@ -1,4 +1,4 @@
-// FILE: app/tool/file-storage/_components/FileDropZone.tsx
+// FILE: app/tool/_components/storage/FileDropZone.tsx
 'use client';
 
 import React, { useState, useCallback, DragEvent } from 'react';

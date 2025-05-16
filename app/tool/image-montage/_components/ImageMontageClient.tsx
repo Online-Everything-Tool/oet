@@ -13,7 +13,7 @@ import { useMontageCanvas } from '../_hooks/useMontageCanvas';
 import ImageAdjustmentCard from './ImageAdjustmentCard';
 import MontageControls from './MontageControls';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import type { StoredFile } from '@/src/types/storage';
 import RadioGroup from '../../_components/form/RadioGroup';
 import {

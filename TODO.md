@@ -3,6 +3,7 @@
 **Current Major Focus:** Finalize core tool ITDE capabilities and refine storage components.
 
 **Guiding Principles for ITDE (Recap):**
+
 - Core tools persist relevant state in Dexie via `useToolState`.
 - ITDE Architecture: `MetadataContext`, `useItdeDiscovery`, `useItdeTargetHandler`, `sessionStorage` signals, ITDE Modals.
 
@@ -50,8 +51,8 @@
 - [x] Filename Prompting: Refined logic for text tools and storage clients.
 - [x] `IncomingDataModal.tsx` Opacity: Adjusted.
 - [ ] **Standardize UI/UX for Controls:**
-    - **Button Sizing, Coloring, and Placement:** Review all tools for consistency in button appearance (primary, secondary, neutral variants), sizes, and logical grouping/placement of action buttons (e.g., input actions, output actions, ITDE actions).
-    - Review hover/focus/disabled states.
+  - **Button Sizing, Coloring, and Placement:** Review all tools for consistency in button appearance (primary, secondary, neutral variants), sizes, and logical grouping/placement of action buttons (e.g., input actions, output actions, ITDE actions).
+  - Review hover/focus/disabled states.
 - [ ] **Textarea Flicker (Scrollbar):** Investigate strategies (min-height, overflow-y: scroll) to prevent layout shift when output textareas populate. (Low priority for now).
 - [ ] **Create Site Footer:** Standard links (Privacy, Terms, GitHub).
 - [ ] **Static HTML Pages:** `privacy.html`, `terms.html` in `/public`.
@@ -59,8 +60,8 @@
 ## IV. Bugs & Minor Fixes
 
 - [ ] **`linkedin-post-formatter` Paste Handling:**
-    - **Double Spacing Issue:** Investigate why pasted text with blank lines (intended as paragraph breaks) might not be rendering with the expected double line break visual separation in the editor after pasting. (Current paste handler treats each line as a new paragraph, but rendering might be collapsing empty paragraphs visually or `generateUnicodeText` might be over-trimming).
-    - Revisit `editorProps.handlePaste` and `generateUnicodeText` if needed.
+  - **Double Spacing Issue:** Investigate why pasted text with blank lines (intended as paragraph breaks) might not be rendering with the expected double line break visual separation in the editor after pasting. (Current paste handler treats each line as a new paragraph, but rendering might be collapsing empty paragraphs visually or `generateUnicodeText` might be over-trimming).
+  - Revisit `editorProps.handlePaste` and `generateUnicodeText` if needed.
 - [ ] **ESLint Warnings:** Address any remaining legitimate warnings (unused vars, hook dependencies) where fixes don't cause regressions. (Mostly done, but keep an eye out).
 
 ## V. Future Tool Development & Enhancements

@@ -4,7 +4,7 @@
 import React, { useCallback } from 'react';
 import GenericStorageClient, {
   StorageHookReturnType,
-} from '../../_components/file-storage/GenericStorageClient';
+} from '../../_components/storage/GenericStorageClient';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import importedMetadata from '../metadata.json';
 import type { ToolMetadata } from '@/src/types/tools';

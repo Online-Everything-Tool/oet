@@ -14,7 +14,7 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import useToolState from '../../_hooks/useToolState';
 import type { StoredFile as AppStoredFile } from '@/src/types/storage';
 import type { ToolMetadata, OutputConfig } from '@/src/types/tools';
-import FileSelectionModal from '@/app/tool/_components/file-storage/FileSelectionModal';
+import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';

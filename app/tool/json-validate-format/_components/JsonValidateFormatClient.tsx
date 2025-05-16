@@ -14,7 +14,7 @@ import Textarea from '../../_components/form/Textarea';
 import Checkbox from '../../_components/form/Checkbox';
 import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
-import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type {
   ParamConfig,

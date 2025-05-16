@@ -3,7 +3,7 @@
 
 import React from 'react';
 import Button from '@/app/tool/_components/form/Button';
-import SendToToolButton from '../../_components/shared/SendToToolButton';
+import SendToToolButton from '../shared/SendToToolButton';
 import type { OutputConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 

@@ -13,7 +13,7 @@ import Image from 'next/image';
 import type { RawZipEntry, TreeNodeData, ActionEntryData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
-import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import useToolState from '../../_hooks/useToolState';

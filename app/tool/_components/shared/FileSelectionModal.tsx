@@ -1,4 +1,4 @@
-// --- FILE: app/tool/_components/file-storage/FileSelectionModal.tsx ---
+// --- FILE: app/tool/_components/shared/FileSelectionModal.tsx ---
 'use client';
 
 import React, {
@@ -12,7 +12,7 @@ import React, {
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
-import FileDropZone from './FileDropZone';
+import FileDropZone from '../storage/FileDropZone';
 import { formatBytes, getFileIconClassName } from '@/app/lib/utils';
 import Button from '../form/Button';
 import { XMarkIcon } from '@heroicons/react/24/outline';

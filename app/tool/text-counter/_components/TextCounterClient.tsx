@@ -13,7 +13,7 @@ import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input';
-import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
+import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import type { ParamConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {

@@ -1,4 +1,4 @@
-// FILE: app/tool/_components/file-storage/GenericStorageClient.tsx
+// FILE: app/tool/_components/storage/GenericStorageClient.tsx
 'use client';
 
 import React, {
@@ -16,7 +16,7 @@ import useToolState from '../../_hooks/useToolState';
 import StorageControls from './StorageControls';
 import FileListView from './FileListView';
 import FileGridView from './FileGridView';
-import FileSelectionModal from './FileSelectionModal';
+import FileSelectionModal from '../shared/FileSelectionModal';
 import { isTextBasedMimeType } from '@/app/lib/utils';
 
 export interface StorageHookReturnType {
