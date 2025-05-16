@@ -3,6 +3,9 @@
 
 import React from 'react';
 import Button from '@/app/tool/_components/form/Button';
+import SendToToolButton from '../../_components/shared/SendToToolButton';
+import type { OutputConfig } from '@/src/types/tools';
+import type { StoredFile } from '@/src/types/storage';
 
 import {
   PlusIcon,
@@ -28,6 +31,10 @@ interface StorageControlsProps {
   onClearAllClick: () => void;
   onLayoutChange: (newLayout: 'list' | 'grid') => void;
   onDeleteSelectedClick: () => void;
+
+  directiveName: string;
+  outputConfig: OutputConfig;
+  selectedStoredFilesForItde: StoredFile[];
 }
 
 export default function StorageControls({
@@ -46,12 +53,25 @@ export default function StorageControls({
   onClearAllClick,
   onLayoutChange,
   onDeleteSelectedClick,
+
+  directiveName,
+  outputConfig,
+  selectedStoredFilesForItde,
 }: StorageControlsProps) {
   const hasSelection = selectedItemCount > 0;
 
+  if (hasSelection) {
+    console.log('[StorageControls] Props for SendToToolButton:', {
+      currentToolDirective: directiveName,
+      currentToolOutputConfig: outputConfig,
+      selectedOutputItems: selectedStoredFilesForItde,
+      selectedItemCount: selectedItemCount,
+    });
+  }
+
   return (
     <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-      {/* Top row: Add, Delete Selected, Clear All (unchanged) */}
+      {/* Top row: Add, ITDE Send, Delete Selected, Clear All */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <Button
           variant="accent2"
@@ -61,9 +81,21 @@ export default function StorageControls({
           loadingText="Processing..."
           iconLeft={<PlusIcon className="h-5 w-5" />}
         >
-          {' '}
-          Add {itemNameSingular}(s){' '}
+          Add {itemNameSingular}(s)
         </Button>
+
+        {hasSelection && (
+          <SendToToolButton
+            currentToolDirective={directiveName}
+            currentToolOutputConfig={outputConfig}
+            selectedOutputItems={selectedStoredFilesForItde}
+            buttonText={`Send Selected (${selectedItemCount})`}
+            className={
+              isLoading || isDeleting ? 'opacity-50 cursor-not-allowed' : ''
+            }
+          />
+        )}
+
         {hasSelection && (
           <Button
             variant="danger"
@@ -73,8 +105,7 @@ export default function StorageControls({
             loadingText="Deleting..."
             iconLeft={<TrashIcon className="h-5 w-5" />}
           >
-            {' '}
-            Delete Selected ({selectedItemCount}){' '}
+            Delete Selected ({selectedItemCount})
           </Button>
         )}
         <div className="flex-grow"></div>
@@ -89,14 +120,12 @@ export default function StorageControls({
           }
           iconLeft={<TrashIcon className="h-5 w-5" />}
         >
-          {' '}
-          Clear All ({itemCount}){' '}
+          Clear All ({itemCount})
         </Button>
       </div>
 
       {/* Bottom row: Layout, Filter Toggle, Count */}
       <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
-        {/* Layout Toggles */}
         <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
           <Button
             variant={currentLayout === 'list' ? 'primary' : 'neutral'}
@@ -108,8 +137,7 @@ export default function StorageControls({
               currentLayout === 'list' ? 'shadow' : 'hover:bg-gray-200'
             }
           >
-            {' '}
-            <Bars3Icon className="h-5 w-5" />{' '}
+            <Bars3Icon className="h-5 w-5" />
           </Button>
           <Button
             variant={currentLayout === 'grid' ? 'primary' : 'neutral'}
@@ -121,12 +149,10 @@ export default function StorageControls({
               currentLayout === 'grid' ? 'shadow' : 'hover:bg-gray-200'
             }
           >
-            {' '}
-            <ViewColumnsIcon className="h-5 w-5" />{' '}
+            <ViewColumnsIcon className="h-5 w-5" />
           </Button>
         </div>
 
-        {/* --- Filter Selected Toggle Button --- */}
         <div className="border-l pl-3 ml-1">
           <Button
             variant={isFilterSelectedActive ? 'accent' : 'neutral'}
@@ -146,11 +172,9 @@ export default function StorageControls({
               : 'Filter Selected'}
           </Button>
         </div>
-        {/* --- End Filter Toggle --- */}
 
         <div className="flex-grow"></div>
         <span className="text-sm text-gray-500">
-          {/* Show total permanent count, indicate if filtered */}
           {itemCount} {itemCount === 1 ? itemNameSingular : itemNamePlural} in
           library
           {isFilterSelectedActive && ` (${selectedItemCount} selected shown)`}

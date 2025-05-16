@@ -21,6 +21,14 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+
 interface TextCounts {
   words: number;
   characters: number;
@@ -55,12 +63,123 @@ export default function TextCounterClient({
     setState: setToolState,
     isLoadingState,
     errorLoadingState,
+    saveStateNow,
+    clearStateAndPersist,
   } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
   const initialUrlLoadProcessedRef = useRef(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
 
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
+
+  const { getToolMetadata } = useMetadata();
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'text-counter',
+    [toolRoute]
+  );
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[TextCounter ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setClientError(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setClientError(
+          `Metadata not found for source tool: ${signal.sourceToolTitle}`
+        );
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setClientError(
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
+        );
+        return;
+      }
+
+      let newText = '';
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setClientError(
+              `Error reading text from received file: ${fileData.name}`
+            );
+            return;
+          }
+        } else {
+          setClientError(
+            `Received file '${fileData.name}' is not a text file.`
+          );
+          return;
+        }
+      } else {
+        setClientError(
+          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+        );
+        return;
+      }
+
+      const newState: Partial<TextCounterToolState> = {
+        inputText: newText,
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow({ ...toolState, ...newState });
+      setUserDeferredAutoPopup(false);
+    },
+    [getToolMetadata, toolState, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
+
+  useEffect(() => {
+    if (!isLoadingState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
+    }
+  }, [isLoadingState]);
+
+  useEffect(() => {
+    const canProceed =
+      !isLoadingState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
+      itdeTarget.openModalIfSignalsExist();
+    }
+  }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
     if (
@@ -69,8 +188,13 @@ export default function TextCounterClient({
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
-      if (!isLoadingState && !initialUrlLoadProcessedRef.current)
+      if (
+        !isLoadingState &&
+        !initialUrlLoadProcessedRef.current &&
+        initialToolStateLoadCompleteRef.current
+      ) {
         initialUrlLoadProcessedRef.current = true;
+      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
@@ -170,7 +294,7 @@ export default function TextCounterClient({
         )
       ) {
         setClientError(
-          `Error: File "${file.name}" doesn't appear to be a text-based file.`
+          `Error: File "${file.name}" doesn't appear to be a text-based file. Please select a text file.`
         );
         return;
       }
@@ -181,6 +305,7 @@ export default function TextCounterClient({
           inputText: textContent,
           lastLoadedFilename: file.name,
         });
+        setUserDeferredAutoPopup(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setClientError(`Error reading file "${file.name}": ${msg}`);
@@ -191,27 +316,50 @@ export default function TextCounterClient({
   );
 
   const handleClearText = useCallback(async () => {
-    setToolState((prevState) => ({
-      ...prevState,
-      inputText: '',
-      lastLoadedFilename: null,
-    }));
+    await clearStateAndPersist();
     setClientError(null);
-  }, [setToolState]);
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist]);
 
   const handleClearSearch = useCallback(async () => {
     setToolState((prevState) => ({ ...prevState, searchText: '' }));
+
     setClientError(null);
   }, [setToolState]);
 
-  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
+
+  if (
+    isLoadingState &&
+    !initialUrlLoadProcessedRef.current &&
+    !initialToolStateLoadCompleteRef.current
+  ) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Counter Tool...
       </p>
     );
   }
-  if (errorLoadingState) {
+  if (errorLoadingState && !clientError) {
     return (
       <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
         Error loading saved state: {errorLoadingState}
@@ -229,18 +377,29 @@ export default function TextCounterClient({
           Input Text:
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
-              (from: {toolState.lastLoadedFilename})
+              ({toolState.lastLoadedFilename})
             </span>
           )}
         </label>
-        <Button
-          variant="neutral-outline"
-          size="sm"
-          onClick={() => setIsLoadFileModalOpen(true)}
-          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-        >
-          Load from File
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReceiveItdeDataTrigger
+            hasDeferredSignals={
+              itdeTarget.pendingSignals.length > 0 &&
+              userDeferredAutoPopup &&
+              !itdeTarget.isModalOpen
+            }
+            pendingSignalCount={itdeTarget.pendingSignals.length}
+            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+          />
+          <Button
+            variant="neutral-outline"
+            size="sm"
+            onClick={() => setIsLoadFileModalOpen(true)}
+            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+          >
+            Load from File
+          </Button>
+        </div>
       </div>
       <Textarea
         id="text-input"
@@ -352,6 +511,14 @@ export default function TextCounterClient({
         selectionMode="single"
         libraryFilter={{ category: 'text' }}
         initialTab="upload"
+      />
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
       />
     </div>
   );

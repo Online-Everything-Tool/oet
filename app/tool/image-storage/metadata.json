@@ -3,13 +3,13 @@
   "description": "Upload images or paste your clipboard to store it locally in your browser using IndexedDB.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none " }]
+    "stateFiles": [{ "dataType": "none" }]
   },
   "outputConfig": {
     "transferableContent": {
       "dataType": "selectionReferenceList",
-      "fileIdStateKey": "selectedFileIds",
-      "fileCategory": "image"
+      "selectionStateKey": "selectedItemIds",
+      "selectionFileCategory": "image"
     }
   },
   "tags": ["image", "storage", "local", "indexeddb", "utility"],

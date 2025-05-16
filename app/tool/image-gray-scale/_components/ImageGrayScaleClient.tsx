@@ -9,7 +9,6 @@ import React, {
   useRef,
 } from 'react';
 import Image from 'next/image';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import useToolState from '../../_hooks/useToolState';
@@ -95,8 +94,8 @@ export default function ImageGrayScaleClient({
     [toolRoute]
   );
 
-  const { getImage, makeImagePermanent } = useImageLibrary();
-  const { cleanupOrphanedTemporaryFiles } = useFileLibrary();
+  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles } =
+    useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
     isLoading: isProcessingImage,
@@ -227,7 +226,7 @@ export default function ImageGrayScaleClient({
       setWasLastProcessedOutputPermanent(false);
       if (toolState.selectedFileId) {
         try {
-          const file = await getImage(toolState.selectedFileId);
+          const file = await getFile(toolState.selectedFileId);
           if (mounted && file?.blob) {
             localOrigObjUrl = URL.createObjectURL(file.blob);
             setOriginalImageSrcForUI(localOrigObjUrl);
@@ -239,7 +238,7 @@ export default function ImageGrayScaleClient({
       }
       if (toolState.processedFileId) {
         try {
-          const file = await getImage(toolState.processedFileId);
+          const file = await getFile(toolState.processedFileId);
           if (mounted && file?.blob) {
             localProcObjUrl = URL.createObjectURL(file.blob);
             setProcessedImageSrcForUI(localProcObjUrl);
@@ -259,7 +258,7 @@ export default function ImageGrayScaleClient({
   }, [
     toolState.selectedFileId,
     toolState.processedFileId,
-    getImage,
+    getFile,
     isLoadingToolSettings,
   ]);
 
@@ -293,7 +292,7 @@ export default function ImageGrayScaleClient({
     }
 
     const triggerProcessing = async () => {
-      const inputFile = await getImage(currentSelectedId!);
+      const inputFile = await getFile(currentSelectedId!);
       if (!inputFile || !inputFile.blob) {
         setUiError('Original image data not found for processing.');
         return;
@@ -328,7 +327,7 @@ export default function ImageGrayScaleClient({
     isProcessingImage,
     processImage,
     convertToGrayScaleCallback,
-    getImage,
+    getFile,
     setState,
     processingErrorHook,
   ]);
@@ -391,7 +390,7 @@ export default function ImageGrayScaleClient({
       ) {
         setIsManuallySaving(true);
         try {
-          await makeImagePermanent(currentState.processedFileId);
+          await makeFilePermanent(currentState.processedFileId);
           setWasLastProcessedOutputPermanent(true);
         } catch (err) {
           setUiError(
@@ -407,7 +406,7 @@ export default function ImageGrayScaleClient({
       wasLastProcessedOutputPermanent,
       isProcessingImage,
       isManuallySaving,
-      makeImagePermanent,
+      makeFilePermanent,
       setState,
       saveStateNow,
     ]
@@ -478,7 +477,7 @@ export default function ImageGrayScaleClient({
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      await makeImagePermanent(toolState.processedFileId);
+      await makeFilePermanent(toolState.processedFileId);
       setWasLastProcessedOutputPermanent(true);
       setManualSaveSuccess(true);
       setTimeout(() => setManualSaveSuccess(false), 2500);
@@ -493,7 +492,7 @@ export default function ImageGrayScaleClient({
     toolState.processedFileId,
     wasLastProcessedOutputPermanent,
     manualSaveSuccess,
-    makeImagePermanent,
+    makeFilePermanent,
   ]);
 
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);

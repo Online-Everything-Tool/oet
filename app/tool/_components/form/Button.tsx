@@ -2,7 +2,7 @@
 import React from 'react';
 import { ArrowPathIcon } from '@heroicons/react/20/solid';
 
-type ButtonVariant =
+export type ButtonVariant =
   | 'primary'
   | 'secondary'
   | 'accent'

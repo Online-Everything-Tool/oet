@@ -15,7 +15,11 @@ import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import type { ParamConfig } from '@/src/types/tools';
+import type {
+  ParamConfig,
+  ToolMetadata,
+  OutputConfig,
+} from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import { useDebouncedCallback } from 'use-debounce';
 import {
@@ -27,6 +31,16 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
+
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+import SendToToolButton from '../../_components/shared/SendToToolButton';
+import importedMetadata from '../metadata.json';
 
 type ReverseMode = 'character' | 'word' | 'line';
 
@@ -45,11 +59,83 @@ const DEFAULT_TEXT_REVERSE_STATE: TextReverseToolState = {
 };
 
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
+const metadata: ToolMetadata = importedMetadata as ToolMetadata;
 
 interface TextReverseClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
 }
+
+interface OutputActionButtonsProps {
+  canPerform: boolean;
+  isSaveSuccess: boolean;
+  isCopySuccess: boolean;
+  onInitiateSave: () => void;
+  onInitiateDownload: () => void;
+  onCopy: () => void;
+  directiveName: string;
+  outputConfig: OutputConfig;
+}
+
+const OutputActionButtons = React.memo(function OutputActionButtons({
+  canPerform,
+  isSaveSuccess,
+  isCopySuccess,
+  onInitiateSave,
+  onInitiateDownload,
+  onCopy,
+  directiveName,
+  outputConfig,
+}: OutputActionButtonsProps) {
+  if (!canPerform) {
+    return null;
+  }
+  return (
+    <>
+      <SendToToolButton
+        currentToolDirective={directiveName}
+        currentToolOutputConfig={outputConfig}
+        buttonText="Send Output To..."
+      />
+      <Button
+        variant="primary-outline"
+        onClick={onInitiateSave}
+        disabled={isSaveSuccess}
+        iconLeft={
+          isSaveSuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <DocumentPlusIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isSaveSuccess ? 'Saved!' : 'Save to Library'}
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={onInitiateDownload}
+        iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
+      >
+        Download Output
+      </Button>
+      <Button
+        variant={isCopySuccess ? 'secondary' : 'accent2'}
+        onClick={onCopy}
+        disabled={isCopySuccess}
+        iconLeft={
+          isCopySuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <ClipboardDocumentIcon className="h-5 w-5" />
+          )
+        }
+        className="transition-colors duration-150 ease-in-out"
+      >
+        {isCopySuccess ? 'Copied!' : 'Copy Output'}
+      </Button>
+    </>
+  );
+});
 
 const TextReverseClient = ({
   urlStateParams,
@@ -59,7 +145,8 @@ const TextReverseClient = ({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearStateAndPersist: persistentClearState,
+    clearStateAndPersist,
+    saveStateNow,
   } = useToolState<TextReverseToolState>(toolRoute, DEFAULT_TEXT_REVERSE_STATE);
 
   const [isOutputCopied, setIsOutputCopied] = useState<boolean>(false);
@@ -68,14 +155,25 @@ const TextReverseClient = ({
   const [filenameActionType, setFilenameActionType] = useState<
     'download' | 'save' | null
   >(null);
+  const [currentOutputFilename, setCurrentOutputFilename] = useState<
+    string | null
+  >(null);
   const [suggestedFilenameForPrompt, setSuggestedFilenameForPrompt] =
     useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [uiError, setUiError] = useState('');
 
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialUrlLoadProcessedRef = useRef(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
 
   const { addFile: addFileToLibrary } = useFileLibrary();
+  const { getToolMetadata } = useMetadata();
+
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'text-reverse',
+    [toolRoute]
+  );
 
   const reverseOptions = useMemo(
     () => [
@@ -86,24 +184,154 @@ const TextReverseClient = ({
     []
   );
 
+  const generateOutputFilenameForAction = useCallback((): string => {
+    const base =
+      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') || 'reversed-text';
+    return `${base}-${toolState.reverseMode}.txt`;
+  }, [toolState.lastLoadedFilename, toolState.reverseMode]);
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[TextReverse ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setUiError('');
+      setCurrentOutputFilename(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setUiError(
+          `Metadata not found for source tool: ${signal.sourceToolTitle}`
+        );
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setUiError(
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
+        );
+        return;
+      }
+
+      let newText = '';
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setUiError(
+              `Error reading text from received file: ${fileData.name}`
+            );
+            return;
+          }
+        } else {
+          setUiError(`Received file '${fileData.name}' is not a text file.`);
+          return;
+        }
+      } else {
+        setUiError(
+          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+        );
+        return;
+      }
+
+      const newState: TextReverseToolState = {
+        ...toolState,
+        inputText: newText,
+        outputValue: '',
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow(newState);
+      setUserDeferredAutoPopup(false);
+    },
+    [getToolMetadata, toolState, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
+
+  useEffect(() => {
+    if (!isLoadingState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
+    }
+  }, [isLoadingState]);
+
+  useEffect(() => {
+    const canProceed =
+      !isLoadingState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
+      itdeTarget.openModalIfSignalsExist();
+    }
+  }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
+
   const performTextReversal = useCallback(
-    (text: string, mode: ReverseMode) => {
+    (
+      text: string = toolState.inputText,
+      mode: ReverseMode = toolState.reverseMode
+    ) => {
       if (!text.trim()) {
         setToolState({ outputValue: '' });
+        setCurrentOutputFilename(null);
         return;
       }
       let newOutput = '';
-      if (mode === 'character') {
-        newOutput = text.split('').reverse().join('');
-      } else if (mode === 'word') {
-        newOutput = text.split(/\s+/).reverse().join(' ');
-      } else if (mode === 'line') {
-        newOutput = text.split(/\r?\n/).reverse().join('\n');
+      try {
+        if (mode === 'character') {
+          newOutput = text.split('').reverse().join('');
+        } else if (mode === 'word') {
+          newOutput = text.split(/\s+/).reverse().join(' ');
+        } else if (mode === 'line') {
+          newOutput = text.split(/\r?\n/).reverse().join('\n');
+        }
+        if (toolState.lastLoadedFilename && !currentOutputFilename) {
+          setCurrentOutputFilename(generateOutputFilenameForAction());
+        } else if (!toolState.lastLoadedFilename) {
+          setCurrentOutputFilename(null);
+        }
+      } catch (_e) {
+        setUiError('Failed to reverse text.');
+        newOutput = '';
+        setCurrentOutputFilename(null);
       }
       setToolState({ outputValue: newOutput });
       setIsOutputCopied(false);
     },
-    [setToolState]
+    [
+      toolState.inputText,
+      toolState.reverseMode,
+      toolState.lastLoadedFilename,
+      currentOutputFilename,
+      setToolState,
+      generateOutputFilenameForAction,
+    ]
   );
 
   useEffect(() => {
@@ -113,6 +341,15 @@ const TextReverseClient = ({
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
+      if (
+        !isLoadingState &&
+        initialToolStateLoadCompleteRef.current &&
+        toolState.inputText.trim() &&
+        !toolState.outputValue.trim() &&
+        !uiError
+      ) {
+        performTextReversal(toolState.inputText, toolState.reverseMode);
+      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
@@ -124,8 +361,8 @@ const TextReverseClient = ({
     const textFromUrl = params.get('text');
     if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
       updates.inputText = textFromUrl;
-      updates.lastLoadedFilename = '(loaded from URL)';
-      updates.outputValue = '';
+      updates.lastLoadedFilename = null;
+      setCurrentOutputFilename(null);
       needsStateUpdate = true;
     }
 
@@ -136,12 +373,20 @@ const TextReverseClient = ({
       reverseModeFromUrl !== toolState.reverseMode
     ) {
       updates.reverseMode = reverseModeFromUrl;
-      updates.outputValue = '';
+      setCurrentOutputFilename(null);
       needsStateUpdate = true;
     }
 
     if (needsStateUpdate) {
+      updates.outputValue = '';
       setToolState(updates);
+
+      if (updates.inputText?.trim()) {
+        performTextReversal(
+          updates.inputText,
+          updates.reverseMode || toolState.reverseMode
+        );
+      }
     } else if (
       toolState.inputText.trim() &&
       !toolState.outputValue.trim() &&
@@ -152,11 +397,14 @@ const TextReverseClient = ({
   }, [
     isLoadingState,
     urlStateParams,
-    toolState,
+    toolState.inputText,
+    toolState.reverseMode,
+    toolState.outputValue,
+    toolState.lastLoadedFilename,
+    uiError,
     setToolState,
     reverseOptions,
     performTextReversal,
-    uiError,
   ]);
 
   const debouncedPerformTextReversal = useDebouncedCallback(
@@ -165,12 +413,18 @@ const TextReverseClient = ({
   );
 
   useEffect(() => {
-    if (isLoadingState || !initialUrlLoadProcessedRef.current) return;
+    if (
+      isLoadingState ||
+      !initialUrlLoadProcessedRef.current ||
+      !initialToolStateLoadCompleteRef.current
+    )
+      return;
 
     if (!toolState.inputText.trim()) {
       if (toolState.outputValue !== '') {
         setToolState({ outputValue: '' });
       }
+      if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       debouncedPerformTextReversal.cancel();
       return;
     }
@@ -182,6 +436,7 @@ const TextReverseClient = ({
     debouncedPerformTextReversal,
     setToolState,
     toolState.outputValue,
+    currentOutputFilename,
   ]);
 
   const handleInputChange = useCallback(
@@ -191,7 +446,9 @@ const TextReverseClient = ({
         lastLoadedFilename: null,
         outputValue: '',
       });
+      setCurrentOutputFilename(null);
       setIsOutputCopied(false);
+      setSaveSuccess(false);
     },
     [setToolState]
   );
@@ -202,28 +459,36 @@ const TextReverseClient = ({
         reverseMode: event.target.value as ReverseMode,
         outputValue: '',
       });
+      setCurrentOutputFilename(null);
       setIsOutputCopied(false);
+      setSaveSuccess(false);
     },
     [setToolState]
   );
 
   const handleClear = useCallback(async () => {
-    await persistentClearState();
+    await clearStateAndPersist();
+    setCurrentOutputFilename(null);
     setIsOutputCopied(false);
     setSaveSuccess(false);
     setUiError('');
     debouncedPerformTextReversal.cancel();
-  }, [persistentClearState, debouncedPerformTextReversal]);
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist, debouncedPerformTextReversal]);
 
   const handleCopyOutput = useCallback(() => {
-    if (!toolState.outputValue || !navigator.clipboard) return;
+    if (!toolState.outputValue || !navigator.clipboard) {
+      setUiError('Nothing to copy or clipboard unavailable.');
+      return;
+    }
+    setUiError('');
     navigator.clipboard.writeText(toolState.outputValue).then(
       () => {
         setIsOutputCopied(true);
         setTimeout(() => setIsOutputCopied(false), 1500);
       },
       (_err) => {
-        /* console.error('Failed to copy reversed text: ', err); */
+        setUiError('Failed to copy to clipboard.');
       }
     );
   }, [toolState.outputValue]);
@@ -244,7 +509,9 @@ const TextReverseClient = ({
           lastLoadedFilename: file.name,
           outputValue: '',
         });
+        setCurrentOutputFilename(generateOutputFilenameForAction());
         setUiError('');
+        setUserDeferredAutoPopup(false);
       } catch (e) {
         setUiError(
           `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`
@@ -254,27 +521,11 @@ const TextReverseClient = ({
           lastLoadedFilename: null,
           outputValue: '',
         });
+        setCurrentOutputFilename(null);
       }
     },
-    [setToolState]
+    [setToolState, generateOutputFilenameForAction]
   );
-
-  const generateOutputFilenameForAction = useCallback((): string => {
-    const base =
-      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') || 'reversed-text';
-    return `${base}-${toolState.reverseMode}-${Date.now()}.txt`;
-  }, [toolState.lastLoadedFilename, toolState.reverseMode]);
-
-  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
-    if (!toolState.outputValue.trim()) {
-      setUiError('No output to ' + action + '.');
-      return;
-    }
-    setUiError('');
-    setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
-    setFilenameActionType(action);
-    setIsFilenameModalOpen(true);
-  };
 
   const handleFilenameConfirm = useCallback(
     async (chosenFilename: string) => {
@@ -287,6 +538,8 @@ const TextReverseClient = ({
       let finalFilename = chosenFilename.trim();
       if (!finalFilename) finalFilename = generateOutputFilenameForAction();
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
+
+      setCurrentOutputFilename(finalFilename);
 
       if (action === 'download') {
         try {
@@ -301,6 +554,7 @@ const TextReverseClient = ({
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
+          setUiError('');
         } catch (_err) {
           setUiError('Failed to prepare download.');
         }
@@ -311,6 +565,7 @@ const TextReverseClient = ({
         try {
           await addFileToLibrary(blob, finalFilename, 'text/plain', false);
           setSaveSuccess(true);
+          setUiError('');
           setTimeout(() => setSaveSuccess(false), 2000);
         } catch (_err) {
           setUiError('Failed to save to library.');
@@ -325,7 +580,52 @@ const TextReverseClient = ({
     ]
   );
 
-  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
+  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
+    if (!toolState.outputValue.trim()) {
+      setUiError('No output to ' + action + '.');
+      return;
+    }
+    if (uiError && toolState.outputValue.trim()) {
+      setUiError('Cannot ' + action + ' output due to existing errors.');
+      return;
+    }
+    setUiError('');
+
+    if (currentOutputFilename) {
+      handleFilenameConfirm(currentOutputFilename);
+    } else {
+      setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
+      setFilenameActionType(action);
+      setIsFilenameModalOpen(true);
+    }
+  };
+
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
+
+  if (
+    isLoadingState &&
+    !initialUrlLoadProcessedRef.current &&
+    !initialToolStateLoadCompleteRef.current
+  ) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Reverse Tool...
@@ -340,20 +640,32 @@ const TextReverseClient = ({
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div className="flex justify-between items-center gap-2">
         <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
+          Input Text:
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
-              (From: {toolState.lastLoadedFilename})
+              ({toolState.lastLoadedFilename})
             </span>
           )}
         </label>
-        <Button
-          variant="neutral-outline"
-          size="sm"
-          onClick={() => setIsLoadFileModalOpen(true)}
-          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-        >
-          Load from File
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReceiveItdeDataTrigger
+            hasDeferredSignals={
+              itdeTarget.pendingSignals.length > 0 &&
+              userDeferredAutoPopup &&
+              !itdeTarget.isModalOpen
+            }
+            pendingSignalCount={itdeTarget.pendingSignals.length}
+            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+          />
+          <Button
+            variant="neutral-outline"
+            size="sm"
+            onClick={() => setIsLoadFileModalOpen(true)}
+            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+          >
+            Load from File
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Textarea
@@ -372,7 +684,7 @@ const TextReverseClient = ({
             htmlFor="reversed-text-output"
             className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
           >
-            Reversed Text ({toolState.reverseMode}): {/* Show current mode */}
+            Reversed Text ({toolState.reverseMode}):
           </label>
           <Textarea
             id="reversed-text-output"
@@ -410,43 +722,18 @@ const TextReverseClient = ({
           selectClassName="py-2"
         />
         <div className="flex items-center space-x-3 ml-auto">
-          <Button
-            variant={isOutputCopied ? 'secondary' : 'accent2'}
-            onClick={handleCopyOutput}
-            disabled={!canPerformOutputActions || isOutputCopied}
-            iconLeft={
-              isOutputCopied ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <ClipboardDocumentIcon className="h-5 w-5" />
-              )
+          <OutputActionButtons
+            canPerform={canPerformOutputActions}
+            isSaveSuccess={saveSuccess}
+            isCopySuccess={isOutputCopied}
+            onInitiateSave={() => initiateOutputActionWithPrompt('save')}
+            onInitiateDownload={() =>
+              initiateOutputActionWithPrompt('download')
             }
-            className="transition-colors duration-150 ease-in-out"
-          >
-            {isOutputCopied ? 'Copied!' : 'Copy Output'}
-          </Button>
-          <Button
-            variant="primary-outline"
-            onClick={() => initiateOutputActionWithPrompt('save')}
-            disabled={!canPerformOutputActions || saveSuccess}
-            iconLeft={
-              saveSuccess ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <DocumentPlusIcon className="h-5 w-5" />
-              )
-            }
-          >
-            {saveSuccess ? 'Saved!' : 'Save to Library'}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => initiateOutputActionWithPrompt('download')}
-            iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
-            disabled={!canPerformOutputActions}
-          >
-            Download Output
-          </Button>
+            onCopy={handleCopyOutput}
+            directiveName={directiveName}
+            outputConfig={metadata.outputConfig as OutputConfig}
+          />
           <Button
             variant="neutral"
             onClick={handleClear}
@@ -454,7 +741,8 @@ const TextReverseClient = ({
               !toolState.inputText &&
               toolState.reverseMode ===
                 DEFAULT_TEXT_REVERSE_STATE.reverseMode &&
-              !toolState.outputValue
+              !toolState.outputValue &&
+              !uiError
             }
           >
             Clear
@@ -493,6 +781,14 @@ const TextReverseClient = ({
         confirmButtonText={
           filenameActionType === 'download' ? 'Download' : 'Save to Library'
         }
+      />
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
       />
     </div>
   );

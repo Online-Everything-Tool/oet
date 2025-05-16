@@ -1,7 +1,13 @@
 // FILE: app/tool/base64-encode-decode/_components/Base64EncodeDecodeClient.tsx
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -9,7 +15,11 @@ import Button from '../../_components/form/Button';
 import RadioGroup from '../../_components/form/RadioGroup';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import type { ParamConfig } from '@/src/types/tools';
+import type {
+  ParamConfig,
+  ToolMetadata,
+  OutputConfig,
+} from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import { useDebouncedCallback } from 'use-debounce';
 import {
@@ -20,6 +30,16 @@ import {
   DocumentPlusIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+import SendToToolButton from '../../_components/shared/SendToToolButton';
+import importedMetadata from '../metadata.json';
 
 type Operation = 'encode' | 'decode';
 type Base64Likelihood =
@@ -44,6 +64,7 @@ const DEFAULT_BASE64_TOOL_STATE: Base64ToolState = {
 };
 
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
+const metadata: ToolMetadata = importedMetadata as ToolMetadata;
 
 interface Base64EncodeDecodeClientProps {
   urlStateParams: ParamConfig[];
@@ -106,6 +127,76 @@ const calculateLikelihoodForCurrentOperation = (
   }
 };
 
+interface OutputActionButtonsProps {
+  canPerform: boolean;
+  isSaveSuccess: boolean;
+  isCopySuccess: boolean;
+  onInitiateSave: () => void;
+  onInitiateDownload: () => void;
+  onCopy: () => void;
+  directiveName: string;
+  outputConfig: OutputConfig;
+}
+
+const OutputActionButtons = React.memo(function OutputActionButtons({
+  canPerform,
+  isSaveSuccess,
+  isCopySuccess,
+  onInitiateSave,
+  onInitiateDownload,
+  onCopy,
+  directiveName,
+  outputConfig,
+}: OutputActionButtonsProps) {
+  if (!canPerform) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap gap-3 items-center p-3 border-y border-[rgb(var(--color-border-base))]">
+      <SendToToolButton
+        currentToolDirective={directiveName}
+        currentToolOutputConfig={outputConfig}
+        buttonText="Send Output To..."
+      />
+      <Button
+        variant="primary-outline"
+        onClick={onInitiateSave}
+        disabled={isSaveSuccess}
+        iconLeft={
+          isSaveSuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <DocumentPlusIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isSaveSuccess ? 'Saved!' : 'Save to Library'}
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={onInitiateDownload}
+        iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
+      >
+        Download Output
+      </Button>
+      <Button
+        variant="neutral"
+        onClick={onCopy}
+        disabled={isCopySuccess}
+        iconLeft={
+          isCopySuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <ClipboardDocumentIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isCopySuccess ? 'Copied!' : 'Copy Output'}
+      </Button>
+    </div>
+  );
+});
+
 export default function Base64EncodeDecodeClient({
   urlStateParams,
   toolRoute,
@@ -114,10 +205,11 @@ export default function Base64EncodeDecodeClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearStateAndPersist: persistentClearState,
+    clearStateAndPersist,
+    saveStateNow,
   } = useToolState<Base64ToolState>(toolRoute, DEFAULT_BASE64_TOOL_STATE);
 
-  const [error, setError] = useState<string>('');
+  const [uiError, setUiError] = useState<string>('');
   const [base64Likelihood, setBase64Likelihood] =
     useState<Base64Likelihood>('unknown');
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
@@ -125,12 +217,24 @@ export default function Base64EncodeDecodeClient({
   const [filenameAction, setFilenameAction] = useState<
     'download' | 'save' | null
   >(null);
+  const [currentOutputFilename, setCurrentOutputFilename] = useState<
+    string | null
+  >(null);
   const [suggestedFilenameForPrompt, setSuggestedFilenameForPrompt] =
     useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
+
   const { addFile: addFileToLibrary } = useFileLibrary();
+  const { getToolMetadata } = useMetadata();
+
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'base64-encode-decode',
+    [toolRoute]
+  );
 
   const operationOptions = useMemo(
     () => [
@@ -139,6 +243,127 @@ export default function Base64EncodeDecodeClient({
     ],
     []
   );
+
+  const generateOutputFilename = useCallback(
+    (baseName?: string | null, chosenOperation?: Operation): string => {
+      const op = chosenOperation || toolState.operation;
+      const base =
+        baseName?.replace(/\.[^/.]+$/, '') ||
+        (op === 'encode' ? 'encoded-text' : 'decoded-text');
+      const mainExtension = op === 'encode' ? '.b64' : '';
+      return `${base}${mainExtension}.txt`;
+    },
+    [toolState.operation]
+  );
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[Base64 ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setUiError('');
+      setCurrentOutputFilename(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setUiError(
+          `Metadata not found for source tool: ${signal.sourceToolTitle}`
+        );
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setUiError(
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
+        );
+        return;
+      }
+
+      let newText = '';
+
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setUiError(
+              `Error reading text from received file: ${fileData.name}`
+            );
+            return;
+          }
+        } else {
+          setUiError(`Received file '${fileData.name}' is not a text file.`);
+          return;
+        }
+      } else {
+        setUiError(
+          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+        );
+        return;
+      }
+
+      const {
+        operation: determinedOpFromText,
+        likelihood: determinedLikelihoodFromText,
+      } = determineInitialOperationAndLikelihood(newText);
+
+      const newState: Base64ToolState = {
+        inputText: newText,
+        operation: determinedOpFromText,
+        outputValue: '',
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow(newState);
+      setBase64Likelihood(determinedLikelihoodFromText);
+      setUserDeferredAutoPopup(false);
+    },
+    [getToolMetadata, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
+
+  useEffect(() => {
+    if (!isLoadingToolState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
+    }
+  }, [isLoadingToolState]);
+
+  useEffect(() => {
+    const canProceed =
+      !isLoadingToolState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
+      itdeTarget.openModalIfSignalsExist();
+    }
+  }, [isLoadingToolState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   const handleEncodeDecode = useCallback(
     (
@@ -154,7 +379,8 @@ export default function Base64EncodeDecodeClient({
 
       if (!trimmedTextToProcess) {
         setToolState({ outputValue: '' });
-        if (error) setError('');
+        setCurrentOutputFilename(null);
+        if (uiError) setUiError('');
         return;
       }
 
@@ -167,7 +393,7 @@ export default function Base64EncodeDecodeClient({
             textToProcess,
             'encode'
           );
-          if (error) setError('');
+          if (uiError) setUiError('');
         } catch (_err) {
           currentError = 'Failed to encode text. Ensure text is valid UTF-8.';
           finalLikelihoodForUIUpdate = calculateLikelihoodForCurrentOperation(
@@ -194,7 +420,7 @@ export default function Base64EncodeDecodeClient({
               .join('%')
           );
           finalLikelihoodForUIUpdate = 'likely_base64';
-          if (error) setError('');
+          if (uiError) setUiError('');
         } catch (err) {
           const errMessage =
             err instanceof Error ? err.message : 'Unknown decode error';
@@ -215,14 +441,21 @@ export default function Base64EncodeDecodeClient({
       }
 
       if (currentError) {
-        if (error !== currentError) setError(currentError);
+        if (uiError !== currentError) setUiError(currentError);
         setToolState({ outputValue: '', operation: finalOperationForState });
+        setCurrentOutputFilename(null);
       } else {
-        if (error) setError('');
+        if (uiError) setUiError('');
         setToolState({
           outputValue: currentOutput,
           operation: finalOperationForState,
         });
+
+        if (toolState.lastLoadedFilename && !currentOutputFilename) {
+          setCurrentOutputFilename(
+            generateOutputFilename(toolState.lastLoadedFilename)
+          );
+        }
       }
 
       if (finalLikelihoodForUIUpdate !== base64Likelihood) {
@@ -232,9 +465,12 @@ export default function Base64EncodeDecodeClient({
     [
       setToolState,
       base64Likelihood,
-      error,
+      uiError,
       toolState.inputText,
       toolState.operation,
+      toolState.lastLoadedFilename,
+      currentOutputFilename,
+      generateOutputFilename,
     ]
   );
 
@@ -244,8 +480,23 @@ export default function Base64EncodeDecodeClient({
   );
 
   useEffect(() => {
-    if (isLoadingToolState || !urlStateParams || urlStateParams.length === 0)
+    if (
+      isLoadingToolState ||
+      !initialToolStateLoadCompleteRef.current ||
+      !urlStateParams ||
+      urlStateParams.length === 0
+    ) {
+      if (
+        !isLoadingToolState &&
+        initialToolStateLoadCompleteRef.current &&
+        toolState.inputText.trim() &&
+        !toolState.outputValue.trim() &&
+        !uiError
+      ) {
+        debouncedProcess(toolState.inputText, toolState.operation);
+      }
       return;
+    }
 
     const params = new URLSearchParams(window.location.search);
     const textFromUrl = params.get('text');
@@ -254,12 +505,14 @@ export default function Base64EncodeDecodeClient({
     let textToSetForState = toolState.inputText;
     let opToSetForState = toolState.operation;
     let filenameToSetForState = toolState.lastLoadedFilename;
+    let outputFilenameToSetForState = currentOutputFilename;
     let uiLikelihoodToSetInitially = base64Likelihood;
     let needsToolStateUpdate = false;
 
     if (textFromUrl !== null) {
       textToSetForState = textFromUrl;
-      filenameToSetForState = '(loaded from URL)';
+      filenameToSetForState = null;
+      outputFilenameToSetForState = null;
       needsToolStateUpdate = true;
 
       const {
@@ -273,6 +526,7 @@ export default function Base64EncodeDecodeClient({
     if (opFromUrlExplicit && ['encode', 'decode'].includes(opFromUrlExplicit)) {
       if (opFromUrlExplicit !== opToSetForState) {
         opToSetForState = opFromUrlExplicit;
+        outputFilenameToSetForState = null;
         needsToolStateUpdate = true;
       }
       uiLikelihoodToSetInitially = calculateLikelihoodForCurrentOperation(
@@ -293,6 +547,9 @@ export default function Base64EncodeDecodeClient({
       updates.outputValue = '';
       setToolState(updates);
     }
+    if (outputFilenameToSetForState !== currentOutputFilename) {
+      setCurrentOutputFilename(outputFilenameToSetForState);
+    }
 
     if (uiLikelihoodToSetInitially !== base64Likelihood) {
       setBase64Likelihood(uiLikelihoodToSetInitially);
@@ -302,7 +559,7 @@ export default function Base64EncodeDecodeClient({
       !needsToolStateUpdate &&
       textToSetForState.trim() &&
       !toolState.outputValue.trim() &&
-      !error
+      !uiError
     ) {
       const currentContextLikelihood = calculateLikelihoodForCurrentOperation(
         textToSetForState,
@@ -319,17 +576,19 @@ export default function Base64EncodeDecodeClient({
     isLoadingToolState,
     urlStateParams,
     base64Likelihood,
-    error,
+    uiError,
     handleEncodeDecode,
     setToolState,
     toolState.inputText,
     toolState.lastLoadedFilename,
     toolState.operation,
     toolState.outputValue,
+    debouncedProcess,
+    currentOutputFilename,
   ]);
 
   useEffect(() => {
-    if (isLoadingToolState) {
+    if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) {
       return;
     }
 
@@ -346,7 +605,8 @@ export default function Base64EncodeDecodeClient({
 
     if (!text.trim()) {
       if (toolState.outputValue !== '') setToolState({ outputValue: '' });
-      if (error !== '') setError('');
+      if (currentOutputFilename !== null) setCurrentOutputFilename(null);
+      if (uiError !== '') setUiError('');
       debouncedProcess.cancel();
       return;
     }
@@ -359,8 +619,9 @@ export default function Base64EncodeDecodeClient({
     debouncedProcess,
     setToolState,
     base64Likelihood,
-    error,
+    uiError,
     toolState.outputValue,
+    currentOutputFilename,
   ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -370,28 +631,26 @@ export default function Base64EncodeDecodeClient({
       lastLoadedFilename: null,
       outputValue: '',
     });
+    setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
   };
 
   const handleOperationChange = (newOperation: Operation) => {
     setToolState({ operation: newOperation, outputValue: '' });
+    setCurrentOutputFilename(null);
   };
 
   const handleClear = useCallback(async () => {
-    console.log(
-      '[Base64Client handleClear] Clearing state via persistentClearState.'
-    );
-    debouncedProcess.cancel();
-
-    await persistentClearState();
-
-    setError('');
+    await clearStateAndPersist();
+    setUiError('');
     setBase64Likelihood('unknown');
+    setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
-    console.log('[Base64Client handleClear] State cleared.');
-  }, [persistentClearState, debouncedProcess]);
+    debouncedProcess.cancel();
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist, debouncedProcess]);
 
   const handleFileSelectedFromModal = useCallback(
     async (files: StoredFile[]) => {
@@ -400,21 +659,18 @@ export default function Base64EncodeDecodeClient({
 
       const file = files[0];
       if (!file.blob) {
-        setError(`Error: File "${file.name}" has no content.`);
+        setUiError(`Error: File "${file.name}" has no content.`);
         return;
       }
       try {
         const text = await file.blob.text();
+        const { operation: determinedOp, likelihood: determinedLikelihood } =
+          determineInitialOperationAndLikelihood(text);
 
-        let opForFileLoad: Operation;
-        let likelihoodForUI: Base64Likelihood;
         let outputForState = '';
         let errorForUI = '';
 
-        const { operation: guessedOp, likelihood: _guessedLikelihoodNotUsed } =
-          determineInitialOperationAndLikelihood(text);
-
-        if (guessedOp === 'decode') {
+        if (determinedOp === 'decode') {
           try {
             const cleanedTextToDecode = text.trim().replace(/\s/g, '');
             if (
@@ -434,62 +690,42 @@ export default function Base64EncodeDecodeClient({
                 )
                 .join('%')
             );
-            opForFileLoad = 'decode';
-            likelihoodForUI = 'likely_base64';
           } catch (decodeError) {
-            opForFileLoad = 'encode';
-            outputForState = '';
             errorForUI =
               decodeError instanceof Error &&
               decodeError.name === 'InvalidCharacterError'
-                ? 'Failed to decode: Input is not a valid Base64 string. Switched to Encode mode.'
-                : 'Decode attempt failed. Switched to Encode mode.';
-            likelihoodForUI = calculateLikelihoodForCurrentOperation(
-              text,
-              'encode'
-            );
+                ? 'Failed to decode: Input is not a valid Base64 string. Will try to Encode.'
+                : 'Decode attempt failed. Will try to Encode.';
           }
-        } else {
-          opForFileLoad = 'encode';
-          likelihoodForUI = calculateLikelihoodForCurrentOperation(
-            text,
-            'encode'
-          );
-          outputForState = '';
         }
 
         setToolState({
           inputText: text,
           lastLoadedFilename: file.name,
-          operation: opForFileLoad,
-          outputValue: outputForState,
+          operation: errorForUI ? 'encode' : determinedOp,
+          outputValue: errorForUI ? '' : outputForState,
         });
-        setBase64Likelihood(likelihoodForUI);
-        setError(errorForUI);
+        setBase64Likelihood(
+          errorForUI
+            ? calculateLikelihoodForCurrentOperation(text, 'encode')
+            : determinedLikelihood
+        );
+        setCurrentOutputFilename(generateOutputFilename(file.name));
+        setUiError(errorForUI);
+        setUserDeferredAutoPopup(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
-        setError(`Error reading file "${file.name}": ${msg}`);
+        setUiError(`Error reading file "${file.name}": ${msg}`);
         setToolState({
           inputText: '',
           lastLoadedFilename: null,
           outputValue: '',
         });
         setBase64Likelihood('unknown');
+        setCurrentOutputFilename(null);
       }
     },
-    [setToolState]
-  );
-
-  const generateOutputFilename = useCallback(
-    (baseName?: string | null, chosenOperation?: Operation): string => {
-      const op = chosenOperation || toolState.operation;
-      const base =
-        baseName?.replace(/\.[^/.]+$/, '') ||
-        (op === 'encode' ? 'encoded-text' : 'decoded-text');
-      const mainExtension = op === 'encode' ? '.b64' : '';
-      return `${base}${mainExtension}.txt`;
-    },
-    [toolState.operation]
+    [setToolState, generateOutputFilename]
   );
 
   const handleFilenameConfirm = useCallback(
@@ -497,18 +733,23 @@ export default function Base64EncodeDecodeClient({
       setIsFilenameModalOpen(false);
       const currentAction = actionOverride || filenameAction;
       if (!currentAction) return;
+
       let finalFilename = filename.trim();
-      if (!finalFilename)
+      if (!finalFilename) {
         finalFilename = generateOutputFilename(
           toolState.lastLoadedFilename,
           toolState.operation
         );
-      if (!/\.(txt|b64|text|json)$/i.test(finalFilename))
+      }
+      if (!/\.(txt|b64|text|json)$/i.test(finalFilename)) {
         finalFilename += toolState.operation === 'encode' ? '.b64.txt' : '.txt';
+      }
+
+      setCurrentOutputFilename(finalFilename);
 
       if (currentAction === 'download') {
         if (!toolState.outputValue) {
-          setError('No output to download.');
+          setUiError('No output to download.');
           return;
         }
         try {
@@ -523,15 +764,15 @@ export default function Base64EncodeDecodeClient({
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          setError('');
+          setUiError('');
         } catch (err) {
-          setError(
+          setUiError(
             `Failed to prepare download: ${err instanceof Error ? err.message : 'Unknown error'}`
           );
         }
       } else if (currentAction === 'save') {
         if (!toolState.outputValue) {
-          setError('No output to save.');
+          setUiError('No output to save.');
           return;
         }
         const blob = new Blob([toolState.outputValue], {
@@ -540,11 +781,11 @@ export default function Base64EncodeDecodeClient({
         addFileToLibrary(blob, finalFilename, 'text/plain', false)
           .then(() => {
             setSaveSuccess(true);
-            setError('');
+            setUiError('');
             setTimeout(() => setSaveSuccess(false), 2000);
           })
           .catch((err) =>
-            setError(
+            setUiError(
               `Failed to save to library: ${err instanceof Error ? err.message : 'Unknown error'}`
             )
           );
@@ -564,28 +805,31 @@ export default function Base64EncodeDecodeClient({
   const initiateOutputAction = useCallback(
     (action: 'download' | 'save') => {
       if (!toolState.outputValue.trim()) {
-        setError('No output to ' + action + '.');
+        setUiError('No output to ' + action + '.');
         return;
       }
-      if (error && toolState.outputValue.trim()) {
-        setError('Cannot ' + action + ' output due to existing input errors.');
-        return;
-      }
-      if (toolState.lastLoadedFilename) {
-        const autoFilename = generateOutputFilename(
-          toolState.lastLoadedFilename
+      if (uiError && toolState.outputValue.trim()) {
+        setUiError(
+          'Cannot ' + action + ' output due to existing input errors.'
         );
-        handleFilenameConfirm(autoFilename, action);
+        return;
+      }
+
+      if (currentOutputFilename) {
+        handleFilenameConfirm(currentOutputFilename, action);
       } else {
-        setSuggestedFilenameForPrompt(generateOutputFilename(null));
+        setSuggestedFilenameForPrompt(
+          generateOutputFilename(toolState.lastLoadedFilename)
+        );
         setFilenameAction(action);
         setIsFilenameModalOpen(true);
       }
     },
     [
+      currentOutputFilename,
       handleFilenameConfirm,
       toolState.outputValue,
-      error,
+      uiError,
       toolState.lastLoadedFilename,
       generateOutputFilename,
     ]
@@ -593,18 +837,39 @@ export default function Base64EncodeDecodeClient({
 
   const handleCopyToClipboard = useCallback(async () => {
     if (!toolState.outputValue) {
-      setError('No output to copy.');
+      setUiError('No output to copy.');
       return;
     }
     try {
       await navigator.clipboard.writeText(toolState.outputValue);
       setCopySuccess(true);
-      setError('');
+      setUiError('');
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (_err) {
-      setError('Failed to copy to clipboard.');
+      setUiError('Failed to copy to clipboard.');
     }
   }, [toolState.outputValue]);
+
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
 
   const getLikelihoodBarState = useCallback(() => {
     switch (base64Likelihood) {
@@ -654,14 +919,15 @@ export default function Base64EncodeDecodeClient({
     valueNow,
   } = getLikelihoodBarState();
 
-  if (isLoadingToolState) {
+  if (isLoadingToolState && !initialToolStateLoadCompleteRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Base64 Tool...
       </p>
     );
   }
-  const canPerformOutputActions = toolState.outputValue.trim() !== '' && !error;
+  const canPerformOutputActions =
+    toolState.outputValue.trim() !== '' && !uiError;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
@@ -670,18 +936,29 @@ export default function Base64EncodeDecodeClient({
           Input:
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
-              (from: {toolState.lastLoadedFilename})
+              ({toolState.lastLoadedFilename})
             </span>
           )}
         </label>
-        <Button
-          variant="neutral-outline"
-          size="sm"
-          onClick={() => setIsLoadFileModalOpen(true)}
-          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-        >
-          Load from File
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReceiveItdeDataTrigger
+            hasDeferredSignals={
+              itdeTarget.pendingSignals.length > 0 &&
+              userDeferredAutoPopup &&
+              !itdeTarget.isModalOpen
+            }
+            pendingSignalCount={itdeTarget.pendingSignals.length}
+            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+          />
+          <Button
+            variant="neutral-outline"
+            size="sm"
+            onClick={() => setIsLoadFileModalOpen(true)}
+            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+          >
+            Load from File
+          </Button>
+        </div>
       </div>
       <Textarea
         id="base64-input"
@@ -735,7 +1012,19 @@ export default function Base64EncodeDecodeClient({
           Clear
         </Button>
       </div>
-      {error && (
+
+      <OutputActionButtons
+        canPerform={canPerformOutputActions}
+        isSaveSuccess={saveSuccess}
+        isCopySuccess={copySuccess}
+        onInitiateSave={() => initiateOutputAction('save')}
+        onInitiateDownload={() => initiateOutputAction('download')}
+        onCopy={handleCopyToClipboard}
+        directiveName={directiveName}
+        outputConfig={metadata.outputConfig as OutputConfig}
+      />
+
+      {uiError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
@@ -745,7 +1034,7 @@ export default function Base64EncodeDecodeClient({
             aria-hidden="true"
           />
           <div>
-            <strong className="font-semibold">Error:</strong> {error}
+            <strong className="font-semibold">Error:</strong> {uiError}
           </div>
         </div>
       )}
@@ -761,52 +1050,14 @@ export default function Base64EncodeDecodeClient({
         aria-live="polite"
         onClick={(e) => e.currentTarget.select()}
       />
-      {canPerformOutputActions && (
-        <div className="flex flex-wrap gap-3 items-center p-3 border-t border-[rgb(var(--color-border-base))]">
-          <Button
-            variant="primary-outline"
-            onClick={() => initiateOutputAction('save')}
-            disabled={saveSuccess}
-            iconLeft={
-              saveSuccess ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <DocumentPlusIcon className="h-5 w-5" />
-              )
-            }
-          >
-            {saveSuccess ? 'Saved!' : 'Save to Library'}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => initiateOutputAction('download')}
-            iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
-          >
-            Download Output
-          </Button>
-          <Button
-            variant="neutral"
-            onClick={handleCopyToClipboard}
-            disabled={copySuccess}
-            iconLeft={
-              copySuccess ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <ClipboardDocumentIcon className="h-5 w-5" />
-              )
-            }
-          >
-            {copySuccess ? 'Copied!' : 'Copy Output'}
-          </Button>
-        </div>
-      )}
+
       <FileSelectionModal
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
         slurpContentOnly={true}
         mode="selectExistingOrUploadNew"
-        accept=".txt,text/*"
+        accept=".txt,text/*,.b64"
         selectionMode="single"
         libraryFilter={{ category: 'text' }}
         initialTab="upload"
@@ -829,6 +1080,14 @@ export default function Base64EncodeDecodeClient({
         confirmButtonText={
           filenameAction === 'download' ? 'Download' : 'Save to Library'
         }
+      />
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
       />
     </div>
   );

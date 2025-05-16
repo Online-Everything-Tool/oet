@@ -6,7 +6,6 @@ import path from 'path';
 
 import './globals.css';
 
-import { ImageLibraryProvider } from './context/ImageLibraryContext';
 import { FileLibraryProvider } from './context/FileLibraryContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
@@ -98,14 +97,12 @@ export default function RootLayout({
       >
         <MetadataProvider>
           <FileLibraryProvider>
-            <ImageLibraryProvider>
-              <FavoritesProvider>
-                <Header />
-                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                  {children}
-                </main>
-              </FavoritesProvider>
-            </ImageLibraryProvider>
+            <FavoritesProvider>
+              <Header />
+              <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                {children}
+              </main>
+            </FavoritesProvider>
           </FileLibraryProvider>
         </MetadataProvider>
       </body>

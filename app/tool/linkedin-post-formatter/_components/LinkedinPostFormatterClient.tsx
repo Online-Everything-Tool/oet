@@ -173,6 +173,7 @@ export default function LinkedinPostFormatterClient({
         blockquote: false,
         horizontalRule: false,
         codeBlock: false,
+        hardBreak: false,
       }),
       Underline,
       Placeholder.configure({

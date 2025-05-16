@@ -3,7 +3,7 @@
   "description": "Search, filter, and copy emojis from the latest official Unicode emoji dataset.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none " }]
+    "stateFiles": [{ "dataType": "none" }]
   },
   "outputConfig": {
     "transferableContent": {

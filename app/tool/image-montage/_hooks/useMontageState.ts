@@ -1,8 +1,8 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageState.ts ---
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 import useToolState from '../../_hooks/useToolState';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 
 const DEFAULT_OVERLAP_PERCENT = 20;
 const MAX_OVERLAP_PERCENT = 80;
@@ -20,7 +20,7 @@ export interface MontageImage {
   originalHeight: number;
 }
 
-interface PersistedMontageImage {
+export interface PersistedMontageImage {
   imageId: string;
   name: string;
   tilt: number;
@@ -98,7 +98,7 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
   );
   const objectUrlsRef = useRef<Map<string, string>>(new Map());
 
-  const { getImage } = useImageLibrary();
+  const { getFile } = useFileLibrary();
   const isLoadingImages = Object.values(imageLoadingStatus).some(
     (status) => status === 'loading'
   );
@@ -122,10 +122,11 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
       ) {
         newImageLoadingStatus[imageId] = 'loading';
         didStatusChange = true;
-        getImage(imageId)
+        getFile(imageId)
           .then((storedFile) => {
-            if (!storedFile?.blob)
+            if (!storedFile?.blob) {
               throw new Error(`Blob missing for image ID ${imageId} (${name})`);
+            }
             const objectURL = URL.createObjectURL(storedFile.blob);
             objectUrlsRef.current.set(imageId, objectURL);
             const img = new Image();
@@ -137,6 +138,7 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
                 ...prev,
                 [imageId]: 'loaded',
               }));
+
               if (
                 (!persistedImg.originalWidth || !persistedImg.originalHeight) &&
                 img.naturalWidth > 0 &&
@@ -215,15 +217,9 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
     if (localErrorMsg && imageLoadingError !== localErrorMsg)
       setImageLoadingError(localErrorMsg);
     else if (!localErrorMsg && imageLoadingError) setImageLoadingError(null);
-  }, [
-    toolState.persistedImages,
-    isLoadingState,
-    getImage,
-    setToolState,
-    loadedImageElements,
-    imageLoadingStatus,
-    imageLoadingError,
-  ]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolState.persistedImages, isLoadingState, getFile, setToolState]);
 
   useEffect(() => {
     const urls = objectUrlsRef.current;
@@ -287,7 +283,6 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
               imageId: file.id,
               name: file.name,
               tilt: getRandomTilt(),
-
               overlapPercent:
                 prevState.persistedImages.length +
                   newlyAddedImagesThisCall.length ===
@@ -323,6 +318,7 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
     )
       return;
     setImageLoadingError(null);
+
     await clearPersistentToolState();
   }, [toolState, clearPersistentToolState]);
 
@@ -336,6 +332,8 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
         persistedImages: prevState.persistedImages.map((img) =>
           img.imageId === imageId ? { ...img, ...updates } : img
         ),
+        processedFileId: null,
+        outputFilename: null,
       }));
     },
     [setToolState]
@@ -346,7 +344,6 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
       modifyPersistedImage(imageId, { tilt: newTilt }),
     [modifyPersistedImage]
   );
-
   const handleOverlapChange = useCallback(
     (imageId: string, newOverlap: number) =>
       modifyPersistedImage(imageId, {
@@ -376,7 +373,12 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
           newImages[newTargetIndex],
         ];
 
-        return { ...prevState, persistedImages: newImages };
+        return {
+          ...prevState,
+          persistedImages: newImages,
+          processedFileId: null,
+          outputFilename: null,
+        };
       });
     },
     [setToolState]
@@ -403,16 +405,16 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
           return prevState;
         if (direction === 'down' && currentIndexInSorted <= 0) return prevState;
 
+        const otherImageIndexInSorted =
+          direction === 'up'
+            ? currentIndexInSorted + 1
+            : currentIndexInSorted - 1;
+        const otherImageId = imagesSortedByZ[otherImageIndexInSorted].imageId;
+
         const currentImageOriginalZ =
           imagesSortedByZ[currentIndexInSorted].zIndex;
         const otherImageOriginalZ =
-          direction === 'up'
-            ? imagesSortedByZ[currentIndexInSorted + 1].zIndex
-            : imagesSortedByZ[currentIndexInSorted - 1].zIndex;
-        const otherImageId =
-          direction === 'up'
-            ? imagesSortedByZ[currentIndexInSorted + 1].imageId
-            : imagesSortedByZ[currentIndexInSorted - 1].imageId;
+          imagesSortedByZ[otherImageIndexInSorted].zIndex;
 
         const updatedPersistedImages = prevState.persistedImages.map((img) => {
           if (img.imageId === imageId)
@@ -421,7 +423,12 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
             return { ...img, zIndex: currentImageOriginalZ };
           return img;
         });
-        return { ...prevState, persistedImages: updatedPersistedImages };
+        return {
+          ...prevState,
+          persistedImages: updatedPersistedImages,
+          processedFileId: null,
+          outputFilename: null,
+        };
       });
     },
     [setToolState]
@@ -432,7 +439,12 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
 
   const handleEffectChange = useCallback(
     (newEffect: MontageEffect) => {
-      setToolState((prevState) => ({ ...prevState, effect: newEffect }));
+      setToolState((prevState) => ({
+        ...prevState,
+        effect: newEffect,
+        processedFileId: null,
+        outputFilename: null,
+      }));
     },
     [setToolState]
   );

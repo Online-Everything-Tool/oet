@@ -14,8 +14,8 @@
     }
   ],
   "inputConfig": {
-    "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none " }]
+    "acceptsMimeTypes": ["text/*"],
+    "stateFiles": [{ "dataType": "none" }]
   },
   "outputConfig": {
     "transferableContent": {

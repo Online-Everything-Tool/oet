@@ -133,13 +133,13 @@ function isOutputCompatibleWithInput(
 
   for (const sourceMime of sourceMimeTypes) {
     for (const targetMime of targetAccepts) {
-      if (mimeTypeMatches(sourceMime, targetMime)) {
-        return true;
+      if (!mimeTypeMatches(sourceMime, targetMime)) {
+        return false;
       }
     }
   }
 
-  return false;
+  return true;
 }
 
 function mimeTypeMatches(

@@ -5,8 +5,7 @@
     "stateFiles": [
       {
         "dataType": "fileReference",
-        "fileIdStateKey": "selectedFileId",
-        "fileCategory": "image"
+        "fileIdStateKey": "selectedFileId"
       }
     ],
     "acceptsMimeTypes": ["image/*"]

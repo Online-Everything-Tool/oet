@@ -1,84 +1,72 @@
 # TODO List - OET Project
 
-**Current Major Focus:** Implement Inter-Tool Data Exchange (ITDE) now that core tools are stateful.
+**Current Major Focus:** Finalize core tool ITDE capabilities and refine storage components.
 
 **Guiding Principles for ITDE (Recap):**
-
-- **Full Statefulness Achieved (Mostly):** Core tools now persist relevant inputs, settings, and primary output references (e.g., `processedFileId`, `outputFilename`, `outputValue`) in Dexie via `useToolState`. They load this state and display output without unnecessary auto-processing.
-- **ITDE Architecture:**
-  - `MetadataContext`: Global access to all tools' `metadata.json` (especially `inputConfig`, `outputConfig`).
-  - `useItdeDiscovery()`: Hook for the source tool to find compatible target tools.
-  - `useItdeTargetHandler()`: Hook for target tools to detect and manage incoming ITDE messages.
-  - `sessionStorage` message: `{ to: "target-directive", from: "source-directive"}`.
-  - ITDE Modal: Target tool presents Accept/Ignore/Defer options.
+- Core tools persist relevant state in Dexie via `useToolState`.
+- ITDE Architecture: `MetadataContext`, `useItdeDiscovery`, `useItdeTargetHandler`, `sessionStorage` signals, ITDE Modals.
 
 ---
 
-## I. Inter-Tool Data Exchange (ITDE) Implementation
+## I. Inter-Tool Data Exchange (ITDE) - Finalization & Testing
 
-- **Phase 1: Core Infrastructure & Basic "Ignore" Flow**
+- **Phase 1 & 2: Core Infrastructure & Accept/Defer Logic - LARGELY COMPLETE**
+  - [x] `MetadataContext.tsx`: Implemented.
+  - [x] `sessionStorageUtils.ts`: Implemented.
+  - [x] `useItdeDiscovery.ts`: Implemented and refined (including "match all" for `fileCategory:"*"`).
+  - [x] `SendToToolButton.tsx`: Implemented.
+  - [x] `useItdeTargetHandler.ts`: Implemented.
+  - [x] `IncomingDataModal.tsx`: Implemented (opacity adjusted).
+  - [x] `ItdeAcceptChoiceModal.tsx`: New shared component created and implemented for `image-montage`.
+- **Tool-Specific ITDE Integration - IN PROGRESS/MOSTLY DONE:**
+  - [x] `image-flip`: ITDE Send/Receive implemented.
+  - [x] `image-gray-scale`: ITDE Send/Receive implemented.
+  - [x] `image-montage`: ITDE Send/Receive implemented (with choice modal).
+  - [x] `base64-encode-decode`: ITDE Send/Receive implemented.
+  - [x] `case-converter`: ITDE Send/Receive implemented.
+  - [x] `hash-generator`: ITDE Send/Receive implemented.
+  - [x] `json-validate-format`: ITDE Send/Receive implemented.
+  - [x] `text-reverse`: ITDE Send/Receive implemented.
+  - [x] `text-strike-through`: ITDE Receive implemented (output is Unicode copy).
+  - [x] `file-storage`: ITDE Send implemented (dynamic types).
+  - [x] `image-storage`: ITDE Send implemented (dynamic image types).
+- **Phase 3: Cleanup & Refinements - ONGOING**
+  - [x] Temporary ITDE File Cleanup: `cleanupOrphanedTemporaryFiles` implemented with "mark as temporary" logic. Robustness improved.
+  - [ ] **Thorough End-to-End ITDE Testing:** Test various send/receive combinations between all ITDE-enabled tools.
+  - [ ] Error Handling & User Feedback for all ITDE steps (review and enhance where needed).
+  - [ ] UI/UX Polish for "Send To..." and "Incoming Data" experiences (review after full testing).
 
-  - [ ] **Create `MetadataContext.tsx`**:
-    - Provider loads all `public/api/tool-metadata/*.json`.
-    - Exposes `getToolMetadata(directive)`, `getAllToolMetadataArray()`.
-  - [ ] **Create `sessionStorageUtils.ts`**:
-    - Functions: `setItdeMessage(payload)`, `getItdeMessage()`, `clearItdeMessage()`.
-  - [ ] **Create `useItdeDiscovery.ts` Hook**:
-    - Input: `currentToolOutputConfig`, `currentSelectedOutputFiles?: StoredFile[]`.
-    - Consumes `MetadataContext`. Matches output to other tools' `inputConfig`.
-    - Handles `fileCategory="*"` (e.g., from `file-storage`) by checking actual MIME types of selected files.
-    - Returns array of compatible target tools.
-  - [ ] **Implement "Send To..." Button UI**:
-    - In a shared component or tool clients where output exists.
-    - Uses `useItdeDiscovery`. On selection, calls `setItdeMessage`.
-    - Handles transient outputs (e.g., unsaved `image-montage` canvas) by generating a temporary Dexie file and passing `tempFileId`.
-  - [ ] **Create `useItdeTargetHandler.ts` Hook**:
-    - Input: `targetToolDirective`, `onAcceptDataRequest: (payload) => void`.
-    - Manages "Incoming Data" modal state.
-  - [ ] **Create `IncomingDataModal.tsx` Shared Component**:
-    - Displays message. Buttons: "Accept", "Ignore", "Defer".
-    - "Ignore" calls `clearItdeMessage`.
-  - [ ] **Integrate with 2-3 Tools for Phase 1 (e.g., `image-flip` -> `image-gray-scale`)**: Implement "Ignore" fully. Show modal.
+## II. Storage Component Refactoring & Deletion Logic - COMPLETE
 
-- **Phase 2: Implement "Accept" & "Defer" Logic**
+- [x] **Generic `StorageClient.tsx`:** Created and implemented.
+- [x] **`FileStorageClient.tsx`:** Refactored to use `GenericStorageClient`.
+- [x] **`ImageStorageClient.tsx`:** Refactored to use `GenericStorageClient` with an adapter for image-specific listing and adding (via `FileLibraryContext`'s enhanced `addFile`).
+- [x] **Deletion Logic:** Updated to "mark as temporary" then `cleanupOrphanedTemporaryFiles` in `FileLibraryContext.tsx` and utilized by storage clients.
+- [x] **`FileLibraryContext.tsx` and `useImageThumbnailer.ts`:** Refactored to centralize thumbnail generation logic within `FileLibraryContext` using the dedicated hook. `ImageLibraryContext.tsx` simplified/potentially removed.
 
-  - [ ] **Refine `onAcceptDataRequest` in `useItdeTargetHandler`**.
-  - [ ] **Target Tool "Accept" Implementation:**
-    - Tool's `onAcceptData` callback:
-      - Uses `MetadataContext` for source tool's `outputConfig`.
-      - Fetches source tool's state (or uses `tempFileId`).
-      - Extracts output reference/data.
-      - Sets data as its _own input_ (`setSelectedFileId`, `setInputText`, etc.).
-      - Triggers its own processing logic.
-  - [ ] **Handle "Merge" Scenarios** (e.g., `image-montage` accepting an image to add).
-  - [ ] **Handle "Batch" Scenarios** (e.g., tool accepting multiple files from `file-storage`).
-  - [ ] **Implement "Defer" Logic** (how deferred messages are managed/re-presented).
+## III. UI/UX Enhancements & Polish
 
-- **Phase 3: Cleanup & Refinements**
-  - [ ] **Temporary ITDE File Cleanup**: Via `FileLibraryContext.cleanupTemporaryFiles` or other robust method.
-  - [ ] **Error Handling & User Feedback** for all ITDE steps.
-  - [ ] **UI/UX Polish** for "Send To..." and "Incoming Data" experiences.
-
-## II. Finalizing Remaining Tool Statefulness & Polish
-
-- [ ] **`zip-file-explorer`**:
-  - Verify `selectedFileId` (for the input zip) and UI state (filters, `expandedFolderPaths`, `selectedPaths`) are robustly persisted with `useToolState`.
-  - Its `outputConfig` for `selectionReferenceList` using `selectedPaths` is good for ITDE. The actual extraction logic will be part of the _target tool's_ "Accept" handler when receiving from `zip-file-explorer`.
-- **Review & Polish Already "Done" Tools:**
-  - Quick pass over tools marked as complete (e.g., `image-flip`, `image-gray-scale`, `image-montage`, text tools) to ensure consistency with the "full statefulness" pattern (especially regarding `outputFilename` if applicable, and how `processedFileId` is handled vs. live canvas for image tools).
-  - Ensure all relevant `outputConfig` entries in `metadata.json` are accurate for ITDE (e.g., `textStateKey` or `fileIdStateKey`).
-
-## III. General UI/UX & Other Enhancements
-
-- [ ] **Create Site Footer**: Standard links (Privacy, Terms, GitHub).
-- [ ] **Static HTML Pages**: `privacy.html`, `terms.html` in `/public`.
-- [ ] **Refine AI Build Tool Prompts**: Update for new state patterns, ITDE awareness, use of shared components.
+- [x] Button Flicker: Addressed for text tools and storage clients by relocating/memoizing button groups. (Marked as done for now, further finessing can be separate).
+- [x] Filename Prompting: Refined logic for text tools and storage clients.
+- [x] `IncomingDataModal.tsx` Opacity: Adjusted.
+- [ ] **Standardize UI/UX for Controls:**
+    - **Button Sizing, Coloring, and Placement:** Review all tools for consistency in button appearance (primary, secondary, neutral variants), sizes, and logical grouping/placement of action buttons (e.g., input actions, output actions, ITDE actions).
+    - Review hover/focus/disabled states.
+- [ ] **Textarea Flicker (Scrollbar):** Investigate strategies (min-height, overflow-y: scroll) to prevent layout shift when output textareas populate. (Low priority for now).
+- [ ] **Create Site Footer:** Standard links (Privacy, Terms, GitHub).
+- [ ] **Static HTML Pages:** `privacy.html`, `terms.html` in `/public`.
 
 ## IV. Bugs & Minor Fixes
 
-- [ ] **Canvas Sizing/Clipping Review (`image-montage`)**: Double-check after padding changes that final blobs aren't clipped.
-- [ ] **FileSelectionModal Flicker**: Monitor if it reappears; if so, investigate further with logs.
-- [ ] **`useImageProcessing` `toolTitle` prop**: `ImageGrayScaleClient` calls it with `toolRoute` instead of `toolTitle`. Standardize or update hook. (Minor).
-- [ ] **ESLint Warnings**: Address remaining legitimate warnings (unused vars, hook dependencies) where fixes don't cause regressions.
+- [ ] **`linkedin-post-formatter` Paste Handling:**
+    - **Double Spacing Issue:** Investigate why pasted text with blank lines (intended as paragraph breaks) might not be rendering with the expected double line break visual separation in the editor after pasting. (Current paste handler treats each line as a new paragraph, but rendering might be collapsing empty paragraphs visually or `generateUnicodeText` might be over-trimming).
+    - Revisit `editorProps.handlePaste` and `generateUnicodeText` if needed.
+- [ ] **ESLint Warnings:** Address any remaining legitimate warnings (unused vars, hook dependencies) where fixes don't cause regressions. (Mostly done, but keep an eye out).
+
+## V. Future Tool Development & Enhancements
+
+- [ ] **`zip-file-explorer`**: Implement full functionality and ITDE (complex output).
+- [ ] **Refine AI Build Tool Prompts**: Update for new state patterns, ITDE awareness, use of shared components, and generic storage client patterns.
+- [ ] **"Recently Used" Widget (Thumbnail Re-integration):** Plan for re-introducing this feature, leveraging the `thumbnailBlob` now stored with image files.
 
 ---

@@ -35,7 +35,7 @@ export default function IncomingDataModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[60] p-4"
+      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4"
       onClick={onDeferAll}
       role="dialog"
       aria-modal="true"

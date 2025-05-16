@@ -1,6 +1,6 @@
 // FILE: app/tool/_hooks/useImageProcessing.ts
 import { useState, useCallback } from 'react';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
 type ProcessingFunction = (
@@ -47,7 +47,7 @@ const useImageProcessing = (): UseImageProcessingReturn => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { addImage } = useImageLibrary();
+  const { addFile } = useFileLibrary();
 
   const clearProcessingOutput = useCallback(() => {
     setProcessedImageSrc(null);
@@ -139,7 +139,7 @@ const useImageProcessing = (): UseImageProcessingReturn => {
         result.dataUrl = canvas.toDataURL(outputMimeType, quality);
 
         const isTemporary = !createPermanentEntry;
-        const newFileId = await addImage(
+        const newFileId = await addFile(
           result.blob,
           outputFileName,
           outputMimeType,
@@ -172,7 +172,7 @@ const useImageProcessing = (): UseImageProcessingReturn => {
       }
       return result;
     },
-    [addImage, clearProcessingOutput]
+    [addFile, clearProcessingOutput]
   );
 
   return {

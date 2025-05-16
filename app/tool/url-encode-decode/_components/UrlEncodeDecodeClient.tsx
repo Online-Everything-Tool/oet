@@ -1,9 +1,19 @@
 // --- FILE: app/tool/url-encode-decode/_components/UrlEncodeDecodeClient.tsx ---
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import useToolState from '../../_hooks/useToolState';
-import type { ParamConfig } from '@/src/types/tools';
+import type {
+  ParamConfig,
+  ToolMetadata,
+  OutputConfig,
+} from '@/src/types/tools';
 import Textarea from '../../_components/form/Textarea';
 import RadioGroup from '../../_components/form/RadioGroup';
 import Button from '../../_components/form/Button';
@@ -20,6 +30,16 @@ import {
   ArrowUpTrayIcon,
   DocumentPlusIcon,
 } from '@heroicons/react/20/solid';
+
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+import SendToToolButton from '../../_components/shared/SendToToolButton';
+import importedMetadata from '../metadata.json';
 
 type Operation = 'encode' | 'decode';
 type EncodeMode = 'standard' | 'aggressive';
@@ -43,11 +63,85 @@ const DEFAULT_URL_TOOL_STATE: UrlToolState = {
 };
 
 const AUTO_PROCESS_DEBOUNCE_MS = 300;
+const metadata: ToolMetadata = importedMetadata as ToolMetadata;
 
 interface UrlEncodeDecodeClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
 }
+
+interface OutputActionButtonsProps {
+  canPerform: boolean;
+  isSaveSuccess: boolean;
+  isCopySuccess: boolean;
+  onInitiateSave: () => void;
+  onInitiateDownload: () => void;
+  onCopy: () => void;
+  directiveName: string;
+  outputConfig: OutputConfig;
+  isProcessing: boolean;
+}
+
+const OutputActionButtons = React.memo(function OutputActionButtons({
+  canPerform,
+  isSaveSuccess,
+  isCopySuccess,
+  onInitiateSave,
+  onInitiateDownload,
+  onCopy,
+  directiveName,
+  outputConfig,
+  isProcessing,
+}: OutputActionButtonsProps) {
+  if (!canPerform && !isProcessing) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap gap-3 items-center py-3 border-t border-b border-[rgb(var(--color-border-base))]">
+      <SendToToolButton
+        currentToolDirective={directiveName}
+        currentToolOutputConfig={outputConfig}
+        buttonText="Send Output To..."
+      />
+      <Button
+        variant="primary-outline"
+        onClick={onInitiateSave}
+        disabled={isSaveSuccess || !canPerform || isProcessing}
+        iconLeft={
+          isSaveSuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <DocumentPlusIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isSaveSuccess ? 'Saved!' : 'Save to Library'}
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={onInitiateDownload}
+        iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
+        disabled={!canPerform || isProcessing}
+      >
+        Download Output
+      </Button>
+      <Button
+        variant={isCopySuccess ? 'secondary' : 'accent-outline'}
+        onClick={onCopy}
+        disabled={isCopySuccess || !canPerform || isProcessing}
+        iconLeft={
+          isCopySuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <ClipboardDocumentIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isCopySuccess ? 'Copied!' : 'Copy Output'}
+      </Button>
+    </div>
+  );
+});
 
 export default function UrlEncodeDecodeClient({
   urlStateParams,
@@ -57,8 +151,9 @@ export default function UrlEncodeDecodeClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearStateAndPersist: persistentClearState,
+    clearStateAndPersist,
     errorLoadingState,
+    saveStateNow,
   } = useToolState<UrlToolState>(toolRoute, DEFAULT_URL_TOOL_STATE);
 
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -67,79 +162,151 @@ export default function UrlEncodeDecodeClient({
   const [filenameActionType, setFilenameActionType] = useState<
     'download' | 'save' | null
   >(null);
+  const [currentOutputFilename, setCurrentOutputFilename] = useState<
+    string | null
+  >(null);
   const [suggestedFilenameForPrompt, setSuggestedFilenameForPrompt] =
     useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialUrlLoadProcessedRef = useRef(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
+
   const { addFile: addFileToLibrary } = useFileLibrary();
+  const { getToolMetadata } = useMetadata();
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'url-encode-decode',
+    [toolRoute]
+  );
+
+  const generateOutputFilenameForAction = useCallback((): string => {
+    const base =
+      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') ||
+      (toolState.operation === 'encode' ? 'encoded' : 'decoded');
+    const modePart =
+      toolState.operation === 'encode' ? `-${toolState.encodeMode}` : '';
+    return `${base}${modePart}.txt`;
+  }, [toolState.lastLoadedFilename, toolState.operation, toolState.encodeMode]);
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[UrlEncodeDecode ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setToolState({ errorMsg: '' });
+      setCurrentOutputFilename(null);
+
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setToolState({
+          errorMsg: `Metadata not found for source tool: ${signal.sourceToolTitle}`,
+        });
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setToolState({
+          errorMsg:
+            resolvedPayload.errorMessage ||
+            'No transferable data received from source.',
+        });
+        return;
+      }
+
+      let newText = '';
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setToolState({
+              errorMsg: `Error reading text from received file: ${fileData.name}`,
+            });
+            return;
+          }
+        } else {
+          setToolState({
+            errorMsg: `Received file '${fileData.name}' is not a text file.`,
+          });
+          return;
+        }
+      } else {
+        setToolState({
+          errorMsg: `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`,
+        });
+        return;
+      }
+
+      const newState: Partial<UrlToolState> = {
+        inputText: newText,
+        outputValue: '',
+        errorMsg: '',
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow({ ...toolState, ...newState });
+      setUserDeferredAutoPopup(false);
+    },
+    [getToolMetadata, toolState, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
 
   useEffect(() => {
-    if (
-      isLoadingState ||
-      initialUrlLoadProcessedRef.current ||
-      !urlStateParams ||
-      urlStateParams.length === 0
-    ) {
-      if (!isLoadingState && !initialUrlLoadProcessedRef.current)
-        initialUrlLoadProcessedRef.current = true;
-      return;
-    }
-    initialUrlLoadProcessedRef.current = true;
-
-    const params = new URLSearchParams(window.location.search);
-    const updates: Partial<UrlToolState> = {};
-    let needsUpdate = false;
-    let textForImmediateProcessing: string | null = null;
-
-    const textFromUrl = params.get('text');
-    if (textFromUrl !== null) {
-      if (textFromUrl !== toolState.inputText) {
-        updates.inputText = textFromUrl;
-        updates.lastLoadedFilename = '(loaded from URL)';
-        needsUpdate = true;
+    if (!isLoadingState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
       }
-      textForImmediateProcessing = textFromUrl;
     } else {
-      textForImmediateProcessing = toolState.inputText;
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
     }
+  }, [isLoadingState]);
 
-    const opFromUrl = params.get('operation') as Operation | null;
+  useEffect(() => {
+    const canProceed =
+      !isLoadingState && initialToolStateLoadCompleteRef.current;
     if (
-      opFromUrl &&
-      ['encode', 'decode'].includes(opFromUrl) &&
-      opFromUrl !== toolState.operation
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
     ) {
-      updates.operation = opFromUrl;
-      needsUpdate = true;
+      itdeTarget.openModalIfSignalsExist();
     }
-
-    if (needsUpdate) {
-      updates.outputValue = '';
-      updates.errorMsg = '';
-      setToolState(updates);
-    } else if (
-      textForImmediateProcessing &&
-      textForImmediateProcessing.trim() &&
-      !toolState.outputValue.trim() &&
-      !toolState.errorMsg
-    ) {
-      console.log(
-        '[UrlEncodeDecodeClient URL Effect] No state update from URL, but processing initial/persisted text.'
-      );
-      performEncodeDecode(
-        textForImmediateProcessing,
-        toolState.operation,
-        toolState.encodeMode
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingState, urlStateParams, setToolState]);
+  }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   const performEncodeDecode = useCallback(
-    (text: string, operation: Operation, mode: EncodeMode) => {
+    (
+      text: string = toolState.inputText,
+      operation: Operation = toolState.operation,
+      mode: EncodeMode = toolState.encodeMode
+    ) => {
+      setIsProcessing(true);
       if (!text.trim()) {
         setToolState({ outputValue: '', errorMsg: '' });
+        setCurrentOutputFilename(null);
+        setIsProcessing(false);
         return;
       }
       let newOutput = '';
@@ -158,6 +325,11 @@ export default function UrlEncodeDecodeClient({
         } else {
           newOutput = decodeURIComponent(text.replace(/\+/g, ' '));
         }
+        if (toolState.lastLoadedFilename && !currentOutputFilename) {
+          setCurrentOutputFilename(generateOutputFilenameForAction());
+        } else if (!toolState.lastLoadedFilename) {
+          setCurrentOutputFilename(null);
+        }
       } catch (err) {
         newOutput = '';
         if (err instanceof URIError && operation === 'decode') {
@@ -166,11 +338,18 @@ export default function UrlEncodeDecodeClient({
         } else {
           newError = `An unexpected error occurred during ${operation}.`;
         }
+        setCurrentOutputFilename(null);
       }
       setToolState({ outputValue: newOutput, errorMsg: newError });
       setIsCopied(false);
+      setIsProcessing(false);
     },
-    [setToolState]
+    [
+      setToolState,
+      toolState,
+      currentOutputFilename,
+      generateOutputFilenameForAction,
+    ]
   );
 
   const debouncedProcess = useDebouncedCallback(
@@ -179,22 +358,128 @@ export default function UrlEncodeDecodeClient({
   );
 
   useEffect(() => {
-    if (isLoadingState || !initialUrlLoadProcessedRef.current) return;
+    if (
+      isLoadingState ||
+      initialUrlLoadProcessedRef.current ||
+      !urlStateParams ||
+      urlStateParams.length === 0
+    ) {
+      if (
+        !isLoadingState &&
+        initialToolStateLoadCompleteRef.current &&
+        toolState.inputText.trim() &&
+        !toolState.outputValue &&
+        !toolState.errorMsg &&
+        !isProcessing
+      ) {
+        debouncedProcess(
+          toolState.inputText,
+          toolState.operation,
+          toolState.encodeMode
+        );
+      }
+      return;
+    }
+    initialUrlLoadProcessedRef.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const updates: Partial<UrlToolState> = {};
+    let needsUpdate = false;
+    let textForImmediateProcessing: string | null = null;
+
+    const textFromUrl = params.get('text');
+    if (textFromUrl !== null) {
+      textForImmediateProcessing = textFromUrl;
+      if (textFromUrl !== toolState.inputText) {
+        updates.inputText = textFromUrl;
+        updates.lastLoadedFilename = null;
+        setCurrentOutputFilename(null);
+        needsUpdate = true;
+      }
+    } else {
+      textForImmediateProcessing = toolState.inputText;
+    }
+
+    const opFromUrl = params.get('operation') as Operation | null;
+    if (
+      opFromUrl &&
+      ['encode', 'decode'].includes(opFromUrl) &&
+      opFromUrl !== toolState.operation
+    ) {
+      updates.operation = opFromUrl;
+      setCurrentOutputFilename(null);
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      updates.outputValue = '';
+      updates.errorMsg = '';
+      setToolState(updates);
+      if (updates.inputText?.trim()) {
+        performEncodeDecode(
+          updates.inputText,
+          updates.operation || toolState.operation,
+          updates.encodeMode || toolState.encodeMode
+        );
+      }
+    } else if (
+      textForImmediateProcessing &&
+      textForImmediateProcessing.trim() &&
+      !toolState.outputValue.trim() &&
+      !toolState.errorMsg &&
+      !isProcessing
+    ) {
+      performEncodeDecode(
+        textForImmediateProcessing,
+        toolState.operation,
+        toolState.encodeMode
+      );
+    }
+  }, [
+    isLoadingState,
+    urlStateParams,
+    toolState,
+    setToolState,
+    performEncodeDecode,
+    isProcessing,
+    debouncedProcess,
+  ]);
+
+  useEffect(() => {
+    if (
+      isLoadingState ||
+      !initialUrlLoadProcessedRef.current ||
+      !initialToolStateLoadCompleteRef.current
+    )
+      return;
 
     if (!toolState.inputText.trim()) {
       if (toolState.outputValue !== '' || toolState.errorMsg !== '') {
         setToolState({ outputValue: '', errorMsg: '' });
       }
+      if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       debouncedProcess.cancel();
       return;
     }
-
-    debouncedProcess(
-      toolState.inputText,
-      toolState.operation,
-      toolState.encodeMode
-    );
-  }, [toolState, isLoadingState, debouncedProcess, setToolState]);
+    if (!isProcessing) {
+      debouncedProcess(
+        toolState.inputText,
+        toolState.operation,
+        toolState.encodeMode
+      );
+    }
+  }, [
+    toolState.inputText,
+    toolState.operation,
+    toolState.encodeMode,
+    isLoadingState,
+    debouncedProcess,
+    setToolState,
+    currentOutputFilename,
+    isProcessing,
+    toolState.outputValue,
+    toolState.errorMsg,
+  ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setToolState({
@@ -203,6 +488,9 @@ export default function UrlEncodeDecodeClient({
       outputValue: '',
       errorMsg: '',
     });
+    setCurrentOutputFilename(null);
+    setIsCopied(false);
+    setSaveSuccess(false);
   };
   const handleOperationChange = (newOperation: Operation) => {
     setToolState({
@@ -210,6 +498,9 @@ export default function UrlEncodeDecodeClient({
       outputValue: '',
       errorMsg: '',
     });
+    setCurrentOutputFilename(null);
+    setIsCopied(false);
+    setSaveSuccess(false);
   };
   const handleEncodeModeChange = (newMode: EncodeMode) => {
     setToolState({
@@ -217,20 +508,26 @@ export default function UrlEncodeDecodeClient({
       outputValue: '',
       errorMsg: '',
     });
+    setCurrentOutputFilename(null);
+    setIsCopied(false);
+    setSaveSuccess(false);
   };
 
   const handleClear = useCallback(async () => {
-    await persistentClearState();
+    await clearStateAndPersist();
+    setCurrentOutputFilename(null);
     setIsCopied(false);
     setSaveSuccess(false);
     debouncedProcess.cancel();
-  }, [persistentClearState, debouncedProcess]);
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist, debouncedProcess]);
 
   const handleCopyOutput = useCallback(async () => {
     if (!toolState.outputValue || isCopied) return;
     try {
       await navigator.clipboard.writeText(toolState.outputValue);
       setIsCopied(true);
+      setToolState({ errorMsg: '' });
       setTimeout(() => setIsCopied(false), 2000);
     } catch (_err) {
       setToolState({ errorMsg: 'Could not copy text to clipboard.' });
@@ -256,6 +553,8 @@ export default function UrlEncodeDecodeClient({
           outputValue: '',
           errorMsg: '',
         });
+        setCurrentOutputFilename(generateOutputFilenameForAction());
+        setUserDeferredAutoPopup(false);
       } catch (e) {
         setToolState({
           errorMsg: `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`,
@@ -263,31 +562,11 @@ export default function UrlEncodeDecodeClient({
           lastLoadedFilename: null,
           outputValue: '',
         });
+        setCurrentOutputFilename(null);
       }
     },
-    [setToolState]
+    [setToolState, generateOutputFilenameForAction]
   );
-
-  const generateOutputFilenameForAction = useCallback((): string => {
-    const base =
-      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') ||
-      (toolState.operation === 'encode' ? 'encoded' : 'decoded');
-    const modePart =
-      toolState.operation === 'encode' ? `-${toolState.encodeMode}` : '';
-    return `${base}${modePart}-${Date.now()}.txt`;
-  }, [toolState.lastLoadedFilename, toolState.operation, toolState.encodeMode]);
-
-  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
-    if (!toolState.outputValue.trim() || toolState.errorMsg) {
-      setToolState({
-        errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
-      });
-      return;
-    }
-    setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
-    setFilenameActionType(action);
-    setIsFilenameModalOpen(true);
-  };
 
   const handleFilenameConfirm = useCallback(
     async (chosenFilename: string) => {
@@ -300,6 +579,8 @@ export default function UrlEncodeDecodeClient({
       let finalFilename = chosenFilename.trim();
       if (!finalFilename) finalFilename = generateOutputFilenameForAction();
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
+
+      setCurrentOutputFilename(finalFilename);
 
       if (action === 'download') {
         try {
@@ -341,30 +622,58 @@ export default function UrlEncodeDecodeClient({
     ]
   );
 
-  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
+  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
+    if (!toolState.outputValue.trim() || toolState.errorMsg) {
+      setToolState({
+        errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
+      });
+      return;
+    }
+    if (currentOutputFilename) {
+      handleFilenameConfirm(currentOutputFilename);
+    } else {
+      setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
+      setFilenameActionType(action);
+      setIsFilenameModalOpen(true);
+    }
+  };
+
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
+
+  if (
+    isLoadingState &&
+    !initialUrlLoadProcessedRef.current &&
+    !initialToolStateLoadCompleteRef.current
+  ) {
     return (
       <div className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading URL Encoder/Decoder...
       </div>
     );
   }
-  if (errorLoadingState) {
-    return (
-      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
-        Error loading saved state: {errorLoadingState}
-      </div>
-    );
-  }
+  const displayError = toolState.errorMsg || errorLoadingState;
 
-  const isCurrentlyProcessing =
-    isLoadingState ||
-    (toolState.inputText.trim() !== '' &&
-      !toolState.outputValue &&
-      !toolState.errorMsg);
   const canPerformOutputActions =
-    toolState.outputValue.trim() !== '' &&
-    !toolState.errorMsg &&
-    !isCurrentlyProcessing;
+    toolState.outputValue.trim() !== '' && !toolState.errorMsg && !isProcessing;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
@@ -373,18 +682,30 @@ export default function UrlEncodeDecodeClient({
           Input (Text or URL-encoded string):
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
-              (from: {toolState.lastLoadedFilename})
+              ({toolState.lastLoadedFilename})
             </span>
           )}
         </label>
-        <Button
-          variant="neutral-outline"
-          size="sm"
-          onClick={() => setIsLoadFileModalOpen(true)}
-          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-        >
-          Load from File
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReceiveItdeDataTrigger
+            hasDeferredSignals={
+              itdeTarget.pendingSignals.length > 0 &&
+              userDeferredAutoPopup &&
+              !itdeTarget.isModalOpen
+            }
+            pendingSignalCount={itdeTarget.pendingSignals.length}
+            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+          />
+          <Button
+            variant="neutral-outline"
+            size="sm"
+            onClick={() => setIsLoadFileModalOpen(true)}
+            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+            disabled={isProcessing}
+          >
+            Load from File
+          </Button>
+        </div>
       </div>
       <Textarea
         id="url-input"
@@ -393,6 +714,7 @@ export default function UrlEncodeDecodeClient({
         placeholder="Paste text or URL-encoded string here..."
         rows={8}
         textareaClassName="text-base"
+        disabled={isProcessing}
       />
 
       <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
@@ -408,6 +730,7 @@ export default function UrlEncodeDecodeClient({
             onChange={(val) => handleOperationChange(val as Operation)}
             layout="horizontal"
             radioClassName="text-sm"
+            disabled={isProcessing}
           />
           {toolState.operation === 'encode' && (
             <RadioGroup
@@ -421,65 +744,20 @@ export default function UrlEncodeDecodeClient({
               onChange={(val) => handleEncodeModeChange(val as EncodeMode)}
               layout="horizontal"
               radioClassName="text-sm"
+              disabled={isProcessing}
             />
           )}
         </div>
         <div className="flex flex-wrap gap-4 items-center border-t pt-3 mt-2">
-          <div className="flex-grow"></div>
-          {toolState.outputValue && (
-            <>
-              <Button
-                variant={isCopied ? 'secondary' : 'accent-outline'}
-                size="sm"
-                onClick={handleCopyOutput}
-                title="Copy Output"
-                className="!p-1.5"
-                disabled={isCopied || !canPerformOutputActions}
-                iconLeft={
-                  isCopied ? (
-                    <CheckIcon className="h-4 w-4" />
-                  ) : (
-                    <ClipboardDocumentIcon className="h-4 w-4" />
-                  )
-                }
-              >
-                {isCopied ? 'Copied!' : 'Copy'}
-              </Button>
-              <Button
-                variant="primary-outline"
-                size="sm"
-                onClick={() => initiateOutputActionWithPrompt('save')}
-                disabled={!canPerformOutputActions || saveSuccess}
-                iconLeft={
-                  saveSuccess ? (
-                    <CheckIcon className="h-4 w-4" />
-                  ) : (
-                    <DocumentPlusIcon className="h-4 w-4" />
-                  )
-                }
-                title="Save to Library"
-              >
-                {saveSuccess ? 'Saved!' : 'Save to Library'}
-              </Button>
-              <Button
-                variant="primary-outline"
-                size="sm"
-                onClick={() => initiateOutputActionWithPrompt('download')}
-                disabled={!canPerformOutputActions}
-                iconLeft={<ArrowDownTrayIcon className="h-4 w-4" />}
-                title="Download Output"
-              >
-                Download Output
-              </Button>
-            </>
-          )}
+          <div className="flex-grow"></div> {/* Spacer */}
           <Button
             variant="neutral"
             onClick={handleClear}
             disabled={
-              !toolState.inputText &&
-              !toolState.outputValue &&
-              !toolState.errorMsg
+              (!toolState.inputText &&
+                !toolState.outputValue &&
+                !toolState.errorMsg) ||
+              isProcessing
             }
           >
             Clear
@@ -487,7 +765,19 @@ export default function UrlEncodeDecodeClient({
         </div>
       </div>
 
-      {toolState.errorMsg && (
+      <OutputActionButtons
+        canPerform={canPerformOutputActions}
+        isSaveSuccess={saveSuccess}
+        isCopySuccess={isCopied}
+        onInitiateSave={() => initiateOutputActionWithPrompt('save')}
+        onInitiateDownload={() => initiateOutputActionWithPrompt('download')}
+        onCopy={handleCopyOutput}
+        directiveName={directiveName}
+        outputConfig={metadata.outputConfig as OutputConfig}
+        isProcessing={isProcessing}
+      />
+
+      {displayError && (
         <div
           role="alert"
           className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-start gap-2"
@@ -497,8 +787,7 @@ export default function UrlEncodeDecodeClient({
             aria-hidden="true"
           />
           <div>
-            <strong className="font-semibold">Error:</strong>{' '}
-            {toolState.errorMsg}
+            <strong className="font-semibold">Error:</strong> {displayError}
           </div>
         </div>
       )}
@@ -511,7 +800,11 @@ export default function UrlEncodeDecodeClient({
           readOnly
           placeholder="Result will appear here..."
           rows={8}
-          textareaClassName={`bg-[rgb(var(--color-bg-subtle))] text-base ${isLoadingState || (toolState.inputText.trim() && !toolState.outputValue && !toolState.errorMsg) ? 'animate-pulse' : ''}`}
+          textareaClassName={`bg-[rgb(var(--color-bg-subtle))] text-base ${
+            isProcessing && !toolState.outputValue && !toolState.errorMsg
+              ? 'animate-pulse'
+              : ''
+          }`}
           aria-live="polite"
         />
       </div>
@@ -547,6 +840,14 @@ export default function UrlEncodeDecodeClient({
         confirmButtonText={
           filenameActionType === 'download' ? 'Download' : 'Save to Library'
         }
+      />
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
       />
     </div>
   );

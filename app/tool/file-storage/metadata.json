@@ -3,13 +3,13 @@
   "description": "Upload, view, and manage files stored locally in your browser using IndexedDB.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none " }]
+    "stateFiles": [{ "dataType": "none" }]
   },
   "outputConfig": {
     "transferableContent": {
       "dataType": "selectionReferenceList",
-      "fileIdStateKey": "selectedFileIds",
-      "fileCategory": "*"
+      "selectionStateKey": "selectedItemIds",
+      "selectionFileCategory": "*"
     }
   },
   "tags": ["file", "storage", "local", "management"],

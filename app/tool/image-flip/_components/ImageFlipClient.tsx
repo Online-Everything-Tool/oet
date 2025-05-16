@@ -9,7 +9,6 @@ import React, {
   useRef,
 } from 'react';
 import Image from 'next/image';
-import { useImageLibrary } from '@/app/context/ImageLibraryContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import useToolState from '../../_hooks/useToolState';
@@ -94,8 +93,8 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     [toolRoute]
   );
 
-  const { getImage, makeImagePermanent } = useImageLibrary();
-  const { cleanupOrphanedTemporaryFiles } = useFileLibrary();
+  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles } =
+    useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
     isLoading: isProcessingImage,
@@ -238,7 +237,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       setWasLastProcessedOutputPermanent(false);
       if (toolState.selectedFileId) {
         try {
-          const file = await getImage(toolState.selectedFileId);
+          const file = await getFile(toolState.selectedFileId);
           if (mounted && file?.blob) {
             localOrigObjUrl = URL.createObjectURL(file.blob);
             setOriginalImageSrcForUI(localOrigObjUrl);
@@ -250,7 +249,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       }
       if (toolState.processedFileId) {
         try {
-          const file = await getImage(toolState.processedFileId);
+          const file = await getFile(toolState.processedFileId);
           if (mounted && file?.blob) {
             localProcObjUrl = URL.createObjectURL(file.blob);
             setProcessedImageSrcForUI(localProcObjUrl);
@@ -270,7 +269,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   }, [
     toolState.selectedFileId,
     toolState.processedFileId,
-    getImage,
+    getFile,
     isLoadingToolSettings,
   ]);
 
@@ -320,7 +319,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       `[ImageFlip triggerProcessing] Conditions MET, proceeding to process image ID: ${currentSelectedId}`
     );
     const triggerProcessing = async () => {
-      const inputFile = await getImage(toolState.selectedFileId!);
+      const inputFile = await getFile(toolState.selectedFileId!);
       if (!inputFile || !inputFile.blob) {
         setUiError('Original image data not found for processing.');
         return;
@@ -359,7 +358,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     isProcessingImage,
     processImage,
     flipDrawFunction,
-    getImage,
+    getFile,
     setState,
     processingErrorHook,
   ]);
@@ -449,7 +448,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       ) {
         setIsManuallySaving(true);
         try {
-          await makeImagePermanent(currentState.processedFileId);
+          await makeFilePermanent(currentState.processedFileId);
           setWasLastProcessedOutputPermanent(true);
         } catch (err) {
           setUiError(
@@ -465,7 +464,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       wasLastProcessedOutputPermanent,
       isProcessingImage,
       isManuallySaving,
-      makeImagePermanent,
+      makeFilePermanent,
       setState,
       saveStateNow,
     ]
@@ -538,7 +537,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      await makeImagePermanent(toolState.processedFileId);
+      await makeFilePermanent(toolState.processedFileId);
       setWasLastProcessedOutputPermanent(true);
       setManualSaveSuccess(true);
       setTimeout(() => setManualSaveSuccess(false), 2500);
@@ -553,7 +552,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     toolState.processedFileId,
     wasLastProcessedOutputPermanent,
     manualSaveSuccess,
-    makeImagePermanent,
+    makeFilePermanent,
   ]);
 
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);

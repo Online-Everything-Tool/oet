@@ -9,13 +9,15 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import { getDbInstance, OetDatabase } from '../lib/db';
+import { getDbInstance } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { useMetadata } from './MetadataContext';
-import type { ToolMetadata } from '@/src/types/tools';
 
-interface FileLibraryFunctions {
+import { useImageThumbnailer } from '../lib/hooks/useImageThumbnailer';
+import { ToolMetadata } from '@/src/types/tools';
+
+export interface FileLibraryFunctions {
   listFiles: (
     limit?: number,
     includeTemporary?: boolean
@@ -28,13 +30,21 @@ interface FileLibraryFunctions {
     isTemporary?: boolean,
     toolRoute?: string
   ) => Promise<string>;
-  deleteFile: (id: string) => Promise<void>;
-  clearAllFiles: () => Promise<void>;
+  markFileAsTemporary: (id: string) => Promise<boolean>;
+  markAllFilesAsTemporary: (
+    excludeToolState?: boolean,
+    excludeAlreadyTemporary?: boolean
+  ) => Promise<{ markedCount: number; markedIds: string[] }>;
   makeFilePermanent: (id: string) => Promise<void>;
-  updateFileBlob: (id: string, newBlob: Blob) => Promise<void>;
+  updateFileBlob: (
+    id: string,
+    newBlob: Blob,
+    regenerateThumbnailIfImage?: boolean
+  ) => Promise<void>;
   cleanupOrphanedTemporaryFiles: (
     fileIdsToPotentiallyDelete?: string[]
   ) => Promise<{ deletedCount: number; candidatesChecked: number }>;
+  deleteFilePermanently: (id: string) => Promise<void>;
 }
 
 interface FileLibraryContextValue extends FileLibraryFunctions {
@@ -46,7 +56,7 @@ const FileLibraryContext = createContext<FileLibraryContextValue | undefined>(
   undefined
 );
 
-export const useFileLibrary = () => {
+export const useFileLibrary = (): FileLibraryContextValue => {
   const context = useContext(FileLibraryContext);
   if (!context)
     throw new Error('useFileLibrary must be used within a FileLibraryProvider');
@@ -61,6 +71,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { toolMetadataMap, isLoading: isLoadingMetadata } = useMetadata();
+  const { generateAndSaveThumbnail } = useImageThumbnailer();
 
   const listFiles = useCallback(
     async (
@@ -81,10 +92,11 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       try {
         if (!db?.files)
           throw new Error("Database 'files' table is not available.");
-        let collection = db.files
-          .orderBy('createdAt')
-          .reverse()
-          .filter((file) => file.type !== 'application/x-oet-tool-state+json');
+
+        let collection = db.files.orderBy('createdAt').reverse();
+        collection = collection.filter(
+          (file) => file.type !== 'application/x-oet-tool-state+json'
+        );
         if (!includeTemporary) {
           collection = collection.filter((file) => file.isTemporary !== true);
         }
@@ -135,32 +147,47 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       blob: Blob,
       name: string,
       type: string,
-      isTemporary: boolean = false,
+      isTemporary: boolean = true,
       toolRoute?: string
     ): Promise<string> => {
       setLoading(true);
       setError(null);
       const id = uuidv4();
+      const now = new Date();
+      const newFileRecord: StoredFile = {
+        id,
+        name,
+        type,
+        size: blob.size,
+        blob,
+        createdAt: now,
+        lastModified: now,
+        isTemporary,
+        ...(toolRoute && { toolRoute }),
+      };
+
       let db;
       try {
         db = getDbInstance();
         if (!db?.files)
-          throw new Error("Database 'files' table is not available.");
-        const newFile: StoredFile = {
-          id,
-          name,
-          type,
-          size: blob.size,
-          blob,
-          createdAt: new Date(),
-          lastModified: new Date(),
-          isTemporary,
-          ...(toolRoute && { toolRoute }),
-        };
-        await db.files.add(newFile);
+          throw new Error("Database 'files' table not available.");
+        await db.files.add(newFileRecord);
         console.log(
-          `[FileLibrary AddFile] Added file: ${name} (ID: ${id}), Temporary: ${isTemporary}`
+          `[FileLibrary AddFile] Added file record: ${name} (ID: ${id}), Type: ${type}, Temp: ${isTemporary}`
         );
+
+        if (type.startsWith('image/')) {
+          console.log(
+            `[FileLibrary AddFile] Image detected, calling generateAndSaveThumbnail for ${id}`
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          generateAndSaveThumbnail(newFileRecord).catch((thumbError: any) => {
+            console.error(
+              `[FileLibrary AddFile] Thumbnail processing failed for ${id} after add:`,
+              thumbError
+            );
+          });
+        }
         return id;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -174,7 +201,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         setLoading(false);
       }
     },
-    []
+    [generateAndSaveThumbnail]
   );
 
   const makeFilePermanent = useCallback(async (id: string): Promise<void> => {
@@ -209,7 +236,11 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   }, []);
 
   const updateFileBlob = useCallback(
-    async (id: string, newBlob: Blob): Promise<void> => {
+    async (
+      id: string,
+      newBlob: Blob,
+      regenerateThumbnailIfImage: boolean = true
+    ): Promise<void> => {
       setLoading(true);
       setError(null);
       let db;
@@ -217,17 +248,42 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         db = getDbInstance();
         if (!db?.files)
           throw new Error("Database 'files' table is not available.");
-        const count = await db.files.update(id, {
+        const existingFile = await db.files.get(id);
+        if (!existingFile) {
+          throw new Error(`File ${id} not found for update.`);
+        }
+
+        const mainUpdates: Partial<StoredFile> = {
           blob: newBlob,
           size: newBlob.size,
           lastModified: new Date(),
-        });
-        if (count > 0)
-          console.log(`[FileLibrary UpdateBlob] Blob updated for file ${id}.`);
-        else
-          console.warn(
-            `[FileLibrary UpdateBlob] File ${id} not found or not updated.`
+        };
+        await db.files.update(id, mainUpdates);
+        console.log(`[FileLibrary UpdateBlob] Main blob updated for ${id}.`);
+
+        if (
+          existingFile.type.startsWith('image/') &&
+          regenerateThumbnailIfImage
+        ) {
+          console.log(
+            `[FileLibrary UpdateBlob] Image detected, calling generateAndSaveThumbnail for ${id} with new blob.`
           );
+          const updatedFileForThumbnailing: StoredFile = {
+            ...existingFile,
+            blob: newBlob,
+            size: newBlob.size,
+            lastModified: mainUpdates.lastModified!,
+          };
+          generateAndSaveThumbnail(updatedFileForThumbnailing).catch(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (thumbError: any) => {
+              console.error(
+                `[FileLibrary UpdateBlob] Thumbnail regeneration failed for ${id} after update:`,
+                thumbError
+              );
+            }
+          );
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setError(`Failed to update blob for file ${id}: ${msg}`);
@@ -240,74 +296,37 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         setLoading(false);
       }
     },
-    []
+    [generateAndSaveThumbnail]
   );
 
-  const deleteFile = useCallback(async (id: string): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    let db;
-    try {
-      db = getDbInstance();
-      if (!db?.files)
-        throw new Error("Database 'files' table is not available.");
-      await db.files.delete(id);
-      console.log(`[FileLibrary DeleteFile] Directly deleted file: ${id}`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to delete file ${id}: ${msg}`);
-      console.error(
-        `[FileLibrary DeleteFile] Error deleting file ${id}: ${msg}`,
-        err
-      );
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const clearAllFiles = useCallback(
-    async (): Promise<void> => {
-      const includeTemporary: boolean = false;
+  const markFileAsTemporary = useCallback(
+    async (id: string): Promise<boolean> => {
       setLoading(true);
       setError(null);
-      let db: OetDatabase | null = null;
+      let db;
       try {
         db = getDbInstance();
-      } catch (e: unknown) {
-        setLoading(false);
-        setError(
-          `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
-        throw e;
-      }
-
-      if (!db) {
-        setLoading(false);
-        throw new Error(
-          'Database instance is null, cannot proceed with deleteFile.'
-        );
-      }
-
-      try {
-        if (!db?.files) throw new Error("DB 'files' table not available.");
-
-        let collectionToClear = db.files.filter(
-          (file) => file.type !== 'application/x-oet-tool-state+json'
-        );
-        if (!includeTemporary) {
-          collectionToClear = collectionToClear.filter(
-            (file) => file.isTemporary !== true
-          );
+        if (!db?.files)
+          throw new Error("Database 'files' table is not available.");
+        const count = await db.files.update(id, {
+          isTemporary: true,
+          lastModified: new Date(),
+        });
+        if (count > 0) {
+          console.log(`[FileLibrary MarkTemp] Marked file ${id} as temporary.`);
+          return true;
         }
-        const keysToDelete = await collectionToClear.primaryKeys();
-
-        if (keysToDelete.length > 0) {
-          await db.files.bulkDelete(keysToDelete);
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Unknown DB error';
-        setError(`Failed to clear files: ${message}`);
+        console.warn(
+          `[FileLibrary MarkTemp] File ${id} not found or not updated to temporary.`
+        );
+        return false;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to mark file ${id} as temporary: ${msg}`);
+        console.error(
+          `[FileLibrary MarkTemp] Error for file ${id}: ${msg}`,
+          err
+        );
         throw err;
       } finally {
         setLoading(false);
@@ -316,6 +335,90 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     []
   );
 
+  const markAllFilesAsTemporary = useCallback(
+    async (
+      excludeToolState: boolean = true,
+      excludeAlreadyTemporary: boolean = true
+    ): Promise<{ markedCount: number; markedIds: string[] }> => {
+      setLoading(true);
+      setError(null);
+      let db;
+      try {
+        db = getDbInstance();
+      } catch (e: unknown) {
+        setLoading(false);
+        const errorMsg = `Database unavailable: ${e instanceof Error ? e.message : 'Unknown error'}`;
+        setError(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      if (!db?.files) {
+        setLoading(false);
+        throw new Error("DB 'files' table not available.");
+      }
+
+      try {
+        let collectionToMark = db.files.toCollection();
+        if (excludeToolState) {
+          collectionToMark = collectionToMark.filter(
+            (file) => file.type !== 'application/x-oet-tool-state+json'
+          );
+        }
+        if (excludeAlreadyTemporary) {
+          collectionToMark = collectionToMark.filter(
+            (file) => file.isTemporary !== true
+          );
+        }
+
+        const filesToUpdate = await collectionToMark.toArray();
+        if (filesToUpdate.length === 0) {
+          return { markedCount: 0, markedIds: [] };
+        }
+
+        const updates = filesToUpdate.map((file) => ({
+          key: file.id,
+          changes: { isTemporary: true, lastModified: new Date() },
+        }));
+
+        await db.files.bulkUpdate(updates);
+        const markedIds = filesToUpdate.map((f) => f.id);
+        console.log(
+          `[FileLibrary MarkAllTemp] Marked ${filesToUpdate.length} files as temporary.`
+        );
+        return { markedCount: filesToUpdate.length, markedIds };
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown DB error';
+        setError(`Failed to mark all files as temporary: ${message}`);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const deleteFilePermanently = useCallback(
+    async (id: string): Promise<void> => {
+      let db;
+      try {
+        db = getDbInstance();
+        if (!db?.files)
+          throw new Error("Database 'files' table is not available.");
+        await db.files.delete(id);
+        console.log(
+          `[FileLibrary DeletePermanent] Permanently deleted file: ${id}`
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[FileLibrary DeletePermanent] Error deleting file ${id}: ${msg}`,
+          err
+        );
+        throw err;
+      }
+    },
+    []
+  );
 
   const cleanupOrphanedTemporaryFiles = useCallback(
     async (
@@ -328,18 +431,10 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
         return { deletedCount: 0, candidatesChecked: 0 };
       }
       if (Object.keys(toolMetadataMap).length === 0 && !isLoadingMetadata) {
-        console.warn(
-          '[FileLibCleanup] No tool metadata available. Ensure MetadataProvider is above FileLibraryProvider and functional.'
-        );
+        console.warn('[FileLibCleanup] No tool metadata available.');
         return { deletedCount: 0, candidatesChecked: 0 };
       }
 
-      console.log(
-        '[FileLibCleanup] Starting. Specific IDs to check first (if any):',
-        fileIdsToPotentiallyDelete
-      );
-      setLoading(true);
-      setError(null);
       let deletedCount = 0;
       let initialCandidateCount = 0;
 
@@ -357,13 +452,9 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
             (id) => typeof id === 'string' && id.trim() !== ''
           );
           initialCandidateCount = validIds.length;
-          if (initialCandidateCount === 0) {
-            console.log(
-              '[FileLibCleanup] No valid file IDs provided in fileIdsToPotentiallyDelete.'
-            );
-            setLoading(false);
+          if (initialCandidateCount === 0)
             return { deletedCount: 0, candidatesChecked: 0 };
-          }
+
           const potentialFiles = (await db.files.bulkGet(validIds)).filter(
             (f) => f !== undefined
           ) as StoredFile[];
@@ -371,9 +462,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
             (file) =>
               file.isTemporary === true &&
               file.type !== 'application/x-oet-tool-state+json'
-          );
-          console.log(
-            `[FileLibCleanup] From ${initialCandidateCount} provided IDs, found ${tempFilesToVerify.length} temporary files to verify.`
           );
         } else {
           tempFilesToVerify = await db.files
@@ -383,152 +471,120 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
             .and((file) => file.type !== 'application/x-oet-tool-state+json')
             .toArray();
           initialCandidateCount = tempFilesToVerify.length;
-          console.log(
-            `[FileLibCleanup] Full sweep: Found ${tempFilesToVerify.length} total temporary files to verify.`
-          );
         }
 
-        if (tempFilesToVerify.length === 0) {
-          console.log(
-            '[FileLibCleanup] No temporary file candidates to verify.'
-          );
-          setLoading(false);
+        if (tempFilesToVerify.length === 0)
           return { deletedCount: 0, candidatesChecked: initialCandidateCount };
-        }
 
         const orphanedTempFileIds = new Set<string>(
           tempFilesToVerify.map((f) => f.id)
         );
-        console.log(
-          `[FileLibCleanup] Initial candidates for deletion if not in use: ${orphanedTempFileIds.size} IDs`
-        );
 
-        const allToolDirectives = Object.keys(toolMetadataMap);
-        for (const directive of allToolDirectives) {
-          if (orphanedTempFileIds.size === 0) {
-            console.log(
-              '[FileLibCleanup] All candidates verified as in use. Short-circuiting state scan.'
-            );
-            break;
-          }
+        const allToolStateFiles = await db.files
+          .where('type')
+          .equals('application/x-oet-tool-state+json')
+          .toArray();
 
-          const metadata: ToolMetadata | undefined = toolMetadataMap[directive];
-          if (!metadata?.inputConfig?.stateFiles) continue;
+        for (const toolStateFile of allToolStateFiles) {
+          if (orphanedTempFileIds.size === 0) break;
+          if (!toolStateFile.blob) continue;
 
-          const stateFileId = `state-/tool/${directive}`;
+          const directive = toolStateFile.toolRoute;
+          if (!directive) continue;
+
+          const metadataForTool: ToolMetadata | undefined =
+            toolMetadataMap[directive.replace('/tool/', '')];
+          if (!metadataForTool) continue;
+
           try {
-            const toolStateFile = await db.files.get(stateFileId);
-            if (toolStateFile?.blob) {
-              const stateJson = await toolStateFile.blob.text();
-              const toolCurrentState = JSON.parse(stateJson) as Record<
-                string,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                any
-              >;
+            const stateJson = await toolStateFile.blob.text();
 
-              for (const stateFileRef of metadata.inputConfig.stateFiles) {
-                if (stateFileRef.dataType === 'none') continue;
+            // prettier-ignore
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const toolCurrentState = JSON.parse(stateJson) as Record<string, any>;
 
-                if (stateFileRef.arrayStateKey) {
-                  if (
-                    Array.isArray(toolCurrentState[stateFileRef.arrayStateKey])
-                  ) {
-                    (
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      toolCurrentState[stateFileRef.arrayStateKey] as any[]
-                    ).forEach((item) => {
+            metadataForTool.inputConfig?.stateFiles?.forEach(
+              (stateFileRefConfig) => {
+                if (stateFileRefConfig.dataType === 'none') return;
+                if (stateFileRefConfig.arrayStateKey) {
+                  const fileArray =
+                    toolCurrentState[stateFileRefConfig.arrayStateKey];
+                  if (Array.isArray(fileArray)) {
+                    fileArray.forEach((item) => {
                       if (
                         item &&
                         typeof item === 'object' &&
-                        item[stateFileRef.fileIdStateKey] &&
-                        orphanedTempFileIds.has(
-                          item[stateFileRef.fileIdStateKey] as string
-                        )
+                        item[stateFileRefConfig.fileIdStateKey]
                       ) {
-                        orphanedTempFileIds.delete(
-                          item[stateFileRef.fileIdStateKey] as string
-                        );
+                        const idInState = item[
+                          stateFileRefConfig.fileIdStateKey
+                        ] as string;
+                        if (idInState && orphanedTempFileIds.has(idInState))
+                          orphanedTempFileIds.delete(idInState);
                       }
                     });
                   }
                 } else {
-                  if (toolCurrentState[stateFileRef.fileIdStateKey]) {
-                    const idInState = toolCurrentState[
-                      stateFileRef.fileIdStateKey
-                    ] as string;
-                    if (idInState && orphanedTempFileIds.has(idInState))
-                      orphanedTempFileIds.delete(idInState);
-                  }
-                }
-              }
-
-              const outputContent = metadata.outputConfig?.transferableContent;
-              if (outputContent) {
-                if (
-                  outputContent.dataType === 'fileReference' &&
-                  outputContent.fileIdStateKey &&
-                  toolCurrentState[outputContent.fileIdStateKey]
-                ) {
                   const idInState = toolCurrentState[
-                    outputContent.fileIdStateKey
+                    stateFileRefConfig.fileIdStateKey
                   ] as string;
                   if (idInState && orphanedTempFileIds.has(idInState))
                     orphanedTempFileIds.delete(idInState);
-                } else if (
-                  outputContent.dataType === 'selectionReferenceList' &&
-                  outputContent.selectionStateKey &&
-                  Array.isArray(
-                    toolCurrentState[outputContent.selectionStateKey]
-                  )
-                ) {
-                  (
-                    toolCurrentState[
-                      outputContent.selectionStateKey
-                    ] as string[]
-                  ).forEach((id) => {
-                    if (id && orphanedTempFileIds.has(id))
-                      orphanedTempFileIds.delete(id);
-                  });
                 }
+              }
+            );
+
+            const outputContent =
+              metadataForTool.outputConfig?.transferableContent;
+            if (outputContent) {
+              if (
+                outputContent.dataType === 'fileReference' &&
+                outputContent.fileIdStateKey &&
+                toolCurrentState[outputContent.fileIdStateKey]
+              ) {
+                const idInState = toolCurrentState[
+                  outputContent.fileIdStateKey
+                ] as string;
+                if (idInState && orphanedTempFileIds.has(idInState))
+                  orphanedTempFileIds.delete(idInState);
+              } else if (
+                outputContent.dataType === 'selectionReferenceList' &&
+                outputContent.selectionStateKey &&
+                Array.isArray(toolCurrentState[outputContent.selectionStateKey])
+              ) {
+                (
+                  toolCurrentState[outputContent.selectionStateKey] as string[]
+                ).forEach((id) => {
+                  if (id && orphanedTempFileIds.has(id))
+                    orphanedTempFileIds.delete(id);
+                });
               }
             }
           } catch (e) {
             console.warn(
-              `[FileLibCleanup] Error processing state for tool ${directive}:`,
+              `[FileLibCleanup] Error processing state for ${directive}:`,
               e
             );
           }
         }
-        console.log(
-          `[FileLibCleanup] After checking all states, ${orphanedTempFileIds.size} IDs remain as potential orphans.`
-        );
 
         if (orphanedTempFileIds.size > 0) {
           const idsToDeleteArray = Array.from(orphanedTempFileIds);
-          await db.files.bulkDelete(idsToDeleteArray);
+          for (const idToDelete of idsToDeleteArray) {
+            await deleteFilePermanently(idToDelete);
+          }
           deletedCount = idsToDeleteArray.length;
           console.log(
             `[FileLibCleanup] Successfully deleted ${deletedCount} orphaned temporary files:`,
             idsToDeleteArray
           );
-        } else {
-          console.log(
-            '[FileLibCleanup] No orphaned temporary files from candidates were ultimately deleted.'
-          );
         }
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Unknown DB error during cleanup';
-        setError(`Cleanup failed: ${message}`);
         console.error('[FileLibCleanup] Error:', err);
-      } finally {
-        setLoading(false);
       }
       return { deletedCount, candidatesChecked: initialCandidateCount };
     },
-    [toolMetadataMap, isLoadingMetadata]
+    [toolMetadataMap, isLoadingMetadata, deleteFilePermanently]
   );
 
   const functions = useMemo(
@@ -536,21 +592,23 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       listFiles,
       getFile,
       addFile,
-      deleteFile,
+      markFileAsTemporary,
+      markAllFilesAsTemporary,
       makeFilePermanent,
       updateFileBlob,
-      clearAllFiles,
       cleanupOrphanedTemporaryFiles,
+      deleteFilePermanently,
     }),
     [
       listFiles,
       getFile,
       addFile,
-      deleteFile,
+      markFileAsTemporary,
+      markAllFilesAsTemporary,
       makeFilePermanent,
       updateFileBlob,
-      clearAllFiles,
       cleanupOrphanedTemporaryFiles,
+      deleteFilePermanently,
     ]
   );
 

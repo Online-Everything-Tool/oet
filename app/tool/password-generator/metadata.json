@@ -3,7 +3,7 @@
   "description": "Generate strong, random passwords with customizable options.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none " }]
+    "stateFiles": [{ "dataType": "none" }]
   },
   "outputConfig": {
     "transferableContent": {

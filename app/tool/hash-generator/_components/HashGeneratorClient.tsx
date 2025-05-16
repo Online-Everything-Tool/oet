@@ -15,7 +15,11 @@ import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import FileSelectionModal from '../../_components/file-storage/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import type { ParamConfig } from '@/src/types/tools';
+import type {
+  ParamConfig,
+  ToolMetadata,
+  OutputConfig,
+} from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import { bufferToHex, isTextBasedMimeType } from '@/app/lib/utils';
 import { md5 } from 'js-md5';
@@ -28,6 +32,16 @@ import {
   DocumentPlusIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+import SendToToolButton from '../../_components/shared/SendToToolButton';
+import importedMetadata from '../metadata.json';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
 const AUTO_PROCESS_DEBOUNCE_MS = 500;
@@ -48,10 +62,85 @@ const DEFAULT_HASH_TOOL_STATE: HashGeneratorToolState = {
   errorMsg: '',
 };
 
+const metadata: ToolMetadata = importedMetadata as ToolMetadata;
+
 interface HashGeneratorClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
 }
+
+interface OutputActionButtonsProps {
+  canPerform: boolean;
+  isSaveSuccess: boolean;
+  isCopySuccess: boolean;
+  onInitiateSave: () => void;
+  onInitiateDownload: () => void;
+  onCopy: () => void;
+  directiveName: string;
+  outputConfig: OutputConfig;
+  isProcessing: boolean;
+}
+
+const OutputActionButtons = React.memo(function OutputActionButtons({
+  canPerform,
+  isSaveSuccess,
+  isCopySuccess,
+  onInitiateSave,
+  onInitiateDownload,
+  onCopy,
+  directiveName,
+  outputConfig,
+  isProcessing,
+}: OutputActionButtonsProps) {
+  if (!canPerform && !isProcessing) {
+    return null;
+  }
+  return (
+    <div className="flex flex-wrap gap-3 items-center py-3 border-t border-b border-[rgb(var(--color-border-base))]">
+      <SendToToolButton
+        currentToolDirective={directiveName}
+        currentToolOutputConfig={outputConfig}
+        buttonText="Send Output To..."
+      />
+      <Button
+        variant="primary-outline"
+        onClick={onInitiateSave}
+        disabled={isSaveSuccess || !canPerform || isProcessing}
+        iconLeft={
+          isSaveSuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <DocumentPlusIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isSaveSuccess ? 'Saved!' : 'Save to Library'}
+      </Button>
+      <Button
+        variant="secondary"
+        onClick={onInitiateDownload}
+        iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
+        disabled={!canPerform || isProcessing}
+      >
+        Download Hash
+      </Button>
+      <Button
+        variant="neutral"
+        onClick={onCopy}
+        disabled={isCopySuccess || !canPerform || isProcessing}
+        iconLeft={
+          isCopySuccess ? (
+            <CheckIcon className="h-5 w-5" />
+          ) : (
+            <ClipboardDocumentIcon className="h-5 w-5" />
+          )
+        }
+      >
+        {isCopySuccess ? 'Copied!' : 'Copy Hash'}
+      </Button>
+    </div>
+  );
+});
 
 export default function HashGeneratorClient({
   urlStateParams,
@@ -61,7 +150,8 @@ export default function HashGeneratorClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearStateAndPersist: persistentClearState,
+    clearStateAndPersist,
+    saveStateNow,
   } = useToolState<HashGeneratorToolState>(toolRoute, DEFAULT_HASH_TOOL_STATE);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -70,13 +160,25 @@ export default function HashGeneratorClient({
   const [filenameActionType, setFilenameActionType] = useState<
     'download' | 'save' | null
   >(null);
+  const [currentOutputFilename, setCurrentOutputFilename] = useState<
+    string | null
+  >(null);
   const [suggestedFilenameForPrompt, setSuggestedFilenameForPrompt] =
     useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  const { addFile: addFileToLibrary } = useFileLibrary();
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
   const initialUrlLoadProcessedRef = useRef(false);
+
+  const { addFile: addFileToLibrary } = useFileLibrary();
+  const { getToolMetadata } = useMetadata();
+
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'hash-generator',
+    [toolRoute]
+  );
 
   const algorithmOptions = useMemo(
     () => [
@@ -88,10 +190,122 @@ export default function HashGeneratorClient({
     []
   );
 
+  const generateOutputFilenameForAction = useCallback((): string => {
+    const base =
+      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') || 'hashed-output';
+    const algoLabel = toolState.algorithm.toLowerCase().replace('-', '');
+    return `${base}.${algoLabel}.txt`;
+  }, [toolState.lastLoadedFilename, toolState.algorithm]);
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[HashGenerator ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setToolState({ errorMsg: '' });
+      setCurrentOutputFilename(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setToolState({
+          errorMsg: `Metadata not found for source tool: ${signal.sourceToolTitle}`,
+        });
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setToolState({
+          errorMsg:
+            resolvedPayload.errorMessage ||
+            'No transferable data received from source.',
+        });
+        return;
+      }
+
+      let newText = '';
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setToolState({
+              errorMsg: `Error reading text from received file: ${fileData.name}`,
+            });
+            return;
+          }
+        } else {
+          setToolState({
+            errorMsg: `Received file '${fileData.name}' is not a text file.`,
+          });
+          return;
+        }
+      } else {
+        setToolState({
+          errorMsg: `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`,
+        });
+        return;
+      }
+
+      const newState: HashGeneratorToolState = {
+        ...toolState,
+        inputText: newText,
+        outputValue: '',
+        errorMsg: '',
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow(newState);
+      setUserDeferredAutoPopup(false);
+    },
+    [getToolMetadata, toolState, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
+
+  useEffect(() => {
+    if (!isLoadingToolState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
+    }
+  }, [isLoadingToolState]);
+
+  useEffect(() => {
+    const canProceed =
+      !isLoadingToolState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
+      itdeTarget.openModalIfSignalsExist();
+    }
+  }, [isLoadingToolState, itdeTarget, userDeferredAutoPopup, directiveName]);
+
   const handleGenerateHashInternal = useCallback(
     async (textToProcess: string, algo: HashAlgorithm) => {
       setIsProcessing(true);
-
       setToolState({ outputValue: '', errorMsg: '' });
       setCopySuccess(false);
       setSaveSuccess(false);
@@ -99,6 +313,7 @@ export default function HashGeneratorClient({
       const trimmedTextToProcess = textToProcess.trim();
       if (!trimmedTextToProcess) {
         setIsProcessing(false);
+        setCurrentOutputFilename(null);
         return;
       }
 
@@ -119,14 +334,26 @@ export default function HashGeneratorClient({
           const hashBuffer = await crypto.subtle.digest(subtleAlgo, dataBuffer);
           newOutputValue = bufferToHex(hashBuffer);
         }
+
+        if (toolState.lastLoadedFilename && !currentOutputFilename) {
+          setCurrentOutputFilename(generateOutputFilenameForAction());
+        } else if (!toolState.lastLoadedFilename) {
+          setCurrentOutputFilename(null);
+        }
       } catch (err) {
         newErrorMsg = err instanceof Error ? err.message : 'Hashing error.';
+        setCurrentOutputFilename(null);
       } finally {
         setToolState({ outputValue: newOutputValue, errorMsg: newErrorMsg });
         setIsProcessing(false);
       }
     },
-    [setToolState]
+    [
+      setToolState,
+      toolState.lastLoadedFilename,
+      currentOutputFilename,
+      generateOutputFilenameForAction,
+    ]
   );
 
   const debouncedGenerateHash = useDebouncedCallback(
@@ -141,19 +368,28 @@ export default function HashGeneratorClient({
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
+      if (
+        !isLoadingToolState &&
+        initialToolStateLoadCompleteRef.current &&
+        toolState.inputText.trim() &&
+        !toolState.outputValue &&
+        !toolState.errorMsg &&
+        !isProcessing
+      ) {
+        debouncedGenerateHash(toolState.inputText, toolState.algorithm);
+      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
     const updates: Partial<HashGeneratorToolState> = {};
-    let needsProcessingAfterUpdate = false;
 
     const textFromUrl = params.get('text');
     if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
       updates.inputText = textFromUrl;
-      updates.lastLoadedFilename = '(loaded from URL)';
-      needsProcessingAfterUpdate = true;
+      updates.lastLoadedFilename = null;
+      setCurrentOutputFilename(null);
     }
 
     const algoFromUrl = params.get('algorithm') as HashAlgorithm | null;
@@ -163,36 +399,57 @@ export default function HashGeneratorClient({
       algoFromUrl !== toolState.algorithm
     ) {
       updates.algorithm = algoFromUrl;
-      needsProcessingAfterUpdate = true;
+      setCurrentOutputFilename(null);
     }
 
     if (Object.keys(updates).length > 0) {
       updates.outputValue = '';
       updates.errorMsg = '';
       setToolState(updates);
-    } else if (needsProcessingAfterUpdate && toolState.inputText.trim()) {
+
+      if (updates.inputText?.trim()) {
+        handleGenerateHashInternal(
+          updates.inputText,
+          updates.algorithm || toolState.algorithm
+        );
+      }
+    } else if (
+      toolState.inputText.trim() &&
+      !toolState.outputValue &&
+      !toolState.errorMsg &&
+      !isProcessing
+    ) {
       handleGenerateHashInternal(toolState.inputText, toolState.algorithm);
     }
   }, [
     isLoadingToolState,
     urlStateParams,
-    toolState,
+    toolState.inputText,
+    toolState.algorithm,
+    toolState.outputValue,
+    toolState.errorMsg,
     setToolState,
     algorithmOptions,
     handleGenerateHashInternal,
+    debouncedGenerateHash,
+    isProcessing,
   ]);
 
   useEffect(() => {
-    if (isLoadingToolState || !initialUrlLoadProcessedRef.current) return;
+    if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) return;
 
     if (!toolState.inputText.trim()) {
       if (toolState.outputValue !== '' || toolState.errorMsg !== '') {
         setToolState({ outputValue: '', errorMsg: '' });
       }
+      if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       debouncedGenerateHash.cancel();
       return;
     }
-    debouncedGenerateHash(toolState.inputText, toolState.algorithm);
+
+    if (!isProcessing) {
+      debouncedGenerateHash(toolState.inputText, toolState.algorithm);
+    }
   }, [
     toolState.inputText,
     toolState.algorithm,
@@ -201,6 +458,8 @@ export default function HashGeneratorClient({
     setToolState,
     toolState.outputValue,
     toolState.errorMsg,
+    currentOutputFilename,
+    isProcessing,
   ]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -210,6 +469,7 @@ export default function HashGeneratorClient({
       outputValue: '',
       errorMsg: '',
     });
+    setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
   };
@@ -222,18 +482,20 @@ export default function HashGeneratorClient({
       outputValue: '',
       errorMsg: '',
     });
+    setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
   };
 
   const handleClear = useCallback(async () => {
-    await persistentClearState();
-
+    await clearStateAndPersist();
     setIsProcessing(false);
+    setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
     debouncedGenerateHash.cancel();
-  }, [persistentClearState, debouncedGenerateHash]);
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist, debouncedGenerateHash]);
 
   const handleFileSelectedFromModal = useCallback(
     async (files: StoredFile[]) => {
@@ -261,6 +523,9 @@ export default function HashGeneratorClient({
             outputValue: '',
             errorMsg: '',
           });
+
+          setCurrentOutputFilename(generateOutputFilenameForAction());
+          setUserDeferredAutoPopup(false);
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
           setToolState({
@@ -269,36 +534,18 @@ export default function HashGeneratorClient({
             lastLoadedFilename: null,
             outputValue: '',
           });
+          setCurrentOutputFilename(null);
         } finally {
-          setIsProcessing(false);
         }
       } else {
         setToolState({
           errorMsg: `File type "${file.type}" may not be suitable. Please select a text-based file.`,
         });
+        setCurrentOutputFilename(null);
       }
     },
-    [setToolState]
+    [setToolState, generateOutputFilenameForAction]
   );
-
-  const generateOutputFilenameForAction = useCallback((): string => {
-    const base =
-      toolState.lastLoadedFilename?.replace(/\.[^/.]+$/, '') || 'hashed-output';
-    const algoLabel = toolState.algorithm.toLowerCase().replace('-', '');
-    return `${base}.${algoLabel}-${Date.now()}.txt`;
-  }, [toolState.lastLoadedFilename, toolState.algorithm]);
-
-  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
-    if (!toolState.outputValue.trim() || toolState.errorMsg) {
-      setToolState({
-        errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
-      });
-      return;
-    }
-    setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
-    setFilenameActionType(action);
-    setIsFilenameModalOpen(true);
-  };
 
   const handleFilenameConfirm = useCallback(
     async (chosenFilename: string) => {
@@ -311,6 +558,8 @@ export default function HashGeneratorClient({
       let finalFilename = chosenFilename.trim();
       if (!finalFilename) finalFilename = generateOutputFilenameForAction();
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
+
+      setCurrentOutputFilename(finalFilename);
 
       if (action === 'download') {
         try {
@@ -352,6 +601,22 @@ export default function HashGeneratorClient({
     ]
   );
 
+  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
+    if (!toolState.outputValue.trim() || toolState.errorMsg) {
+      setToolState({
+        errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
+      });
+      return;
+    }
+    if (currentOutputFilename) {
+      handleFilenameConfirm(currentOutputFilename);
+    } else {
+      setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
+      setFilenameActionType(action);
+      setIsFilenameModalOpen(true);
+    }
+  };
+
   const handleCopyToClipboard = useCallback(async () => {
     if (!toolState.outputValue) {
       setToolState({ errorMsg: 'No output to copy.' });
@@ -367,7 +632,32 @@ export default function HashGeneratorClient({
     }
   }, [toolState.outputValue, setToolState]);
 
-  if (isLoadingToolState && !initialUrlLoadProcessedRef.current) {
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
+
+  if (
+    isLoadingToolState &&
+    !initialToolStateLoadCompleteRef.current &&
+    !initialUrlLoadProcessedRef.current
+  ) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Hash Generator...
@@ -385,19 +675,30 @@ export default function HashGeneratorClient({
           Input Text:
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
-              (from: {toolState.lastLoadedFilename})
+              ({toolState.lastLoadedFilename})
             </span>
           )}
         </label>
-        <Button
-          variant="neutral-outline"
-          size="sm"
-          onClick={() => setIsLoadFileModalOpen(true)}
-          iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-          disabled={isProcessing}
-        >
-          Load from File
-        </Button>
+        <div className="flex items-center gap-2">
+          <ReceiveItdeDataTrigger
+            hasDeferredSignals={
+              itdeTarget.pendingSignals.length > 0 &&
+              userDeferredAutoPopup &&
+              !itdeTarget.isModalOpen
+            }
+            pendingSignalCount={itdeTarget.pendingSignals.length}
+            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+          />
+          <Button
+            variant="neutral-outline"
+            size="sm"
+            onClick={() => setIsLoadFileModalOpen(true)}
+            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
+            disabled={isProcessing}
+          >
+            Load from File
+          </Button>
+        </div>
       </div>
       <Textarea
         id="text-input"
@@ -429,46 +730,6 @@ export default function HashGeneratorClient({
           />
         </div>
         <div className="flex-grow"></div>
-        {canPerformOutputActions && (
-          <>
-            <Button
-              variant="neutral"
-              onClick={handleCopyToClipboard}
-              disabled={copySuccess || isProcessing}
-              iconLeft={
-                copySuccess ? (
-                  <CheckIcon className="h-5 w-5" />
-                ) : (
-                  <ClipboardDocumentIcon className="h-5 w-5" />
-                )
-              }
-            >
-              {copySuccess ? 'Copied!' : 'Copy Hash'}
-            </Button>
-            <Button
-              variant="primary-outline"
-              onClick={() => initiateOutputActionWithPrompt('save')}
-              disabled={saveSuccess || isProcessing}
-              iconLeft={
-                saveSuccess ? (
-                  <CheckIcon className="h-5 w-5" />
-                ) : (
-                  <DocumentPlusIcon className="h-5 w-5" />
-                )
-              }
-            >
-              {saveSuccess ? 'Saved!' : 'Save to Library'}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => initiateOutputActionWithPrompt('download')}
-              iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
-              disabled={isProcessing}
-            >
-              Download Hash
-            </Button>
-          </>
-        )}
         <Button
           variant="neutral"
           onClick={handleClear}
@@ -478,6 +739,18 @@ export default function HashGeneratorClient({
           Clear
         </Button>
       </div>
+
+      <OutputActionButtons
+        canPerform={canPerformOutputActions}
+        isSaveSuccess={saveSuccess}
+        isCopySuccess={copySuccess}
+        onInitiateSave={() => initiateOutputActionWithPrompt('save')}
+        onInitiateDownload={() => initiateOutputActionWithPrompt('download')}
+        onCopy={handleCopyToClipboard}
+        directiveName={directiveName}
+        outputConfig={metadata.outputConfig as OutputConfig}
+        isProcessing={isProcessing}
+      />
 
       {toolState.algorithm === 'MD5' && (
         <p className="text-xs text-[rgb(var(--color-text-muted))] italic text-center border border-dashed border-[rgb(var(--color-border-base))] p-2 rounded-md">
@@ -514,13 +787,13 @@ export default function HashGeneratorClient({
             id="text-output"
             rows={3}
             value={
-              isProcessing && !toolState.outputValue
+              isProcessing && !toolState.outputValue && !toolState.errorMsg
                 ? 'Generating...'
                 : toolState.outputValue
             }
             readOnly
             placeholder="Generated hash will appear here..."
-            textareaClassName={`text-base font-mono resize-none bg-[rgb(var(--color-bg-subtle))] ${isProcessing && !toolState.outputValue ? 'animate-pulse' : ''}`}
+            textareaClassName={`text-base font-mono resize-none bg-[rgb(var(--color-bg-subtle))] ${isProcessing && !toolState.outputValue && !toolState.errorMsg ? 'animate-pulse' : ''}`}
             aria-live="polite"
             onClick={(e) => e.currentTarget.select()}
           />
@@ -557,6 +830,14 @@ export default function HashGeneratorClient({
         confirmButtonText={
           filenameActionType === 'download' ? 'Download' : 'Save to Library'
         }
+      />
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
       />
     </div>
   );

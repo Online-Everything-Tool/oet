@@ -14,12 +14,23 @@ import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
 import Input from '../../_components/form/Input';
 import type { ParamConfig } from '@/src/types/tools';
+import {
+  ClipboardDocumentIcon,
+  CheckIcon,
+  ExclamationTriangleIcon,
+} from '@heroicons/react/24/outline';
 
-import { ClipboardDocumentIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { useMetadata } from '@/app/context/MetadataContext';
+import useItdeTargetHandler, {
+  IncomingSignal,
+} from '../../_hooks/useItdeTargetHandler';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import IncomingDataModal from '../../_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+import { StoredFile } from '@/src/types/storage';
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
-
   toolRoute: string;
 }
 
@@ -27,32 +38,149 @@ interface TextStrikeThroughToolState {
   inputText: string;
   skipSpaces: boolean;
   color: string;
+  lastLoadedFilename?: string | null;
 }
 
 const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
   inputText: '',
   skipSpaces: false,
   color: '#dc2626',
+  lastLoadedFilename: null,
 };
+
+const COMBINING_LONG_STROKE_OVERLAY = '\u0336';
 
 export default function TextStrikeThroughClient({
   urlStateParams,
-
   toolRoute,
 }: TextStrikeThroughClientProps) {
   const {
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearStateAndPersist: persistentClearState,
+    clearStateAndPersist,
     errorLoadingState,
+    saveStateNow,
   } = useToolState<TextStrikeThroughToolState>(
     toolRoute,
     DEFAULT_TEXT_STRIKE_THROUGH_STATE
   );
 
-  const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [isUnicodeCopied, setIsUnicodeCopied] = useState<boolean>(false);
+  const [isInputCopied, setIsInputCopied] = useState<boolean>(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+
+  const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialUrlLoadProcessedRef = useRef(false);
+  const initialToolStateLoadCompleteRef = useRef(false);
+
+  const { getToolMetadata } = useMetadata();
+  const directiveName = useMemo(
+    () => toolRoute.split('/').pop() || 'text-strike-through',
+    [toolRoute]
+  );
+
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      console.log(
+        `[TextStrikeThrough ITDE Accept] Processing signal from: ${signal.sourceDirective}`
+      );
+      setCopyError(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setCopyError(
+          `Metadata not found for source tool: ${signal.sourceToolTitle}`
+        );
+        return;
+      }
+
+      const resolvedPayload = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+        setCopyError(
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
+        );
+        return;
+      }
+
+      let newText = '';
+      if (
+        resolvedPayload.type === 'text' &&
+        typeof resolvedPayload.data === 'string'
+      ) {
+        newText = resolvedPayload.data;
+      } else if (
+        resolvedPayload.type === 'fileReference' &&
+        resolvedPayload.data &&
+        typeof (resolvedPayload.data as StoredFile).blob?.text === 'function'
+      ) {
+        const fileData = resolvedPayload.data as StoredFile;
+        if (fileData.type?.startsWith('text/')) {
+          try {
+            newText = await fileData.blob.text();
+          } catch (_e) {
+            setCopyError(
+              `Error reading text from received file: ${fileData.name}`
+            );
+            return;
+          }
+        } else {
+          setCopyError(`Received file '${fileData.name}' is not a text file.`);
+          return;
+        }
+      } else {
+        setCopyError(
+          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+        );
+        return;
+      }
+
+      const newState: Partial<TextStrikeThroughToolState> = {
+        inputText: newText,
+        lastLoadedFilename: null,
+      };
+      setToolState(newState);
+      await saveStateNow({ ...toolState, ...newState });
+      setUserDeferredAutoPopup(false);
+      setIsUnicodeCopied(false);
+      setIsInputCopied(false);
+    },
+    [getToolMetadata, toolState, setToolState, saveStateNow]
+  );
+
+  const itdeTarget = useItdeTargetHandler({
+    targetToolDirective: directiveName,
+    onProcessSignal: handleProcessIncomingSignal,
+  });
+
+  useEffect(() => {
+    if (!isLoadingState) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
+    }
+  }, [isLoadingState]);
+
+  useEffect(() => {
+    const canProceed =
+      !isLoadingState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
+      itdeTarget.openModalIfSignalsExist();
+    }
+  }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
     if (
@@ -61,8 +189,13 @@ export default function TextStrikeThroughClient({
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
-      if (!isLoadingState && !initialUrlLoadProcessedRef.current)
+      if (
+        !isLoadingState &&
+        !initialUrlLoadProcessedRef.current &&
+        initialToolStateLoadCompleteRef.current
+      ) {
         initialUrlLoadProcessedRef.current = true;
+      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
@@ -74,6 +207,7 @@ export default function TextStrikeThroughClient({
     const textFromUrl = params.get('text');
     if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
       updates.inputText = textFromUrl;
+      updates.lastLoadedFilename = '(loaded from URL)';
       needsUpdate = true;
     }
 
@@ -87,7 +221,6 @@ export default function TextStrikeThroughClient({
     }
 
     const colorFromUrl = params.get('color');
-
     if (
       colorFromUrl &&
       /^#([0-9A-Fa-f]{3}){1,2}$/.test(colorFromUrl) &&
@@ -104,8 +237,13 @@ export default function TextStrikeThroughClient({
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setToolState({ inputText: event.target.value });
-      setIsCopied(false);
+      setToolState({
+        inputText: event.target.value,
+        lastLoadedFilename: null,
+      });
+      setIsUnicodeCopied(false);
+      setIsInputCopied(false);
+      setCopyError(null);
     },
     [setToolState]
   );
@@ -113,7 +251,7 @@ export default function TextStrikeThroughClient({
   const handleSkipSpacesChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ skipSpaces: event.target.checked });
-      setIsCopied(false);
+      setIsUnicodeCopied(false);
     },
     [setToolState]
   );
@@ -121,25 +259,69 @@ export default function TextStrikeThroughClient({
   const handleColorChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ color: event.target.value });
-      setIsCopied(false);
+      setIsUnicodeCopied(false);
     },
     [setToolState]
   );
 
   const handleClear = useCallback(async () => {
-    await persistentClearState();
-    setIsCopied(false);
-  }, [persistentClearState]);
+    await clearStateAndPersist();
+    setIsUnicodeCopied(false);
+    setIsInputCopied(false);
+    setCopyError(null);
+    setUserDeferredAutoPopup(false);
+  }, [clearStateAndPersist]);
+
+  const generateUnicodeStrikeThroughText = useCallback(() => {
+    if (!toolState.inputText) return '';
+    let result = '';
+    for (let i = 0; i < toolState.inputText.length; i++) {
+      const char = toolState.inputText[i];
+      if (
+        toolState.skipSpaces &&
+        (char === ' ' || char === '\t' || char === '\n' || char === '\r')
+      ) {
+        result += char;
+      } else {
+        result += char + COMBINING_LONG_STROKE_OVERLAY;
+      }
+    }
+    return result;
+  }, [toolState.inputText, toolState.skipSpaces]);
+
+  const handleCopyUnicodeOutput = useCallback(() => {
+    const unicodeText = generateUnicodeStrikeThroughText();
+    if (!unicodeText || !navigator.clipboard) {
+      setCopyError('Nothing to copy or clipboard unavailable.');
+      return;
+    }
+    setCopyError(null);
+    navigator.clipboard.writeText(unicodeText).then(
+      () => {
+        setIsUnicodeCopied(true);
+        setTimeout(() => setIsUnicodeCopied(false), 2000);
+      },
+      (err) => {
+        console.error('Failed to copy Unicode strikethrough text: ', err);
+        setCopyError('Failed to copy Unicode text.');
+      }
+    );
+  }, [generateUnicodeStrikeThroughText]);
 
   const handleCopyInput = useCallback(() => {
-    if (!toolState.inputText || !navigator.clipboard) return;
+    if (!toolState.inputText || !navigator.clipboard) {
+      setCopyError('Nothing to copy or clipboard unavailable.');
+      return;
+    }
+    setCopyError(null);
     navigator.clipboard.writeText(toolState.inputText).then(
       () => {
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 1500);
+        setIsInputCopied(true);
+        setTimeout(() => setIsInputCopied(false), 1500);
       },
       (err) => {
         console.error('Failed to copy input text: ', err);
+        setCopyError('Failed to copy input text.');
       }
     );
   }, [toolState.inputText]);
@@ -155,6 +337,7 @@ export default function TextStrikeThroughClient({
     const strikeStyle: React.CSSProperties = {
       textDecoration: 'line-through',
       textDecorationColor: toolState.color,
+      textDecorationThickness: '0.125em',
       textDecorationStyle: 'solid',
     };
 
@@ -163,7 +346,7 @@ export default function TextStrikeThroughClient({
     } else {
       const segments = toolState.inputText.split(/(\s+)/);
       return segments.map((segment, index) => {
-        if (segment.match(/\s+/)) {
+        if (segment.match(/^\s+$/)) {
           return <React.Fragment key={index}>{segment}</React.Fragment>;
         } else if (segment) {
           return (
@@ -177,27 +360,67 @@ export default function TextStrikeThroughClient({
     }
   }, [toolState.inputText, toolState.skipSpaces, toolState.color]);
 
-  if (isLoadingState && !initialUrlLoadProcessedRef.current) {
+  const handleModalDeferAll = () => {
+    setUserDeferredAutoPopup(true);
+    itdeTarget.closeModal();
+  };
+  const handleModalIgnoreAll = () => {
+    setUserDeferredAutoPopup(false);
+    itdeTarget.ignoreAllSignals();
+  };
+  const handleModalAccept = (sourceDirective: string) => {
+    itdeTarget.acceptSignal(sourceDirective);
+  };
+  const handleModalIgnore = (sourceDirective: string) => {
+    itdeTarget.ignoreSignal(sourceDirective);
+    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+      (s) => s.sourceDirective !== sourceDirective
+    );
+    if (remainingSignalsAfterIgnore.length === 0) {
+      setUserDeferredAutoPopup(false);
+    }
+  };
+
+  if (
+    isLoadingState &&
+    !initialUrlLoadProcessedRef.current &&
+    !initialToolStateLoadCompleteRef.current
+  ) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Strike Through Tool...
       </p>
     );
   }
-  if (errorLoadingState) {
-    return (
-      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
-        Error loading saved state: {errorLoadingState}
-      </div>
-    );
-  }
+  const displayError = copyError || errorLoadingState;
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <div className="space-y-1 h-full flex flex-col">
+          <div className="flex justify-between items-center">
+            <label
+              htmlFor="text-input"
+              className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
+            >
+              Input Text
+              {toolState.lastLoadedFilename && (
+                <span className="ml-1 text-xs italic">
+                  ({toolState.lastLoadedFilename})
+                </span>
+              )}
+            </label>
+            <ReceiveItdeDataTrigger
+              hasDeferredSignals={
+                itdeTarget.pendingSignals.length > 0 &&
+                userDeferredAutoPopup &&
+                !itdeTarget.isModalOpen
+              }
+              pendingSignalCount={itdeTarget.pendingSignals.length}
+              onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+            />
+          </div>
           <Textarea
-            label="Input Text"
             id="text-input"
             name="text"
             rows={8}
@@ -225,6 +448,20 @@ export default function TextStrikeThroughClient({
           </div>
         </div>
       </div>
+
+      {displayError && (
+        <div
+          role="alert"
+          className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
+        >
+          <ExclamationTriangleIcon
+            className="h-5 w-5 flex-shrink-0"
+            aria-hidden="true"
+          />
+          {displayError}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <fieldset className="flex flex-wrap gap-x-4 gap-y-2 items-center">
           <legend className="sr-only">Strikethrough Options</legend>
@@ -255,19 +492,36 @@ export default function TextStrikeThroughClient({
         </fieldset>
         <div className="flex items-center space-x-3 ml-auto">
           <Button
-            variant={isCopied ? 'secondary' : 'accent2'}
+            variant={isInputCopied ? 'secondary' : 'neutral-outline'}
             onClick={handleCopyInput}
-            disabled={!toolState.inputText.trim() || isCopied}
+            disabled={!toolState.inputText.trim() || isInputCopied}
             iconLeft={
-              isCopied ? (
+              isInputCopied ? (
                 <CheckIcon className="h-5 w-5" />
               ) : (
                 <ClipboardDocumentIcon className="h-5 w-5" />
               )
             }
             className="transition-colors duration-150 ease-in-out"
+            title="Copy original input text"
           >
-            {isCopied ? 'Copied Input!' : 'Copy Input Text'}
+            {isInputCopied ? 'Input Copied!' : 'Copy Input'}
+          </Button>
+          <Button
+            variant={isUnicodeCopied ? 'primary' : 'accent'}
+            onClick={handleCopyUnicodeOutput}
+            disabled={!toolState.inputText.trim() || isUnicodeCopied}
+            iconLeft={
+              isUnicodeCopied ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <ClipboardDocumentIcon className="h-5 w-5" />
+              )
+            }
+            className="transition-colors duration-150 ease-in-out"
+            title="Copy text with Unicode strikethrough characters"
+          >
+            {isUnicodeCopied ? 'Unicode Copied!' : 'Copy Unicode Strikethrough'}
           </Button>
           <Button
             variant="neutral"
@@ -282,6 +536,14 @@ export default function TextStrikeThroughClient({
           </Button>
         </div>
       </div>
+      <IncomingDataModal
+        isOpen={itdeTarget.isModalOpen}
+        signals={itdeTarget.pendingSignals}
+        onAccept={handleModalAccept}
+        onIgnore={handleModalIgnore}
+        onDeferAll={handleModalDeferAll}
+        onIgnoreAll={handleModalIgnoreAll}
+      />
     </div>
   );
 }
