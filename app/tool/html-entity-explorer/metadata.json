@@ -1,14 +1,13 @@
 {
   "title": "Html Entity Explorer",
+  "directive": "html-entity-explorer",
   "description": "Easily find and copy HTML character entities.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "none"
-    }
+    "transferableContent": "none"
   },
   "tags": [],
   "includeInSitemap": true,

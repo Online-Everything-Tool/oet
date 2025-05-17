@@ -1,5 +1,6 @@
 {
   "title": "Crypto Wallet Generator",
+  "directive": "crypto-wallet-generator",
   "description": "Generates basic private/public key pairs suitable for testing Ethereum or Bitcoin wallets directly in the browser.",
   "urlStateParams": [
     {
@@ -10,12 +11,10 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "none"
-    }
+    "transferableContent": "none"
   },
   "tags": [],
   "iconName": null,

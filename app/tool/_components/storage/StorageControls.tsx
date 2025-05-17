@@ -22,7 +22,6 @@ interface StorageControlsProps {
   itemNameSingular: string;
   itemNamePlural: string;
   currentLayout: 'list' | 'grid';
-  selectedItemCount: number;
 
   isFilterSelectedActive: boolean;
   onToggleFilterSelected: () => void;
@@ -44,7 +43,6 @@ export default function StorageControls({
   itemNameSingular,
   itemNamePlural,
   currentLayout,
-  selectedItemCount,
 
   isFilterSelectedActive,
   onToggleFilterSelected,
@@ -58,16 +56,7 @@ export default function StorageControls({
   outputConfig,
   selectedStoredFilesForItde,
 }: StorageControlsProps) {
-  const hasSelection = selectedItemCount > 0;
-
-  if (hasSelection) {
-    console.log('[StorageControls] Props for SendToToolButton:', {
-      currentToolDirective: directiveName,
-      currentToolOutputConfig: outputConfig,
-      selectedOutputItems: selectedStoredFilesForItde,
-      selectedItemCount: selectedItemCount,
-    });
-  }
+  const hasSelection = selectedStoredFilesForItde.length > 0;
 
   return (
     <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
@@ -89,7 +78,7 @@ export default function StorageControls({
             currentToolDirective={directiveName}
             currentToolOutputConfig={outputConfig}
             selectedOutputItems={selectedStoredFilesForItde}
-            buttonText={`Send Selected (${selectedItemCount})`}
+            buttonText={`Send Selected (${selectedStoredFilesForItde.length})`}
             className={
               isLoading || isDeleting ? 'opacity-50 cursor-not-allowed' : ''
             }
@@ -105,7 +94,7 @@ export default function StorageControls({
             loadingText="Deleting..."
             iconLeft={<TrashIcon className="h-5 w-5" />}
           >
-            Delete Selected ({selectedItemCount})
+            Delete Selected ({selectedStoredFilesForItde.length})
           </Button>
         )}
         <div className="flex-grow"></div>
@@ -168,7 +157,7 @@ export default function StorageControls({
             className={`${isFilterSelectedActive ? 'shadow' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
           >
             {isFilterSelectedActive
-              ? `Filtered (${selectedItemCount})`
+              ? `Filtered (${selectedStoredFilesForItde.length})`
               : 'Filter Selected'}
           </Button>
         </div>
@@ -177,7 +166,8 @@ export default function StorageControls({
         <span className="text-sm text-gray-500">
           {itemCount} {itemCount === 1 ? itemNameSingular : itemNamePlural} in
           library
-          {isFilterSelectedActive && ` (${selectedItemCount} selected shown)`}
+          {isFilterSelectedActive &&
+            ` (${selectedStoredFilesForItde.length} selected shown)`}
         </span>
       </div>
     </div>

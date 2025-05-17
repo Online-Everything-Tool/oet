@@ -22,35 +22,42 @@ export default function ImageStorageClient({
   const fileLibrary = useFileLibrary();
   const metadata = importedMetadata as ToolMetadata;
 
-  const imageSpecificStorageHook = useCallback((): StorageHookReturnType => {
+  const specificListFiles = useCallback(
+    async (limit?: number, includeTemporary?: boolean) => {
+      const allFiles = await fileLibrary.listFiles(
+        limit ? limit * 2 : undefined,
+        includeTemporary
+      );
+      const imageFiles = allFiles.filter((f) => f.type?.startsWith('image/'));
+      return limit ? imageFiles.slice(0, limit) : imageFiles;
+    },
+    [fileLibrary.listFiles]
+  );
+
+  const specificMarkAllFilesAsTemporary = useCallback(async () => {
+    const allPermanentImages = await fileLibrary
+      .listFiles(undefined, false)
+      .then((files) => files.filter((f) => f.type?.startsWith('image/')));
+
+    if (allPermanentImages.length === 0)
+      return { markedCount: 0, markedIds: [] };
+
+    const imageIdsToMark = allPermanentImages.map((img) => img.id);
+    let markedCount = 0;
+    for (const id of imageIdsToMark) {
+      const success = await fileLibrary.markFileAsTemporary(id);
+      if (success) markedCount++;
+    }
+    return { markedCount, markedIds: imageIdsToMark };
+  }, [fileLibrary.listFiles, fileLibrary.markFileAsTemporary]);
+
+  const imageStorageHookProvider = useCallback((): StorageHookReturnType => {
     return {
       ...fileLibrary,
-      listFiles: async (limit?: number, includeTemporary?: boolean) => {
-        const allFiles = await fileLibrary.listFiles(
-          limit ? limit * 2 : undefined,
-          includeTemporary
-        );
-        const imageFiles = allFiles.filter((f) => f.type?.startsWith('image/'));
-        return limit ? imageFiles.slice(0, limit) : imageFiles;
-      },
-      markAllFilesAsTemporary: async () => {
-        const allPermanentImages = await fileLibrary
-          .listFiles(undefined, false)
-          .then((files) => files.filter((f) => f.type?.startsWith('image/')));
-
-        if (allPermanentImages.length === 0)
-          return { markedCount: 0, markedIds: [] };
-
-        const imageIdsToMark = allPermanentImages.map((img) => img.id);
-        let markedCount = 0;
-        for (const id of imageIdsToMark) {
-          const success = await fileLibrary.markFileAsTemporary(id);
-          if (success) markedCount++;
-        }
-        return { markedCount, markedIds: imageIdsToMark };
-      },
+      listFiles: specificListFiles,
+      markAllFilesAsTemporary: specificMarkAllFilesAsTemporary,
     };
-  }, [fileLibrary]);
+  }, [fileLibrary, specificListFiles, specificMarkAllFilesAsTemporary]);
 
   const imagePreviewRenderer = (
     file: StoredFile,
@@ -78,7 +85,7 @@ export default function ImageStorageClient({
       toolRoute={toolRoute}
       itemTypeSingular="Image"
       itemTypePlural="Images"
-      storageHook={imageSpecificStorageHook}
+      storageHook={imageStorageHookProvider}
       fileInputAccept="image/*"
       libraryFilterForModal={{ category: 'image' }}
       defaultLayout="grid"

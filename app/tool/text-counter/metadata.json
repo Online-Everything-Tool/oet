@@ -1,5 +1,6 @@
 {
   "title": "Text Counter",
+  "directive": "text-counter",
   "description": "Count words, characters, lines, and occurrences of specific text.",
   "urlStateParams": [
     {
@@ -15,12 +16,10 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": ["text/plain"],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "none"
-    }
+    "transferableContent": "none"
   },
   "tags": [],
   "includeInSitemap": true,

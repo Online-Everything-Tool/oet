@@ -1,11 +1,14 @@
 // FILE: src/types/storage.ts
 
-export interface StoredFile {
+export interface InlineFile {
+  type: string;
+  blob: Blob;
+}
+
+export interface StoredFile extends InlineFile {
   id: string;
   name: string;
-  type: string;
   size: number;
-  blob: Blob;
   thumbnailBlob?: Blob;
   createdAt: Date;
   isTemporary?: boolean;

@@ -1,22 +1,23 @@
 {
   "title": "Image Montage",
+  "directive": "image-montage",
   "description": "Upload multiple images to create a fun, overlapping polaroid-style montage.",
   "inputConfig": {
     "stateFiles": [
       {
-        "dataType": "fileReference",
-        "arrayStateKey": "persistedImages",
-        "fileIdStateKey": "imageId"
+        "stateKey": "imageId",
+        "arrayStateKey": "persistedImages"
       }
     ],
     "acceptsMimeTypes": ["image/*"]
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "fileReference",
-      "fileIdStateKey": "processedFileId",
-      "fileCategory": "image"
-    }
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
   },
   "tags": [],
   "includeInSitemap": true,

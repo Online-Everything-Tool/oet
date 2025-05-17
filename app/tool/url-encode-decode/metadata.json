@@ -1,5 +1,6 @@
 {
   "title": "Url Encode Decode",
+  "directive": "url-encode-decode",
   "description": "Encode special characters in text for safe use in URLs, or decode URL-encoded strings back to readable text.",
   "urlStateParams": [
     {
@@ -15,13 +16,16 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": ["text/*"],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "text",
-      "textStateKey": "outputValue"
-    }
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
   },
   "tags": [],
   "includeInSitemap": true,

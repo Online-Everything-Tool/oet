@@ -6,7 +6,7 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import type {
   ToolMetadata,
   OutputConfig,
-  InputConfig,
+  InlineDetails,
   DiscoveredTarget,
 } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
@@ -18,6 +18,25 @@ interface UseItdeDiscoveryParams {
   selectedOutputItems?: StoredFile[];
 }
 
+function mimeTypeMatches(
+  sourceMime: string,
+  targetAcceptsMime: string
+): boolean {
+  if (targetAcceptsMime === '*/*' || sourceMime === '*/*') return true;
+  if (targetAcceptsMime === sourceMime) return true;
+
+  const [sourceType, sourceSubtype] = sourceMime.split('/');
+  const [targetType, targetSubtype] = targetAcceptsMime.split('/');
+
+  if (
+    sourceType === targetType &&
+    (targetSubtype === '*' || targetSubtype === sourceSubtype)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export default function useItdeDiscovery({
   currentToolDirective,
   currentToolOutputConfig,
@@ -26,52 +45,88 @@ export default function useItdeDiscovery({
   const { toolMetadataMap, isLoading: isLoadingMetadata } = useMetadata();
 
   const discoveredTargets = useMemo(() => {
-    if (isLoadingMetadata) {
+    if (isLoadingMetadata || !currentToolOutputConfig) {
       return [];
     }
 
-    const outputDetails = currentToolOutputConfig.transferableContent;
-    if (outputDetails.dataType === 'none') {
+    const transferableContent = currentToolOutputConfig.transferableContent;
+    if (transferableContent === 'none' || transferableContent.length === 0) {
       return [];
     }
 
-    const allOtherTools = Object.values(toolMetadataMap).filter(
-      (meta) =>
-        meta.title &&
-        meta.title !== toolMetadataMap[currentToolDirective]?.title
-    );
+    const allOtherToolsMetadata: ToolMetadata[] = Object.values(
+      toolMetadataMap
+    ).filter((meta) => meta.directive !== currentToolDirective);
 
-    const compatibleTargets: DiscoveredTarget[] = [];
+    const compatibleTargetsMap = new Map<string, DiscoveredTarget>();
 
-    allOtherTools.forEach((targetToolMeta: ToolMetadata) => {
-      if (targetToolMeta.inputConfig.acceptsMimeTypes.length === 0) {
-        return;
+    transferableContent.forEach((outputItem) => {
+      const sourceMimeTypes: string[] = [];
+
+      if (outputItem.dataType === 'inline') {
+        const inlineDetails = outputItem as InlineDetails;
+        if (inlineDetails.mimeType) {
+          sourceMimeTypes.push(inlineDetails.mimeType);
+        }
+      } else if (outputItem.dataType === 'reference') {
+
+        if (selectedOutputItems && selectedOutputItems.length > 0) {
+          selectedOutputItems.forEach((file) => {
+            if (file.type && !sourceMimeTypes.includes(file.type)) {
+              sourceMimeTypes.push(file.type);
+            }
+          });
+        }
+
       }
 
-      const targetDirective = Object.keys(toolMetadataMap).find(
-        (key) => toolMetadataMap[key].title === targetToolMeta.title
-      );
+      if (sourceMimeTypes.length === 0) {
 
-      if (!targetDirective) return;
+        if (
+          outputItem.dataType === 'reference' &&
+          (!selectedOutputItems || selectedOutputItems.length === 0)
+        ) {
+          sourceMimeTypes.push('*/*');
+        } else if (sourceMimeTypes.length === 0) {
 
-      if (
-        isOutputCompatibleWithInput(
-          outputDetails,
-          targetToolMeta.inputConfig,
-          selectedOutputItems
-        )
-      ) {
-        compatibleTargets.push({
-          title: targetToolMeta.title,
-          directive: targetDirective,
-          route: `/tool/${targetDirective}/`,
-          description:
-            targetToolMeta.description || 'No description available.',
-        });
+          return;
+        }
       }
+
+      allOtherToolsMetadata.forEach((targetToolMeta) => {
+        if (
+          !targetToolMeta.inputConfig ||
+          compatibleTargetsMap.has(targetToolMeta.directive)
+        ) {
+          return;
+        }
+
+        const targetAcceptsMimeTypes =
+          targetToolMeta.inputConfig.acceptsMimeTypes;
+        if (!targetAcceptsMimeTypes || targetAcceptsMimeTypes.length === 0) {
+          return;
+        }
+
+        for (const sMime of sourceMimeTypes) {
+          for (const tAcceptsMime of targetAcceptsMimeTypes) {
+            if (mimeTypeMatches(sMime, tAcceptsMime)) {
+              compatibleTargetsMap.set(targetToolMeta.directive, {
+                directive: targetToolMeta.directive,
+                title: targetToolMeta.title,
+                description:
+                  targetToolMeta.description || 'No description available.',
+                route: `/tool/${targetToolMeta.directive}/`,
+              });
+              return;
+            }
+          }
+        }
+      });
     });
 
-    return compatibleTargets.sort((a, b) => a.title.localeCompare(b.title));
+    const finalTargets = Array.from(compatibleTargetsMap.values());
+    finalTargets.sort((a, b) => a.title.localeCompare(b.title));
+    return finalTargets;
   }, [
     isLoadingMetadata,
     currentToolOutputConfig,
@@ -81,82 +136,4 @@ export default function useItdeDiscovery({
   ]);
 
   return discoveredTargets;
-}
-
-function isOutputCompatibleWithInput(
-  outputDetails: ToolMetadata['outputConfig']['transferableContent'],
-  targetInputConfig: InputConfig,
-  selectedOutputItems?: StoredFile[]
-): boolean {
-  if (outputDetails.dataType === 'none') return false;
-
-  const sourceMimeTypes: string[] = [];
-
-  if (
-    outputDetails.dataType === 'fileReference' ||
-    outputDetails.dataType === 'selectionReferenceList'
-  ) {
-    const category =
-      outputDetails.dataType === 'fileReference'
-        ? outputDetails.fileCategory
-        : outputDetails.selectionFileCategory;
-    if (category === 'image') sourceMimeTypes.push('image/*');
-    else if (category === 'text') sourceMimeTypes.push('text/*');
-    else if (category === 'document') sourceMimeTypes.push('application/pdf');
-    else if (category === 'archive')
-      sourceMimeTypes.push('application/zip', 'application/x-zip-compressed');
-    else if (category === 'other')
-      sourceMimeTypes.push('application/octet-stream');
-    else if (category === '*') {
-      if (selectedOutputItems && selectedOutputItems.length > 0) {
-        selectedOutputItems.forEach((item) => {
-          if (item.type && !sourceMimeTypes.includes(item.type)) {
-            sourceMimeTypes.push(item.type);
-          }
-        });
-        if (sourceMimeTypes.length === 0) sourceMimeTypes.push('*/*');
-      } else {
-        sourceMimeTypes.push('*/*');
-      }
-    }
-  } else if (outputDetails.dataType === 'text') {
-    sourceMimeTypes.push('text/plain');
-  } else if (outputDetails.dataType === 'jsonObject') {
-    sourceMimeTypes.push('application/json');
-  }
-
-  if (sourceMimeTypes.length === 0) return false;
-
-  const targetAccepts = targetInputConfig.acceptsMimeTypes;
-
-  if (targetAccepts.length === 0) return false;
-
-  for (const sourceMime of sourceMimeTypes) {
-    for (const targetMime of targetAccepts) {
-      if (!mimeTypeMatches(sourceMime, targetMime)) {
-        return false;
-      }
-    }
-  }
-
-  return true;
-}
-
-function mimeTypeMatches(
-  sourceMime: string,
-  targetMimePattern: string
-): boolean {
-  if (targetMimePattern === '*/*' || sourceMime === '*/*') return true;
-  if (targetMimePattern === sourceMime) return true;
-
-  const [sourceType, sourceSubtype] = sourceMime.split('/');
-  const [targetType, targetSubtype] = targetMimePattern.split('/');
-
-  if (
-    sourceType === targetType &&
-    (targetSubtype === '*' || targetSubtype === sourceSubtype)
-  ) {
-    return true;
-  }
-  return false;
 }

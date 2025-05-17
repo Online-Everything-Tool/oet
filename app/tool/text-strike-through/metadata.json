@@ -1,5 +1,6 @@
 {
   "title": "Text Strike Through",
+  "directive": "text-strike-through",
   "description": "Enter text below to see it displayed with strikethrough formatting.",
   "urlStateParams": [
     {
@@ -20,10 +21,10 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": ["text/plain"],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": { "dataType": "none" }
+    "transferableContent": "none"
   },
   "tags": [],
   "includeInSitemap": true,

@@ -1,16 +1,18 @@
 {
   "title": "Image Storage",
+  "directive": "image-storage",
   "description": "Upload images or paste your clipboard to store it locally in your browser using IndexedDB.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "selectionReferenceList",
-      "selectionStateKey": "selectedItemIds",
-      "selectionFileCategory": "image"
-    }
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "selectedItemIds"
+      }
+    ]
   },
   "tags": ["image", "storage", "local", "indexeddb", "utility"],
   "includeInSitemap": true,

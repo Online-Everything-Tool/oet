@@ -14,7 +14,7 @@ import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
-import type { ParamConfig } from '@/src/types/tools';
+import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {
   ArrowUpTrayIcon,
@@ -25,9 +25,11 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
 } from '../../_hooks/useItdeTargetHandler';
-import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+
+import importedMetadata from '../metadata.json';
 
 interface TextCounts {
   words: number;
@@ -49,6 +51,8 @@ const DEFAULT_TEXT_COUNTER_STATE: TextCounterToolState = {
   lastLoadedFilename: null,
 };
 
+const metadata = importedMetadata as ToolMetadata;
+
 interface TextCounterClientProps {
   urlStateParams: ParamConfig[];
   toolRoute: string;
@@ -64,7 +68,6 @@ export default function TextCounterClient({
     isLoadingState,
     errorLoadingState,
     saveStateNow,
-    clearStateAndPersist,
   } = useToolState<TextCounterToolState>(toolRoute, DEFAULT_TEXT_COUNTER_STATE);
 
   const initialUrlLoadProcessedRef = useRef(false);
@@ -75,10 +78,7 @@ export default function TextCounterClient({
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
 
   const { getToolMetadata } = useMetadata();
-  const directiveName = useMemo(
-    () => toolRoute.split('/').pop() || 'text-counter',
-    [toolRoute]
-  );
+  const directiveName = metadata.directive;
 
   const handleProcessIncomingSignal = useCallback(
     async (signal: IncomingSignal) => {
@@ -94,12 +94,17 @@ export default function TextCounterClient({
         return;
       }
 
-      const resolvedPayload = await resolveItdeData(
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
 
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
         setClientError(
           resolvedPayload.errorMessage ||
             'No transferable data received from source.'
@@ -108,44 +113,48 @@ export default function TextCounterClient({
       }
 
       let newText = '';
-      if (
-        resolvedPayload.type === 'text' &&
-        typeof resolvedPayload.data === 'string'
-      ) {
-        newText = resolvedPayload.data;
-      } else if (
-        resolvedPayload.type === 'fileReference' &&
-        resolvedPayload.data
-      ) {
-        const fileData = resolvedPayload.data as StoredFile;
-        if (fileData.type?.startsWith('text/')) {
-          try {
-            newText = await fileData.blob.text();
-          } catch (_e) {
-            setClientError(
-              `Error reading text from received file: ${fileData.name}`
-            );
-            return;
+      const firstItem = resolvedPayload.data[0];
+      let loadedFilename: string | null = null;
+
+      if (firstItem && firstItem.type.startsWith('text/')) {
+        try {
+          newText = await firstItem.blob.text();
+          if ('id' in firstItem && 'name' in firstItem) {
+
+            loadedFilename = (firstItem as StoredFile).name;
+          } else {
+
+            loadedFilename = null;
           }
-        } else {
+        } catch (e) {
+          const errorMsgText = e instanceof Error ? e.message : String(e);
           setClientError(
-            `Received file '${fileData.name}' is not a text file.`
+            `Error reading text from received data: ${errorMsgText}`
           );
           return;
         }
-      } else {
+      } else if (firstItem) {
         setClientError(
-          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+          `Received data is not text (type: ${firstItem.type}). Cannot process.`
         );
+        return;
+      } else {
+        setClientError('No valid item found in received ITDE data.');
         return;
       }
 
-      const newState: Partial<TextCounterToolState> = {
+      const newStateUpdate: Partial<TextCounterToolState> = {
         inputText: newText,
-        lastLoadedFilename: null,
+        lastLoadedFilename: loadedFilename,
       };
-      setToolState(newState);
-      await saveStateNow({ ...toolState, ...newState });
+
+      const currentSearchText = toolState.searchText;
+      setToolState(newStateUpdate);
+      await saveStateNow({
+        ...toolState,
+        ...newStateUpdate,
+        searchText: currentSearchText,
+      });
       setUserDeferredAutoPopup(false);
     },
     [getToolMetadata, toolState, setToolState, saveStateNow]
@@ -167,7 +176,6 @@ export default function TextCounterClient({
       }
     }
   }, [isLoadingState]);
-
   useEffect(() => {
     const canProceed =
       !isLoadingState && initialToolStateLoadCompleteRef.current;
@@ -182,6 +190,7 @@ export default function TextCounterClient({
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
+
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
@@ -218,6 +227,7 @@ export default function TextCounterClient({
 
     if (needsUpdate) {
       setToolState(updates);
+
     }
   }, [
     isLoadingState,
@@ -241,6 +251,7 @@ export default function TextCounterClient({
     if (inputText && searchString) {
       try {
         if (searchString.length > 0) {
+
           customCount = inputText.split(searchString).length - 1;
         } else {
           customCount = 0;
@@ -255,10 +266,7 @@ export default function TextCounterClient({
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setToolState({
-        inputText: event.target.value,
-        lastLoadedFilename: null,
-      });
+      setToolState({ inputText: event.target.value, lastLoadedFilename: null });
       setClientError(null);
     },
     [setToolState]
@@ -301,10 +309,7 @@ export default function TextCounterClient({
 
       try {
         const textContent = await file.blob.text();
-        setToolState({
-          inputText: textContent,
-          lastLoadedFilename: file.name,
-        });
+        setToolState({ inputText: textContent, lastLoadedFilename: file.name });
         setUserDeferredAutoPopup(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -316,16 +321,26 @@ export default function TextCounterClient({
   );
 
   const handleClearText = useCallback(async () => {
-    await clearStateAndPersist();
+    setToolState((prevState) => ({
+      ...prevState,
+      inputText: '',
+      lastLoadedFilename: null,
+    }));
     setClientError(null);
     setUserDeferredAutoPopup(false);
-  }, [clearStateAndPersist]);
+    await saveStateNow({
+      ...toolState,
+      inputText: '',
+      lastLoadedFilename: null,
+    });
+  }, [setToolState, saveStateNow, toolState]);
 
   const handleClearSearch = useCallback(async () => {
     setToolState((prevState) => ({ ...prevState, searchText: '' }));
 
+    await saveStateNow({ ...toolState, searchText: '' });
     setClientError(null);
-  }, [setToolState]);
+  }, [setToolState, saveStateNow, toolState]);
 
   const handleModalDeferAll = () => {
     setUserDeferredAutoPopup(true);
@@ -340,12 +355,12 @@ export default function TextCounterClient({
   };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
-    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
-      (s) => s.sourceDirective !== sourceDirective
-    );
-    if (remainingSignalsAfterIgnore.length === 0) {
+    if (
+      itdeTarget.pendingSignals.filter(
+        (s) => s.sourceDirective !== sourceDirective
+      ).length === 0
+    )
       setUserDeferredAutoPopup(false);
-    }
   };
 
   if (
@@ -359,13 +374,8 @@ export default function TextCounterClient({
       </p>
     );
   }
-  if (errorLoadingState && !clientError) {
-    return (
-      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
-        Error loading saved state: {errorLoadingState}
-      </div>
-    );
-  }
+
+  const displayError = clientError || errorLoadingState;
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -374,7 +384,7 @@ export default function TextCounterClient({
           htmlFor="text-input"
           className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
         >
-          Input Text:
+          Input Text:{' '}
           {toolState.lastLoadedFilename && (
             <span className="ml-2 text-xs italic">
               ({toolState.lastLoadedFilename})
@@ -412,7 +422,7 @@ export default function TextCounterClient({
         spellCheck="false"
       />
 
-      {(clientError || errorLoadingState) && (
+      {displayError && (
         <div
           role="alert"
           className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
@@ -421,7 +431,7 @@ export default function TextCounterClient({
             className="h-5 w-5 flex-shrink-0"
             aria-hidden="true"
           />
-          {clientError || errorLoadingState}
+          {displayError}
         </div>
       )}
 

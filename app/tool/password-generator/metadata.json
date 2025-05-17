@@ -1,14 +1,13 @@
 {
   "title": "Password Generator",
+  "directive": "password-generator",
   "description": "Generate strong, random passwords with customizable options.",
   "inputConfig": {
     "acceptsMimeTypes": [],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "none"
-    }
+    "transferableContent": "none"
   },
   "tags": [],
   "includeInSitemap": true,

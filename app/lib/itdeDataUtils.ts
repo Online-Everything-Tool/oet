@@ -2,234 +2,128 @@
 import { getDbInstance } from './db';
 import type {
   OutputConfig,
-  TransferableOutputDetails,
+  ReferenceDetails,
+  InlineDetails,
+
 } from '@/src/types/tools';
-import type { StoredFile as AppStoredFile } from '@/src/types/storage';
+import type { StoredFile, InlineFile } from '@/src/types/storage';
 
 export interface ResolvedItdeData {
-  type: TransferableOutputDetails['dataType'] | 'error';
-  data?:
-    | AppStoredFile
-    | AppStoredFile[]
-    | string
-    | Record<string, unknown>
-    | null;
+  type: 'itemList' | 'none' | 'error';
+  data?: (StoredFile | InlineFile)[] | null;
   errorMessage?: string;
 }
 
-/**
- * Resolves the actual output data object(s) from a source tool.
- * For 'fileReference', returns the StoredFile object.
- * For 'selectionReferenceList', returns an array of StoredFile objects.
- * For 'text' or 'jsonObject', returns the string or object directly.
- *
- * @param sourceDirective - The directive of the source tool.
- * @param sourceOutputConfig - The outputConfig object from the source tool's metadata.
- * @returns A Promise resolving to ResolvedItdeData.
- */
 export async function resolveItdeData(
   sourceDirective: string,
   sourceOutputConfig: OutputConfig
 ): Promise<ResolvedItdeData> {
   const db = getDbInstance();
-  const outputDetails = sourceOutputConfig.transferableContent;
   const stateFileId = `state-/tool/${sourceDirective}`;
+  const transferableContent = sourceOutputConfig.transferableContent;
 
-  console.log(
-    `[ITDEDataResolver] Phase 2b: Resolving full data for source: ${sourceDirective}, outputType: ${outputDetails.dataType}`
-  );
+  if (transferableContent === 'none' || transferableContent.length === 0) {
+    return { type: 'none', data: null };
+  }
 
   try {
     const sourceStateFile = await db.files.get(stateFileId);
-    if (!sourceStateFile || !sourceStateFile.blob) {
-      console.warn(
-        `[ITDEDataResolver] Source state file not found or blob missing for ${stateFileId}`
-      );
+    if (!sourceStateFile?.blob) {
       return {
         type: 'error',
-        errorMessage: `Source state for '${sourceDirective}' not found.`,
+        errorMessage: `Source state for '${sourceDirective}' not found or empty.`,
       };
     }
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let sourceState: Record<string, any>;
-    try {
-      const stateJson = await sourceStateFile.blob.text();
-      sourceState = JSON.parse(stateJson);
-    } catch (e) {
-      console.error(
-        `[ITDEDataResolver] Error parsing source state JSON for ${stateFileId}`,
-        e
-      );
-      return {
-        type: 'error',
-        errorMessage: `Could not parse state for '${sourceDirective}'.`,
-      };
-    }
+    const sourceState = JSON.parse(await sourceStateFile.blob.text()) as Record<string, any>;
+    const allResolvedItems: (StoredFile | InlineFile)[] = [];
 
-    console.log(
-      `[ITDEDataResolver] Parsed source state for ${sourceDirective}.`
-    );
-
-    switch (outputDetails.dataType) {
-      case 'fileReference':
-        if (
-          outputDetails.fileIdStateKey &&
-          sourceState[outputDetails.fileIdStateKey]
-        ) {
-          const fileId = sourceState[outputDetails.fileIdStateKey] as string;
-          if (!fileId) {
-            console.warn(
-              `[ITDEDataResolver] File ID is null or empty in source state for key: ${outputDetails.fileIdStateKey}`
-            );
-            return {
-              type: 'error',
-              errorMessage: `No valid file ID found for output key '${outputDetails.fileIdStateKey}'.`,
-            };
-          }
-          console.log(
-            `[ITDEDataResolver] Found fileId: ${fileId} from stateKey: ${outputDetails.fileIdStateKey}. Fetching StoredFile...`
+    for (const outputItem of transferableContent) {
+      if (outputItem.dataType === 'inline') {
+        const inlineDetails = outputItem as InlineDetails;
+        const dataValue = sourceState[inlineDetails.stateKey];
+        if (typeof dataValue === 'undefined') {
+          console.warn(
+            `[ITDE Resolver] Inline key '${inlineDetails.stateKey}' not found in ${sourceDirective} state.`
           );
-          const actualFile = await db.files.get(fileId);
-          if (actualFile) {
-            console.log(
-              `[ITDEDataResolver] Successfully fetched StoredFile: ${actualFile.name}`
-            );
-            return { type: 'fileReference', data: actualFile as AppStoredFile };
+          continue;
+        }
+        const blob = new Blob([dataValue as BlobPart], {
+          type: inlineDetails.mimeType,
+        });
+        allResolvedItems.push({ type: inlineDetails.mimeType, blob });
+      } else if (outputItem.dataType === 'reference') {
+        const refDetails = outputItem as ReferenceDetails;
+        const { stateKey, arrayStateKey } = refDetails;
+        const fileIdsToFetch: string[] = [];
+
+        if (arrayStateKey) {
+
+          const arrOfObjects = sourceState[arrayStateKey];
+          if (Array.isArray(arrOfObjects)) {
+            arrOfObjects.forEach((itemObj) => {
+              if (itemObj && typeof itemObj === 'object' && itemObj[stateKey]) {
+                const idValue = itemObj[stateKey];
+
+                if (typeof idValue === 'string') {
+                  fileIdsToFetch.push(idValue);
+                } else if (Array.isArray(idValue)) {
+                  idValue.forEach((id) => {
+                    if (typeof id === 'string') fileIdsToFetch.push(id);
+                  });
+                } else {
+
+                }
+              }
+            });
           } else {
             console.warn(
-              `[ITDEDataResolver] StoredFile object not found in DB for ID: ${fileId}`
+              `[ITDE Resolver] Ref key '${arrayStateKey}' (expected array of objects) not an array in ${sourceDirective} state.`
             );
-            return {
-              type: 'error',
-              errorMessage: `Output file (ID: ${fileId}) not found in library.`,
-            };
+          }
+        } else {
+
+          const valueFromState = sourceState[stateKey];
+          if (typeof valueFromState === 'string') {
+            fileIdsToFetch.push(valueFromState);
+          } else if (Array.isArray(valueFromState)) {
+            valueFromState.forEach((id) => {
+              if (typeof id === 'string') fileIdsToFetch.push(id);
+            });
+          } else if (typeof valueFromState !== 'undefined') {
+            console.warn(
+              `[ITDE Resolver] Ref key '${stateKey}' (no arrayStateKey) not string or array in ${sourceDirective} state.`
+            );
+          } else {
+            console.warn(
+              `[ITDE Resolver] Ref key '${stateKey}' not found in ${sourceDirective} state.`
+            );
           }
         }
-        console.warn(
-          `[ITDEDataResolver] fileIdStateKey '${outputDetails.fileIdStateKey}' not found in source state or is null/undefined.`
-        );
-        return {
-          type: 'error',
-          errorMessage: `Output file ID key '${outputDetails.fileIdStateKey}' not found in source state.`,
-        };
 
-      case 'selectionReferenceList':
-        if (
-          outputDetails.selectionStateKey &&
-          Array.isArray(sourceState[outputDetails.selectionStateKey])
-        ) {
-          const idList = sourceState[
-            outputDetails.selectionStateKey
-          ] as string[];
-          if (idList.length === 0) {
-            console.log(
-              `[ITDEDataResolver] selectionStateKey '${outputDetails.selectionStateKey}' contained an empty list of IDs.`
-            );
-            return { type: 'selectionReferenceList', data: [] };
-          }
-          console.log(
-            `[ITDEDataResolver] Found selection ID list from stateKey: ${outputDetails.selectionStateKey}. Fetching ${idList.length} StoredFile(s)...`,
-            idList
-          );
-          const fetchedFiles: AppStoredFile[] = [];
-          for (const id of idList) {
-            if (!id) {
-              console.warn(
-                `[ITDEDataResolver] Encountered null or empty ID in selection list for key '${outputDetails.selectionStateKey}'. Skipping.`
-              );
-              continue;
-            }
+        if (fileIdsToFetch.length > 0) {
+          for (const id of fileIdsToFetch) {
             const file = await db.files.get(id);
             if (file) {
-              fetchedFiles.push(file as AppStoredFile);
+              allResolvedItems.push(file as StoredFile);
             } else {
               console.warn(
-                `[ITDEDataResolver] StoredFile object not found in DB for ID: ${id} during selection list processing.`
+                `[ITDE Resolver] StoredFile (ID: ${id}) for reference output not found.`
               );
             }
           }
-          console.log(
-            `[ITDEDataResolver] Successfully fetched ${fetchedFiles.length} StoredFile(s) for selection list.`
-          );
-          return { type: 'selectionReferenceList', data: fetchedFiles };
         }
-        console.warn(
-          `[ITDEDataResolver] selectionStateKey '${outputDetails.selectionStateKey}' not found or not an array in source state.`
-        );
-        return {
-          type: 'error',
-          errorMessage: `Output selection key '${outputDetails.selectionStateKey}' not found in source state.`,
-        };
-
-      case 'text':
-        if (
-          outputDetails.textStateKey &&
-          typeof sourceState[outputDetails.textStateKey] !== 'undefined'
-        ) {
-          const textData = String(sourceState[outputDetails.textStateKey]);
-          console.log(
-            `[ITDEDataResolver] Resolved text data (length: ${textData.length}) from stateKey: ${outputDetails.textStateKey}`
-          );
-          return { type: 'text', data: textData };
-        }
-        console.warn(
-          `[ITDEDataResolver] textStateKey '${outputDetails.textStateKey}' not found in source state.`
-        );
-        return {
-          type: 'error',
-          errorMessage: `Output text key '${outputDetails.textStateKey}' not found in source state.`,
-        };
-
-      case 'jsonObject':
-        if (
-          outputDetails.jsonStateKey &&
-          typeof sourceState[outputDetails.jsonStateKey] === 'object' &&
-          sourceState[outputDetails.jsonStateKey] !== null
-        ) {
-          const jsonData = sourceState[outputDetails.jsonStateKey] as Record<
-            string,
-            unknown
-          >;
-          console.log(
-            `[ITDEDataResolver] Resolved JSON object from stateKey: ${outputDetails.jsonStateKey}`
-          );
-          return { type: 'jsonObject', data: jsonData };
-        }
-        console.warn(
-          `[ITDEDataResolver] jsonStateKey '${outputDetails.jsonStateKey}' not found or not an object in source state.`
-        );
-        return {
-          type: 'error',
-          errorMessage: `Output JSON key '${outputDetails.jsonStateKey}' not found in source state.`,
-        };
-
-      case 'none':
-        console.log(
-          `[ITDEDataResolver] Source tool has dataType 'none'. No data to resolve.`
-        );
-        return { type: 'none', data: null };
-
-      default:
-        const exhaustiveCheck: never = outputDetails;
-        console.warn(
-          `[ITDEDataResolver] Unhandled dataType in sourceOutputConfig: ${JSON.stringify(exhaustiveCheck)}`
-        );
-        return { type: 'error', errorMessage: `Unhandled output data type.` };
+      }
     }
+    return { type: 'itemList', data: allResolvedItems };
   } catch (error) {
     console.error(
-      `[ITDEDataResolver] General error resolving data for ${sourceDirective}:`,
+      `[ITDE Resolver] Error resolving data for ${sourceDirective}:`,
       error
     );
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Unknown error during data resolution.';
     return {
       type: 'error',
-      errorMessage:
-        `Failed to resolve data from '${sourceDirective}'. ${message}`.trim(),
+      errorMessage: `Failed to resolve data from '${sourceDirective}'. ${error instanceof Error ? error.message : String(error)}`,
     };
   }
 }

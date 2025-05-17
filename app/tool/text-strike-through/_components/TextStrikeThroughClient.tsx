@@ -13,21 +13,24 @@ import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
 import Checkbox from '../../_components/form/Checkbox';
 import Input from '../../_components/form/Input';
-import type { ParamConfig } from '@/src/types/tools';
+import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
+import type { StoredFile } from '@/src/types/storage';
 import {
   ClipboardDocumentIcon,
   CheckIcon,
   ExclamationTriangleIcon,
+
 } from '@heroicons/react/24/outline';
 
 import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
 } from '../../_hooks/useItdeTargetHandler';
-import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import { StoredFile } from '@/src/types/storage';
+
+import importedMetadata from '../metadata.json';
 
 interface TextStrikeThroughClientProps {
   urlStateParams: ParamConfig[];
@@ -49,6 +52,7 @@ const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
 };
 
 const COMBINING_LONG_STROKE_OVERLAY = '\u0336';
+const metadata = importedMetadata as ToolMetadata;
 
 export default function TextStrikeThroughClient({
   urlStateParams,
@@ -75,10 +79,7 @@ export default function TextStrikeThroughClient({
   const initialToolStateLoadCompleteRef = useRef(false);
 
   const { getToolMetadata } = useMetadata();
-  const directiveName = useMemo(
-    () => toolRoute.split('/').pop() || 'text-strike-through',
-    [toolRoute]
-  );
+  const directiveName = metadata.directive;
 
   const handleProcessIncomingSignal = useCallback(
     async (signal: IncomingSignal) => {
@@ -94,12 +95,17 @@ export default function TextStrikeThroughClient({
         return;
       }
 
-      const resolvedPayload = await resolveItdeData(
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
 
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
         setCopyError(
           resolvedPayload.errorMessage ||
             'No transferable data received from source.'
@@ -108,48 +114,60 @@ export default function TextStrikeThroughClient({
       }
 
       let newText = '';
-      if (
-        resolvedPayload.type === 'text' &&
-        typeof resolvedPayload.data === 'string'
-      ) {
-        newText = resolvedPayload.data;
-      } else if (
-        resolvedPayload.type === 'fileReference' &&
-        resolvedPayload.data &&
-        typeof (resolvedPayload.data as StoredFile).blob?.text === 'function'
-      ) {
-        const fileData = resolvedPayload.data as StoredFile;
-        if (fileData.type?.startsWith('text/')) {
-          try {
-            newText = await fileData.blob.text();
-          } catch (_e) {
-            setCopyError(
-              `Error reading text from received file: ${fileData.name}`
-            );
-            return;
+      const firstItem = resolvedPayload.data[0];
+      let loadedFilename: string | null = null;
+
+      if (firstItem && firstItem.type.startsWith('text/')) {
+        try {
+          newText = await firstItem.blob.text();
+          if ('id' in firstItem && 'name' in firstItem) {
+
+            loadedFilename = (firstItem as StoredFile).name;
+          } else {
+
+            loadedFilename = null;
           }
-        } else {
-          setCopyError(`Received file '${fileData.name}' is not a text file.`);
+        } catch (e) {
+          const errorMsgText = e instanceof Error ? e.message : String(e);
+          setCopyError(
+            `Error reading text from received data: ${errorMsgText}`
+          );
           return;
         }
-      } else {
+      } else if (firstItem) {
         setCopyError(
-          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+          `Received data is not text (type: ${firstItem.type}). Cannot process.`
         );
+        return;
+      } else {
+        setCopyError('No valid item found in received ITDE data.');
         return;
       }
 
-      const newState: Partial<TextStrikeThroughToolState> = {
+      const currentSkipSpaces = toolState.skipSpaces;
+      const currentColor = toolState.color;
+      const newStateUpdate: Partial<TextStrikeThroughToolState> = {
         inputText: newText,
-        lastLoadedFilename: null,
+        lastLoadedFilename: loadedFilename,
       };
-      setToolState(newState);
-      await saveStateNow({ ...toolState, ...newState });
+      setToolState(newStateUpdate);
+      await saveStateNow({
+        ...toolState,
+        ...newStateUpdate,
+        skipSpaces: currentSkipSpaces,
+        color: currentColor,
+      });
       setUserDeferredAutoPopup(false);
       setIsUnicodeCopied(false);
       setIsInputCopied(false);
     },
-    [getToolMetadata, toolState, setToolState, saveStateNow]
+    [
+      getToolMetadata,
+      toolState.skipSpaces,
+      toolState.color,
+      setToolState,
+      saveStateNow,
+    ]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -168,7 +186,6 @@ export default function TextStrikeThroughClient({
       }
     }
   }, [isLoadingState]);
-
   useEffect(() => {
     const canProceed =
       !isLoadingState && initialToolStateLoadCompleteRef.current;
@@ -183,6 +200,7 @@ export default function TextStrikeThroughClient({
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
+
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
@@ -210,7 +228,6 @@ export default function TextStrikeThroughClient({
       updates.lastLoadedFilename = '(loaded from URL)';
       needsUpdate = true;
     }
-
     const skipSpacesFromUrl = params.get('skipSpaces');
     if (skipSpacesFromUrl !== null) {
       const skipBool = skipSpacesFromUrl.toLowerCase() === 'true';
@@ -219,7 +236,6 @@ export default function TextStrikeThroughClient({
         needsUpdate = true;
       }
     }
-
     const colorFromUrl = params.get('color');
     if (
       colorFromUrl &&
@@ -229,7 +245,6 @@ export default function TextStrikeThroughClient({
       updates.color = colorFromUrl;
       needsUpdate = true;
     }
-
     if (needsUpdate) {
       setToolState(updates);
     }
@@ -237,17 +252,13 @@ export default function TextStrikeThroughClient({
 
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setToolState({
-        inputText: event.target.value,
-        lastLoadedFilename: null,
-      });
+      setToolState({ inputText: event.target.value, lastLoadedFilename: null });
       setIsUnicodeCopied(false);
       setIsInputCopied(false);
       setCopyError(null);
     },
     [setToolState]
   );
-
   const handleSkipSpacesChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ skipSpaces: event.target.checked });
@@ -255,7 +266,6 @@ export default function TextStrikeThroughClient({
     },
     [setToolState]
   );
-
   const handleColorChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       setToolState({ color: event.target.value });
@@ -263,7 +273,6 @@ export default function TextStrikeThroughClient({
     },
     [setToolState]
   );
-
   const handleClear = useCallback(async () => {
     await clearStateAndPersist();
     setIsUnicodeCopied(false);
@@ -327,37 +336,32 @@ export default function TextStrikeThroughClient({
   }, [toolState.inputText]);
 
   const renderedOutput = useMemo(() => {
-    if (!toolState.inputText) {
+    if (!toolState.inputText)
       return (
         <span className="italic text-[rgb(var(--color-input-placeholder))]">
           Output preview appears here...
         </span>
       );
-    }
     const strikeStyle: React.CSSProperties = {
       textDecoration: 'line-through',
       textDecorationColor: toolState.color,
       textDecorationThickness: '0.125em',
       textDecorationStyle: 'solid',
     };
-
-    if (!toolState.skipSpaces) {
+    if (!toolState.skipSpaces)
       return <span style={strikeStyle}>{toolState.inputText}</span>;
-    } else {
-      const segments = toolState.inputText.split(/(\s+)/);
-      return segments.map((segment, index) => {
-        if (segment.match(/^\s+$/)) {
-          return <React.Fragment key={index}>{segment}</React.Fragment>;
-        } else if (segment) {
-          return (
-            <span key={index} style={strikeStyle}>
-              {segment}
-            </span>
-          );
-        }
-        return null;
-      });
-    }
+    const segments = toolState.inputText.split(/(\s+)/);
+    return segments.map((segment, index) => {
+      if (segment.match(/^\s+$/))
+        return <React.Fragment key={index}>{segment}</React.Fragment>;
+      else if (segment)
+        return (
+          <span key={index} style={strikeStyle}>
+            {segment}
+          </span>
+        );
+      return null;
+    });
   }, [toolState.inputText, toolState.skipSpaces, toolState.color]);
 
   const handleModalDeferAll = () => {
@@ -373,12 +377,12 @@ export default function TextStrikeThroughClient({
   };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
-    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
-      (s) => s.sourceDirective !== sourceDirective
-    );
-    if (remainingSignalsAfterIgnore.length === 0) {
+    if (
+      itdeTarget.pendingSignals.filter(
+        (s) => s.sourceDirective !== sourceDirective
+      ).length === 0
+    )
       setUserDeferredAutoPopup(false);
-    }
   };
 
   if (
@@ -403,7 +407,7 @@ export default function TextStrikeThroughClient({
               htmlFor="text-input"
               className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
             >
-              Input Text
+              Input Text{' '}
               {toolState.lastLoadedFilename && (
                 <span className="ml-1 text-xs italic">
                   ({toolState.lastLoadedFilename})
@@ -448,7 +452,6 @@ export default function TextStrikeThroughClient({
           </div>
         </div>
       </div>
-
       {displayError && (
         <div
           role="alert"
@@ -461,7 +464,6 @@ export default function TextStrikeThroughClient({
           {displayError}
         </div>
       )}
-
       <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <fieldset className="flex flex-wrap gap-x-4 gap-y-2 items-center">
           <legend className="sr-only">Strikethrough Options</legend>

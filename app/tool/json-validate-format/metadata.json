@@ -1,5 +1,6 @@
 {
   "title": "Json Validate Format",
+  "directive": "json-validate-format",
   "description": "Easily validate and format JSON data.",
   "urlStateParams": [
     {
@@ -15,13 +16,16 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": ["application/json"],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "text",
-      "textStateKey": "outputValue"
-    }
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "application/json"
+      }
+    ]
   },
   "tags": [],
   "includeInSitemap": true,

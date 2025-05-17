@@ -109,6 +109,7 @@ export default function useToolState<T extends object>(
       _saveStateToDexie(stateToSave, !isPersistentRef.current);
     }
   }, SAVE_DEBOUNCE_MS);
+
   const isPersistentRef = useRef(isPersistent);
   useEffect(() => {
     isPersistentRef.current = isPersistent;
@@ -182,7 +183,7 @@ export default function useToolState<T extends object>(
     return () => {
       isMounted = false;
     };
-  }, [stateFileId, toolRoute /* defaultStateRef is stable */]);
+  }, [stateFileId, toolRoute]);
 
   const setState = useCallback(
     (newStateOrFn: Partial<T> | ((prevState: T) => T)) => {
@@ -232,11 +233,7 @@ export default function useToolState<T extends object>(
       }
       await _saveStateToDexie(stateToPersist, !isPersistentRef.current);
     },
-    [
-      _saveStateToDexie,
-      debouncedSave,
-      toolRoute /* defaultStateRef, isPersistentRef are stable */,
-    ]
+    [_saveStateToDexie, debouncedSave, toolRoute]
   );
 
   const togglePersistence = useCallback(async () => {

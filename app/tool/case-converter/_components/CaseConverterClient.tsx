@@ -5,7 +5,6 @@ import React, {
   useState,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
 } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -36,7 +35,7 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
 } from '../../_hooks/useItdeTargetHandler';
-import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import SendToToolButton from '../../_components/shared/SendToToolButton';
@@ -60,7 +59,7 @@ const DEFAULT_CASE_CONVERTER_STATE: CaseConverterToolState = {
   lastLoadedFilename: null,
 };
 
-const metadata: ToolMetadata = importedMetadata as ToolMetadata;
+const metadata = importedMetadata as ToolMetadata;
 
 interface CaseConverterClientProps {
   urlStateParams: ParamConfig[];
@@ -172,10 +171,7 @@ export default function CaseConverterClient({
   const { addFile: addFileToLibrary } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
 
-  const directiveName = useMemo(
-    () => toolRoute.split('/').pop() || 'case-converter',
-    [toolRoute]
-  );
+  const directiveName = metadata.directive;
 
   const generateOutputFilename = useCallback(
     (baseName?: string | null): string => {
@@ -201,12 +197,17 @@ export default function CaseConverterClient({
         return;
       }
 
-      const resolvedPayload = await resolveItdeData(
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
 
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
         setUiError(
           resolvedPayload.errorMessage ||
             'No transferable data received from source.'
@@ -215,34 +216,31 @@ export default function CaseConverterClient({
       }
 
       let newText = '';
+      const firstItem = resolvedPayload.data[0];
+      let loadedFilename: string | null = null;
 
-      if (
-        resolvedPayload.type === 'text' &&
-        typeof resolvedPayload.data === 'string'
-      ) {
-        newText = resolvedPayload.data;
-      } else if (
-        resolvedPayload.type === 'fileReference' &&
-        resolvedPayload.data
-      ) {
-        const fileData = resolvedPayload.data as StoredFile;
-        if (fileData.type?.startsWith('text/')) {
-          try {
-            newText = await fileData.blob.text();
-          } catch (_e) {
-            setUiError(
-              `Error reading text from received file: ${fileData.name}`
-            );
-            return;
+      if (firstItem && firstItem.type.startsWith('text/')) {
+        try {
+          newText = await firstItem.blob.text();
+          if ('id' in firstItem && 'name' in firstItem) {
+
+            loadedFilename = (firstItem as StoredFile).name;
+          } else {
+
+            loadedFilename = null;
           }
-        } else {
-          setUiError(`Received file '${fileData.name}' is not a text file.`);
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : String(e);
+          setUiError(`Error reading text from received data: ${errorMsg}`);
           return;
         }
-      } else {
+      } else if (firstItem) {
         setUiError(
-          `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`
+          `Received data is not text (type: ${firstItem.type}). Cannot process.`
         );
+        return;
+      } else {
+        setUiError('No valid item found in received ITDE data.');
         return;
       }
 
@@ -250,7 +248,7 @@ export default function CaseConverterClient({
         ...toolState,
         inputText: newText,
         outputValue: '',
-        lastLoadedFilename: null,
+        lastLoadedFilename: loadedFilename,
       };
       setToolState(newState);
       await saveStateNow(newState);
@@ -275,7 +273,6 @@ export default function CaseConverterClient({
       }
     }
   }, [isLoadingToolState]);
-
   useEffect(() => {
     const canProceed =
       !isLoadingToolState && initialToolStateLoadCompleteRef.current;
@@ -304,7 +301,6 @@ export default function CaseConverterClient({
         if (uiError) setUiError('');
         return;
       }
-
       try {
         switch (targetCase) {
           case 'uppercase':
@@ -322,25 +318,20 @@ export default function CaseConverterClient({
             result = inputForProcessing
               .split(/(\r?\n)/)
               .map((segment) => {
-                if (/^\r?\n$/.test(segment)) {
-                  return segment;
-                }
+                if (/^\r?\n$/.test(segment)) return segment;
                 return segment
                   .split(TITLE_WORD_DELIMITERS)
                   .map((part) => {
                     if (
                       TITLE_WORD_DELIMITERS.test(part) &&
                       part.match(TITLE_WORD_DELIMITERS)?.[0] === part
-                    ) {
+                    )
                       return part;
-                    }
-
-                    if (part && part.length > 0) {
+                    if (part && part.length > 0)
                       return (
                         part.charAt(0).toUpperCase() +
                         part.slice(1).toLowerCase()
                       );
-                    }
                     return part;
                   })
                   .join('');
@@ -387,6 +378,8 @@ export default function CaseConverterClient({
           setCurrentOutputFilename(
             generateOutputFilename(toolState.lastLoadedFilename)
           );
+        } else if (!toolState.lastLoadedFilename && currentOutputFilename) {
+          setCurrentOutputFilename(null);
         }
       } catch (err) {
         currentError =
@@ -449,7 +442,6 @@ export default function CaseConverterClient({
       newOutputFilename = null;
       needsStateUpdate = true;
     }
-
     if (
       caseFromUrl &&
       CASE_TYPES.some((ct) => ct.value === caseFromUrl) &&
@@ -468,9 +460,8 @@ export default function CaseConverterClient({
         outputValue: '',
       });
     }
-    if (newOutputFilename !== currentOutputFilename) {
+    if (newOutputFilename !== currentOutputFilename)
       setCurrentOutputFilename(newOutputFilename);
-    }
 
     if (
       !needsStateUpdate &&
@@ -496,12 +487,12 @@ export default function CaseConverterClient({
 
   useEffect(() => {
     if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) return;
-
     const text = toolState.inputText;
     const currentCase = toolState.caseType;
     const effectiveText = currentCase === 'title' ? text : text.trim();
 
     if (!effectiveText && !text.trim()) {
+
       if (toolState.outputValue !== '') setToolState({ outputValue: '' });
       if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       if (uiError !== '') setUiError('');
@@ -567,9 +558,8 @@ export default function CaseConverterClient({
         setUiError('');
         setUserDeferredAutoPopup(false);
       } catch (e) {
-        setUiError(
-          `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`
-        );
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        setUiError(`Error reading file "${file.name}": ${msg}`);
         setToolState({
           caseType: toolState.caseType,
           inputText: '',
@@ -586,14 +576,13 @@ export default function CaseConverterClient({
     (filename: string, actionOverride?: 'download' | 'save') => {
       setIsFilenameModalOpen(false);
       const currentAction = actionOverride || filenameAction;
+      setFilenameAction(null);
       if (!currentAction) return;
 
       let finalFilename = filename.trim();
-      if (!finalFilename) {
+      if (!finalFilename)
         finalFilename = generateOutputFilename(toolState.lastLoadedFilename);
-      }
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
-
       setCurrentOutputFilename(finalFilename);
 
       if (currentAction === 'download') {
@@ -639,7 +628,6 @@ export default function CaseConverterClient({
             )
           );
       }
-      setFilenameAction(null);
     },
     [
       filenameAction,
@@ -657,6 +645,7 @@ export default function CaseConverterClient({
         setUiError(uiError || 'No output to ' + action + '.');
         return;
       }
+      setUiError('');
       if (currentOutputFilename) {
         handleFilenameConfirm(currentOutputFilename, action);
       } else {
@@ -708,9 +697,8 @@ export default function CaseConverterClient({
     const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
       (s) => s.sourceDirective !== sourceDirective
     );
-    if (remainingSignalsAfterIgnore.length === 0) {
+    if (remainingSignalsAfterIgnore.length === 0)
       setUserDeferredAutoPopup(false);
-    }
   };
 
   if (isLoadingToolState && !initialToolStateLoadCompleteRef.current) {
@@ -766,7 +754,6 @@ export default function CaseConverterClient({
         textareaClassName="text-base placeholder:text-[rgb(var(--color-input-placeholder))]"
         spellCheck="false"
       />
-
       <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <div className="flex flex-wrap justify-between items-center">
           <RadioGroup
@@ -796,7 +783,6 @@ export default function CaseConverterClient({
           </Button>
         </div>
       </div>
-
       <OutputActionButtons
         canPerform={canPerformOutputActions}
         isSaveSuccess={saveSuccess}
@@ -805,24 +791,24 @@ export default function CaseConverterClient({
         onInitiateDownload={() => initiateOutputAction('download')}
         onCopy={handleCopyToClipboard}
         directiveName={directiveName}
-        outputConfig={metadata.outputConfig as OutputConfig}
+        outputConfig={metadata.outputConfig}
       />
-
       {uiError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
+          {' '}
           <ExclamationTriangleIcon
             className="h-5 w-5 flex-shrink-0 mt-0.5"
             aria-hidden="true"
-          />
+          />{' '}
           <div>
-            <strong className="font-semibold">Error:</strong> {uiError}
-          </div>
+            {' '}
+            <strong className="font-semibold">Error:</strong> {uiError}{' '}
+          </div>{' '}
         </div>
       )}
-
       <Textarea
         label={`Output (${currentCaseLabel}):`}
         id="text-output"
@@ -834,7 +820,6 @@ export default function CaseConverterClient({
         aria-live="polite"
         spellCheck="false"
       />
-
       <FileSelectionModal
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}
@@ -848,7 +833,10 @@ export default function CaseConverterClient({
       />
       <FilenamePromptModal
         isOpen={isFilenameModalOpen}
-        onClose={() => setIsFilenameModalOpen(false)}
+        onClose={() => {
+          setIsFilenameModalOpen(false);
+          setFilenameAction(null);
+        }}
         onConfirm={handleFilenameConfirm}
         initialFilename={suggestedFilenameForPrompt}
         title={

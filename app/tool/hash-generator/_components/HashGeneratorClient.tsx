@@ -37,7 +37,7 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
 } from '../../_hooks/useItdeTargetHandler';
-import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import SendToToolButton from '../../_components/shared/SendToToolButton';
@@ -62,7 +62,7 @@ const DEFAULT_HASH_TOOL_STATE: HashGeneratorToolState = {
   errorMsg: '',
 };
 
-const metadata: ToolMetadata = importedMetadata as ToolMetadata;
+const metadata = importedMetadata as ToolMetadata;
 
 interface HashGeneratorClientProps {
   urlStateParams: ParamConfig[];
@@ -175,10 +175,7 @@ export default function HashGeneratorClient({
   const { addFile: addFileToLibrary } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
 
-  const directiveName = useMemo(
-    () => toolRoute.split('/').pop() || 'hash-generator',
-    [toolRoute]
-  );
+  const directiveName = metadata.directive;
 
   const algorithmOptions = useMemo(
     () => [
@@ -202,75 +199,85 @@ export default function HashGeneratorClient({
       console.log(
         `[HashGenerator ITDE Accept] Processing signal from: ${signal.sourceDirective}`
       );
-      setToolState({ errorMsg: '' });
+      setToolState((prevState) => ({ ...prevState, errorMsg: '' }));
       setCurrentOutputFilename(null);
       const sourceMeta = getToolMetadata(signal.sourceDirective);
       if (!sourceMeta) {
-        setToolState({
+        setToolState((prevState) => ({
+          ...prevState,
           errorMsg: `Metadata not found for source tool: ${signal.sourceToolTitle}`,
-        });
+        }));
         return;
       }
 
-      const resolvedPayload = await resolveItdeData(
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
 
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
-        setToolState({
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
+        setToolState((prevState) => ({
+          ...prevState,
           errorMsg:
             resolvedPayload.errorMessage ||
             'No transferable data received from source.',
-        });
+        }));
         return;
       }
 
       let newText = '';
-      if (
-        resolvedPayload.type === 'text' &&
-        typeof resolvedPayload.data === 'string'
-      ) {
-        newText = resolvedPayload.data;
-      } else if (
-        resolvedPayload.type === 'fileReference' &&
-        resolvedPayload.data
-      ) {
-        const fileData = resolvedPayload.data as StoredFile;
-        if (fileData.type?.startsWith('text/')) {
-          try {
-            newText = await fileData.blob.text();
-          } catch (_e) {
-            setToolState({
-              errorMsg: `Error reading text from received file: ${fileData.name}`,
-            });
-            return;
+      const firstItem = resolvedPayload.data[0];
+      let loadedFilename: string | null = null;
+
+      if (firstItem && firstItem.type.startsWith('text/')) {
+        try {
+          newText = await firstItem.blob.text();
+          if ('id' in firstItem && 'name' in firstItem) {
+            loadedFilename = (firstItem as StoredFile).name;
+          } else {
+            loadedFilename = null;
           }
-        } else {
-          setToolState({
-            errorMsg: `Received file '${fileData.name}' is not a text file.`,
-          });
+        } catch (e) {
+          const errorMsgText = e instanceof Error ? e.message : String(e);
+          setToolState((prevState) => ({
+            ...prevState,
+            errorMsg: `Error reading text from received data: ${errorMsgText}`,
+          }));
           return;
         }
+      } else if (firstItem) {
+        setToolState((prevState) => ({
+          ...prevState,
+          errorMsg: `Received data is not text (type: ${firstItem.type}). Cannot process.`,
+        }));
+        return;
       } else {
-        setToolState({
-          errorMsg: `Received unhandled data type '${resolvedPayload.type}' from ${signal.sourceToolTitle}.`,
-        });
+        setToolState((prevState) => ({
+          ...prevState,
+          errorMsg: 'No valid item found in received ITDE data.',
+        }));
         return;
       }
 
-      const newState: HashGeneratorToolState = {
-        ...toolState,
+      const currentAlgorithm = toolState.algorithm;
+      const newStateUpdate: Partial<HashGeneratorToolState> = {
         inputText: newText,
         outputValue: '',
         errorMsg: '',
-        lastLoadedFilename: null,
+        lastLoadedFilename: loadedFilename,
+        algorithm: currentAlgorithm,
       };
-      setToolState(newState);
-      await saveStateNow(newState);
+
+      setToolState(newStateUpdate);
+      await saveStateNow({ ...toolState, ...newStateUpdate });
       setUserDeferredAutoPopup(false);
     },
-    [getToolMetadata, toolState, setToolState, saveStateNow]
+    [getToolMetadata, setToolState, saveStateNow, toolState]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -306,14 +313,24 @@ export default function HashGeneratorClient({
   const handleGenerateHashInternal = useCallback(
     async (textToProcess: string, algo: HashAlgorithm) => {
       setIsProcessing(true);
-      setToolState({ outputValue: '', errorMsg: '' });
+
+      setToolState((prevState) => ({
+        ...prevState,
+        outputValue: '',
+        errorMsg: '',
+      }));
       setCopySuccess(false);
       setSaveSuccess(false);
 
       const trimmedTextToProcess = textToProcess.trim();
       if (!trimmedTextToProcess) {
-        setIsProcessing(false);
+        setToolState((prevState) => ({
+          ...prevState,
+          outputValue: '',
+          errorMsg: '',
+        }));
         setCurrentOutputFilename(null);
+        setIsProcessing(false);
         return;
       }
 
@@ -335,25 +352,35 @@ export default function HashGeneratorClient({
           newOutputValue = bufferToHex(hashBuffer);
         }
 
-        if (toolState.lastLoadedFilename && !currentOutputFilename) {
-          setCurrentOutputFilename(generateOutputFilenameForAction());
-        } else if (!toolState.lastLoadedFilename) {
-          setCurrentOutputFilename(null);
-        }
+        setToolState((prevState) => {
+          if (prevState.lastLoadedFilename && !currentOutputFilename) {
+            setCurrentOutputFilename(generateOutputFilenameForAction());
+          } else if (
+            !prevState.lastLoadedFilename &&
+            currentOutputFilename !== null
+          ) {
+
+            setCurrentOutputFilename(null);
+          }
+          return {
+            ...prevState,
+            outputValue: newOutputValue,
+            errorMsg: newErrorMsg,
+          };
+        });
       } catch (err) {
         newErrorMsg = err instanceof Error ? err.message : 'Hashing error.';
         setCurrentOutputFilename(null);
+        setToolState((prevState) => ({
+          ...prevState,
+          outputValue: '',
+          errorMsg: newErrorMsg,
+        }));
       } finally {
-        setToolState({ outputValue: newOutputValue, errorMsg: newErrorMsg });
         setIsProcessing(false);
       }
     },
-    [
-      setToolState,
-      toolState.lastLoadedFilename,
-      currentOutputFilename,
-      generateOutputFilenameForAction,
-    ]
+    [setToolState, generateOutputFilenameForAction, currentOutputFilename]
   );
 
   const debouncedGenerateHash = useDebouncedCallback(
@@ -419,6 +446,7 @@ export default function HashGeneratorClient({
       !toolState.errorMsg &&
       !isProcessing
     ) {
+
       handleGenerateHashInternal(toolState.inputText, toolState.algorithm);
     }
   }, [
@@ -431,23 +459,28 @@ export default function HashGeneratorClient({
     setToolState,
     algorithmOptions,
     handleGenerateHashInternal,
-    debouncedGenerateHash,
     isProcessing,
+    debouncedGenerateHash,
   ]);
 
   useEffect(() => {
-    if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) return;
+    if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) {
+      return;
+    }
 
     if (!toolState.inputText.trim()) {
       if (toolState.outputValue !== '' || toolState.errorMsg !== '') {
         setToolState({ outputValue: '', errorMsg: '' });
       }
-      if (currentOutputFilename !== null) setCurrentOutputFilename(null);
+      if (currentOutputFilename !== null) {
+        setCurrentOutputFilename(null);
+      }
       debouncedGenerateHash.cancel();
       return;
     }
 
     if (!isProcessing) {
+
       debouncedGenerateHash(toolState.inputText, toolState.algorithm);
     }
   }, [
@@ -503,11 +536,13 @@ export default function HashGeneratorClient({
       if (files.length === 0) return;
       const file = files[0];
       if (!file.blob) {
-        setToolState({
+        setToolState((prev) => ({
+          ...prev,
           errorMsg: `Error: File "${file.name}" has no content.`,
-        });
+        }));
         return;
       }
+
       if (
         isTextBasedMimeType(file.type) ||
         file.type === '' ||
@@ -518,37 +553,43 @@ export default function HashGeneratorClient({
         try {
           const text = await file.blob.text();
           setToolState({
+
             inputText: text,
             lastLoadedFilename: file.name,
             outputValue: '',
             errorMsg: '',
+            algorithm: toolState.algorithm,
           });
-
           setCurrentOutputFilename(generateOutputFilenameForAction());
           setUserDeferredAutoPopup(false);
+
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
           setToolState({
-            errorMsg: `Error reading file "${file.name}": ${msg}. Ensure it's text-based.`,
             inputText: '',
             lastLoadedFilename: null,
             outputValue: '',
+            errorMsg: `Error reading file "${file.name}": ${msg}. Ensure it's text-based.`,
+            algorithm: toolState.algorithm,
           });
           setCurrentOutputFilename(null);
         } finally {
+
         }
       } else {
-        setToolState({
+        setToolState((prev) => ({
+          ...prev,
           errorMsg: `File type "${file.type}" may not be suitable. Please select a text-based file.`,
-        });
+        }));
         setCurrentOutputFilename(null);
       }
     },
-    [setToolState, generateOutputFilenameForAction]
+    [setToolState, toolState.algorithm, generateOutputFilenameForAction]
   );
 
   const handleFilenameConfirm = useCallback(
     async (chosenFilename: string) => {
+
       const action = filenameActionType;
       setIsFilenameModalOpen(false);
       setFilenameActionType(null);
@@ -562,6 +603,13 @@ export default function HashGeneratorClient({
       setCurrentOutputFilename(finalFilename);
 
       if (action === 'download') {
+        if (!toolState.outputValue) {
+          setToolState((prev) => ({
+            ...prev,
+            errorMsg: 'No output to download.',
+          }));
+          return;
+        }
         try {
           const blob = new Blob([toolState.outputValue], {
             type: 'text/plain;charset=utf-8',
@@ -574,21 +622,31 @@ export default function HashGeneratorClient({
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
-          setToolState({ errorMsg: '' });
+          setToolState((prev) => ({ ...prev, errorMsg: '' }));
         } catch (_err) {
-          setToolState({ errorMsg: 'Failed to prepare download.' });
+          setToolState((prev) => ({
+            ...prev,
+            errorMsg: 'Failed to prepare download.',
+          }));
         }
       } else if (action === 'save') {
+        if (!toolState.outputValue) {
+          setToolState((prev) => ({ ...prev, errorMsg: 'No output to save.' }));
+          return;
+        }
         const blob = new Blob([toolState.outputValue], {
           type: 'text/plain;charset=utf-8',
         });
         try {
           await addFileToLibrary(blob, finalFilename, 'text/plain', false);
           setSaveSuccess(true);
-          setToolState({ errorMsg: '' });
+          setToolState((prev) => ({ ...prev, errorMsg: '' }));
           setTimeout(() => setSaveSuccess(false), 2000);
         } catch (_err) {
-          setToolState({ errorMsg: 'Failed to save to library.' });
+          setToolState((prev) => ({
+            ...prev,
+            errorMsg: 'Failed to save to library.',
+          }));
         }
       }
     },
@@ -603,32 +661,35 @@ export default function HashGeneratorClient({
 
   const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
     if (!toolState.outputValue.trim() || toolState.errorMsg) {
-      setToolState({
-        errorMsg: toolState.errorMsg || 'No valid output to ' + action + '.',
-      });
+      setToolState((prev) => ({
+        ...prev,
+        errorMsg: prev.errorMsg || 'No valid output to ' + action + '.',
+      }));
       return;
     }
-    if (currentOutputFilename) {
-      handleFilenameConfirm(currentOutputFilename);
-    } else {
-      setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
-      setFilenameActionType(action);
-      setIsFilenameModalOpen(true);
-    }
+
+    const suggestedName =
+      currentOutputFilename || generateOutputFilenameForAction();
+    setSuggestedFilenameForPrompt(suggestedName);
+    setFilenameActionType(action);
+    setIsFilenameModalOpen(true);
   };
 
   const handleCopyToClipboard = useCallback(async () => {
     if (!toolState.outputValue) {
-      setToolState({ errorMsg: 'No output to copy.' });
+      setToolState((prev) => ({ ...prev, errorMsg: 'No output to copy.' }));
       return;
     }
     try {
       await navigator.clipboard.writeText(toolState.outputValue);
       setCopySuccess(true);
-      setToolState({ errorMsg: '' });
+      setToolState((prev) => ({ ...prev, errorMsg: '' }));
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (_err) {
-      setToolState({ errorMsg: 'Failed to copy to clipboard.' });
+      setToolState((prev) => ({
+        ...prev,
+        errorMsg: 'Failed to copy to clipboard.',
+      }));
     }
   }, [toolState.outputValue, setToolState]);
 
@@ -648,9 +709,8 @@ export default function HashGeneratorClient({
     const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
       (s) => s.sourceDirective !== sourceDirective
     );
-    if (remainingSignalsAfterIgnore.length === 0) {
+    if (remainingSignalsAfterIgnore.length === 0)
       setUserDeferredAutoPopup(false);
-    }
   };
 
   if (
@@ -664,7 +724,6 @@ export default function HashGeneratorClient({
       </p>
     );
   }
-
   const canPerformOutputActions =
     toolState.outputValue.trim() !== '' && !toolState.errorMsg && !isProcessing;
 
@@ -710,7 +769,6 @@ export default function HashGeneratorClient({
         spellCheck="false"
         disabled={isProcessing}
       />
-
       <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
         <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
           <label
@@ -739,7 +797,6 @@ export default function HashGeneratorClient({
           Clear
         </Button>
       </div>
-
       <OutputActionButtons
         canPerform={canPerformOutputActions}
         isSaveSuccess={saveSuccess}
@@ -748,10 +805,9 @@ export default function HashGeneratorClient({
         onInitiateDownload={() => initiateOutputActionWithPrompt('download')}
         onCopy={handleCopyToClipboard}
         directiveName={directiveName}
-        outputConfig={metadata.outputConfig as OutputConfig}
+        outputConfig={metadata.outputConfig}
         isProcessing={isProcessing}
       />
-
       {toolState.algorithm === 'MD5' && (
         <p className="text-xs text-[rgb(var(--color-text-muted))] italic text-center border border-dashed border-[rgb(var(--color-border-base))] p-2 rounded-md">
           Note: MD5 is useful for checksums but is not considered secure for
@@ -774,7 +830,6 @@ export default function HashGeneratorClient({
           </div>
         </div>
       )}
-
       {(toolState.outputValue || isProcessing) && (
         <div>
           <label

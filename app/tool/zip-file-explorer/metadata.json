@@ -1,21 +1,22 @@
 {
   "title": "Zip File Explorer",
+  "directive": "zip-file-explorer",
   "description": "Safely explore the contents of zip files without extracting them locally",
   "inputConfig": {
     "acceptsMimeTypes": ["application/zip"],
     "stateFiles": [
       {
-        "dataType": "fileReference",
-        "fileIdStateKey": "selectedFileId"
+        "stateKey": "selectedFileId"
       }
     ]
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "selectionReferenceList",
-      "fileIdStateKey": "selectedPaths",
-      "fileCategory": "*"
-    }
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "selectedPaths"
+      }
+    ]
   },
   "tags": [],
   "includeInSitemap": true,

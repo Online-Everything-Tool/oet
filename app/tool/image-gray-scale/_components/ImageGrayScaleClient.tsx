@@ -12,8 +12,10 @@ import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import useToolState from '../../_hooks/useToolState';
-import type { StoredFile as AppStoredFile } from '@/src/types/storage';
-import type { ToolMetadata, OutputConfig } from '@/src/types/tools';
+import type { StoredFile } from '@/src/types/storage';
+import type {
+  ToolMetadata,
+} from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
@@ -26,7 +28,7 @@ import useItdeTargetHandler, {
 } from '../../_hooks/useItdeTargetHandler';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import { resolveItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 
 import {
   PhotoIcon,
@@ -49,7 +51,7 @@ const DEFAULT_GRAYSCALE_TOOL_STATE: ImageGrayScaleToolState = {
   processedFileId: null,
 };
 
-const metadata: ToolMetadata = importedMetadata as ToolMetadata;
+const metadata = importedMetadata as ToolMetadata;
 
 interface ImageGrayScaleClientProps {
   toolRoute: string;
@@ -82,19 +84,15 @@ export default function ImageGrayScaleClient({
   const [processedImageSrcForUI, setProcessedImageSrcForUI] = useState<
     string | null
   >(null);
-
   const [wasLastProcessedOutputPermanent, setWasLastProcessedOutputPermanent] =
     useState<boolean>(false);
   const [manualSaveSuccess, setManualSaveSuccess] = useState<boolean>(false);
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
-
   const initialToolStateLoadCompleteRef = useRef(false);
-  const directiveName = useMemo(
-    () => toolRoute.split('/').pop() || 'image-gray-scale',
-    [toolRoute]
-  );
 
-  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles } =
+  const directiveName = metadata.directive;
+
+  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles, addFile } =
     useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
@@ -104,6 +102,23 @@ export default function ImageGrayScaleClient({
     clearProcessingOutput: clearProcessingHookOutput,
   } = useImageProcessing();
 
+  const [processedStoredFileForItde, setProcessedStoredFileForItde] =
+    useState<StoredFile | null>(null);
+
+  useEffect(() => {
+    if (toolState.processedFileId) {
+      getFile(toolState.processedFileId).then((file) => {
+        setProcessedStoredFileForItde(file || null);
+      });
+    } else {
+      setProcessedStoredFileForItde(null);
+    }
+  }, [toolState.processedFileId, getFile]);
+
+  const itdeSendableItems = useMemo(() => {
+    return processedStoredFileForItde ? [processedStoredFileForItde] : [];
+  }, [processedStoredFileForItde]);
+
   const handleProcessIncomingSignal = useCallback(
     async (signal: IncomingSignal) => {
       console.log(
@@ -112,71 +127,107 @@ export default function ImageGrayScaleClient({
       setUiError(null);
       const sourceMeta = getToolMetadata(signal.sourceDirective);
       if (!sourceMeta) {
-        setUiError('Metadata not found for source.');
+        setUiError('Metadata not found for source tool.');
         return;
       }
 
-      const resolvedPayload = await resolveItdeData(
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none') {
+
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
         setUiError(
-          resolvedPayload.errorMessage || 'No transferable data from source.'
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
         );
         return;
       }
 
       let newSelectedFileId: string | null = null;
-      if (resolvedPayload.type === 'fileReference' && resolvedPayload.data) {
-        const receivedFile = resolvedPayload.data as AppStoredFile;
-        if (receivedFile.type?.startsWith('image/'))
-          newSelectedFileId = receivedFile.id;
-        else
-          setUiError(`Received file '${receivedFile.name}' is not an image.`);
-      } else if (
-        resolvedPayload.type === 'selectionReferenceList' &&
-        Array.isArray(resolvedPayload.data)
-      ) {
-        const firstImageFile = (resolvedPayload.data as AppStoredFile[]).find(
-          (f) => f.type?.startsWith('image/')
+      const firstItem = resolvedPayload.data[0];
+
+      if (firstItem && firstItem.type?.startsWith('image/')) {
+        if ('id' in firstItem) {
+
+          newSelectedFileId = (firstItem as StoredFile).id;
+        } else {
+
+          try {
+            const tempName = `itde-received-${Date.now()}.${firstItem.type.split('/')[1] || 'png'}`;
+            newSelectedFileId = await addFile(
+              firstItem.blob,
+              tempName,
+              firstItem.type,
+              true
+            );
+            console.log(
+              `[ImageGrayScale ITDE] Saved incoming InlineFile as new StoredFile: ${newSelectedFileId}`
+            );
+          } catch (e) {
+            const errorMsgText = e instanceof Error ? e.message : String(e);
+            setUiError(
+              `Failed to process (save) incoming image data: ${errorMsgText}`
+            );
+            return;
+          }
+        }
+      } else if (firstItem) {
+        setUiError(
+          `Received data is not an image (type: ${firstItem.type}). Cannot process.`
         );
-        if (firstImageFile) newSelectedFileId = firstImageFile.id;
-        else
-          setUiError(
-            `Received list from ${signal.sourceToolTitle} contained no images.`
-          );
+        return;
       } else {
-        setUiError(`Received unhandled data type '${resolvedPayload.type}'.`);
+        setUiError('No valid item found in received ITDE data.');
+        return;
       }
 
       if (newSelectedFileId) {
         const oldSelectedId = toolState.selectedFileId;
         const oldProcessedId = toolState.processedFileId;
-        const newState = {
-          ...toolState,
+
+        const currentAutoSave = toolState.autoSaveProcessed;
+
+        const newState: ImageGrayScaleToolState = {
           selectedFileId: newSelectedFileId,
           processedFileId: null,
+          autoSaveProcessed: currentAutoSave,
         };
         setState(newState);
         await saveStateNow(newState);
+
+        clearProcessingHookOutput();
+        setManualSaveSuccess(false);
         setUserDeferredAutoPopup(false);
+
         const destatedIds = [oldSelectedId, oldProcessedId].filter(
-          (id) => id && id !== newSelectedFileId
-        ) as string[];
+          (id): id is string => !!(id && id !== newSelectedFileId)
+        );
         if (destatedIds.length > 0) {
           cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[ImageGrayScale ITDE Accept] Cleanup failed:', e)
+            console.error(
+              '[ImageGrayScale ITDE Accept] Cleanup call failed:',
+              e
+            )
           );
         }
       }
     },
     [
       getToolMetadata,
-      toolState,
+      toolState.selectedFileId,
+      toolState.processedFileId,
+      toolState.autoSaveProcessed,
       setState,
       saveStateNow,
       cleanupOrphanedTemporaryFiles,
+      addFile,
+      clearProcessingHookOutput,
     ]
   );
 
@@ -186,18 +237,19 @@ export default function ImageGrayScaleClient({
   });
 
   useEffect(() => {
-    if (!isLoadingToolSettings && !initialToolStateLoadCompleteRef.current) {
-      initialToolStateLoadCompleteRef.current = true;
-    } else if (
-      isLoadingToolSettings &&
-      initialToolStateLoadCompleteRef.current
-    ) {
-      initialToolStateLoadCompleteRef.current = false;
+    if (!isLoadingToolSettings) {
+      if (!initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = true;
+      }
+    } else {
+      if (initialToolStateLoadCompleteRef.current) {
+        initialToolStateLoadCompleteRef.current = false;
+      }
     }
   }, [isLoadingToolSettings]);
-
   useEffect(() => {
-    const canProceed = !isLoadingToolSettings;
+    const canProceed =
+      !isLoadingToolSettings && initialToolStateLoadCompleteRef.current;
     if (
       canProceed &&
       itdeTarget.pendingSignals.length > 0 &&
@@ -214,16 +266,15 @@ export default function ImageGrayScaleClient({
     let localProcObjUrl: string | null = null;
     const loadPreviews = async () => {
       if (!mounted) return;
-      setOriginalImageSrcForUI((prevUrl) => {
-        if (prevUrl) URL.revokeObjectURL(prevUrl);
-        return null;
-      });
-      setProcessedImageSrcForUI((prevUrl) => {
-        if (prevUrl) URL.revokeObjectURL(prevUrl);
-        return null;
-      });
+
+      if (originalImageSrcForUI) URL.revokeObjectURL(originalImageSrcForUI);
+      setOriginalImageSrcForUI(null);
+      if (processedImageSrcForUI) URL.revokeObjectURL(processedImageSrcForUI);
+      setProcessedImageSrcForUI(null);
+
       setOriginalFilenameForDisplay(null);
       setWasLastProcessedOutputPermanent(false);
+
       if (toolState.selectedFileId) {
         try {
           const file = await getFile(toolState.selectedFileId);
@@ -231,9 +282,15 @@ export default function ImageGrayScaleClient({
             localOrigObjUrl = URL.createObjectURL(file.blob);
             setOriginalImageSrcForUI(localOrigObjUrl);
             setOriginalFilenameForDisplay(file.name);
+          } else if (mounted) {
+            setOriginalImageSrcForUI(null);
+            setOriginalFilenameForDisplay(null);
           }
         } catch (_e) {
-          /* Handled by UI */
+          if (mounted) {
+            setOriginalImageSrcForUI(null);
+            setOriginalFilenameForDisplay(null);
+          }
         }
       }
       if (toolState.processedFileId) {
@@ -243,13 +300,22 @@ export default function ImageGrayScaleClient({
             localProcObjUrl = URL.createObjectURL(file.blob);
             setProcessedImageSrcForUI(localProcObjUrl);
             setWasLastProcessedOutputPermanent(file.isTemporary === false);
+          } else if (mounted) {
+            setProcessedImageSrcForUI(null);
+            setWasLastProcessedOutputPermanent(false);
           }
         } catch (_e) {
-          /* Handled by UI */
+          if (mounted) {
+            setProcessedImageSrcForUI(null);
+            setWasLastProcessedOutputPermanent(false);
+          }
         }
       }
     };
-    if (!isLoadingToolSettings) loadPreviews();
+
+    if (!isLoadingToolSettings && initialToolStateLoadCompleteRef.current) {
+      loadPreviews();
+    }
     return () => {
       mounted = false;
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
@@ -260,6 +326,8 @@ export default function ImageGrayScaleClient({
     toolState.processedFileId,
     getFile,
     isLoadingToolSettings,
+    originalImageSrcForUI,
+    processedImageSrcForUI
   ]);
 
   const convertToGrayScaleCallback = useCallback(
@@ -278,31 +346,28 @@ export default function ImageGrayScaleClient({
   );
 
   useEffect(() => {
-    const currentSelectedId = toolState.selectedFileId;
-    const currentProcessedId = toolState.processedFileId;
-
     if (
       isLoadingToolSettings ||
       !initialToolStateLoadCompleteRef.current ||
-      !currentSelectedId ||
-      currentProcessedId ||
+      !toolState.selectedFileId ||
+      toolState.processedFileId ||
       isProcessingImage
     ) {
       return;
     }
-
     const triggerProcessing = async () => {
-      const inputFile = await getFile(currentSelectedId!);
-      if (!inputFile || !inputFile.blob) {
+      const inputFile = await getFile(toolState.selectedFileId!);
+      if (!inputFile?.blob) {
         setUiError('Original image data not found for processing.');
         return;
       }
       const baseName =
         inputFile.name?.substring(0, inputFile.name.lastIndexOf('.')) ||
         inputFile.name ||
-        `image-${currentSelectedId?.substring(0, 8)}`;
+        `image-${toolState.selectedFileId?.substring(0, 8)}`;
       const ext = inputFile.type?.split('/')[1] || 'png';
       const outputFileName = `grayscale-${baseName}.${ext}`;
+
       const result = await processImage(
         inputFile,
         convertToGrayScaleCallback,
@@ -310,6 +375,7 @@ export default function ImageGrayScaleClient({
         {},
         toolState.autoSaveProcessed
       );
+
       if (result.id) {
         setState((prev) => ({ ...prev, processedFileId: result.id }));
         setWasLastProcessedOutputPermanent(toolState.autoSaveProcessed);
@@ -333,7 +399,7 @@ export default function ImageGrayScaleClient({
   ]);
 
   const handleFilesSelectedFromModal = useCallback(
-    async (files: AppStoredFile[]) => {
+    async (files: StoredFile[]) => {
       setIsLibraryModalOpen(false);
       setUiError(null);
       const oldSelectedId = toolState.selectedFileId;
@@ -341,30 +407,37 @@ export default function ImageGrayScaleClient({
 
       if (files?.[0]?.type?.startsWith('image/') && files[0].blob) {
         const newSelectedId = files[0].id;
-        const newState = {
-          ...toolState,
+        const currentAutoSave = toolState.autoSaveProcessed;
+        const newState: ImageGrayScaleToolState = {
           selectedFileId: newSelectedId,
           processedFileId: null,
+          autoSaveProcessed: currentAutoSave,
         };
         setState(newState);
         await saveStateNow(newState);
+
         clearProcessingHookOutput();
         setManualSaveSuccess(false);
         setUserDeferredAutoPopup(false);
+
         const destatedIds = [oldSelectedId, oldProcessedId].filter(
-          (id) => id && id !== newSelectedId
-        ) as string[];
+          (id): id is string => !!(id && id !== newSelectedId)
+        );
         if (destatedIds.length > 0) {
           cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
             console.error('[ImageGrayScale New Selection] Cleanup failed:', e)
           );
         }
       } else if (files?.length) {
-        setUiError('Invalid file. Please select an image.');
+        setUiError(
+          `Selected file "${files[0].name}" is not a recognized image type.`
+        );
       }
     },
     [
-      toolState,
+      toolState.autoSaveProcessed,
+      toolState.selectedFileId,
+      toolState.processedFileId,
       setState,
       saveStateNow,
       clearProcessingHookOutput,
@@ -375,26 +448,31 @@ export default function ImageGrayScaleClient({
   const handleAutoSaveChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const newAutoSave = e.target.checked;
-      const currentState = toolState;
-      const newState = { ...currentState, autoSaveProcessed: newAutoSave };
-      setState(newState);
-      await saveStateNow(newState);
+      const currentStateSnapshot = {
+        ...toolState,
+        autoSaveProcessed: newAutoSave,
+      };
+
+      setState({ autoSaveProcessed: newAutoSave });
+      await saveStateNow(currentStateSnapshot);
+
       setUiError(null);
       setManualSaveSuccess(false);
+
       if (
         newAutoSave &&
-        currentState.processedFileId &&
+        currentStateSnapshot.processedFileId &&
         !wasLastProcessedOutputPermanent &&
         !isProcessingImage &&
         !isManuallySaving
       ) {
         setIsManuallySaving(true);
         try {
-          await makeFilePermanent(currentState.processedFileId);
+          await makeFilePermanent(currentStateSnapshot.processedFileId);
           setWasLastProcessedOutputPermanent(true);
         } catch (err) {
           setUiError(
-            `Auto-save failed: ${err instanceof Error ? err.message : 'Unknown'}`
+            `Auto-save to permanent failed: ${err instanceof Error ? err.message : 'Unknown error'}`
           );
         } finally {
           setIsManuallySaving(false);
@@ -420,21 +498,14 @@ export default function ImageGrayScaleClient({
     setUiError(null);
     setWasLastProcessedOutputPermanent(false);
     setManualSaveSuccess(false);
-
     setUserDeferredAutoPopup(false);
     const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter(
-      (id) => id
-    ) as string[];
+      (id): id is string => !!id
+    );
     if (destatedIds.length > 0) {
-      cleanupOrphanedTemporaryFiles(destatedIds)
-        .then((result) =>
-          console.log(
-            `[ImageGrayScale Clear] Cleanup: ${result.deletedCount} deleted.`
-          )
-        )
-        .catch((err) =>
-          console.error(`[ImageGrayScale Clear] Cleanup failed:`, err)
-        );
+      cleanupOrphanedTemporaryFiles(destatedIds).catch((err) =>
+        console.error(`[ImageGrayScale Clear] Cleanup call failed:`, err)
+      );
     }
   }, [
     toolState.selectedFileId,
@@ -456,8 +527,10 @@ export default function ImageGrayScaleClient({
         0,
         originalFilenameForDisplay.lastIndexOf('.')
       ) || originalFilenameForDisplay;
-    const ext =
-      processedImageSrcForUI.match(/data:image\/(\w+);base64,/)?.[1] || 'png';
+    const match = processedImageSrcForUI.match(/data:image\/(\w+);base64,/);
+    const ext = match
+      ? match[1]
+      : originalFilenameForDisplay.split('.').pop() || 'png';
     link.download = `grayscale-${base}.${ext}`;
     link.href = processedImageSrcForUI;
     document.body.appendChild(link);
@@ -483,7 +556,7 @@ export default function ImageGrayScaleClient({
       setTimeout(() => setManualSaveSuccess(false), 2500);
     } catch (err) {
       setUiError(
-        `Save failed: ${err instanceof Error ? err.message : 'Unknown'}`
+        `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
     } finally {
       setIsManuallySaving(false);
@@ -525,12 +598,10 @@ export default function ImageGrayScaleClient({
   };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
-    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
+    const remaining = itdeTarget.pendingSignals.filter(
       (s) => s.sourceDirective !== sourceDirective
     );
-    if (remainingSignalsAfterIgnore.length === 0) {
-      setUserDeferredAutoPopup(false);
-    }
+    if (remaining.length === 0) setUserDeferredAutoPopup(false);
   };
 
   if (isLoadingToolSettings && !initialToolStateLoadCompleteRef.current) {
@@ -553,7 +624,6 @@ export default function ImageGrayScaleClient({
           >
             {toolState.selectedFileId ? 'Change Image' : 'Select Image'}
           </Button>
-          {/* No RadioGroup for flipType in Grayscale */}
         </div>
         <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-gray-200 mt-2">
           <Checkbox
@@ -576,7 +646,8 @@ export default function ImageGrayScaleClient({
             {toolState.processedFileId && (
               <SendToToolButton
                 currentToolDirective={directiveName}
-                currentToolOutputConfig={metadata.outputConfig as OutputConfig}
+                currentToolOutputConfig={metadata.outputConfig}
+                selectedOutputItems={itdeSendableItems}
               />
             )}
             {showSaveButton && (
@@ -626,22 +697,23 @@ export default function ImageGrayScaleClient({
           </div>
         </div>
       </div>
-
       {displayError && (
         <div
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
+          {' '}
           <XCircleIcon
             className="h-5 w-5 text-[rgb(var(--color-text-error))]"
             aria-hidden="true"
-          />
+          />{' '}
           <div>
-            <strong className="font-semibold">Error:</strong> {displayError}
-          </div>
+            {' '}
+            <strong className="font-semibold">Error:</strong>{' '}
+            {displayError}{' '}
+          </div>{' '}
         </div>
       )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
@@ -706,7 +778,6 @@ export default function ImageGrayScaleClient({
           </div>
         </div>
       </div>
-
       <FileSelectionModal
         isOpen={isLibraryModalOpen}
         onClose={() => setIsLibraryModalOpen(false)}
@@ -719,7 +790,6 @@ export default function ImageGrayScaleClient({
         libraryFilter={imageFilter}
         className="max-w-4xl"
       />
-
       <IncomingDataModal
         isOpen={itdeTarget.isModalOpen}
         signals={itdeTarget.pendingSignals}

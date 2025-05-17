@@ -12,61 +12,33 @@ export interface DiscoveredTarget {
   description: string;
 }
 
-interface FileDetails {
-  dataType: 'fileReference';
-  fileIdStateKey: string;
-}
-
-interface InputFileDetails extends FileDetails {
+export interface StateFile {
+  stateKey: string;
   arrayStateKey?: string;
 }
 
-export type StateFiles = InputFileDetails | { dataType: 'none' };
+export interface ReferenceDetails extends StateFile {
+  dataType: 'reference';
+}
 
 export interface InputConfig {
   acceptsMimeTypes: string[];
-  stateFiles: StateFiles[];
+  stateFiles: StateFile[] | 'none';
 }
 
-interface OutputFileDetails extends FileDetails {
-  fileCategory: 'image' | 'text' | 'document' | 'archive' | 'other' | '*';
+export interface InlineDetails {
+  dataType: 'inline';
+  stateKey: string;
+  mimeType: string;
 }
-
-interface OutputSelectionDetails {
-  dataType: 'selectionReferenceList';
-  selectionStateKey: string;
-  selectionFileCategory:
-    | 'image'
-    | 'text'
-    | 'document'
-    | 'archive'
-    | 'other'
-    | '*';
-}
-
-interface OutputTextDetails {
-  dataType: 'text';
-  textStateKey: string;
-}
-
-interface OutputJsonObjectDetails {
-  dataType: 'jsonObject';
-  jsonStateKey: string;
-}
-
-export type TransferableOutputDetails =
-  | OutputFileDetails
-  | OutputSelectionDetails
-  | OutputTextDetails
-  | OutputJsonObjectDetails
-  | { dataType: 'none' };
 
 export interface OutputConfig {
-  transferableContent: TransferableOutputDetails;
+  transferableContent: (ReferenceDetails | InlineDetails)[] | 'none';
 }
 
 export interface ToolMetadata {
   title: string;
+  directive: string;
   description: string;
   inputConfig: InputConfig;
   outputConfig: OutputConfig;

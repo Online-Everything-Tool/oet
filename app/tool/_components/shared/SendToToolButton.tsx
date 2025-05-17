@@ -32,6 +32,8 @@ export default function SendToToolButton({
     selectedOutputItems,
   });
 
+  console.log('selectedOutputItems:', selectedOutputItems);
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

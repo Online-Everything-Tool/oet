@@ -1,5 +1,6 @@
 {
   "title": "Base64 Encode Decode",
+  "directive": "base64-encode-decode",
   "description": "Encodes standard text strings into Base64 format and decodes existing Base64 strings back to text.",
   "urlStateParams": [
     {
@@ -15,13 +16,16 @@
   ],
   "inputConfig": {
     "acceptsMimeTypes": ["text/*"],
-    "stateFiles": [{ "dataType": "none" }]
+    "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "text",
-      "textStateKey": "outputValue"
-    }
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
   },
   "tags": [],
   "iconName": null,

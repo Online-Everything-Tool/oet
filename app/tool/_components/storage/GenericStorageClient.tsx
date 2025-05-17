@@ -477,9 +477,10 @@ export default function GenericStorageClient({
         ...persistentState,
         selectedItemIds: Array.from(newSelectedArray),
       };
+      setPersistentState(newState);
       await saveStateNow(newState);
     },
-    [persistentState, saveStateNow]
+    [persistentState, setPersistentState, saveStateNow]
   );
 
   const handleDeleteSelectedItems = useCallback(async () => {
@@ -548,24 +549,6 @@ export default function GenericStorageClient({
       : displayedItems;
   }, [isFilterSelectedActive, displayedItems, selectedItemIds]);
 
-  useEffect(() => {
-    if (
-      isFilterSelectedActive &&
-      selectedItemIds.size === 0 &&
-      itemsToDisplayInView.length === 0
-    ) {
-      if (displayedItems.length > 0) {
-        handleToggleFilterSelected();
-      }
-    }
-  }, [
-    isFilterSelectedActive,
-    selectedItemIds,
-    itemsToDisplayInView.length,
-    displayedItems.length,
-    handleToggleFilterSelected,
-  ]);
-
   const combinedClientAndViewLoading = clientIsLoading || isLoadingToolState;
   const controlsAreLoadingOverall =
     combinedClientAndViewLoading || isProcessing || isBulkDeleting;
@@ -583,7 +566,6 @@ export default function GenericStorageClient({
         isDeleting={isBulkDeleting}
         itemCount={displayedItems.length}
         currentLayout={layout}
-        selectedItemCount={selectedItemIds.size}
         isFilterSelectedActive={isFilterSelectedActive}
         onToggleFilterSelected={handleToggleFilterSelected}
         onAddClick={handleAddClick}

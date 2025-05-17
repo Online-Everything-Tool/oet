@@ -1,21 +1,22 @@
 {
   "title": "Image GrayScale",
+  "directive": "image-gray-scale",
   "description": "Converts an image to grayscale.",
   "inputConfig": {
     "stateFiles": [
       {
-        "dataType": "fileReference",
-        "fileIdStateKey": "selectedFileId"
+        "stateKey": "selectedFileId"
       }
     ],
     "acceptsMimeTypes": ["image/*"]
   },
   "outputConfig": {
-    "transferableContent": {
-      "dataType": "fileReference",
-      "fileIdStateKey": "processedFileId",
-      "fileCategory": "image"
-    }
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
   },
   "tags": ["image", "grayscale"],
   "includeInSitemap": true,
