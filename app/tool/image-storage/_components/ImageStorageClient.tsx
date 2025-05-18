@@ -31,6 +31,7 @@ export default function ImageStorageClient({
       const imageFiles = allFiles.filter((f) => f.type?.startsWith('image/'));
       return limit ? imageFiles.slice(0, limit) : imageFiles;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [fileLibrary.listFiles]
   );
 
@@ -49,6 +50,7 @@ export default function ImageStorageClient({
       if (success) markedCount++;
     }
     return { markedCount, markedIds: imageIdsToMark };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileLibrary.listFiles, fileLibrary.markFileAsTemporary]);
 
   const imageStorageHookProvider = useCallback((): StorageHookReturnType => {

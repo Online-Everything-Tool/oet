@@ -14,7 +14,7 @@
     "transferableContent": [
       {
         "dataType": "reference",
-        "stateKey": "selectedPaths"
+        "stateKey": "extractedFileIds"
       }
     ]
   },

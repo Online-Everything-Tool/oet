@@ -4,7 +4,6 @@ import type {
   OutputConfig,
   ReferenceDetails,
   InlineDetails,
-
 } from '@/src/types/tools';
 import type { StoredFile, InlineFile } from '@/src/types/storage';
 
@@ -34,6 +33,8 @@ export async function resolveItdeData(
         errorMessage: `Source state for '${sourceDirective}' not found or empty.`,
       };
     }
+
+    // prettier-ignore
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sourceState = JSON.parse(await sourceStateFile.blob.text()) as Record<string, any>;
     const allResolvedItems: (StoredFile | InlineFile)[] = [];
@@ -58,7 +59,6 @@ export async function resolveItdeData(
         const fileIdsToFetch: string[] = [];
 
         if (arrayStateKey) {
-
           const arrOfObjects = sourceState[arrayStateKey];
           if (Array.isArray(arrOfObjects)) {
             arrOfObjects.forEach((itemObj) => {
@@ -72,7 +72,6 @@ export async function resolveItdeData(
                     if (typeof id === 'string') fileIdsToFetch.push(id);
                   });
                 } else {
-
                 }
               }
             });
@@ -82,7 +81,6 @@ export async function resolveItdeData(
             );
           }
         } else {
-
           const valueFromState = sourceState[stateKey];
           if (typeof valueFromState === 'string') {
             fileIdsToFetch.push(valueFromState);

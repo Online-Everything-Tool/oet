@@ -8,12 +8,17 @@ import { signalTargetTool } from '@/app/lib/sessionStorageUtils';
 import type { OutputConfig, DiscoveredTarget } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import Button from '../form/Button';
-import { PaperAirplaneIcon, ChevronDownIcon } from '@heroicons/react/20/solid';
+import {
+  PaperAirplaneIcon,
+  ChevronDownIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/20/solid';
 
 interface SendToToolButtonProps {
   currentToolDirective: string;
   currentToolOutputConfig: OutputConfig;
   selectedOutputItems?: StoredFile[];
+  onBeforeSignal?: () => Promise<boolean | void>;
   buttonText?: string;
   className?: string;
 }
@@ -22,6 +27,7 @@ export default function SendToToolButton({
   currentToolDirective,
   currentToolOutputConfig,
   selectedOutputItems,
+  onBeforeSignal,
   buttonText = 'Send To...',
   className = '',
 }: SendToToolButtonProps) {
@@ -32,12 +38,13 @@ export default function SendToToolButton({
     selectedOutputItems,
   });
 
-  console.log('selectedOutputItems:', selectedOutputItems);
-
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isPreDispatching, setIsPreDispatching] = useState(false);
+  const [preDispatchError, setPreDispatchError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const hasTargets = discoveredTargets.length > 0;
+  const isDisabledOverall = !hasTargets || isPreDispatching;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -46,6 +53,7 @@ export default function SendToToolButton({
         !dropdownRef.current.contains(event.target as Node)
       ) {
         setIsDropdownOpen(false);
+        setPreDispatchError(null);
       }
     };
     if (isDropdownOpen) {
@@ -57,19 +65,48 @@ export default function SendToToolButton({
   }, [isDropdownOpen]);
 
   const handleToggleDropdown = () => {
-    if (hasTargets) {
-      setIsDropdownOpen((prev) => !prev);
-    }
+    if (isDisabledOverall && !isDropdownOpen) return;
+    setIsDropdownOpen((prev) => !prev);
+    if (isDropdownOpen) setPreDispatchError(null);
   };
 
-  const handleSelectTarget = (target: DiscoveredTarget) => {
-    console.log(
-      `[SendToToolButton] User selected target: ${target.title} (${target.directive})`
-    );
-    signalTargetTool(target.directive, currentToolDirective);
+  const handleSelectTarget = async (target: DiscoveredTarget) => {
+    setPreDispatchError(null);
     setIsDropdownOpen(false);
+
+    if (onBeforeSignal) {
+      setIsPreDispatching(true);
+      try {
+        const proceed = await onBeforeSignal();
+        if (proceed === false) {
+          setIsPreDispatching(false);
+          return;
+        }
+      } catch (error) {
+        setPreDispatchError(
+          error instanceof Error
+            ? error.message
+            : 'Preparation for sending failed.'
+        );
+        setIsPreDispatching(false);
+        return;
+      }
+      setIsPreDispatching(false);
+    }
+
+    signalTargetTool(target.directive, currentToolDirective);
     router.push(target.route);
   };
+
+  const buttonTitle = preDispatchError
+    ? `Error: ${preDispatchError}`
+    : isPreDispatching
+      ? 'Preparing to send...'
+      : isDisabledOverall && !isDropdownOpen
+        ? 'No compatible tools found or data not ready'
+        : hasTargets
+          ? "Send this tool's output to another tool"
+          : 'No compatible tools found for this output';
 
   return (
     <div
@@ -79,59 +116,72 @@ export default function SendToToolButton({
       <Button
         variant="secondary"
         onClick={handleToggleDropdown}
-        disabled={!hasTargets}
+        disabled={isDisabledOverall && !isDropdownOpen}
         iconLeft={
-          <PaperAirplaneIcon className="h-5 w-5 transform -rotate-45" />
+          isPreDispatching ? undefined : preDispatchError ? (
+            <ExclamationCircleIcon className="h-5 w-5 text-red-500" />
+          ) : (
+            <PaperAirplaneIcon className="h-5 w-5 transform -rotate-45" />
+          )
         }
         iconRight={
-          hasTargets ? <ChevronDownIcon className="h-5 w-5" /> : undefined
+          hasTargets && !isPreDispatching && !preDispatchError ? (
+            <ChevronDownIcon className="h-5 w-5" />
+          ) : undefined
         }
         aria-haspopup="true"
         aria-expanded={isDropdownOpen}
-        title={
-          hasTargets
-            ? "Send this tool's output to another tool"
-            : 'No compatible tools found to send output'
-        }
+        title={buttonTitle}
+        isLoading={isPreDispatching}
+        loadingText="Preparing..."
       >
-        {buttonText}
+        {preDispatchError ? 'Error' : isPreDispatching ? undefined : buttonText}
       </Button>
 
-      {isDropdownOpen && hasTargets && (
+      {isDropdownOpen && (
         <div
           className="absolute right-0 z-20 mt-2 w-72 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none max-h-80 overflow-y-auto"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="send-to-tool-button"
         >
-          <div className="py-1" role="none">
-            {discoveredTargets.map((target) => (
-              <button
-                key={target.directive}
-                onClick={() => handleSelectTarget(target)}
-                className="w-full text-left block px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors duration-150"
-                role="menuitem"
-                tabIndex={-1}
-              >
-                <div className="font-medium text-[rgb(var(--color-text-link))]">
-                  {target.title}
-                </div>
-                <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
-                  {target.description}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {isDropdownOpen && !hasTargets && (
-        <div
-          className="absolute right-0 z-20 mt-2 w-72 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none"
-          role="alert"
-        >
-          <div className="px-4 py-3 text-sm text-gray-500 italic">
-            No compatible tools found for this output.
-          </div>
+          {preDispatchError && (
+            <div
+              className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200"
+              role="alert"
+            >
+              <p className="font-semibold">Preparation Error:</p>
+              <p>{preDispatchError}</p>
+            </div>
+          )}
+          {!preDispatchError && hasTargets && (
+            <div className="py-1" role="none">
+              {discoveredTargets.map((target) => (
+                <Button
+                  key={target.directive}
+                  variant="neutral"
+                  onClick={() => handleSelectTarget(target)}
+                  fullWidth
+                  className="!justify-start !text-left !block !w-full !px-4 !py-3 !text-sm !text-gray-700 hover:!bg-gray-100 hover:!text-gray-900 !transition-colors !duration-150 !shadow-none !border-none !rounded-none"
+                  role="menuitem"
+                  tabIndex={-1}
+                  disabled={isPreDispatching}
+                >
+                  <div className="font-medium text-[rgb(var(--color-text-link))]">
+                    {target.title}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                    {target.description}
+                  </div>
+                </Button>
+              ))}
+            </div>
+          )}
+          {!preDispatchError && !hasTargets && (
+            <div className="px-4 py-3 text-sm text-gray-500 italic">
+              No compatible tools found for this output.
+            </div>
+          )}
         </div>
       )}
     </div>

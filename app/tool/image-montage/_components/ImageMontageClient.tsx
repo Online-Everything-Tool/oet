@@ -95,8 +95,9 @@ export default function ImageMontageClient({
   >(null);
   const [itdeActionChoiceModalOpen, setItdeActionChoiceModalOpen] =
     useState(false);
-  const [currentItdeSignalForChoice, setCurrentItdeSignalForChoice] =
-    useState<IncomingSignal | null>(null);
+  const [choiceModalToolTitle, setChoiceModalToolTitle] = useState<
+    string | null
+  >(null);
 
   const {
     addFile,
@@ -169,36 +170,21 @@ export default function ImageMontageClient({
   }, [processedFileId, getFile, isLoadingState]);
 
   const handleActualItdeAccept = useCallback(
-    async (actionKey: string) => {
-      if (
-        !incomingItdeFiles ||
-        incomingItdeFiles.length === 0 ||
-        !currentItdeSignalForChoice
-      )
+    async (actionKey: string, filesToProcess?: (StoredFile | InlineFile)[]) => {
+      const eitherFiles = incomingItdeFiles || filesToProcess;
+      if (!eitherFiles || eitherFiles.length === 0) {
         return;
+      }
       let oldPersistedImageIds: string[] = [];
       if (actionKey === 'replace') {
         oldPersistedImageIds = persistedImages.map((img) => img.imageId);
         await clearMontage();
       }
       const filesToAddAsStoredFiles: StoredFile[] = [];
-      for (const item of incomingItdeFiles) {
+      for (const item of eitherFiles) {
         if (item.type?.startsWith('image/')) {
           if ('id' in item) {
             filesToAddAsStoredFiles.push(item as StoredFile);
-          } else {
-            try {
-              const tempName = `itde-montage-input-${Date.now()}.${item.type.split('/')[1] || 'png'}`;
-              const newId = await addFile(item.blob, tempName, item.type, true);
-              const newStoredFile = await getFile(newId);
-              if (newStoredFile) filesToAddAsStoredFiles.push(newStoredFile);
-            } catch (_e) {
-              setUiError(
-                (prev) =>
-                  (prev ? prev + '; ' : '') +
-                  `Failed to process one incoming image for ITDE.`
-              );
-            }
           }
         }
       }
@@ -213,9 +199,9 @@ export default function ImageMontageClient({
           console.error('[Montage ITDE Replace] Cleanup failed:', e)
         );
       }
+      setChoiceModalToolTitle(null);
       setItdeActionChoiceModalOpen(false);
       setIncomingItdeFiles(null);
-      setCurrentItdeSignalForChoice(null);
       setUserDeferredAutoPopup(false);
     },
     [
@@ -224,9 +210,6 @@ export default function ImageMontageClient({
       incomingItdeFiles,
       persistedImages,
       cleanupOrphanedTemporaryFiles,
-      currentItdeSignalForChoice,
-      addFile,
-      getFile,
     ]
   );
 
@@ -263,12 +246,14 @@ export default function ImageMontageClient({
         setUiError(`No usable images received from ${signal.sourceToolTitle}.`);
         return;
       }
+
       setUserDeferredAutoPopup(false);
-      setIncomingItdeFiles(receivedImageItems);
-      setCurrentItdeSignalForChoice(signal);
+
       if (persistedImages.length === 0) {
-        handleActualItdeAccept('add');
+        await handleActualItdeAccept('replace', receivedImageItems);
       } else {
+        setChoiceModalToolTitle(signal.sourceToolTitle);
+        setIncomingItdeFiles(receivedImageItems);
         setItdeActionChoiceModalOpen(true);
       }
     },
@@ -279,6 +264,7 @@ export default function ImageMontageClient({
     targetToolDirective: directiveName,
     onProcessSignal: handleProcessIncomingSignal,
   });
+
   useEffect(() => {
     const canProceed =
       !isLoadingState &&
@@ -317,9 +303,6 @@ export default function ImageMontageClient({
   const handleItdeChoiceModalClose = () => {
     setItdeActionChoiceModalOpen(false);
     setIncomingItdeFiles(null);
-    if (currentItdeSignalForChoice) {
-    }
-    setCurrentItdeSignalForChoice(null);
     setUserDeferredAutoPopup(true);
   };
 
@@ -397,7 +380,6 @@ export default function ImageMontageClient({
 
   const handleFilesSelectedFromModal = useCallback(
     (files: StoredFile[]) => {
-
       setIsAddImagesModalOpen(false);
       if (files && files.length > 0) {
         const imageFiles = files.filter((f) => f.type?.startsWith('image/'));
@@ -650,7 +632,7 @@ export default function ImageMontageClient({
           <h2 className="text-base font-semibold mb-2 text-[rgb(var(--color-text-muted))]">
             Adjust & Reorder Input Images ({persistedImages.length})
           </h2>{' '}
-          <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-start">
+          <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-center">
             {' '}
             {montageImagesForCanvas.map((imgData, index) => (
               <ImageAdjustmentCard
@@ -755,9 +737,7 @@ export default function ImageMontageClient({
       <ItdeAcceptChoiceModal
         isOpen={itdeActionChoiceModalOpen}
         onClose={handleItdeChoiceModalClose}
-        sourceToolTitle={
-          currentItdeSignalForChoice?.sourceToolTitle || 'Unknown Tool'
-        }
+        sourceToolTitle={choiceModalToolTitle || 'Unknown Tool'}
         dataTypeReceived={
           incomingItdeFiles && incomingItdeFiles.length > 1 ? 'images' : 'image'
         }
@@ -765,7 +745,7 @@ export default function ImageMontageClient({
         options={itdeChoiceModalOptions}
         onOptionSelect={handleActualItdeAccept}
         title="Incoming Montage Images"
-        message={`Received ${incomingItdeFiles?.length || 0} image(s) from "${currentItdeSignalForChoice?.sourceToolTitle || 'another tool'}".`}
+        message={`Received ${incomingItdeFiles?.length || 0} image(s) from "${choiceModalToolTitle || 'another tool'}".`}
       />
     </div>
   );

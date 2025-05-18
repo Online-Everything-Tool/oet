@@ -359,7 +359,6 @@ export default function HashGeneratorClient({
             !prevState.lastLoadedFilename &&
             currentOutputFilename !== null
           ) {
-
             setCurrentOutputFilename(null);
           }
           return {
@@ -446,7 +445,6 @@ export default function HashGeneratorClient({
       !toolState.errorMsg &&
       !isProcessing
     ) {
-
       handleGenerateHashInternal(toolState.inputText, toolState.algorithm);
     }
   }, [
@@ -480,7 +478,6 @@ export default function HashGeneratorClient({
     }
 
     if (!isProcessing) {
-
       debouncedGenerateHash(toolState.inputText, toolState.algorithm);
     }
   }, [
@@ -553,7 +550,6 @@ export default function HashGeneratorClient({
         try {
           const text = await file.blob.text();
           setToolState({
-
             inputText: text,
             lastLoadedFilename: file.name,
             outputValue: '',
@@ -562,7 +558,6 @@ export default function HashGeneratorClient({
           });
           setCurrentOutputFilename(generateOutputFilenameForAction());
           setUserDeferredAutoPopup(false);
-
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
           setToolState({
@@ -574,7 +569,6 @@ export default function HashGeneratorClient({
           });
           setCurrentOutputFilename(null);
         } finally {
-
         }
       } else {
         setToolState((prev) => ({
@@ -589,7 +583,6 @@ export default function HashGeneratorClient({
 
   const handleFilenameConfirm = useCallback(
     async (chosenFilename: string) => {
-
       const action = filenameActionType;
       setIsFilenameModalOpen(false);
       setFilenameActionType(null);

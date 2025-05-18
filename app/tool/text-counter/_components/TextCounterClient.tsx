@@ -120,10 +120,8 @@ export default function TextCounterClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-
             loadedFilename = (firstItem as StoredFile).name;
           } else {
-
             loadedFilename = null;
           }
         } catch (e) {
@@ -190,7 +188,6 @@ export default function TextCounterClient({
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
@@ -227,7 +224,6 @@ export default function TextCounterClient({
 
     if (needsUpdate) {
       setToolState(updates);
-
     }
   }, [
     isLoadingState,
@@ -251,7 +247,6 @@ export default function TextCounterClient({
     if (inputText && searchString) {
       try {
         if (searchString.length > 0) {
-
           customCount = inputText.split(searchString).length - 1;
         } else {
           customCount = 0;

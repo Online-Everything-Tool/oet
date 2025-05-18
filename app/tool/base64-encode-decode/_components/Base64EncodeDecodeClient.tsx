@@ -89,7 +89,6 @@ const determineInitialOperationAndLikelihood = (
       atob(cleanedForTest);
       return { operation: 'decode', likelihood: 'likely_base64' };
     } catch (_e) {
-
       return { operation: 'encode', likelihood: 'likely_text' };
     }
   }
@@ -110,7 +109,6 @@ const calculateLikelihoodForCurrentOperation = (
   const strictBase64FormatWithPaddingRegex = /^[A-Za-z0-9+/]*={0,2}$/;
 
   if (currentOperation === 'decode') {
-
     if (
       !strictBase64FormatWithPaddingRegex.test(cleanedForTest) ||
       cleanedForTest.length % 4 !== 0
@@ -125,7 +123,6 @@ const calculateLikelihoodForCurrentOperation = (
       return 'invalid_base64_chars';
     }
   } else {
-
     if (!base64CharsOnlyStrictRegex.test(cleanedForTest.replace(/=/g, ''))) {
       return 'likely_text';
     }
@@ -304,7 +301,6 @@ export default function Base64EncodeDecodeClient({
           if ('id' in firstItem && 'name' in firstItem) {
             loadedFilename = (firstItem as StoredFile).name;
           } else {
-
             loadedFilename = null;
           }
         } catch (e) {
@@ -393,7 +389,6 @@ export default function Base64EncodeDecodeClient({
 
       if (opToPerform === 'encode') {
         try {
-
           currentOutput = btoa(
             unescape(encodeURIComponent(trimmedTextToProcess))
           );
@@ -410,7 +405,6 @@ export default function Base64EncodeDecodeClient({
           );
         }
       } else {
-
         try {
           const cleanedTextToDecode = trimmedTextToProcess.replace(/\s/g, '');
           if (
@@ -523,7 +517,6 @@ export default function Base64EncodeDecodeClient({
     let needsToolStateUpdate = false;
 
     if (textFromUrl !== null) {
-
       textToSetForState = textFromUrl;
       filenameToSetForState = null;
       outputFilenameToSetForState = null;
@@ -577,8 +570,17 @@ export default function Base64EncodeDecodeClient({
     } else if (!textToSetForState.trim() && base64Likelihood !== 'unknown') {
       setBase64Likelihood('unknown');
     }
-
-  }, [isLoadingToolState, urlStateParams]);
+  }, [
+    isLoadingToolState,
+    urlStateParams,
+    base64Likelihood,
+    currentOutputFilename,
+    debouncedProcess,
+    handleEncodeDecode,
+    setToolState,
+    toolState,
+    uiError,
+  ]);
 
   useEffect(() => {
     if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) {
@@ -597,7 +599,6 @@ export default function Base64EncodeDecodeClient({
     }
 
     if (!text.trim()) {
-
       if (toolState.outputValue !== '') setToolState({ outputValue: '' });
       if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       if (uiError !== '') setUiError('');
@@ -607,14 +608,12 @@ export default function Base64EncodeDecodeClient({
 
     debouncedProcess(text, currentOperation);
   }, [
-    toolState.inputText,
-    toolState.operation,
+    toolState,
     isLoadingToolState,
     debouncedProcess,
     setToolState,
     base64Likelihood,
     uiError,
-    toolState.outputValue,
     currentOutputFilename,
     handleEncodeDecode,
   ]);
@@ -715,11 +714,9 @@ export default function Base64EncodeDecodeClient({
         if (!errorForUI && opToSet === 'encode') {
           handleEncodeDecode(text, 'encode');
         } else if (errorForUI) {
-
           handleEncodeDecode(text, 'encode');
         }
       } catch (e) {
-
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setUiError(`Error reading file "${file.name}": ${msg}`);
         setToolState({
@@ -826,7 +823,6 @@ export default function Base64EncodeDecodeClient({
         return;
       }
       if (uiError && toolState.outputValue.trim()) {
-
         setUiError(
           'Cannot ' + action + ' output due to existing input errors.'
         );
@@ -835,10 +831,8 @@ export default function Base64EncodeDecodeClient({
       setUiError('');
 
       if (currentOutputFilename) {
-
         handleFilenameConfirm(currentOutputFilename, action);
       } else {
-
         setSuggestedFilenameForPrompt(
           generateOutputFilename(
             toolState.lastLoadedFilename,

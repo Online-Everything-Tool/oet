@@ -229,10 +229,8 @@ const TextReverseClient = ({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-
             loadedFilename = (firstItem as StoredFile).name;
           } else {
-
             loadedFilename = null;
           }
         } catch (e) {
@@ -264,7 +262,7 @@ const TextReverseClient = ({
       });
       setUserDeferredAutoPopup(false);
     },
-    [getToolMetadata, toolState.reverseMode, setToolState, saveStateNow]
+    [getToolMetadata, toolState, setToolState, saveStateNow]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -320,7 +318,6 @@ const TextReverseClient = ({
         if (currentFilename && !currentOutputFilename) {
           setCurrentOutputFilename(generateOutputFilenameForAction());
         } else if (!currentFilename && currentOutputFilename !== null) {
-
           setCurrentOutputFilename(null);
         }
       } catch (_e) {
@@ -344,7 +341,6 @@ const TextReverseClient = ({
   );
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
@@ -405,7 +401,6 @@ const TextReverseClient = ({
       !toolState.outputValue.trim() &&
       !uiError
     ) {
-
       performTextReversal(toolState.inputText, toolState.reverseMode);
     }
   }, [
@@ -426,7 +421,6 @@ const TextReverseClient = ({
   );
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       !initialUrlLoadProcessedRef.current ||

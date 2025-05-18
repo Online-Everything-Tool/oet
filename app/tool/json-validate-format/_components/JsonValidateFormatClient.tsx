@@ -1,12 +1,7 @@
 // --- FILE: app/tool/json-validate-format/_components/JsonValidateFormatClient.tsx ---
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -289,13 +284,7 @@ export default function JsonValidateFormatClient({
       });
       setUserDeferredAutoPopup(false);
     },
-    [
-      getToolMetadata,
-      toolState.indent,
-      toolState.sortKeys,
-      setToolState,
-      saveStateNow,
-    ]
+    [getToolMetadata, toolState, setToolState, saveStateNow]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -363,7 +352,6 @@ export default function JsonValidateFormatClient({
         if (currentFilename && !currentOutputFilename) {
           setCurrentOutputFilename(generateOutputFilename(currentFilename));
         } else if (!currentFilename && currentOutputFilename !== null) {
-
           setCurrentOutputFilename(null);
         }
       } catch (err) {
@@ -395,14 +383,12 @@ export default function JsonValidateFormatClient({
   );
 
   useEffect(() => {
-
     if (
       isLoadingToolState ||
       initialUrlLoadProcessedRef.current ||
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
-
       if (
         !isLoadingToolState &&
         initialToolStateLoadCompleteRef.current &&
@@ -466,7 +452,6 @@ export default function JsonValidateFormatClient({
       !toolState.outputValue &&
       !toolState.errorMsg
     ) {
-
       handleFormatValidate(
         toolState.jsonInput,
         toolState.indent,
@@ -486,7 +471,6 @@ export default function JsonValidateFormatClient({
   ]);
 
   useEffect(() => {
-
     if (
       isLoadingToolState ||
       !initialUrlLoadProcessedRef.current ||
@@ -511,12 +495,7 @@ export default function JsonValidateFormatClient({
       toolState.indent,
       toolState.sortKeys
     );
-  }, [
-    toolState,
-    isLoadingToolState,
-    handleFormatValidate,
-    setToolState,
-  ]);
+  }, [toolState, isLoadingToolState, handleFormatValidate, setToolState]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newJsonInput = event.target.value;
@@ -531,7 +510,6 @@ export default function JsonValidateFormatClient({
     setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
-
   };
 
   const handleClear = useCallback(async () => {
@@ -547,7 +525,6 @@ export default function JsonValidateFormatClient({
   ) => {
     const newIndentation = parseInt(event.target.value, 10);
     setToolState({ indent: newIndentation });
-
   };
 
   const handleSortKeysChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -579,7 +556,6 @@ export default function JsonValidateFormatClient({
         }));
         setCurrentOutputFilename(generateOutputFilename(file.name));
         setUserDeferredAutoPopup(false);
-
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setToolState((prevState) => ({

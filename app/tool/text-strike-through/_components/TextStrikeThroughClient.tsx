@@ -19,7 +19,6 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   ExclamationTriangleIcon,
-
 } from '@heroicons/react/24/outline';
 
 import { useMetadata } from '@/app/context/MetadataContext';
@@ -121,10 +120,8 @@ export default function TextStrikeThroughClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-
             loadedFilename = (firstItem as StoredFile).name;
           } else {
-
             loadedFilename = null;
           }
         } catch (e) {
@@ -161,13 +158,7 @@ export default function TextStrikeThroughClient({
       setIsUnicodeCopied(false);
       setIsInputCopied(false);
     },
-    [
-      getToolMetadata,
-      toolState.skipSpaces,
-      toolState.color,
-      setToolState,
-      saveStateNow,
-    ]
+    [getToolMetadata, toolState, setToolState, saveStateNow]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -200,7 +191,6 @@ export default function TextStrikeThroughClient({
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||

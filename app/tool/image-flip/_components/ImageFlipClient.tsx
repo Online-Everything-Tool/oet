@@ -13,9 +13,7 @@ import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import useToolState from '../../_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
-import type {
-  ToolMetadata,
-  } from '@/src/types/tools';
+import type { ToolMetadata } from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
@@ -91,7 +89,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
   const directiveName = metadata.directive;
 
-  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles, addFile } =
+  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles } =
     useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
@@ -146,33 +144,12 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       }
 
       let newSelectedFileId: string | null = null;
-      const firstItem = resolvedPayload.data[0];
+      const firstItem = resolvedPayload.data.find(
+        (item) => item.type?.startsWith('image/') && 'id' in item
+      );
 
-      if (firstItem && firstItem.type?.startsWith('image/')) {
-        if ('id' in firstItem) {
-          newSelectedFileId = (firstItem as StoredFile).id;
-        } else {
-          try {
-            const tempName = `itde-received-${Date.now()}.${firstItem.type.split('/')[1] || 'png'}`;
-            newSelectedFileId = await addFile(
-              firstItem.blob,
-              tempName,
-              firstItem.type,
-              true
-            );
-          } catch (e) {
-            const errorMsgText = e instanceof Error ? e.message : String(e);
-            setUiError(
-              `Failed to process (save) incoming image data: ${errorMsgText}`
-            );
-            return;
-          }
-        }
-      } else if (firstItem) {
-        setUiError(
-          `Received data is not an image (type: ${firstItem.type}). Cannot process.`
-        );
-        return;
+      if (firstItem) {
+        newSelectedFileId = (firstItem as StoredFile).id;
       } else {
         setUiError('No valid item found in received ITDE data.');
         return;
@@ -216,7 +193,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       setState,
       saveStateNow,
       cleanupOrphanedTemporaryFiles,
-      addFile,
       clearProcessingHookOutput,
     ]
   );
@@ -273,7 +249,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
             setOriginalImageSrcForUI(localOrigObjUrl);
             setOriginalFilenameForDisplay(file.name);
           } else if (mounted) {
-
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
           }
@@ -312,13 +287,12 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
       if (localProcObjUrl) URL.revokeObjectURL(localProcObjUrl);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     toolState.selectedFileId,
     toolState.processedFileId,
     getFile,
     isLoadingToolSettings,
-    originalImageSrcForUI,
-    processedImageSrcForUI
   ]);
 
   const flipDrawFunction = useCallback(
@@ -330,7 +304,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         ctx.scale(-1, 1);
         ctx.translate(-w, 0);
       } else {
-
         ctx.scale(1, -1);
         ctx.translate(0, -h);
       }

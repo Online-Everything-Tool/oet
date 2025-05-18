@@ -452,6 +452,8 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
 
           try {
             const stateJson = await toolStateFile.blob.text();
+
+            // prettier-ignore
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const toolCurrentState = JSON.parse(stateJson) as Record<string, any>;
 
@@ -464,7 +466,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
                   const { stateKey, arrayStateKey } = sf;
 
                   if (arrayStateKey) {
-
                     const arrOfObjects = toolCurrentState[arrayStateKey];
                     if (Array.isArray(arrOfObjects)) {
                       arrOfObjects.forEach((itemObj) => {
@@ -479,7 +480,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
                       });
                     }
                   } else {
-
                     const valueFromState = toolCurrentState[stateKey];
                     if (typeof valueFromState === 'string') {
                       activeFileIdsReferencedByTools.add(valueFromState);
@@ -497,7 +497,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
             const outputContent =
               metadataForTool.outputConfig?.transferableContent;
             if (outputContent && outputContent !== 'none') {
-
               const itemsToProcess = outputContent as
                 | ReferenceDetails[]
                 | InlineDetails[];
@@ -510,7 +509,6 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
 
                   if (valueFromState) {
                     if (arrayStateKey) {
-
                       if (Array.isArray(valueFromState)) {
                         (valueFromState as string[]).forEach((id) => {
                           if (typeof id === 'string')
@@ -518,11 +516,11 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
                         });
                       }
                     } else if (typeof valueFromState === 'string') {
-
                       activeFileIdsReferencedByTools.add(valueFromState);
-                    }
-
-                    else if (Array.isArray(valueFromState) && !arrayStateKey) {
+                    } else if (
+                      Array.isArray(valueFromState) &&
+                      !arrayStateKey
+                    ) {
                       (valueFromState as string[]).forEach((id) => {
                         if (typeof id === 'string')
                           activeFileIdsReferencedByTools.add(id);

@@ -1,12 +1,7 @@
 // --- FILE: app/tool/url-encode-decode/_components/UrlEncodeDecodeClient.tsx ---
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useToolState from '../../_hooks/useToolState';
 import type {
   ParamConfig,
@@ -101,7 +96,6 @@ const OutputActionButtons = React.memo(function OutputActionButtons({
         currentToolDirective={directiveName}
         currentToolOutputConfig={outputConfig}
         buttonText="Send Output To..."
-
       />
       <Button
         variant="primary-outline"
@@ -272,12 +266,7 @@ export default function UrlEncodeDecodeClient({
       });
       setUserDeferredAutoPopup(false);
     },
-    [
-      getToolMetadata,
-      toolState,
-      setToolState,
-      saveStateNow,
-    ]
+    [getToolMetadata, toolState, setToolState, saveStateNow]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -326,7 +315,6 @@ export default function UrlEncodeDecodeClient({
       setSaveSuccess(false);
 
       if (!text.trim()) {
-
         setCurrentOutputFilename(null);
         setIsProcessing(false);
         return;
@@ -346,17 +334,14 @@ export default function UrlEncodeDecodeClient({
             newOutput = standardEncoded;
           }
         } else {
-
           newOutput = decodeURIComponent(text.replace(/\+/g, ' '));
         }
 
         setToolState((prevState) => {
           const currentLlf = prevState.lastLoadedFilename;
           if (currentLlf && !currentOutputFilename) {
-
             setCurrentOutputFilename(generateOutputFilenameForAction());
           } else if (!currentLlf && currentOutputFilename !== null) {
-
             setCurrentOutputFilename(null);
           }
           return { ...prevState, outputValue: newOutput, errorMsg: newError };
@@ -394,7 +379,6 @@ export default function UrlEncodeDecodeClient({
   );
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
@@ -465,7 +449,6 @@ export default function UrlEncodeDecodeClient({
       !toolState.errorMsg &&
       !isProcessing
     ) {
-
       performEncodeDecode(
         toolState.inputText,
         toolState.operation,
@@ -487,7 +470,6 @@ export default function UrlEncodeDecodeClient({
   ]);
 
   useEffect(() => {
-
     if (
       isLoadingState ||
       !initialUrlLoadProcessedRef.current ||
@@ -557,7 +539,6 @@ export default function UrlEncodeDecodeClient({
   const handleCopyOutput = useCallback(async () => {
     if (!toolState.outputValue || isCopied) return;
     if (toolState.errorMsg) {
-
       setToolState((prevState) => ({
         ...prevState,
         errorMsg: 'Cannot copy output due to processing error.',

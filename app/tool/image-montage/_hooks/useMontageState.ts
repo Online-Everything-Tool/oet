@@ -263,9 +263,12 @@ export function useMontageState(toolRoute: string): UseMontageStateReturn {
 
   const addStoredFiles = useCallback(
     async (storedFiles: StoredFile[]): Promise<void> => {
+      console.log('called');
       if (!storedFiles || storedFiles.length === 0) return;
       setImageLoadingError(null);
-
+      console.log(
+        `[useMontageState addStoredFiles] Adding ${storedFiles.length} files.`
+      );
       setToolState((prevState) => {
         const existingIds = new Set(
           prevState.persistedImages.map((img) => img.imageId)

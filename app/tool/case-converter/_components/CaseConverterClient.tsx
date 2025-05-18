@@ -1,12 +1,7 @@
 // FILE: app/tool/case-converter/_components/CaseConverterClient.tsx
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
@@ -223,10 +218,8 @@ export default function CaseConverterClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-
             loadedFilename = (firstItem as StoredFile).name;
           } else {
-
             loadedFilename = null;
           }
         } catch (e) {
@@ -492,7 +485,6 @@ export default function CaseConverterClient({
     const effectiveText = currentCase === 'title' ? text : text.trim();
 
     if (!effectiveText && !text.trim()) {
-
       if (toolState.outputValue !== '') setToolState({ outputValue: '' });
       if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       if (uiError !== '') setUiError('');
