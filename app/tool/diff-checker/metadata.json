@@ -1,0 +1,1 @@
+{ "title": "Diff Checker", "directive": "diff-checker", "description": "Compares two text inputs and highlights their differences.", "urlStateParams": [], "inputConfig": { "acceptsMimeTypes": ["text/plain"], "stateFiles": "none" }, "outputConfig": { "transferableContent": "none" }, "tags": [] }
