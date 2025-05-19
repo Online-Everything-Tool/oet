@@ -394,10 +394,9 @@ export default function EmojiSearchClient({
       )}
       {initialEmojis.length === 0 && !isLoadingToolState && (
         <div className="text-center p-5 text-[rgb(var(--color-text-muted))]">
-          {' '}
           <p>
             No emoji data loaded. The emoji data file might be missing or empty.
-          </p>{' '}
+          </p>
         </div>
       )}
     </div>

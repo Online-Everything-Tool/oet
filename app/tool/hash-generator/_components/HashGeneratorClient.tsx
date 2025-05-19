@@ -621,11 +621,7 @@ export default function HashGeneratorClient({
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
       <div>
-        {' '}
-        {/* Added wrapper for label + textarea */}
         <div className="flex justify-between items-center gap-2 mb-1">
-          {' '}
-          {/* Moved label here, mb-1 */}
           <label
             htmlFor="text-input-hash-gen"
             className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
@@ -692,8 +688,6 @@ export default function HashGeneratorClient({
           </div>
           <div className="flex-grow"></div> {/* Spacer */}
           <div className="flex flex-wrap gap-3 items-center sm:ml-auto">
-            {' '}
-            {/* Actions group */}
             <OutputActionButtons
               canPerform={canPerformOutputActions}
               isSaveSuccess={saveSuccess}

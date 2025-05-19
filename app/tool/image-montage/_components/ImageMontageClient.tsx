@@ -611,26 +611,22 @@ export default function ImageMontageClient({
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
-          {' '}
           <XCircleIcon
             className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-500"
             aria-hidden="true"
-          />{' '}
-          <div>
-            {' '}
-            <strong className="font-semibold">Error:</strong>{' '}
-            {combinedError}{' '}
-          </div>{' '}
+          />
+          <div>            
+            <strong className="font-semibold">Error:</strong>
+            {combinedError}
+          </div>
         </div>
       )}
       {persistedImages.length > 0 && (
         <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))]">
-          {' '}
           <h2 className="text-base font-semibold mb-2 text-[rgb(var(--color-text-muted))]">
             Adjust & Reorder Input Images ({persistedImages.length})
-          </h2>{' '}
+          </h2>
           <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-center">
-            {' '}
             {montageImagesForCanvas.map((imgData, index) => (
               <ImageAdjustmentCard
                 key={imgData.id}
@@ -659,8 +655,8 @@ export default function ImageMontageClient({
                 onMoveUpZIndex={handleMoveUp}
                 onMoveDownZIndex={handleMoveDown}
               />
-            ))}{' '}
-          </div>{' '}
+            ))}
+          </div>
         </div>
       )}
       <div className="flex-grow overflow-auto border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] p-2 min-h-[300px] flex items-center justify-center relative">

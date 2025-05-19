@@ -709,9 +709,7 @@ export default function UrlEncodeDecodeClient({
           </div>
         </div>
       )}
-      <div>
-        {' '}
-        {/* Wrapper for label + output Textarea */}
+      <div>        
         <label
           htmlFor="url-output-main"
           className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"

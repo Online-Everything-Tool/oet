@@ -24,8 +24,6 @@ export default function ReceiveItdeDataTrigger({
 
   return (
     <div className={`inline-block ${className}`}>
-      {' '}
-      {/* Changed to inline-block for better placement flexibility */}
       <Button
         variant="accent-outline"
         onClick={onReviewIncomingClick}

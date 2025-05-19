@@ -157,7 +157,7 @@ export default function GenerateToolResources({
       {/* --- ADDED MODEL DISPLAY HERE --- */}
       <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
         <p className="text-sm">
-          <span className="font-medium text-gray-600">Target Directive:</span>{' '}
+          <span className="font-medium text-gray-600">Target Directive:</span>
           <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
             {toolDirective}
           </code>
@@ -165,7 +165,7 @@ export default function GenerateToolResources({
         <p className="text-sm mt-1">
           <span className="font-medium text-gray-600">
             AI Model for Generation:
-          </span>{' '}
+          </span>
           <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
             {selectedModel.replace('models/', '')}
           </code>

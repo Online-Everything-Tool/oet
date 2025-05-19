@@ -154,8 +154,7 @@ export default function CreateAnonymousPr({
         <p
           className={`text-sm mb-4 p-2 rounded ${generationResult.message.toLowerCase().includes('warning') ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : generationResult.message.toLowerCase().includes('error') ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'}`}
         >
-          {' '}
-          {generationResult.message}{' '}
+          {generationResult.message}
         </p>
       )}
 
@@ -164,33 +163,29 @@ export default function CreateAnonymousPr({
           Generation Context Review
         </h3>
         <p className="text-sm">
-          {' '}
           <span className="font-medium text-gray-600">
             Target Directive:
-          </span>{' '}
+          </span>
           <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
             {toolDirective}
-          </code>{' '}
+          </code>
         </p>
         {validationResult?.generativeDescription && (
           <div>
-            {' '}
             <p className="text-sm font-medium text-gray-600">
               AI Description:
-            </p>{' '}
+            </p>
             <blockquote className="text-sm text-gray-800 pl-2 italic border-l-2 border-gray-300 ml-1 my-1">
-              {' '}
-              “{validationResult.generativeDescription}”{' '}
-            </blockquote>{' '}
+              “{validationResult.generativeDescription}”
+            </blockquote>
           </div>
         )}
         {validationResult?.generativeRequestedDirectives &&
           validationResult.generativeRequestedDirectives.length > 0 && (
             <div>
-              {' '}
               <p className="text-sm font-medium text-gray-600 mb-1">
                 AI Requested Examples:
-              </p>{' '}
+              </p>
               <ul className="list-disc list-inside space-y-1 pl-2">
                 {validationResult.generativeRequestedDirectives.map((d) => (
                   <li key={d} className="text-sm text-indigo-700">
@@ -204,21 +199,20 @@ export default function CreateAnonymousPr({
                     </Link>
                   </li>
                 ))}
-              </ul>{' '}
+              </ul>
             </div>
           )}
         <div>
-          {' '}
           <p className="text-sm font-medium text-gray-600">
             Additional Details:
-          </p>{' '}
+          </p>
           {additionalDescription ? (
             <p className="text-sm text-gray-800 pl-2 whitespace-pre-wrap bg-gray-100 p-2 rounded border border-gray-200 font-mono text-xs">
               {additionalDescription}
             </p>
           ) : (
             <p className="text-sm text-gray-500 pl-2 italic">(None provided)</p>
-          )}{' '}
+          )}
         </div>
 
         {/* Display user selected examples (array) */}
@@ -261,7 +255,6 @@ export default function CreateAnonymousPr({
                     </code>
                     {dep.reason && (
                       <span className="text-xs italic text-gray-500">
-                        {' '}
                         - {dep.reason}
                       </span>
                     )}
@@ -343,8 +336,7 @@ export default function CreateAnonymousPr({
                         />
                       ) : (
                         <div className="p-4 text-red-200 text-xs italic">
-                          {' '}
-                          (Content missing for this file){' '}
+                          (Content missing for this file)
                         </div>
                       )}
                     </div>
@@ -355,9 +347,8 @@ export default function CreateAnonymousPr({
           </div>
         ) : (
           <div className="p-4 border border-dashed border-red-300 rounded bg-red-50 text-red-700 text-sm">
-            {' '}
             Error: No files were generated or found in the generation result.
-            Cannot proceed with submission.{' '}
+            Cannot proceed with submission.
           </div>
         )}
         <p className="mt-2 text-xs text-gray-500">
@@ -377,10 +368,9 @@ export default function CreateAnonymousPr({
           }
           className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {' '}
           {isSubmitting
             ? 'Submitting Anonymously...'
-            : 'Submit Anonymous PR'}{' '}
+            : 'Submit Anonymous PR'}
         </button>
         <button
           type="button"
@@ -388,8 +378,7 @@ export default function CreateAnonymousPr({
           disabled={isSubmitting}
           className="text-sm text-gray-600 hover:text-gray-900 underline disabled:opacity-50"
         >
-          {' '}
-          Back to Generation{' '}
+          Back to Generation
         </button>
       </div>
 

@@ -182,7 +182,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               aria-label={`Preview ${node.name}`}
             >
               {' '}
-              <EyeIcon className="h-4 w-4" />{' '}
+              <EyeIcon className="h-4 w-4" />
             </button>
             <button
               onClick={(e) => {
@@ -194,7 +194,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               aria-label={`Download ${node.name}`}
             >
               {' '}
-              <ArrowDownTrayIcon className="h-4 w-4" />{' '}
+              <ArrowDownTrayIcon className="h-4 w-4" />
             </button>
           </span>
         )}

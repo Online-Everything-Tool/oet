@@ -670,16 +670,14 @@ export default function ImageGrayScaleClient({
           role="alert"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
-          {' '}
           <XCircleIcon
             className="h-5 w-5 text-[rgb(var(--color-text-error))]"
             aria-hidden="true"
-          />{' '}
+          />
           <div>
-            {' '}
             <strong className="font-semibold">Error:</strong>{' '}
-            {displayError}{' '}
-          </div>{' '}
+            {displayError}
+          </div>
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

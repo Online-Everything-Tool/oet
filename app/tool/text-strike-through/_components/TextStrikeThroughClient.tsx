@@ -385,8 +385,6 @@ export default function TextStrikeThroughClient({
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-        {' '}
-        {/* items-start for alignment */}
         <div className="space-y-1 h-full flex flex-col">
           <div className="flex justify-between items-center">
             <label

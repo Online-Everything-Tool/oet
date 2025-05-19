@@ -140,7 +140,8 @@ export default async function Home() {
         <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2">
           <span className="line-through decoration-red-600 decoration-3">
             Online
-          </span>{' '}
+          </span>
+          {' '}
           Everything Tool
         </h1>
         <p className="text-lg text-[rgb(var(--color-text-muted))]">
