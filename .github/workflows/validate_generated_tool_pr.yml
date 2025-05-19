@@ -57,7 +57,7 @@ jobs:
         run: |
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
           # Use secret or default for testing
-          API_ENDPOINT="${{ secrets.APP_URL || 'http://localhost:3000' }}/api/analyze-directive-name"
+          API_ENDPOINT="${{ secrets.APP_URL || 'https://5567-76-166-228-174.ngrok-free.app' }}/api/analyze-directive-name"
           # Placeholder context - enhance API later if needed
           EXISTING_DIRECTIVES='[]'; GENERATIVE_DESC="Function related to ${TOOL_DIRECTIVE//-/ }"
 

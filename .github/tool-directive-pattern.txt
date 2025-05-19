@@ -3,23 +3,25 @@
 # Comments start with #
 
 # Patterns based on prefix
-^image-
-^text-
-^json-
-^yaml-
-^url-
+^cvs-
 ^file-
+^image-
+^json-
 ^regex-
+^text-
+^url-
+^yaml-
 
 # Patterns based on suffix
+-checker$
 -converter$
+-decode$
+-explorer$
 -formatter$
 -generator$
--validator$
--explorer$
--decoder$
 -storage$
--tester$
+-validate$
+-validator$
 
 # More complex regex example (e.g., json-to-something or something-to-json)
 # ^json-to-[a-z0-9-]+$|^[a-z0-9-]+-to-json$
