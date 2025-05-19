@@ -34,9 +34,11 @@ export async function resolveItdeData(
       };
     }
 
-    // prettier-ignore
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sourceState = JSON.parse(await sourceStateFile.blob.text()) as Record<string, any>;
+    const sourceState = JSON.parse(await sourceStateFile.blob.text()) as Record<
+      string,
+      any
+    >;
     const allResolvedItems: (StoredFile | InlineFile)[] = [];
 
     for (const outputItem of transferableContent) {

@@ -114,7 +114,7 @@ export default function SendToToolButton({
       ref={dropdownRef}
     >
       <Button
-        variant="secondary"
+        variant="accent"
         onClick={handleToggleDropdown}
         disabled={isDisabledOverall && !isDropdownOpen}
         iconLeft={
@@ -140,7 +140,7 @@ export default function SendToToolButton({
 
       {isDropdownOpen && (
         <div
-          className="absolute right-0 z-20 mt-2 w-72 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none max-h-80 overflow-y-auto"
+          className="absolute mt-1 right-0 z-20 w-72 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none max-h-80 overflow-y-auto"
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="send-to-tool-button"

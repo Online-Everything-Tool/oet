@@ -4,11 +4,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Button from '../form/Button';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowDownTrayIcon,
+  DocumentPlusIcon,
+  MinusCircleIcon,
+} from '@heroicons/react/24/solid';
 
 interface FilenamePromptModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (filename: string) => void;
+  filenameAction?: string;
   initialFilename?: string;
   promptMessage?: string;
   inputLabel?: string;
@@ -20,6 +26,7 @@ export default function FilenamePromptModal({
   isOpen,
   onClose,
   onConfirm,
+  filenameAction = 'download',
   initialFilename = '',
   promptMessage = 'Please enter a filename:',
   inputLabel = 'Filename:',
@@ -109,17 +116,33 @@ export default function FilenamePromptModal({
                 className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))] text-sm"
                 placeholder="e.g., my-encoded-data.txt"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-sm text-gray-400 mt-2">
                 File extension will be added if not provided.
               </p>
             </div>
           </div>
 
           <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end items-center gap-3">
-            <Button variant="neutral" type="button" onClick={onClose}>
+            <Button
+              variant="neutral"
+              type="button"
+              onClick={onClose}
+              iconLeft={<MinusCircleIcon className="h-5 w-5" />}
+            >
               Cancel
             </Button>
-            <Button variant="primary" type="submit" disabled={!filename.trim()}>
+            <Button
+              variant={filenameAction === 'download' ? 'secondary' : 'primary'}
+              type="submit"
+              disabled={!filename.trim()}
+              iconLeft={
+                filenameAction === 'download' ? (
+                  <ArrowDownTrayIcon className="h-5 w-5" />
+                ) : (
+                  <DocumentPlusIcon className="h-5 w-5" />
+                )
+              }
+            >
               {confirmButtonText}
             </Button>
           </div>

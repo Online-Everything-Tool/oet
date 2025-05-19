@@ -15,21 +15,13 @@ import Button from '../../_components/form/Button';
 import Select from '../../_components/form/Select';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import type {
-  ParamConfig,
-  ToolMetadata,
-  OutputConfig,
-} from '@/src/types/tools';
+import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import { bufferToHex, isTextBasedMimeType } from '@/app/lib/utils';
 import { md5 } from 'js-md5';
 import { useDebouncedCallback } from 'use-debounce';
 import {
   ArrowUpTrayIcon,
-  ArrowDownTrayIcon,
-  ClipboardDocumentIcon,
-  CheckIcon,
-  DocumentPlusIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
@@ -40,7 +32,7 @@ import useItdeTargetHandler, {
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import SendToToolButton from '../../_components/shared/SendToToolButton';
+import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
 import importedMetadata from '../metadata.json';
 
 type HashAlgorithm = 'MD5' | 'SHA-1' | 'SHA-256' | 'SHA-512';
@@ -69,79 +61,6 @@ interface HashGeneratorClientProps {
   toolRoute: string;
 }
 
-interface OutputActionButtonsProps {
-  canPerform: boolean;
-  isSaveSuccess: boolean;
-  isCopySuccess: boolean;
-  onInitiateSave: () => void;
-  onInitiateDownload: () => void;
-  onCopy: () => void;
-  directiveName: string;
-  outputConfig: OutputConfig;
-  isProcessing: boolean;
-}
-
-const OutputActionButtons = React.memo(function OutputActionButtons({
-  canPerform,
-  isSaveSuccess,
-  isCopySuccess,
-  onInitiateSave,
-  onInitiateDownload,
-  onCopy,
-  directiveName,
-  outputConfig,
-  isProcessing,
-}: OutputActionButtonsProps) {
-  if (!canPerform && !isProcessing) {
-    return null;
-  }
-  return (
-    <div className="flex flex-wrap gap-3 items-center py-3 border-t border-b border-[rgb(var(--color-border-base))]">
-      <SendToToolButton
-        currentToolDirective={directiveName}
-        currentToolOutputConfig={outputConfig}
-        buttonText="Send Output To..."
-      />
-      <Button
-        variant="primary-outline"
-        onClick={onInitiateSave}
-        disabled={isSaveSuccess || !canPerform || isProcessing}
-        iconLeft={
-          isSaveSuccess ? (
-            <CheckIcon className="h-5 w-5" />
-          ) : (
-            <DocumentPlusIcon className="h-5 w-5" />
-          )
-        }
-      >
-        {isSaveSuccess ? 'Saved!' : 'Save to Library'}
-      </Button>
-      <Button
-        variant="secondary"
-        onClick={onInitiateDownload}
-        iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
-        disabled={!canPerform || isProcessing}
-      >
-        Download Hash
-      </Button>
-      <Button
-        variant="neutral"
-        onClick={onCopy}
-        disabled={isCopySuccess || !canPerform || isProcessing}
-        iconLeft={
-          isCopySuccess ? (
-            <CheckIcon className="h-5 w-5" />
-          ) : (
-            <ClipboardDocumentIcon className="h-5 w-5" />
-          )
-        }
-      >
-        {isCopySuccess ? 'Copied!' : 'Copy Hash'}
-      </Button>
-    </div>
-  );
-});
-
 export default function HashGeneratorClient({
   urlStateParams,
   toolRoute,
@@ -150,14 +69,13 @@ export default function HashGeneratorClient({
     state: toolState,
     setState: setToolState,
     isLoadingState: isLoadingToolState,
-    clearStateAndPersist,
     saveStateNow,
   } = useToolState<HashGeneratorToolState>(toolRoute, DEFAULT_HASH_TOOL_STATE);
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isLoadFileModalOpen, setIsLoadFileModalOpen] = useState(false);
   const [isFilenameModalOpen, setIsFilenameModalOpen] = useState(false);
-  const [filenameActionType, setFilenameActionType] = useState<
+  const [filenameAction, setFilenameAction] = useState<
     'download' | 'save' | null
   >(null);
   const [currentOutputFilename, setCurrentOutputFilename] = useState<
@@ -167,6 +85,7 @@ export default function HashGeneratorClient({
     useState('');
   const [copySuccess, setCopySuccess] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialToolStateLoadCompleteRef = useRef(false);
@@ -200,7 +119,6 @@ export default function HashGeneratorClient({
         `[HashGenerator ITDE Accept] Processing signal from: ${signal.sourceDirective}`
       );
       setToolState((prevState) => ({ ...prevState, errorMsg: '' }));
-      setCurrentOutputFilename(null);
       const sourceMeta = getToolMetadata(signal.sourceDirective);
       if (!sourceMeta) {
         setToolState((prevState) => ({
@@ -231,16 +149,16 @@ export default function HashGeneratorClient({
       }
 
       let newText = '';
-      const firstItem = resolvedPayload.data[0];
+      const firstItem = resolvedPayload.data.find((item) =>
+        item.type?.startsWith('text/')
+      );
       let loadedFilename: string | null = null;
 
-      if (firstItem && firstItem.type.startsWith('text/')) {
+      if (firstItem) {
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
             loadedFilename = (firstItem as StoredFile).name;
-          } else {
-            loadedFilename = null;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -250,31 +168,23 @@ export default function HashGeneratorClient({
           }));
           return;
         }
-      } else if (firstItem) {
-        setToolState((prevState) => ({
-          ...prevState,
-          errorMsg: `Received data is not text (type: ${firstItem.type}). Cannot process.`,
-        }));
-        return;
       } else {
         setToolState((prevState) => ({
           ...prevState,
-          errorMsg: 'No valid item found in received ITDE data.',
+          errorMsg: 'No valid text item found in received ITDE data.',
         }));
         return;
       }
 
-      const currentAlgorithm = toolState.algorithm;
-      const newStateUpdate: Partial<HashGeneratorToolState> = {
+      const newState: Partial<HashGeneratorToolState> = {
         inputText: newText,
         outputValue: '',
         errorMsg: '',
         lastLoadedFilename: loadedFilename,
-        algorithm: currentAlgorithm,
       };
 
-      setToolState(newStateUpdate);
-      await saveStateNow({ ...toolState, ...newStateUpdate });
+      setToolState(newState);
+      await saveStateNow({ ...toolState, ...newState });
       setUserDeferredAutoPopup(false);
     },
     [getToolMetadata, setToolState, saveStateNow, toolState]
@@ -321,16 +231,12 @@ export default function HashGeneratorClient({
       }));
       setCopySuccess(false);
       setSaveSuccess(false);
+      setDownloadSuccess(false);
 
-      const trimmedTextToProcess = textToProcess.trim();
+      const trimmedTextToProcess = textToProcess;
       if (!trimmedTextToProcess) {
-        setToolState((prevState) => ({
-          ...prevState,
-          outputValue: '',
-          errorMsg: '',
-        }));
-        setCurrentOutputFilename(null);
         setIsProcessing(false);
+        setCurrentOutputFilename(null);
         return;
       }
 
@@ -353,10 +259,14 @@ export default function HashGeneratorClient({
         }
 
         setToolState((prevState) => {
-          if (prevState.lastLoadedFilename && !currentOutputFilename) {
+          const currentFilenameForOutput =
+            prevState.inputText === textToProcess
+              ? prevState.lastLoadedFilename
+              : null;
+          if (currentFilenameForOutput && !currentOutputFilename) {
             setCurrentOutputFilename(generateOutputFilenameForAction());
           } else if (
-            !prevState.lastLoadedFilename &&
+            !currentFilenameForOutput &&
             currentOutputFilename !== null
           ) {
             setCurrentOutputFilename(null);
@@ -364,7 +274,8 @@ export default function HashGeneratorClient({
           return {
             ...prevState,
             outputValue: newOutputValue,
-            errorMsg: newErrorMsg,
+            errorMsg: '',
+            algorithm: algo,
           };
         });
       } catch (err) {
@@ -374,6 +285,7 @@ export default function HashGeneratorClient({
           ...prevState,
           outputValue: '',
           errorMsg: newErrorMsg,
+          algorithm: algo,
         }));
       } finally {
         setIsProcessing(false);
@@ -391,104 +303,70 @@ export default function HashGeneratorClient({
     if (
       isLoadingToolState ||
       initialUrlLoadProcessedRef.current ||
+      !initialToolStateLoadCompleteRef.current ||
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
-      if (
-        !isLoadingToolState &&
-        initialToolStateLoadCompleteRef.current &&
-        toolState.inputText.trim() &&
-        !toolState.outputValue &&
-        !toolState.errorMsg &&
-        !isProcessing
-      ) {
-        debouncedGenerateHash(toolState.inputText, toolState.algorithm);
-      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
 
     const params = new URLSearchParams(window.location.search);
-    const updates: Partial<HashGeneratorToolState> = {};
-
     const textFromUrl = params.get('text');
+    const algoFromUrl = params.get('algorithm') as HashAlgorithm | null;
+
+    let textToSet = toolState.inputText;
+    let algoToSet = toolState.algorithm;
+    let filenameToSet = toolState.lastLoadedFilename;
+    let needsUpdate = false;
+
     if (textFromUrl !== null && textFromUrl !== toolState.inputText) {
-      updates.inputText = textFromUrl;
-      updates.lastLoadedFilename = null;
-      setCurrentOutputFilename(null);
+      textToSet = textFromUrl;
+      filenameToSet = null;
+      needsUpdate = true;
     }
 
-    const algoFromUrl = params.get('algorithm') as HashAlgorithm | null;
     if (
       algoFromUrl &&
       algorithmOptions.some((opt) => opt.value === algoFromUrl) &&
       algoFromUrl !== toolState.algorithm
     ) {
-      updates.algorithm = algoFromUrl;
-      setCurrentOutputFilename(null);
+      algoToSet = algoFromUrl;
+      needsUpdate = true;
     }
 
-    if (Object.keys(updates).length > 0) {
-      updates.outputValue = '';
-      updates.errorMsg = '';
-      setToolState(updates);
-
-      if (updates.inputText?.trim()) {
-        handleGenerateHashInternal(
-          updates.inputText,
-          updates.algorithm || toolState.algorithm
-        );
-      }
-    } else if (
-      toolState.inputText.trim() &&
-      !toolState.outputValue &&
-      !toolState.errorMsg &&
-      !isProcessing
-    ) {
-      handleGenerateHashInternal(toolState.inputText, toolState.algorithm);
+    if (needsUpdate) {
+      setToolState({
+        inputText: textToSet,
+        algorithm: algoToSet,
+        lastLoadedFilename: filenameToSet,
+        outputValue: '',
+        errorMsg: '',
+      });
     }
   }, [
     isLoadingToolState,
     urlStateParams,
-    toolState.inputText,
-    toolState.algorithm,
-    toolState.outputValue,
-    toolState.errorMsg,
+    toolState,
     setToolState,
     algorithmOptions,
-    handleGenerateHashInternal,
-    isProcessing,
-    debouncedGenerateHash,
   ]);
 
   useEffect(() => {
-    if (isLoadingToolState || !initialToolStateLoadCompleteRef.current) {
+    if (
+      isLoadingToolState ||
+      !initialToolStateLoadCompleteRef.current ||
+      isProcessing
+    ) {
       return;
     }
 
-    if (!toolState.inputText.trim()) {
-      if (toolState.outputValue !== '' || toolState.errorMsg !== '') {
-        setToolState({ outputValue: '', errorMsg: '' });
-      }
-      if (currentOutputFilename !== null) {
-        setCurrentOutputFilename(null);
-      }
-      debouncedGenerateHash.cancel();
-      return;
-    }
-
-    if (!isProcessing) {
-      debouncedGenerateHash(toolState.inputText, toolState.algorithm);
-    }
+    debouncedGenerateHash(toolState.inputText, toolState.algorithm);
   }, [
     toolState.inputText,
     toolState.algorithm,
     isLoadingToolState,
     debouncedGenerateHash,
-    setToolState,
-    toolState.outputValue,
-    toolState.errorMsg,
-    currentOutputFilename,
     isProcessing,
   ]);
 
@@ -496,12 +374,11 @@ export default function HashGeneratorClient({
     setToolState({
       inputText: event.target.value,
       lastLoadedFilename: null,
-      outputValue: '',
-      errorMsg: '',
     });
     setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
+    setDownloadSuccess(false);
   };
 
   const handleAlgorithmChange = (
@@ -509,23 +386,27 @@ export default function HashGeneratorClient({
   ) => {
     setToolState({
       algorithm: event.target.value as HashAlgorithm,
-      outputValue: '',
-      errorMsg: '',
     });
     setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
+    setDownloadSuccess(false);
   };
 
   const handleClear = useCallback(async () => {
-    await clearStateAndPersist();
+    const newState: HashGeneratorToolState = {
+      ...DEFAULT_HASH_TOOL_STATE,
+      algorithm: toolState.algorithm,
+    };
+    setToolState(newState);
+    saveStateNow(newState);
     setIsProcessing(false);
     setCurrentOutputFilename(null);
     setCopySuccess(false);
     setSaveSuccess(false);
+    setDownloadSuccess(false);
     debouncedGenerateHash.cancel();
-    setUserDeferredAutoPopup(false);
-  }, [clearStateAndPersist, debouncedGenerateHash]);
+  }, [saveStateNow, toolState.algorithm, setToolState, debouncedGenerateHash]);
 
   const handleFileSelectedFromModal = useCallback(
     async (files: StoredFile[]) => {
@@ -546,63 +427,57 @@ export default function HashGeneratorClient({
         file.type === 'application/octet-stream' ||
         file.name.endsWith('.txt')
       ) {
-        setIsProcessing(true);
         try {
           const text = await file.blob.text();
           setToolState({
             inputText: text,
             lastLoadedFilename: file.name,
-            outputValue: '',
-            errorMsg: '',
-            algorithm: toolState.algorithm,
           });
-          setCurrentOutputFilename(generateOutputFilenameForAction());
-          setUserDeferredAutoPopup(false);
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
-          setToolState({
+          setToolState((prev) => ({
+            ...prev,
             inputText: '',
             lastLoadedFilename: null,
             outputValue: '',
             errorMsg: `Error reading file "${file.name}": ${msg}. Ensure it's text-based.`,
-            algorithm: toolState.algorithm,
-          });
+          }));
           setCurrentOutputFilename(null);
-        } finally {
         }
       } else {
         setToolState((prev) => ({
           ...prev,
-          errorMsg: `File type "${file.type}" may not be suitable. Please select a text-based file.`,
+          errorMsg: `File type "${file.type}" may not be suitable for text-based hashing. Please select a text-based file or ensure content is appropriate.`,
         }));
         setCurrentOutputFilename(null);
       }
     },
-    [setToolState, toolState.algorithm, generateOutputFilenameForAction]
+    [
+      setToolState /*, toolState.algorithm, generateOutputFilenameForAction removed -> deferred */,
+    ]
   );
 
   const handleFilenameConfirm = useCallback(
-    async (chosenFilename: string) => {
-      const action = filenameActionType;
+    (filename: string, actionOverride?: 'download' | 'save') => {
       setIsFilenameModalOpen(false);
-      setFilenameActionType(null);
+      const currentAction = actionOverride || filenameAction;
+      setFilenameAction(null);
 
-      if (!action || !toolState.outputValue) return;
+      if (!currentAction || !toolState.outputValue) {
+        setToolState((prev) => ({
+          ...prev,
+          errorMsg: prev.errorMsg || 'No output to process.',
+        }));
+        return;
+      }
 
-      let finalFilename = chosenFilename.trim();
+      let finalFilename = filename.trim();
       if (!finalFilename) finalFilename = generateOutputFilenameForAction();
       if (!/\.txt$/i.test(finalFilename)) finalFilename += '.txt';
 
       setCurrentOutputFilename(finalFilename);
 
-      if (action === 'download') {
-        if (!toolState.outputValue) {
-          setToolState((prev) => ({
-            ...prev,
-            errorMsg: 'No output to download.',
-          }));
-          return;
-        }
+      if (currentAction === 'download') {
         try {
           const blob = new Blob([toolState.outputValue], {
             type: 'text/plain;charset=utf-8',
@@ -613,60 +488,82 @@ export default function HashGeneratorClient({
           link.download = finalFilename;
           document.body.appendChild(link);
           link.click();
+          setDownloadSuccess(true);
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
           setToolState((prev) => ({ ...prev, errorMsg: '' }));
+          setTimeout(() => setDownloadSuccess(false), 2000);
         } catch (_err) {
           setToolState((prev) => ({
             ...prev,
             errorMsg: 'Failed to prepare download.',
           }));
         }
-      } else if (action === 'save') {
-        if (!toolState.outputValue) {
-          setToolState((prev) => ({ ...prev, errorMsg: 'No output to save.' }));
-          return;
-        }
+      } else if (currentAction === 'save') {
         const blob = new Blob([toolState.outputValue], {
           type: 'text/plain;charset=utf-8',
         });
-        try {
-          await addFileToLibrary(blob, finalFilename, 'text/plain', false);
-          setSaveSuccess(true);
-          setToolState((prev) => ({ ...prev, errorMsg: '' }));
-          setTimeout(() => setSaveSuccess(false), 2000);
-        } catch (_err) {
-          setToolState((prev) => ({
-            ...prev,
-            errorMsg: 'Failed to save to library.',
-          }));
-        }
+        addFileToLibrary(blob, finalFilename, 'text/plain', false)
+          .then(() => {
+            setSaveSuccess(true);
+            setToolState((prev) => ({ ...prev, errorMsg: '' }));
+            setTimeout(() => setSaveSuccess(false), 2000);
+          })
+          .catch((_err) =>
+            setToolState((prev) => ({
+              ...prev,
+              errorMsg: 'Failed to save to library.',
+            }))
+          );
       }
     },
     [
-      filenameActionType,
+      filenameAction,
       toolState.outputValue,
-      generateOutputFilenameForAction,
-      addFileToLibrary,
       setToolState,
+      addFileToLibrary,
+      generateOutputFilenameForAction,
     ]
   );
 
-  const initiateOutputActionWithPrompt = (action: 'download' | 'save') => {
-    if (!toolState.outputValue.trim() || toolState.errorMsg) {
-      setToolState((prev) => ({
-        ...prev,
-        errorMsg: prev.errorMsg || 'No valid output to ' + action + '.',
-      }));
-      return;
-    }
+  const initiateOutputAction = useCallback(
+    (action: 'download' | 'save') => {
+      if (!toolState.outputValue.trim()) {
+        setToolState((prev) => ({
+          ...prev,
+          errorMsg: prev.errorMsg || 'No output to ' + action + '.',
+        }));
+        return;
+      }
+      if (toolState.errorMsg && toolState.outputValue.trim()) {
+        if (!toolState.errorMsg.toLowerCase().includes('output')) {
+          setToolState((prev) => ({
+            ...prev,
+            errorMsg:
+              'Cannot ' + action + ' output due to existing input errors.',
+          }));
+        }
+        return;
+      }
+      setToolState((prev) => ({ ...prev, errorMsg: '' }));
 
-    const suggestedName =
-      currentOutputFilename || generateOutputFilenameForAction();
-    setSuggestedFilenameForPrompt(suggestedName);
-    setFilenameActionType(action);
-    setIsFilenameModalOpen(true);
-  };
+      if (currentOutputFilename) {
+        handleFilenameConfirm(currentOutputFilename, action);
+      } else {
+        setSuggestedFilenameForPrompt(generateOutputFilenameForAction());
+        setFilenameAction(action);
+        setIsFilenameModalOpen(true);
+      }
+    },
+    [
+      currentOutputFilename,
+      handleFilenameConfirm,
+      toolState.errorMsg,
+      toolState.outputValue,
+      setToolState,
+      generateOutputFilenameForAction,
+    ]
+  );
 
   const handleCopyToClipboard = useCallback(async () => {
     if (!toolState.outputValue) {
@@ -676,7 +573,12 @@ export default function HashGeneratorClient({
     try {
       await navigator.clipboard.writeText(toolState.outputValue);
       setCopySuccess(true);
-      setToolState((prev) => ({ ...prev, errorMsg: '' }));
+      if (
+        toolState.errorMsg &&
+        !toolState.errorMsg.toLowerCase().includes('output')
+      ) {
+        setToolState((prev) => ({ ...prev, errorMsg: '' }));
+      }
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (_err) {
       setToolState((prev) => ({
@@ -684,7 +586,7 @@ export default function HashGeneratorClient({
         errorMsg: 'Failed to copy to clipboard.',
       }));
     }
-  }, [toolState.outputValue, setToolState]);
+  }, [toolState, setToolState]);
 
   const handleModalDeferAll = () => {
     setUserDeferredAutoPopup(true);
@@ -706,11 +608,7 @@ export default function HashGeneratorClient({
       setUserDeferredAutoPopup(false);
   };
 
-  if (
-    isLoadingToolState &&
-    !initialToolStateLoadCompleteRef.current &&
-    !initialUrlLoadProcessedRef.current
-  ) {
+  if (isLoadingToolState && !initialToolStateLoadCompleteRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Hash Generator...
@@ -722,92 +620,102 @@ export default function HashGeneratorClient({
 
   return (
     <div className="space-y-6 text-[rgb(var(--color-text-base))]">
-      <div className="flex justify-between items-center gap-2">
-        <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-          Input Text:
-          {toolState.lastLoadedFilename && (
-            <span className="ml-2 text-xs italic">
-              ({toolState.lastLoadedFilename})
-            </span>
-          )}
-        </label>
-        <div className="flex items-center gap-2">
-          <ReceiveItdeDataTrigger
-            hasDeferredSignals={
-              itdeTarget.pendingSignals.length > 0 &&
-              userDeferredAutoPopup &&
-              !itdeTarget.isModalOpen
-            }
-            pendingSignalCount={itdeTarget.pendingSignals.length}
-            onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
-          />
-          <Button
-            variant="neutral-outline"
-            size="sm"
-            onClick={() => setIsLoadFileModalOpen(true)}
-            iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-            disabled={isProcessing}
-          >
-            Load from File
-          </Button>
-        </div>
-      </div>
-      <Textarea
-        id="text-input"
-        rows={8}
-        value={toolState.inputText}
-        onChange={handleInputChange}
-        placeholder="Enter text to hash or load from a file..."
-        textareaClassName="text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
-        spellCheck="false"
-        disabled={isProcessing}
-      />
-      <div className="flex flex-wrap gap-4 items-center border border-[rgb(var(--color-border-base))] p-3 rounded-md bg-[rgb(var(--color-bg-subtle))]">
-        <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+      <div>
+        {' '}
+        {/* Added wrapper for label + textarea */}
+        <div className="flex justify-between items-center gap-2 mb-1">
+          {' '}
+          {/* Moved label here, mb-1 */}
           <label
-            htmlFor="algorithm-select"
-            className="text-sm font-medium text-[rgb(var(--color-text-muted))] whitespace-nowrap"
+            htmlFor="text-input-hash-gen"
+            className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
           >
-            Algorithm:
+            Input Text:
+            {toolState.lastLoadedFilename && (
+              <span className="ml-2 text-xs italic">
+                ({toolState.lastLoadedFilename})
+              </span>
+            )}
           </label>
-          <Select
-            id="algorithm-select"
-            name="algorithm"
-            options={algorithmOptions}
-            value={toolState.algorithm}
-            onChange={handleAlgorithmChange}
-            selectClassName="text-sm py-1.5 pl-2 pr-8 min-w-[120px]"
-            disabled={isProcessing}
-          />
+          <div className="flex items-center gap-2">
+            <ReceiveItdeDataTrigger
+              hasDeferredSignals={
+                itdeTarget.pendingSignals.length > 0 &&
+                userDeferredAutoPopup &&
+                !itdeTarget.isModalOpen
+              }
+              pendingSignalCount={itdeTarget.pendingSignals.length}
+              onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+            />
+            <Button
+              variant="neutral-outline"
+              size="sm"
+              onClick={() => setIsLoadFileModalOpen(true)}
+              iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}
+              disabled={isProcessing}
+            >
+              Load from File
+            </Button>
+          </div>
         </div>
-        <div className="flex-grow"></div>
-        <Button
-          variant="neutral"
-          onClick={handleClear}
+        <Textarea
+          id="text-input-hash-gen"
+          label="Input text to hash"
+          labelClassName="sr-only"
+          rows={8}
+          value={toolState.inputText}
+          onChange={handleInputChange}
+          placeholder="Enter text to hash or load from a file..."
+          textareaClassName="text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
+          spellCheck="false"
           disabled={isProcessing}
-          className="ml-auto"
-        >
-          Clear
-        </Button>
+        />
       </div>
-      <OutputActionButtons
-        canPerform={canPerformOutputActions}
-        isSaveSuccess={saveSuccess}
-        isCopySuccess={copySuccess}
-        onInitiateSave={() => initiateOutputActionWithPrompt('save')}
-        onInitiateDownload={() => initiateOutputActionWithPrompt('download')}
-        onCopy={handleCopyToClipboard}
-        directiveName={directiveName}
-        outputConfig={metadata.outputConfig}
-        isProcessing={isProcessing}
-      />
-      {toolState.algorithm === 'MD5' && (
-        <p className="text-xs text-[rgb(var(--color-text-muted))] italic text-center border border-dashed border-[rgb(var(--color-border-base))] p-2 rounded-md">
-          Note: MD5 is useful for checksums but is not considered secure for
-          cryptographic purposes like password storage due to known
-          vulnerabilities.
-        </p>
-      )}
+      <div className="flex flex-col border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
+        <div className="flex flex-wrap gap-4 items-center p-3">
+          <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+            <label
+              htmlFor="algorithm-select"
+              className="text-sm font-medium text-[rgb(var(--color-text-muted))] whitespace-nowrap"
+            >
+              Algorithm:
+            </label>
+            <Select
+              id="algorithm-select"
+              name="algorithm"
+              options={algorithmOptions}
+              value={toolState.algorithm}
+              onChange={handleAlgorithmChange}
+              selectClassName="text-sm py-1.5 pl-2 pr-8 min-w-[120px]"
+              disabled={isProcessing}
+            />
+          </div>
+          <div className="flex-grow"></div> {/* Spacer */}
+          <div className="flex flex-wrap gap-3 items-center sm:ml-auto">
+            {' '}
+            {/* Actions group */}
+            <OutputActionButtons
+              canPerform={canPerformOutputActions}
+              isSaveSuccess={saveSuccess}
+              isCopySuccess={copySuccess}
+              isDownloadSuccess={downloadSuccess}
+              onInitiateSave={() => initiateOutputAction('save')}
+              onInitiateDownload={() => initiateOutputAction('download')}
+              onCopy={handleCopyToClipboard}
+              onClear={handleClear}
+              directiveName={directiveName}
+              outputConfig={metadata.outputConfig}
+            />
+          </div>
+        </div>
+        {toolState.algorithm === 'MD5' && (
+          <div className="p-3 text-xs text-[rgb(var(--color-text-muted))] italic flex justify-center">
+            <b>Note</b>: MD5 is useful for checksums but is not considered
+            secure for cryptographic purposes like password storage due to known
+            vulnerabilities.
+          </div>
+        )}
+      </div>
       {toolState.errorMsg && (
         <div
           role="alert"
@@ -823,16 +731,18 @@ export default function HashGeneratorClient({
           </div>
         </div>
       )}
-      {(toolState.outputValue || isProcessing) && (
+      {(toolState.outputValue || (isProcessing && !toolState.errorMsg)) && (
         <div>
           <label
-            htmlFor="text-output"
+            htmlFor="text-output-hash-gen"
             className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"
           >
             Hash Output ({toolState.algorithm}):
           </label>
           <Textarea
-            id="text-output"
+            id="text-output-hash-gen"
+            label={`Hash Output (${toolState.algorithm})`}
+            labelClassName="sr-only"
             rows={3}
             value={
               isProcessing && !toolState.outputValue && !toolState.errorMsg
@@ -851,6 +761,7 @@ export default function HashGeneratorClient({
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}
         onFilesSelected={handleFileSelectedFromModal}
+        slurpContentOnly={true}
         mode="selectExistingOrUploadNew"
         accept=".txt,text/*,application/octet-stream"
         selectionMode="single"
@@ -861,22 +772,23 @@ export default function HashGeneratorClient({
         isOpen={isFilenameModalOpen}
         onClose={() => {
           setIsFilenameModalOpen(false);
-          setFilenameActionType(null);
+          setFilenameAction(null);
         }}
         onConfirm={handleFilenameConfirm}
         initialFilename={suggestedFilenameForPrompt}
         title={
-          filenameActionType === 'download'
+          filenameAction === 'download'
             ? 'Enter Download Filename'
             : 'Enter Filename for Library'
         }
+        filenameAction={filenameAction || 'download'}
         promptMessage={
-          filenameActionType === 'download'
+          filenameAction === 'download'
             ? 'Filename for download:'
             : 'Filename for library:'
         }
         confirmButtonText={
-          filenameActionType === 'download' ? 'Download' : 'Save to Library'
+          filenameAction === 'download' ? 'Download' : 'Save to Library'
         }
       />
       <IncomingDataModal

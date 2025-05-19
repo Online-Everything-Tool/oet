@@ -388,7 +388,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
         clearProcessingHookOutput();
         setManualSaveSuccess(false);
-        setUserDeferredAutoPopup(false);
 
         const destatedIds = [oldSelectedId, oldProcessedId].filter(
           (id): id is string => !!(id && id !== newSelectedId)
@@ -492,7 +491,6 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     setUiError(null);
     setWasLastProcessedOutputPermanent(false);
     setManualSaveSuccess(false);
-    setUserDeferredAutoPopup(false);
 
     const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter(
       (id): id is string => !!id

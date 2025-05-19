@@ -1,9 +1,9 @@
 // FILE: app/tool/file-storage/page.tsx
 import React from 'react';
-import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings';
+import ToolHeader from '../../_components/ToolHeader';
+import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
-import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
+import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import FileStorageClient from './_components/FileStorageClient';
 
 export default function FileStoragePage() {
@@ -11,7 +11,7 @@ export default function FileStoragePage() {
   const toolRoute = '/tool/file-storage';
 
   return (
-    <div className="relative flex flex-col gap-6">
+    <div className="relative flex flex-col gap-4">
       {/* Add ToolSettings component */}
       <ToolSettings toolRoute={toolRoute} />
 

@@ -3,8 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import HtmlEntityExplorerClient from './_components/HtmlEntityExplorerClient';
 import { v4 as uuidv4 } from 'uuid';
-import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings';
+import ToolHeader from '../../_components/ToolHeader';
+import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
 
 interface RawEntityItem {
@@ -148,7 +148,7 @@ export default async function HtmlEntityPage() {
   }
 
   return (
-    <div className="relative flex flex-col gap-6">
+    <div className="relative flex flex-col gap-4">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />

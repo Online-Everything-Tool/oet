@@ -257,7 +257,7 @@ export default function PasswordGeneratorClient({
             onChange={() => {}}
           />
           <Button
-            variant={isCopied ? 'secondary' : 'neutral'}
+            variant="accent2"
             onClick={handleCopy}
             disabled={!generatedPassword.trim() || isCopied}
             iconLeft={
@@ -270,7 +270,7 @@ export default function PasswordGeneratorClient({
             title={isCopied ? 'Copied!' : 'Copy to clipboard'}
             aria-label="Copy password to clipboard"
           >
-            {isCopied ? 'Copied!' : 'Copy'}
+            Copy
           </Button>
         </div>
         {uiError && (

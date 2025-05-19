@@ -69,9 +69,6 @@ export async function GET(_request: Request) {
         model.supportedGenerationMethods &&
         model.supportedGenerationMethods.includes('generateContent')
       ) {
-        console.log(
-          `[API /list-models] Found compatible model: ${model.displayName} (${model.name})`
-        );
         availableModels.push({
           name: model.name,
           displayName: model.displayName || model.name,

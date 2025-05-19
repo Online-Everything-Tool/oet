@@ -22,7 +22,6 @@ import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type { ParamConfig } from '@/src/types/tools';
 import {
   ArrowPathIcon,
-  TrashIcon,
   EyeIcon,
   EyeSlashIcon,
   ClipboardDocumentIcon,
@@ -30,6 +29,7 @@ import {
   ExclamationTriangleIcon,
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 const ECPair = ECPairFactory(tinysecp);
 type WalletType = 'ethereum' | 'bitcoin' | 'solana';
@@ -395,16 +395,16 @@ export default function CryptoWalletGeneratorClient({
             }
             className="w-full sm:w-auto"
           >
-            Generate New Wallet
+            Generate Wallet
           </Button>
           <Button
             variant="neutral"
             onClick={handleClearAllWallets}
             disabled={generating || generatedWallets.length === 0}
-            iconLeft={<TrashIcon className="h-5 w-5" />}
+            iconLeft={<XCircleIcon className="h-5 w-5" />}
             className="w-full sm:w-auto"
           >
-            Clear All ({generatedWallets.length})
+            Clear ({generatedWallets.length})
           </Button>
         </div>
       </div>
@@ -434,9 +434,8 @@ export default function CryptoWalletGeneratorClient({
             </h2>
             <Button
               variant="secondary"
-              size="sm"
               onClick={handleInitiateDownload}
-              iconLeft={<ArrowDownTrayIcon className="h-4 w-4" />}
+              iconLeft={<ArrowDownTrayIcon className="h-5 w-5" />}
               disabled={generating || generatedWallets.length === 0}
               title="Download all displayed wallet details as a single JSON file"
             >
@@ -490,7 +489,7 @@ export default function CryptoWalletGeneratorClient({
                     className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 text-[rgb(var(--color-input-text))] ring-1 ring-inset ring-[rgb(var(--color-input-border))] focus:ring-2 focus:ring-inset focus:ring-[rgb(var(--color-input-focus-border))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
                   />
                   <Button
-                    variant={isPublicKeyCopied ? 'secondary' : 'neutral'}
+                    variant="accent2"
                     onClick={() =>
                       copyToClipboard(wallet.publicKey, 'Address', wallet.id)
                     }
@@ -504,9 +503,7 @@ export default function CryptoWalletGeneratorClient({
                     }
                     title={isPublicKeyCopied ? 'Copied!' : 'Copy Address'}
                   >
-                    <span className="sr-only">
-                      {isPublicKeyCopied ? 'Copied Address' : 'Copy Address'}
-                    </span>
+                    Copy
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))]">
@@ -550,7 +547,7 @@ export default function CryptoWalletGeneratorClient({
                     </span>
                   </Button>
                   <Button
-                    variant={isPrivateKeyCopied ? 'secondary' : 'neutral'}
+                    variant="accent2"
                     onClick={() =>
                       copyToClipboard(
                         wallet.privateKey,
@@ -558,7 +555,7 @@ export default function CryptoWalletGeneratorClient({
                         wallet.id
                       )
                     }
-                    className="rounded-r-md !py-1.5 px-3 border-l-0"
+                    className="rounded-l-none rounded-r-md !py-1.5 px-3 border-l-0"
                     iconLeft={
                       isPrivateKeyCopied ? (
                         <CheckIcon className="h-4 w-4" />
@@ -568,11 +565,7 @@ export default function CryptoWalletGeneratorClient({
                     }
                     title={isPrivateKeyCopied ? 'Copied!' : 'Copy Private Key'}
                   >
-                    <span className="sr-only">
-                      {isPrivateKeyCopied
-                        ? 'Copied Private Key'
-                        : 'Copy Private Key'}
-                    </span>
+                    Copy
                   </Button>
                 </div>
                 {wallet.privateKeyFormatNote && (

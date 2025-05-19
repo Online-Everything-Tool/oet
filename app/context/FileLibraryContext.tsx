@@ -13,7 +13,7 @@ import { getDbInstance } from '../lib/db';
 import type { StoredFile } from '@/src/types/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { useMetadata } from './MetadataContext';
-import { useImageThumbnailer } from '../lib/hooks/useImageThumbnailer';
+import { useImageThumbnailer } from '../tool/_hooks/useImageThumbnailer';
 
 import type {
   ToolMetadata,
@@ -453,9 +453,11 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
           try {
             const stateJson = await toolStateFile.blob.text();
 
-            // prettier-ignore
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const toolCurrentState = JSON.parse(stateJson) as Record<string, any>;
+            const toolCurrentState = JSON.parse(stateJson) as Record<
+              string,
+              any
+            >;
 
             if (
               metadataForTool.inputConfig?.stateFiles &&

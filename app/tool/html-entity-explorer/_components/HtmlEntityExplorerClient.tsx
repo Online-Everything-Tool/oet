@@ -12,6 +12,7 @@ import {
   XMarkIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface HtmlEntityToolState {
   searchTerm: string;
@@ -162,32 +163,30 @@ export default function HtmlEntityExplorerClient({
               </h3>
               <Button
                 variant="link"
-                size="sm"
                 onClick={handleClearRecents}
                 title="Clear recently copied"
                 className="!p-0.5"
               >
-                <XMarkIcon className="h-4 w-4 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-error))]" />
+                <XMarkIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-error))]" />
               </Button>
             </div>
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-2">
               {toolState.recentlyCopiedEntities.map((entity) => (
                 <Button
                   key={entity.id}
                   variant="neutral-outline"
-                  size="sm"
                   onClick={() =>
                     handleCopy(entity.char, 'char', entity, 'recent')
                   }
                   title={`Copy ${entity.char} (${entity.name})`}
-                  className="!px-2 !py-1 !text-lg font-serif leading-none"
+                  className="font-serif leading-none"
                   aria-label={`Copy character ${entity.name}`}
                 >
                   {lastCopiedInfo?.id === entity.id &&
                   lastCopiedInfo?.type === 'char' ? (
-                    <CheckIcon className="h-4 w-4 text-green-500" />
+                    <CheckIcon className="h-5 w-5 text-green-500" />
                   ) : (
-                    entity.char
+                    <p className="h-5 w-5 text-lg">{entity.char}</p>
                   )}
                 </Button>
               ))}
@@ -218,12 +217,12 @@ export default function HtmlEntityExplorerClient({
         </div>
         {(toolState.searchTerm || toolState.selectedCategory) && (
           <Button
-            variant="neutral-outline"
-            size="sm"
+            variant="neutral"
             onClick={handleClearFilters}
             className="!py-3"
+            iconLeft={<XCircleIcon className="h-5 w-5" />}
           >
-            Clear Filters
+            Clear
           </Button>
         )}
       </div>
@@ -277,7 +276,7 @@ export default function HtmlEntityExplorerClient({
               className="p-3 border border-[rgb(var(--color-border-base))] rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] flex flex-col items-center justify-between space-y-2 min-h-[150px]"
             >
               <Button
-                variant="secondary"
+                variant="secondary-outline"
                 onClick={() => handleCopy(entity.char, 'char', entity)}
                 title={`Copy Character: ${entity.char.trim() === '' ? '(space)' : entity.char}`}
                 className="text-4xl font-serif !px-3 !py-1 min-w-[50px] min-h-[50px] flex items-center justify-center"
@@ -285,7 +284,7 @@ export default function HtmlEntityExplorerClient({
               >
                 {lastCopiedInfo?.id === entity.id &&
                 lastCopiedInfo?.type === 'char' ? (
-                  <CheckIcon className="h-8 w-8 text-white" />
+                  <CheckIcon className="h-8 w-8" />
                 ) : (
                   entity.char
                 )}
@@ -302,15 +301,14 @@ export default function HtmlEntityExplorerClient({
                     entity.name !== entity.code &&
                     entity.name.startsWith('&') && (
                       <Button
-                        size="sm"
                         variant="primary-outline"
                         onClick={() => handleCopy(entity.name, 'name', entity)}
                         title={`Copy Name: ${entity.name}`}
-                        className="!px-1.5 !py-0.5 !text-[10px] font-mono"
+                        className="!px-1.5 !py-0.5 !text-[12px] font-mono"
                       >
                         {lastCopiedInfo?.id === entity.id &&
                         lastCopiedInfo?.type === 'name' ? (
-                          <CheckIcon className="h-3 w-3" />
+                          <CheckIcon className="h-4 w-4" />
                         ) : (
                           entity.name
                         )}
@@ -318,15 +316,14 @@ export default function HtmlEntityExplorerClient({
                     )}
                   {entity.code && (
                     <Button
-                      size="sm"
                       variant="accent-outline"
                       onClick={() => handleCopy(entity.code, 'code', entity)}
                       title={`Copy Code: ${entity.code}`}
-                      className="!px-1.5 !py-0.5 !text-[10px] font-mono"
+                      className="!px-1.5 !py-0.5 !text-[12px] font-mono"
                     >
                       {lastCopiedInfo?.id === entity.id &&
                       lastCopiedInfo?.type === 'code' ? (
-                        <CheckIcon className="h-3 w-3" />
+                        <CheckIcon className="h-4 w-4" />
                       ) : (
                         entity.code
                       )}

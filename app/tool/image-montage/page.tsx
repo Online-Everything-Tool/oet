@@ -1,9 +1,9 @@
 // FILE: app/tool/image-montage/page.tsx
 import React from 'react';
-import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings';
+import ToolHeader from '../../_components/ToolHeader';
+import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
-import ToolSuspenseWrapper from '../_components/ToolSuspenseWrapper';
+import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import ImageMontageClient from './_components/ImageMontageClient';
 
 export default function ImageMontagePage() {
@@ -11,7 +11,7 @@ export default function ImageMontagePage() {
   const toolRoute = '/tool/image-montage';
 
   return (
-    <div className="relative flex flex-col gap-6">
+    <div className="relative flex flex-col gap-4">
       {/* Render ToolSettings */}
       <ToolSettings toolRoute={toolRoute} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />

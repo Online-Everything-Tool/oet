@@ -202,7 +202,6 @@ export default function ImageMontageClient({
       setChoiceModalToolTitle(null);
       setItdeActionChoiceModalOpen(false);
       setIncomingItdeFiles(null);
-      setUserDeferredAutoPopup(false);
     },
     [
       addStoredFiles,
@@ -387,7 +386,6 @@ export default function ImageMontageClient({
           addStoredFiles(imageFiles);
           setUiError(null);
           setManualSaveSuccessFeedback(false);
-          setUserDeferredAutoPopup(false);
         } else if (files.length > 0) {
           setUiError('No valid image files selected.');
         }
@@ -402,7 +400,6 @@ export default function ImageMontageClient({
     await clearMontage();
     setUiError(null);
     setManualSaveSuccessFeedback(false);
-    setUserDeferredAutoPopup(false);
     const idsToCleanup = [...oldImageIds];
     if (oldProcessedId) idsToCleanup.push(oldProcessedId);
     if (idsToCleanup.length > 0) {

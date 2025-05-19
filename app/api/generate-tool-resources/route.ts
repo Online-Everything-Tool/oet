@@ -31,50 +31,48 @@ interface GeminiGenerationResponse {
   identifiedDependencies: LibraryDependency[] | null;
 }
 
-const DEFAULT_MODEL_NAME = 'gemini-1.5-flash-latest';
+const DEFAULT_MODEL_NAME =
+  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 const CORE_CONTEXT_FILES = [
   'package.json',
   'tsconfig.json',
+  'app/page.tsx',
   'app/layout.tsx',
   'app/globals.css',
 
   'src/types/tools.ts',
   'src/types/storage.ts',
 
+  'app/lib/db.ts',
+  'app/lib/itdeDataUtils.ts',
+  'app/lib/sessionStorageUtils.ts',
+  'app/lib/utils.ts',
+
+  'app/context/FileLibraryContext.tsx',
+  'app/context/MetadataContext.tsx',
+
+  'app/tool/_hooks/useImageProcessing.ts',
+  'app/tool/_hooks/useItdeDiscovery.ts',
+  'app/tool/_hooks/useItdeTargetHandler.ts',
   'app/tool/_hooks/useToolState.ts',
   'app/tool/_hooks/useToolUrlState.ts',
-  'app/tool/_hooks/useImageProcessing.ts',
 
   'app/tool/_components/form/Button.tsx',
   'app/tool/_components/form/Checkbox.tsx',
   'app/tool/_components/form/Input.tsx',
   'app/tool/_components/form/RadioGroup.tsx',
+  'app/tool/_components/form/Range.tsx',
   'app/tool/_components/form/Select.tsx',
   'app/tool/_components/form/Textarea.tsx',
-  'app/tool/_components/form/Range.tsx',
-  'app/tool/_components/file-storage/FileSelectionModal.tsx',
+
   'app/tool/_components/shared/FilenamePromptModal.tsx',
-
-  'app/context/FileLibraryContext.tsx',
-  'app/context/ImageLibraryContext.tsx',
-  'app/context/MetadataContext.tsx',
-
-  'app/lib/itdeSignalStorageUtils.ts',
-  'app/tool/_hooks/useItdeDiscovery.ts',
-  'app/tool/_hooks/useItdeTargetHandler.ts',
-
-  'app/tool/_components/shared/SendToToolButton.tsx',
+  'app/tool/_components/shared/FileSelectionModal.tsx',
   'app/tool/_components/shared/IncomingDataModal.tsx',
+  'app/tool/_components/shared/ItdeAcceptChoiceModal.tsx',
   'app/tool/_components/shared/ReceiveItdeDataTrigger.tsx',
-
-  'app/lib/utils.ts',
-  'app/lib/colorUtils.ts',
-  'app/lib/db.ts',
-
-  'src/constants/charset.ts',
-  'src/constants/text.ts',
+  'app/tool/_components/shared/SendToToolButton.tsx',
 ];
 
 function toPascalCase(kebabCase: string): string {
@@ -151,6 +149,23 @@ async function getExampleFileContent(
   return results;
 }
 
+async function readPromptFile(filename: string): Promise<string> {
+  try {
+    const filePath = path.join(
+      process.cwd(),
+      'app',
+      'api',
+      'generate-tool-resources',
+      '_prompts',
+      filename
+    );
+    return await fs.readFile(filePath, 'utf-8');
+  } catch (error) {
+    console.error(`Error reading prompt file ${filename}:`, error);
+    throw new Error(`Failed to load prompt configuration: ${filename}`);
+  }
+}
+
 export async function POST(req: NextRequest) {
   if (!API_KEY) {
     console.error(
@@ -221,7 +236,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[API generate-tool] Reading core context files...`);
-    let coreContextContent = '\n\n--- Core Project Definitions ---\n';
+    let coreContextContent = '';
     for (const filePath of CORE_CONTEXT_FILES) {
       const fullPath = path.join(process.cwd(), filePath);
       try {
@@ -248,16 +263,15 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-    coreContextContent += '\n--- End Core Project Definitions ---\n';
     console.log(`[API generate-tool] Finished reading core context files.`);
 
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({ model: modelName });
 
     const generationConfig: GenerationConfig = {
-      temperature: 0.7,
-      topK: 40,
-      topP: 0.95,
+      temperature: 0.3,
+      topK: 20,
+      topP: 0.85,
       maxOutputTokens: 8192,
       responseMimeType: 'application/json',
     };
@@ -287,75 +301,56 @@ export async function POST(req: NextRequest) {
     const clientComponentPath = `${toolBasePath}/_components/${componentName}Client.tsx`;
     const metadataPath = `${toolBasePath}/metadata.json`;
 
-    const prompt = `
-You are an expert Next.js developer tasked with generating code for the "Online Everything Tool" project.
+    let taskDefinitionContent = await readPromptFile('00_task_definition.md');
+    const projectStructureRulesContent = await readPromptFile(
+      '01_project_structure_rules.md'
+    );
+    const coreDefsIntroContent = await readPromptFile(
+      '02_core_project_definitions_intro.md'
+    );
+    const examplesIntroContent = await readPromptFile(
+      '03_provided_examples_intro.md'
+    );
+    let generationTaskContent = await readPromptFile(
+      '04_generation_task_template.md'
+    );
+    let outputFormatContent = await readPromptFile(
+      '05_output_format_template.md'
+    );
 
-**Task:** Generate the necessary code resources for a new client-side utility tool.
+    taskDefinitionContent = taskDefinitionContent
+      .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+      .replace(/{{GENERATIVE_DESCRIPTION}}/g, generativeDescription)
+      .replace(/{{ADDITIONAL_DESCRIPTION}}/g, additionalDescription || 'None')
+      .replace(/{{SERVER_COMPONENT_PATH}}/g, serverComponentPath)
+      .replace(/{{CLIENT_COMPONENT_PATH}}/g, clientComponentPath)
+      .replace(/{{METADATA_PATH}}/g, metadataPath)
+      .replace(/{{TOOL_BASE_PATH}}/g, toolBasePath)
+      .replace(/{{COMPONENT_NAME}}/g, componentName);
 
-**Target Tool Directive:** ${toolDirective}
-**AI Generated Description:** ${generativeDescription}
-**User Provided Refinements:** ${additionalDescription || 'None'}
+    generationTaskContent = generationTaskContent
+      .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+      .replace(/{{SERVER_COMPONENT_PATH}}/g, serverComponentPath)
+      .replace(/{{CLIENT_COMPONENT_PATH}}/g, clientComponentPath)
+      .replace(/{{METADATA_PATH}}/g, metadataPath)
+      .replace(/{{TOOL_BASE_PATH}}/g, toolBasePath)
+      .replace(/{{COMPONENT_NAME}}/g, componentName);
 
-**Project Structure & Rules:**
-1.  **Client-Side Focus:** Core tool logic MUST execute entirely in the user's browser. No backend needed for the main functionality unless explicitly stated otherwise (rare).
-2.  **Core File Structure:** Each tool lives in \`app/tool/<directive>/\` and typically requires THREE core files:
-    *   \`${serverComponentPath}\`: Standard React Server Component wrapper. Imports metadata, ToolHeader, ToolSuspenseWrapper, and the main client component. Renders these, passing necessary props. Follow patterns from examples.
-    *   \`${clientComponentPath}\`: Main Client Component named \`${componentName}Client.tsx\`. Contains core state (useState), logic (handlers, effects), and UI (HTML).
-    *   \`${metadataPath}\`: Contains tool metadata (title, description, inputConfig, outputConfig etc.). Use the 'ToolMetadata' type definition from \`src/types/tools.ts\`.
-3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
-    *   **Custom Hooks:** For tool-specific complex state logic, side effects, or reusable calculations, create custom hooks in \`${toolBasePath}/_hooks/<hookName>.ts\`.
-    *   **Sub-Components:** For complex UI sections, break them into smaller, focused presentational components in \`${toolBasePath}/_components/<SubComponentName>.tsx\`.
-4.  **UI:** Use standard HTML elements. Style with Tailwind CSS using project's CSS variables from \`app/globals.css\` (e.g., \`rgb(var(--color-text-base))\`). Keep UI clean and functional.
-5.  **State Management:**
-    *   Primary tool state (inputs, outputs that need to persist, user settings for the tool) MUST use the \`useToolState\` hook for persistence in Dexie. Structure the state object logically.
-    *   Simple state that represents a meaningful input, configuration, or result that could be shared between users via a URL link can use the \`useToolUrlState\` hook. Define corresponding \`urlStateParams\` in \`metadata.json\` for such cases. For most other internal tool state and primary input/output references, prefer \`useToolState\`.
-    *   Standard React hooks (useState, useCallback, useEffect, etc.) should be used for local component state.
-6.  **Inter-Tool Data Exchange (ITDE) - CRUCIAL:** New tools should be designed to participate in ITDE where applicable.
-    *   **Metadata Configuration:** The \`metadata.json\` file MUST accurately define its \`inputConfig\` (array) and \`outputConfig\` (object). Refer to \`src/types/tools.ts\`. This is vital for discovery.
-        *   \`inputConfig\` should list MIME types the tool can receive (e.g., "image/*", "text/plain").
-        *   \`outputConfig\` should describe the \`dataType\` (e.g., "fileReference", "text", "none"), any relevant state keys from the tool's \`useToolState\` (like \`processedFileId\` or \`outputText\`) for accessing the output, and the \`fileCategory\` if applicable.
-    *   **Sending Data:** If the tool produces shareable output, its Client Component should implement UI elements (e.g., a "Send To..." button) that allow users to select a compatible target tool. This involves using discovery mechanisms (see \`useItdeDiscovery\` hook pattern in examples) and signaling the target tool (see \`itdeSignalStorageUtils.ts\` patterns in examples).
-    *   **Receiving Data:** If the tool accepts data via ITDE, its Client Component should:
-        *   Employ a handler (see \`useItdeTargetHandler\` hook pattern in examples) to detect incoming signals.
-        *   Provide a UI mechanism (e.g., a modal) for the user to accept or ignore incoming data.
-        *   When data is accepted (e.g., in an \`onProcessSignal\` callback), the tool must fetch the data from the source tool. This involves:
-            1.  Consulting the source tool's \`outputConfig\` (via \`MetadataContext\`).
-            2.  Retrieving the source tool's persisted state (from Dexie, likely using \`FileLibraryContext\` to get the state file by the source's state ID: \`state-<sourceDirective>\`).
-            3.  Extracting the specific output data (e.g., a \`processedFileId\` or \`outputText\` value) from that source state.
-            4.  Setting the current tool's own input state (e.g., using its \`setToolState\` to update a \`selectedFileId\` or input text field) with the received data, and then triggering its own processing logic if appropriate.
-7.  **Shared Components & Hooks:** Utilize the provided shared components (e.g., \`Button\`, \`Input\`, \`FileSelectionModal\`) and hooks (e.g., \`useImageProcessing\`, \`useFileLibrary\`) from the Core Project Definitions where appropriate. Study their usage in the examples.
+    outputFormatContent = outputFormatContent
+      .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+      .replace(/{{COMPONENT_NAME}}/g, componentName);
 
-${coreContextContent}
-
-**Provided Examples:** (Study these carefully for patterns, including state management, ITDE implementation, UI component usage, and decomposition. The examples provide the full source code for each listed example tool.)
-${exampleFileContext}
-
-**Generation Task:**
-Generate the FULL, COMPLETE, and VALID source code for the new tool "${toolDirective}", strictly adhering to all the rules, ITDE patterns, types, hooks, and components demonstrated above and in the examples/core context.
-This includes generating the **three core files** (\`${serverComponentPath}\`, \`${clientComponentPath}\`, \`${metadataPath}\`) AND **any necessary additional custom hook or sub-component files** (in \`${toolBasePath}/_hooks/\` or \`${toolBasePath}/_components/\`) if the tool's complexity warrants decomposition according to Rule #3.
-Ensure the \`metadata.json\` file always includes \`inputConfig\` (as an array) and \`outputConfig\` (as an object), as these are mandatory fields. If a tool does not accept any specific inputs, provide an empty array for \`inputConfig\` (e.g., \`"inputConfig": []\`). If a tool does not have a transferable output, use \`"outputConfig": { "transferableContent": { "dataType": "none" } }\`.
-
-Also, identify any potential *external* npm libraries needed (beyond React, Next.js, and those defined in the core context like Dexie, uuid, etc.).
-
-**Output Format:**
-Return ONLY a valid JSON object adhering EXACTLY to the following structure. Do NOT include any extra text, explanations, or markdown formatting outside the JSON structure itself.
-The \`generatedFiles\` object MUST be a map where keys are the full relative file paths from the project root (e.g., "app/tool/${toolDirective}/page.tsx", "app/tool/${toolDirective}/_components/${componentName}Client.tsx", "app/tool/${toolDirective}/_hooks/useLogic.ts") and values are the complete source code strings for EACH generated file.
-The value for the metadata file (\`app/tool/${toolDirective}/metadata.json\`) MUST be a valid JSON *string*.
-\`\`\`json
-{
-  "message": "<Brief message about generation success or any warnings>",
-  "generatedFiles": {
-    "app/tool/${toolDirective}/page.tsx": "<Full source code for server component wrapper>",
-    "app/tool/${toolDirective}/_components/${componentName}Client.tsx": "<Full source code for main client component>",
-    "app/tool/${toolDirective}/metadata.json": "<JSON STRING for metadata file>"
-  },
-  "identifiedDependencies": [
-    { "packageName": "string", "reason": "string (optional)", "importUsed": "string (optional)" }
-  ]
-}
-\`\`\`
-Ensure the code within "generatedFiles" values is complete and valid source code. Ensure the "metadata" value is a valid JSON *string*. Do not add comments like "// Content for ..." within the generated code strings unless they are actual necessary code comments.
-`;
+    const promptParts = [
+      taskDefinitionContent,
+      projectStructureRulesContent,
+      coreDefsIntroContent,
+      coreContextContent,
+      examplesIntroContent,
+      exampleFileContext,
+      generationTaskContent,
+      outputFormatContent,
+    ];
+    const prompt = promptParts.join('\n\n');
 
     const parts = [{ text: prompt }];
     console.log(
@@ -374,6 +369,7 @@ Ensure the code within "generatedFiles" values is complete and valid source code
     const responseText = result.response.text();
     console.log('--- RAW AI Response Text (generate-tool-resources) ---');
 
+    console.log(responseText);
     console.log(
       `--- END RAW AI Response Text (length: ${responseText.length}) ---`
     );

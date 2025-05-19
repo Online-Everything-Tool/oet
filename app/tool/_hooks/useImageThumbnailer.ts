@@ -1,4 +1,4 @@
-// app/lib/hooks/useImageThumbnailer.ts
+// app/tool/_hooks/useImageThumbnailer.ts
 import { useCallback, useEffect, useRef } from 'react';
 import { getDbInstance } from '@/app/lib/db';
 import type { StoredFile } from '@/src/types/storage';
@@ -45,7 +45,7 @@ export function useImageThumbnailer() {
     if (typeof window !== 'undefined' && !workerRef.current) {
       try {
         const workerInstance = new Worker(
-          new URL('../workers/thumbnail.worker.ts', import.meta.url)
+          new URL('../../lib/workers/thumbnail.worker.ts', import.meta.url)
         );
         workerRef.current = workerInstance;
         workerInstance.addEventListener('message', handleWorkerMessage);

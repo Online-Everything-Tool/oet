@@ -30,6 +30,7 @@ import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 
 import importedMetadata from '../metadata.json';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface TextCounts {
   words: number;
@@ -305,7 +306,6 @@ export default function TextCounterClient({
       try {
         const textContent = await file.blob.text();
         setToolState({ inputText: textContent, lastLoadedFilename: file.name });
-        setUserDeferredAutoPopup(false);
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setClientError(`Error reading file "${file.name}": ${msg}`);
@@ -322,7 +322,6 @@ export default function TextCounterClient({
       lastLoadedFilename: null,
     }));
     setClientError(null);
-    setUserDeferredAutoPopup(false);
     await saveStateNow({
       ...toolState,
       inputText: '',
@@ -430,83 +429,89 @@ export default function TextCounterClient({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-4 p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
-        <div className="flex-grow grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
-              {allCounts.words.toLocaleString()}
-            </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">Words</p>
+      <div className="flex flex-col border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-component))]">
+        <div className="flex flex-wrap items-center gap-4 p-4">
+          <div className="flex-grow grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
+                {allCounts.words.toLocaleString()}
+              </p>
+              <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                Words
+              </p>
+            </div>
+            <div>
+              <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
+                {allCounts.characters.toLocaleString()}
+              </p>
+              <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                Characters
+              </p>
+            </div>
+            <div className="col-span-2 sm:col-span-1">
+              <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
+                {allCounts.lines.toLocaleString()}
+              </p>
+              <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                Lines
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
-              {allCounts.characters.toLocaleString()}
-            </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">
-              Characters
-            </p>
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <p className="text-xl font-semibold text-[rgb(var(--color-text-base))]">
-              {allCounts.lines.toLocaleString()}
-            </p>
-            <p className="text-xs text-[rgb(var(--color-text-muted))]">Lines</p>
+          <div className="flex-shrink-0">
+            <Button
+              variant="neutral"
+              onClick={handleClearText}
+              disabled={!toolState.inputText}
+              title="Clear input text"
+              iconLeft={<XCircleIcon className="h-5 w-5" />}
+            >
+              Clear
+            </Button>
           </div>
         </div>
-        <div className="flex-shrink-0">
-          <Button
-            variant="neutral"
-            onClick={handleClearText}
-            disabled={!toolState.inputText}
-            title="Clear input text"
-          >
-            Clear Text
-          </Button>
+        <div className="flex flex-wrap gap-4 items-center justify-between py-4 pb-4">
+          <div className="text-center px-4 shrink-0 order-1 sm:order-none">
+            <p className="text-2xl font-bold text-[rgb(var(--color-button-secondary-bg))]">
+              {allCounts.customCount < 0
+                ? 'N/A'
+                : allCounts.customCount.toLocaleString()}
+            </p>
+            <p
+              className="text-xs text-[rgb(var(--color-button-secondary-bg))] opacity-90"
+              title={
+                toolState.searchText
+                  ? `Occurrences of "${toolState.searchText}"`
+                  : 'Occurrences'
+              }
+            >
+              Occurrences
+            </p>
+          </div>
+          <div className="flex-grow min-w-[200px] order-3 sm:order-none w-full sm:w-auto">
+            <Input
+              type="text"
+              id="search-input"
+              name="searchText"
+              value={toolState.searchText}
+              onChange={handleSearchChange}
+              placeholder="Text to Count Occurrences..."
+              aria-label="Text to count occurrences of"
+              inputClassName="text-base font-inherit"
+            />
+          </div>
+          <div className="flex items-center shrink-0 order-2 sm:order-none">
+            <Button
+              variant="neutral"
+              onClick={handleClearSearch}
+              title="Clear occurrence search text"
+              disabled={!toolState.searchText}
+              iconLeft={<XCircleIcon className="h-5 w-5" />}
+            >
+              Clear Search
+            </Button>
+          </div>
         </div>
       </div>
-
-      <div className="flex flex-wrap gap-4 items-center justify-between border border-[rgb(var(--color-border-base))] p-4 rounded-md bg-[rgb(var(--color-bg-component))]">
-        <div className="text-center px-4 shrink-0 order-1 sm:order-none">
-          <p className="text-2xl font-bold text-[rgb(var(--color-button-secondary-bg))]">
-            {allCounts.customCount < 0
-              ? 'N/A'
-              : allCounts.customCount.toLocaleString()}
-          </p>
-          <p
-            className="text-xs text-[rgb(var(--color-button-secondary-bg))] opacity-90"
-            title={
-              toolState.searchText
-                ? `Occurrences of "${toolState.searchText}"`
-                : 'Occurrences'
-            }
-          >
-            Occurrences
-          </p>
-        </div>
-        <div className="flex-grow min-w-[200px] order-3 sm:order-none w-full sm:w-auto">
-          <Input
-            type="text"
-            id="search-input"
-            name="searchText"
-            value={toolState.searchText}
-            onChange={handleSearchChange}
-            placeholder="Text to Count Occurrences..."
-            aria-label="Text to count occurrences of"
-            inputClassName="text-base font-inherit"
-          />
-        </div>
-        <div className="flex items-center shrink-0 order-2 sm:order-none">
-          <Button
-            variant="neutral"
-            onClick={handleClearSearch}
-            title="Clear occurrence search text"
-            disabled={!toolState.searchText}
-          >
-            Clear Search
-          </Button>
-        </div>
-      </div>
-
       <FileSelectionModal
         isOpen={isLoadFileModalOpen}
         onClose={() => setIsLoadFileModalOpen(false)}

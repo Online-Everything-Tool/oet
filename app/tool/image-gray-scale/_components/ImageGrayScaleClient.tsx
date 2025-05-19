@@ -388,7 +388,6 @@ export default function ImageGrayScaleClient({
 
         clearProcessingHookOutput();
         setManualSaveSuccess(false);
-        setUserDeferredAutoPopup(false);
 
         const destatedIds = [oldSelectedId, oldProcessedId].filter(
           (id): id is string => !!(id && id !== newSelectedId)
@@ -468,7 +467,6 @@ export default function ImageGrayScaleClient({
     setUiError(null);
     setWasLastProcessedOutputPermanent(false);
     setManualSaveSuccess(false);
-    setUserDeferredAutoPopup(false);
     const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter(
       (id): id is string => !!id
     );

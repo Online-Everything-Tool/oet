@@ -1,8 +1,8 @@
 // /app/tool/emoji-explorer/page.tsx
 import React from 'react';
 import EmojiSearchClient from './_components/EmojiExplorerClient';
-import ToolHeader from '../_components/ToolHeader';
-import ToolSettings from '../_components/ToolSettings';
+import ToolHeader from '../../_components/ToolHeader';
+import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
 
 import { getEmojis, RichEmojiData } from '@/src/constants/emojis';

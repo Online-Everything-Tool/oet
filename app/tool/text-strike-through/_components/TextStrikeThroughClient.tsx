@@ -19,6 +19,7 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   ExclamationTriangleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 import { useMetadata } from '@/app/context/MetadataContext';
@@ -61,9 +62,9 @@ export default function TextStrikeThroughClient({
     state: toolState,
     setState: setToolState,
     isLoadingState,
-    clearStateAndPersist,
-    errorLoadingState,
+
     saveStateNow,
+    errorLoadingState,
   } = useToolState<TextStrikeThroughToolState>(
     toolRoute,
     DEFAULT_TEXT_STRIKE_THROUGH_STATE
@@ -113,16 +114,16 @@ export default function TextStrikeThroughClient({
       }
 
       let newText = '';
-      const firstItem = resolvedPayload.data[0];
+      const firstItem = resolvedPayload.data.find((item) =>
+        item.type?.startsWith('text/')
+      );
       let loadedFilename: string | null = null;
 
-      if (firstItem && firstItem.type.startsWith('text/')) {
+      if (firstItem) {
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
             loadedFilename = (firstItem as StoredFile).name;
-          } else {
-            loadedFilename = null;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -131,28 +132,22 @@ export default function TextStrikeThroughClient({
           );
           return;
         }
-      } else if (firstItem) {
-        setCopyError(
-          `Received data is not text (type: ${firstItem.type}). Cannot process.`
-        );
-        return;
       } else {
-        setCopyError('No valid item found in received ITDE data.');
+        setCopyError('No valid text item found in received ITDE data.');
         return;
       }
 
-      const currentSkipSpaces = toolState.skipSpaces;
-      const currentColor = toolState.color;
       const newStateUpdate: Partial<TextStrikeThroughToolState> = {
         inputText: newText,
         lastLoadedFilename: loadedFilename,
       };
       setToolState(newStateUpdate);
+
       await saveStateNow({
         ...toolState,
         ...newStateUpdate,
-        skipSpaces: currentSkipSpaces,
-        color: currentColor,
+        skipSpaces: toolState.skipSpaces,
+        color: toolState.color,
       });
       setUserDeferredAutoPopup(false);
       setIsUnicodeCopied(false);
@@ -177,6 +172,7 @@ export default function TextStrikeThroughClient({
       }
     }
   }, [isLoadingState]);
+
   useEffect(() => {
     const canProceed =
       !isLoadingState && initialToolStateLoadCompleteRef.current;
@@ -194,16 +190,10 @@ export default function TextStrikeThroughClient({
     if (
       isLoadingState ||
       initialUrlLoadProcessedRef.current ||
+      !initialToolStateLoadCompleteRef.current ||
       !urlStateParams ||
       urlStateParams.length === 0
     ) {
-      if (
-        !isLoadingState &&
-        !initialUrlLoadProcessedRef.current &&
-        initialToolStateLoadCompleteRef.current
-      ) {
-        initialUrlLoadProcessedRef.current = true;
-      }
       return;
     }
     initialUrlLoadProcessedRef.current = true;
@@ -236,7 +226,7 @@ export default function TextStrikeThroughClient({
       needsUpdate = true;
     }
     if (needsUpdate) {
-      setToolState(updates);
+      setToolState((prev) => ({ ...prev, ...updates }));
     }
   }, [isLoadingState, urlStateParams, toolState, setToolState]);
 
@@ -263,13 +253,19 @@ export default function TextStrikeThroughClient({
     },
     [setToolState]
   );
+
   const handleClear = useCallback(async () => {
-    await clearStateAndPersist();
+    const newState: TextStrikeThroughToolState = {
+      ...DEFAULT_TEXT_STRIKE_THROUGH_STATE,
+      skipSpaces: toolState.skipSpaces,
+    };
+    setToolState(newState);
+    await saveStateNow(newState);
+
     setIsUnicodeCopied(false);
     setIsInputCopied(false);
     setCopyError(null);
-    setUserDeferredAutoPopup(false);
-  }, [clearStateAndPersist]);
+  }, [setToolState, saveStateNow, toolState.skipSpaces]);
 
   const generateUnicodeStrikeThroughText = useCallback(() => {
     if (!toolState.inputText) return '';
@@ -340,16 +336,18 @@ export default function TextStrikeThroughClient({
     };
     if (!toolState.skipSpaces)
       return <span style={strikeStyle}>{toolState.inputText}</span>;
+
     const segments = toolState.inputText.split(/(\s+)/);
     return segments.map((segment, index) => {
-      if (segment.match(/^\s+$/))
+      if (segment.match(/^\s+$/)) {
         return <React.Fragment key={index}>{segment}</React.Fragment>;
-      else if (segment)
+      } else if (segment) {
         return (
           <span key={index} style={strikeStyle}>
             {segment}
           </span>
         );
+      }
       return null;
     });
   }, [toolState.inputText, toolState.skipSpaces, toolState.color]);
@@ -375,11 +373,7 @@ export default function TextStrikeThroughClient({
       setUserDeferredAutoPopup(false);
   };
 
-  if (
-    isLoadingState &&
-    !initialUrlLoadProcessedRef.current &&
-    !initialToolStateLoadCompleteRef.current
-  ) {
+  if (isLoadingState && !initialToolStateLoadCompleteRef.current) {
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Text Strike Through Tool...
@@ -390,11 +384,13 @@ export default function TextStrikeThroughClient({
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {' '}
+        {/* items-start for alignment */}
         <div className="space-y-1 h-full flex flex-col">
           <div className="flex justify-between items-center">
             <label
-              htmlFor="text-input"
+              htmlFor="text-input-strike"
               className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
             >
               Input Text{' '}
@@ -415,7 +411,9 @@ export default function TextStrikeThroughClient({
             />
           </div>
           <Textarea
-            id="text-input"
+            id="text-input-strike"
+            label="Input text for strikethrough formatting"
+            labelClassName="sr-only"
             name="text"
             rows={8}
             value={toolState.inputText}
@@ -466,14 +464,16 @@ export default function TextStrikeThroughClient({
           />
           <div className="flex items-center gap-2">
             <label
-              htmlFor="color-input"
+              htmlFor="color-input-strike"
               className="text-sm text-[rgb(var(--color-text-muted))]"
             >
               Color:
             </label>
             <Input
               type="color"
-              id="color-input"
+              id="color-input-strike"
+              label="Strikethrough color"
+              labelClassName="sr-only"
               name="color"
               value={toolState.color}
               onChange={handleColorChange}
@@ -484,23 +484,7 @@ export default function TextStrikeThroughClient({
         </fieldset>
         <div className="flex items-center space-x-3 ml-auto">
           <Button
-            variant={isInputCopied ? 'secondary' : 'neutral-outline'}
-            onClick={handleCopyInput}
-            disabled={!toolState.inputText.trim() || isInputCopied}
-            iconLeft={
-              isInputCopied ? (
-                <CheckIcon className="h-5 w-5" />
-              ) : (
-                <ClipboardDocumentIcon className="h-5 w-5" />
-              )
-            }
-            className="transition-colors duration-150 ease-in-out"
-            title="Copy original input text"
-          >
-            {isInputCopied ? 'Input Copied!' : 'Copy Input'}
-          </Button>
-          <Button
-            variant={isUnicodeCopied ? 'primary' : 'accent'}
+            variant="accent2-outline"
             onClick={handleCopyUnicodeOutput}
             disabled={!toolState.inputText.trim() || isUnicodeCopied}
             iconLeft={
@@ -513,14 +497,32 @@ export default function TextStrikeThroughClient({
             className="transition-colors duration-150 ease-in-out"
             title="Copy text with Unicode strikethrough characters"
           >
-            {isUnicodeCopied ? 'Unicode Copied!' : 'Copy Unicode Strikethrough'}
+            Copy Unicode
+          </Button>
+          <Button
+            variant="accent2"
+            onClick={handleCopyInput}
+            disabled={!toolState.inputText.trim() || isInputCopied}
+            iconLeft={
+              isInputCopied ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <ClipboardDocumentIcon className="h-5 w-5" />
+              )
+            }
+            className="transition-colors duration-150 ease-in-out"
+            title="Copy original input text"
+          >
+            Copy
           </Button>
           <Button
             variant="neutral"
             onClick={handleClear}
+            iconLeft={<XCircleIcon className="h-5 w-5" />}
             disabled={
               !toolState.inputText &&
-              !toolState.skipSpaces &&
+              toolState.skipSpaces ===
+                DEFAULT_TEXT_STRIKE_THROUGH_STATE.skipSpaces &&
               toolState.color === DEFAULT_TEXT_STRIKE_THROUGH_STATE.color
             }
           >

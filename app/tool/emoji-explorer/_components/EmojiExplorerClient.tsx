@@ -14,6 +14,7 @@ import {
   XMarkIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface EmojiExplorerToolState {
   searchTerm: string;
@@ -257,6 +258,7 @@ export default function EmojiSearchClient({
               <FunnelIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))]" />
             }
           >
+            Filter
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[rgb(var(--color-button-accent-bg))] text-[10px] font-medium text-[rgb(var(--color-button-accent-text))] px-1">
                 {activeFilterCount}
@@ -273,10 +275,11 @@ export default function EmojiSearchClient({
               Filter Options
             </h3>
             <Button
-              variant="link"
+              variant="neutral"
               onClick={handleClearFilters}
               disabled={activeFilterCount === 0}
-              className="!px-0 !py-0 text-sm"
+              className="w-full sm:w-auto"
+              iconLeft={<XCircleIcon className="h-5 w-5" />}
             >
               Clear Filters
             </Button>

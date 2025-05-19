@@ -617,8 +617,6 @@ export default function ZipFileExplorerClient({
     setPersistentState(stateToSaveOnClear);
     await saveStateNow(stateToSaveOnClear);
 
-    setUserDeferredAutoPopup(false);
-
     if (idsToCleanup.length > 0) {
       console.log(
         '[ZipExplorer Clear] Attempting targeted cleanup for IDs:',
@@ -648,7 +646,6 @@ export default function ZipFileExplorerClient({
         ) {
           const oldExtractedFileIds = persistentState.extractedFileIds;
           setCurrentZipFile(file);
-          setUserDeferredAutoPopup(false);
           if (oldExtractedFileIds.length > 0) {
             cleanupOrphanedTemporaryFiles(oldExtractedFileIds).catch((e) =>
               console.error(

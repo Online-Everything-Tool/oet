@@ -15,6 +15,8 @@ import {
   Bars3BottomLeftIcon,
   XCircleIcon,
   FaceSmileIcon,
+  CheckIcon,
+  ClipboardDocumentIcon,
 } from '@heroicons/react/20/solid';
 
 const UNICODE_MAPS = {
@@ -364,7 +366,7 @@ export default function LinkedinPostFormatterClient({
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar - no changes needed */}
-      <div className="flex flex-wrap gap-1 p-2 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
+      <div className="flex flex-wrap gap-1">
         <Button
           onClick={toggleBold}
           variant={
@@ -462,19 +464,27 @@ export default function LinkedinPostFormatterClient({
       </div>
 
       {/* Action Buttons & Persistence - no changes needed */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-gray-200 mt-2">
+      <div className="flex flex-wrap items-center justify-end gap-4 pt-3 border-t border-gray-200">
         <div className="flex gap-2">
           <Button
-            variant="primary"
+            variant="accent2"
             onClick={handleCopy}
             disabled={!editor?.getText().trim()}
+            iconLeft={
+              isCopied ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <ClipboardDocumentIcon className="h-5 w-5" />
+              )
+            }
           >
-            {isCopied ? 'Copied!' : 'Copy Formatted Text'}
+            Copy
           </Button>
           <Button
             variant="neutral"
             onClick={handleClear}
             disabled={!editor?.getText().trim()}
+            iconLeft={<XCircleIcon className="h-5 w-5" />}
           >
             Clear
           </Button>

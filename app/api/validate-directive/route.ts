@@ -19,7 +19,6 @@ interface RequestBody {
 
 interface GeminiValidationResponse {
   isValid: boolean;
-
   validationMessage: string;
   generativeDescription: string;
   generativeRequestedDirectives: string[];
@@ -48,6 +47,23 @@ async function getAvailableDirectives(): Promise<string[]> {
   return directives.sort();
 }
 
+async function readPromptTemplate(): Promise<string> {
+  try {
+    const templatePath = path.join(
+      process.cwd(),
+      'app',
+      'api',
+      'validate-directive',
+      '_prompts',
+      'prompt_template.md'
+    );
+    return await fs.readFile(templatePath, 'utf-8');
+  } catch (error) {
+    console.error('Error reading validate-directive prompt template:', error);
+    throw new Error('Failed to load prompt template for directive validation.');
+  }
+}
+
 export async function POST(req: NextRequest) {
   if (!API_KEY) {
     console.error(
@@ -59,10 +75,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let toolDirective: string | undefined;
+  let modelName: string;
   try {
     const body: RequestBody = await req.json();
-    const toolDirective = body.toolDirective?.trim();
-    const modelName = body.modelName || DEFAULT_MODEL_NAME;
+    toolDirective = body.toolDirective?.trim();
+
+    modelName =
+      body.modelName ||
+      process.env.DEFAULT_GEMINI_VALIDATION_MODEL_NAME ||
+      DEFAULT_MODEL_NAME;
 
     if (!toolDirective) {
       return NextResponse.json(
@@ -82,78 +104,94 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+  } catch (parseError) {
+    const message =
+      parseError instanceof Error
+        ? parseError.message
+        : 'Unknown body parse error.';
+    return NextResponse.json(
+      { error: `Invalid request body format: ${message}` },
+      { status: 400 }
+    );
+  }
 
-    const availableDirectives = await getAvailableDirectives();
-    if (availableDirectives.includes(toolDirective)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Directive "${toolDirective}" already exists.`,
-        },
-        { status: 409 }
-      );
-    }
-
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: modelName });
-
-    const generationConfig: GenerationConfig = {
-      temperature: 0.6,
-      topK: 40,
-      topP: 0.9,
-      maxOutputTokens: 1024,
-      responseMimeType: 'application/json',
-    };
-
-    const safetySettings: SafetySetting[] = [
+  const availableDirectives = await getAvailableDirectives();
+  if (availableDirectives.includes(toolDirective)) {
+    return NextResponse.json(
       {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+        success: false,
+        message: `Directive "${toolDirective}" already exists.`,
       },
-      {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-      {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-      },
-    ];
+      { status: 409 }
+    );
+  }
 
-    const prompt = `
-Analyze the proposed tool directive "${toolDirective}" for the "Online Everything Tool" project.
+  let promptTemplate: string;
+  try {
+    promptTemplate = await readPromptTemplate();
+  } catch (templateError) {
+    const message =
+      templateError instanceof Error
+        ? templateError.message
+        : 'Unknown error loading template.';
+    console.error(
+      '[API validate-directive] Error loading prompt template:',
+      message,
+      templateError
+    );
+    return NextResponse.json(
+      { error: `Failed to load AI prompt configuration: ${message}` },
+      { status: 500 }
+    );
+  }
 
-The project provides free, client-side browser utilities. Adhere to these strict rules:
-1. Tool logic MUST primarily run client-side (in the browser). No server-side processing for core functionality.
-2. Directives MUST be lowercase kebab-case (e.g., 'text-reverse', 'json-validator-formatter').
-3. Directives should represent a clear 'thing-operation' or 'thing-operation-operation' structure. Avoid short prepositions unless essential.
+  const prompt = promptTemplate
+    .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+    .replace(
+      /{{AVAILABLE_DIRECTIVES_LIST}}/g,
+      availableDirectives.join(', ') || 'None'
+    );
 
-Existing tool directives are: ${availableDirectives.join(', ')}.
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  const model = genAI.getGenerativeModel({ model: modelName });
 
-Based on the proposed directive "${toolDirective}":
+  const generationConfig: GenerationConfig = {
+    temperature: 0.4,
+    topK: 40,
+    topP: 0.9,
+    maxOutputTokens: 1024,
+    responseMimeType: 'application/json',
+  };
 
-1.  **Validate:** Does it seem like a feasible client-side tool? Does it follow the naming rules? Is it unique compared to the existing list?
-2.  **Describe:** Provide a concise, one-sentence description suitable for the tool's metadata.json file, explaining what the tool likely does based *only* on its name.
-3.  **Suggest Examples:** Identify **up to 10** diverse and highly relevant existing tool directives from the list provided that could serve as useful implementation patterns or examples for building this new tool. Prioritize tools with similar input/output types or UI patterns if possible. If none seem relevant, return an empty array.
+  const safetySettings: SafetySetting[] = [
+    {
+      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+    {
+      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    },
+  ];
 
-Return the response ONLY as a valid JSON object with the following structure:
-{
-  "directive": "${toolDirective}",
-  "isValid": boolean,
-  "validationMessage": "string",
-  "generativeDescription": "string",
-  "generativeRequestedDirectives": ["string"]
-}
-        `;
-
+  try {
     const parts = [{ text: prompt }];
     console.log(
       `[API validate-directive] Sending prompt for directive: ${toolDirective} to model: ${modelName}`
     );
+
+    console.log('--- [API validate-directive] PROMPT SENT TO GEMINI ---');
+    console.log(prompt);
+    console.log('--- END PROMPT ---');
+
     const result = await model.generateContent({
       contents: [{ role: 'user', parts }],
       generationConfig,
@@ -168,7 +206,18 @@ Return the response ONLY as a valid JSON object with the following structure:
     }
 
     const responseText = result.response.text();
-    console.log('[API validate-directive] Raw Gemini Response:', responseText);
+
+    console.log('--- [API validate-directive] RAW GEMINI RESPONSE ---');
+    console.log(`(Response length: ${responseText.length})`);
+    console.log(responseText);
+    console.log('--- END RAW GEMINI RESPONSE ---');
+
+    if (!responseText || responseText.trim() === '') {
+      console.error(
+        '[API validate-directive] Received empty response text from AI model.'
+      );
+      throw new Error('AI service returned an empty response.');
+    }
 
     let parsedAiResponse: GeminiValidationResponse;
     try {
@@ -178,10 +227,7 @@ Return the response ONLY as a valid JSON object with the following structure:
         '[API validate-directive] Failed to parse Gemini JSON response:',
         e
       );
-      console.error(
-        '[API validate-directive] Response Text Was:',
-        responseText
-      );
+
       throw new Error('Failed to parse validation response from AI.');
     }
 
@@ -244,6 +290,16 @@ Return the response ONLY as a valid JSON object with the following structure:
       return NextResponse.json(
         { success: false, message: 'Request blocked due to safety settings.' },
         { status: 400 }
+      );
+    }
+    if (message.includes('AI service returned an empty response.')) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            'AI service returned an empty response. The selected model might be unavailable or restricted.',
+        },
+        { status: 503 }
       );
     }
 

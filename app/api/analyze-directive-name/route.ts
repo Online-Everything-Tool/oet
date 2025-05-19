@@ -29,13 +29,13 @@ async function getAppPurpose(): Promise<string> {
   }
 }
 
-if (!API_KEY)
+if (!API_KEY) {
   console.error('FATAL ERROR (analyze-directive): GEMINI_API_KEY missing.');
+}
 const genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
 
 const generationConfig = { temperature: 0.4, maxOutputTokens: 250 };
 const safetySettings = [
-  /* ... keep standard safety settings ... */
   {
     category: HarmCategory.HARM_CATEGORY_HARASSMENT,
     threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
@@ -53,6 +53,26 @@ const safetySettings = [
     threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
   },
 ];
+
+async function readPromptTemplate(): Promise<string> {
+  try {
+    const templatePath = path.join(
+      process.cwd(),
+      'app',
+      'api',
+      'analyze-directive-name',
+      '_prompts',
+      'prompt_template.md'
+    );
+    return await fs.readFile(templatePath, 'utf-8');
+  } catch (error) {
+    console.error(
+      'Error reading analyze-directive-name prompt template:',
+      error
+    );
+    throw new Error('Failed to load prompt template for directive analysis.');
+  }
+}
 
 export async function POST(request: Request) {
   console.log(`[API analyze-directive-name] Received POST request`);
@@ -96,31 +116,24 @@ export async function POST(request: Request) {
   }
 
   const appPurpose = await getAppPurpose();
+  let promptTemplate: string;
+  try {
+    promptTemplate = await readPromptTemplate();
+  } catch (_templateError) {
+    return NextResponse.json(
+      { error: 'Failed to load AI prompt configuration.' },
+      { status: 500 }
+    );
+  }
 
-  const prompt = `
-Analyze the proposed tool directive \`${proposedDirective}\` for a web application.
-
-Application Purpose: ${appPurpose}.
-Existing Tool Directives: ${existingDirectives.join(', ') || 'None'}
-Proposed Tool's Function (Generated Description): "${generativeDescription}"
-
-Based ONLY on the information provided, evaluate the proposed directive:
-1.  **Clarity & Conciseness:** Is the name clear and easy to understand?
-2.  **Convention:** Does it follow common naming patterns (e.g., kebab-case)?
-3.  **Redundancy:** Does it seem functionally very similar to an existing directive, suggesting a potentially better name or consolidation?
-4.  **Typo Likelihood:** Is there a significant chance it's a typo of a more standard term or an existing directive (e.g., "test-" vs "text-", "covert" vs "convert")? Consider common English typos and the context of developer tools.
-5.  **Suggestions:** If the name could be improved (due to typo, vagueness, or better alternatives), suggest 1-2 better names.
-
-Respond ONLY with a single JSON object with the following structure:
-\`\`\`json
-{
-  "score": <A numerical score from 0.0 (very bad name / likely typo) to 1.0 (excellent name) representing the overall quality and appropriateness>,
-  "is_likely_typo": <boolean - true if a typo is strongly suspected>,
-  "suggestions": ["<alternative_name_1>", "<alternative_name_2>"],
-  "reasoning": "<A brief (1-2 sentence) explanation for the score and suggestions/typo assessment>"
-}
-\`\`\`
-`;
+  const prompt = promptTemplate
+    .replace(/{{PROPOSED_DIRECTIVE}}/g, proposedDirective)
+    .replace(/{{APP_PURPOSE}}/g, appPurpose)
+    .replace(
+      /{{EXISTING_DIRECTIVES_LIST}}/g,
+      existingDirectives.join(', ') || 'None'
+    )
+    .replace(/{{GENERATIVE_DESCRIPTION}}/g, generativeDescription);
 
   try {
     console.log(

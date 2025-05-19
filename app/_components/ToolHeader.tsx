@@ -13,7 +13,7 @@ interface ToolHeaderProps {
  */
 export default function ToolHeader({ title, description }: ToolHeaderProps) {
   return (
-    <div className="mb-6 border-b pb-4">
+    <div className="mb-2 border-b pb-2">
       {' '}
       {/* Add some margin and a bottom border for separation */}
       {/* Main Title */}

@@ -11,6 +11,7 @@ import {
   ClipboardDocumentIcon,
   CheckIcon,
   ExclamationTriangleIcon,
+  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 type InputMode = 'hex' | 'rgb' | 'hsl';
@@ -34,9 +35,7 @@ interface ColorConverterToolState {
   hInput: string;
   sInput: string;
   lInput: string;
-
   lastEditedField: InputMode;
-
   validColorValues: ValidColorValues | null;
 }
 
@@ -81,7 +80,7 @@ export default function ColorConverterClient({
       sourceMode: InputMode,
       currentInputState: Omit<
         ColorConverterToolState,
-        'validColorValues' | 'lastEditedField'
+        'lastEditedField' | 'validColorValues'
       >
     ) => {
       let newValidValues: ValidColorValues | null = null;
@@ -122,11 +121,12 @@ export default function ColorConverterClient({
           )
             throw new Error('empty');
           if (
-            !currentInputState.rInput.trim() ||
-            !currentInputState.gInput.trim() ||
-            !currentInputState.bInput.trim()
+            currentInputState.rInput.trim() === '' ||
+            currentInputState.gInput.trim() === '' ||
+            currentInputState.bInput.trim() === ''
           )
             throw new Error('All RGB inputs required if any is present.');
+
           const r = parseInt(currentInputState.rInput, 10),
             g = parseInt(currentInputState.gInput, 10),
             b = parseInt(currentInputState.bInput, 10);
@@ -162,11 +162,12 @@ export default function ColorConverterClient({
           )
             throw new Error('empty');
           if (
-            !currentInputState.hInput.trim() ||
-            !currentInputState.sInput.trim() ||
-            !currentInputState.lInput.trim()
+            currentInputState.hInput.trim() === '' ||
+            currentInputState.sInput.trim() === '' ||
+            currentInputState.lInput.trim() === ''
           )
             throw new Error('All HSL inputs required if any is present.');
+
           const h = parseInt(currentInputState.hInput, 10),
             s = parseInt(currentInputState.sInput, 10),
             l = parseInt(currentInputState.lInput, 10);
@@ -217,9 +218,11 @@ export default function ColorConverterClient({
         validColorValues: newValidValues,
       });
 
-      if (currentErrorMsg && uiError !== currentErrorMsg)
+      if (currentErrorMsg && uiError !== currentErrorMsg) {
         setUiError(currentErrorMsg);
-      else if (!currentErrorMsg && uiError) setUiError('');
+      } else if (!currentErrorMsg && uiError) {
+        setUiError('');
+      }
     },
     [setToolState, uiError]
   );
@@ -255,7 +258,6 @@ export default function ColorConverterClient({
         updates.rInput = pR;
         updates.gInput = pG;
         updates.bInput = pB;
-        if (!sourceForProcessing) sourceForProcessing = 'rgb';
       }
     }
 
@@ -271,7 +273,6 @@ export default function ColorConverterClient({
         updates.hInput = pH;
         updates.sInput = pS;
         updates.lInput = pL;
-        if (!sourceForProcessing) sourceForProcessing = 'hsl';
       }
     }
 
@@ -279,33 +280,9 @@ export default function ColorConverterClient({
       updates.lastEditedField =
         sourceForProcessing || toolState.lastEditedField;
       updates.validColorValues = null;
-      setToolState(updates);
-    } else if (sourceForProcessing) {
-      const currentInputState = {
-        hexInput: toolState.hexInput,
-        rInput: toolState.rInput,
-        gInput: toolState.gInput,
-        bInput: toolState.bInput,
-        hInput: toolState.hInput,
-        sInput: toolState.sInput,
-        lInput: toolState.lInput,
-      };
-      convertAndSetColors(sourceForProcessing, currentInputState);
+      setToolState((prev) => ({ ...prev, ...updates }));
     }
-  }, [
-    isLoadingToolState,
-    urlStateParams,
-    setToolState,
-    convertAndSetColors,
-    toolState.bInput,
-    toolState.gInput,
-    toolState.hInput,
-    toolState.hexInput,
-    toolState.lInput,
-    toolState.lastEditedField,
-    toolState.rInput,
-    toolState.sInput,
-  ]);
+  }, [isLoadingToolState, urlStateParams, setToolState, toolState]);
 
   useEffect(() => {
     if (isLoadingToolState) return;
@@ -323,24 +300,20 @@ export default function ColorConverterClient({
     const hasAnyInput = Object.values(currentInputState).some(
       (val) => val.trim() !== ''
     );
-    if (!hasAnyInput && !toolState.validColorValues && !uiError) {
+
+    if (!hasAnyInput) {
       if (
-        toolState.hexInput !== '' ||
-        toolState.rInput !== '' ||
-        toolState.gInput !== '' ||
-        toolState.bInput !== '' ||
-        toolState.hInput !== '' ||
-        toolState.sInput !== '' ||
-        toolState.lInput !== '' ||
-        toolState.validColorValues !== null
+        JSON.stringify(toolState) !== JSON.stringify(DEFAULT_COLOR_TOOL_STATE)
       ) {
         setToolState(DEFAULT_COLOR_TOOL_STATE);
       }
       if (uiError) setUiError('');
+      debouncedConvertAndSetColors.cancel();
       return;
     }
 
     debouncedConvertAndSetColors(toolState.lastEditedField, currentInputState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     toolState.hexInput,
     toolState.rInput,
@@ -353,7 +326,6 @@ export default function ColorConverterClient({
     isLoadingToolState,
     debouncedConvertAndSetColors,
     setToolState,
-    toolState.validColorValues,
     uiError,
   ]);
 
@@ -421,16 +393,21 @@ export default function ColorConverterClient({
   const colorSwatchStyle = useMemo(() => {
     let backgroundColor = 'transparent';
     let borderColor = 'rgb(var(--color-input-border))';
+
     if (toolState.validColorValues) {
       backgroundColor = toolState.validColorValues.hex;
     } else if (uiError) {
       borderColor = 'rgb(var(--color-border-error))';
+      backgroundColor = 'rgba(var(--color-bg-error-subtle), 0.5)';
     }
     return {
       backgroundColor,
       borderColor,
       borderWidth: '2px',
       borderStyle: 'solid',
+
+      minHeight: '2.5rem',
+      minWidth: '5rem',
     };
   }, [toolState.validColorValues, uiError]);
 
@@ -452,6 +429,7 @@ export default function ColorConverterClient({
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-5">
+        {/* Hex Input Group */}
         <div className="md:col-span-1 space-y-1">
           <label
             htmlFor="hex-input"
@@ -467,22 +445,18 @@ export default function ColorConverterClient({
               onChange={handleHexChange}
               placeholder="#ffffff"
               className={`${inputBaseClasses} flex-grow rounded-l-md font-mono ${uiError && toolState.lastEditedField === 'hex' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
-                uiError && toolState.lastEditedField === 'hex'
-                  ? 'true'
-                  : 'false'
-              }
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'hex')}
               aria-describedby={
                 uiError && toolState.lastEditedField === 'hex'
-                  ? 'input-error-feedback'
+                  ? 'conversion-error-feedback'
                   : undefined
               }
             />
             <Button
-              variant={copiedFormat === 'hex' ? 'secondary' : 'neutral'}
+              variant="accent2"
               onClick={() => handleCopy('hex')}
               className="rounded-l-none px-3 border-l-0"
-              disabled={!toolState.validColorValues}
+              disabled={copiedFormat === 'hex'}
               iconLeft={
                 copiedFormat === 'hex' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -492,14 +466,12 @@ export default function ColorConverterClient({
               }
               title={copiedFormat === 'hex' ? 'Copied!' : 'Copy Hex'}
             >
-              {copiedFormat === 'hex' ? (
-                ''
-              ) : (
-                <span className="sr-only">Copy Hex</span>
-              )}
+              Copy
             </Button>
           </div>
         </div>
+
+        {/* RGB Input Group */}
         <div className="md:col-span-1 space-y-1">
           <label
             className={`block text-sm font-medium mb-1 ${toolState.lastEditedField === 'rgb' ? 'text-[rgb(var(--color-text-base))] font-semibold' : 'text-[rgb(var(--color-text-muted))]'}`}
@@ -509,6 +481,7 @@ export default function ColorConverterClient({
           <div className="flex items-stretch gap-1">
             <input
               type="number"
+              id="rgb-r-input"
               min="0"
               max="255"
               value={toolState.rInput}
@@ -516,14 +489,16 @@ export default function ColorConverterClient({
               onChange={handleRChange}
               aria-label="RGB Red"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'rgb')}
+              aria-describedby={
                 uiError && toolState.lastEditedField === 'rgb'
-                  ? 'true'
-                  : 'false'
+                  ? 'conversion-error-feedback'
+                  : undefined
               }
             />
             <input
               type="number"
+              id="rgb-g-input"
               min="0"
               max="255"
               value={toolState.gInput}
@@ -531,14 +506,11 @@ export default function ColorConverterClient({
               onChange={handleGChange}
               aria-label="RGB Green"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
-                uiError && toolState.lastEditedField === 'rgb'
-                  ? 'true'
-                  : 'false'
-              }
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'rgb')}
             />
             <input
               type="number"
+              id="rgb-b-input"
               min="0"
               max="255"
               value={toolState.bInput}
@@ -546,17 +518,13 @@ export default function ColorConverterClient({
               onChange={handleBChange}
               aria-label="RGB Blue"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'rgb' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
-                uiError && toolState.lastEditedField === 'rgb'
-                  ? 'true'
-                  : 'false'
-              }
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'rgb')}
             />
             <Button
-              variant={copiedFormat === 'rgb' ? 'secondary' : 'neutral'}
+              variant="accent2"
               onClick={() => handleCopy('rgb')}
-              className="px-3"
-              disabled={!toolState.validColorValues}
+              className="rounded-l-none px-3 border-l-0"
+              disabled={copiedFormat === 'rgb'}
               iconLeft={
                 copiedFormat === 'rgb' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -566,14 +534,12 @@ export default function ColorConverterClient({
               }
               title={copiedFormat === 'rgb' ? 'Copied!' : 'Copy RGB'}
             >
-              {copiedFormat === 'rgb' ? (
-                ''
-              ) : (
-                <span className="sr-only">Copy RGB</span>
-              )}
+              Copy
             </Button>
           </div>
         </div>
+
+        {/* HSL Input Group */}
         <div className="md:col-span-1 space-y-1">
           <label
             className={`block text-sm font-medium mb-1 ${toolState.lastEditedField === 'hsl' ? 'text-[rgb(var(--color-text-base))] font-semibold' : 'text-[rgb(var(--color-text-muted))]'}`}
@@ -583,6 +549,7 @@ export default function ColorConverterClient({
           <div className="flex items-stretch gap-1">
             <input
               type="number"
+              id="hsl-h-input"
               min="0"
               max="360"
               value={toolState.hInput}
@@ -590,14 +557,16 @@ export default function ColorConverterClient({
               onChange={handleHChange}
               aria-label="HSL Hue"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'hsl')}
+              aria-describedby={
                 uiError && toolState.lastEditedField === 'hsl'
-                  ? 'true'
-                  : 'false'
+                  ? 'conversion-error-feedback'
+                  : undefined
               }
             />
             <input
               type="number"
+              id="hsl-s-input"
               min="0"
               max="100"
               value={toolState.sInput}
@@ -605,14 +574,11 @@ export default function ColorConverterClient({
               onChange={handleSChange}
               aria-label="HSL Saturation"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
-                uiError && toolState.lastEditedField === 'hsl'
-                  ? 'true'
-                  : 'false'
-              }
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'hsl')}
             />
             <input
               type="number"
+              id="hsl-l-input"
               min="0"
               max="100"
               value={toolState.lInput}
@@ -620,17 +586,13 @@ export default function ColorConverterClient({
               onChange={handleLChange}
               aria-label="HSL Lightness"
               className={`w-1/3 ${inputBaseClasses} ${uiError && toolState.lastEditedField === 'hsl' ? inputBorderError : inputBorderNormal}`}
-              aria-invalid={
-                uiError && toolState.lastEditedField === 'hsl'
-                  ? 'true'
-                  : 'false'
-              }
+              aria-invalid={!!(uiError && toolState.lastEditedField === 'hsl')}
             />
             <Button
-              variant={copiedFormat === 'hsl' ? 'secondary' : 'neutral'}
+              variant="accent2"
               onClick={() => handleCopy('hsl')}
-              className="px-3"
-              disabled={!toolState.validColorValues}
+              className="rounded-l-none px-3 border-l-0"
+              disabled={copiedFormat === 'hsl'}
               iconLeft={
                 copiedFormat === 'hsl' ? (
                   <CheckIcon className="h-5 w-5" />
@@ -640,17 +602,13 @@ export default function ColorConverterClient({
               }
               title={copiedFormat === 'hsl' ? 'Copied!' : 'Copy HSL'}
             >
-              {copiedFormat === 'hsl' ? (
-                ''
-              ) : (
-                <span className="sr-only">Copy HSL</span>
-              )}
+              Copy
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 items-center border-t border-[rgb(var(--color-border-base))] pt-4 mt-1 ml-auto">
+      <div className="flex justify-end flex-wrap gap-4 items-center border-t border-[rgb(var(--color-border-base))] pt-4 mt-1 pl-auto">
         <div className="flex items-center gap-2 order-first md:order-none md:ml-0">
           <span className="text-sm text-[rgb(var(--color-text-muted))]">
             Preview:
@@ -658,17 +616,22 @@ export default function ColorConverterClient({
           <div
             className="h-10 w-20 rounded shadow-inner"
             style={colorSwatchStyle}
+            aria-label="Current color preview"
           ></div>
         </div>
-        <Button variant="neutral" onClick={handleClear}>
-          Clear All
+        <Button
+          variant="neutral"
+          onClick={handleClear}
+          iconLeft={<XCircleIcon className="h-5 w-5" />}
+        >
+          Clear
         </Button>
       </div>
 
       {uiError && (
         <div
           role="alert"
-          id="input-error-feedback"
+          id="conversion-error-feedback"
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
           <ExclamationTriangleIcon
