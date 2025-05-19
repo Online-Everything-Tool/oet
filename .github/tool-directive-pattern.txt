@@ -1,9 +1,11 @@
+# .github/tool-directive-pattern.txt
 # Allowed Directive Patterns (one pattern per line)
 # Use simple prefix/suffix or valid regex patterns.
 # Comments start with #
 
 # Patterns based on prefix
 ^cvs-
+^diff-
 ^file-
 ^image-
 ^json-
@@ -17,6 +19,7 @@
 -converter$
 -decode$
 -explorer$
+-format$
 -formatter$
 -generator$
 -storage$
