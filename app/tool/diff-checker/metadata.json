@@ -1,0 +1,1 @@
+{"title": "Diff Checker", "directive": "diff-checker", "description": "This tool allows users to compare two text inputs and highlight their differences.", "inputConfig": { "acceptsMimeTypes": ["text/plain"], "stateFiles": "none" }, "outputConfig": { "transferableContent": "none" }, "tags": ["diff", "compare", "text"], "includeInSitemap": true, "status": "stable"}
