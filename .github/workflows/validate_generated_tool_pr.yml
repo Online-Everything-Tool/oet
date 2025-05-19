@@ -110,7 +110,7 @@ jobs:
           if [ -z "$TOOL_DIRECTIVE" ]; then exit 1; fi
           git fetch origin main; BASE_SHA=$(git merge-base HEAD origin/main); CHANGED_FILES=$(git diff --name-status $BASE_SHA HEAD)
           if [ -z "$CHANGED_FILES" ]; then echo "validation_passed=true" >> $GITHUB_OUTPUT; exit 0; fi
-          ALLOWED_FOLDER_PATTERN="^app/t/${TOOL_DIRECTIVE}/"; INVALID_FILES="" && ALL_VALID=true
+          ALLOWED_FOLDER_PATTERN="^app/tool/${TOOL_DIRECTIVE}/"; INVALID_FILES="" && ALL_VALID=true
           echo "$CHANGED_FILES" | while IFS=$'\t' read -r status filepath; do if [[ -n "$filepath" ]]; then if [[ ! "$filepath" =~ $ALLOWED_FOLDER_PATTERN ]]; then echo "::error file=$filepath::Invalid path."; INVALID_FILES="${INVALID_FILES}${filepath}\n" && ALL_VALID=false; fi; fi; done
           if $ALL_VALID; then echo "validation_passed=true" >> $GITHUB_OUTPUT; else echo "validation_passed=false" >> $GITHUB_OUTPUT; INVALID_FILES=$(echo -e "$INVALID_FILES" | sed -z 's/\n/\\n/g'); echo "invalid_files_list=${INVALID_FILES}" >> $GITHUB_OUTPUT; exit 1; fi
 
