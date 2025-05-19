@@ -452,12 +452,9 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
 
           try {
             const stateJson = await toolStateFile.blob.text();
-
+            // prettier-ignore
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const toolCurrentState = JSON.parse(stateJson) as Record<
-              string,
-              any
-            >;
+            const toolCurrentState = JSON.parse(stateJson) as Record<string, any>;
 
             if (
               metadataForTool.inputConfig?.stateFiles &&
