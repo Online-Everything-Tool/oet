@@ -5,10 +5,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && node scripts/generate-metadata-files.mjs && next build",
+    "build": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && node scripts/generate-metadata-files.mjs && node scripts/generate-directive-index.mjs && next build",
     "start": "next start",
     "lint": "next lint",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "generate-indices": "node scripts/generate-directive-index.mjs",
+    "generate-metadata": "node scripts/generate-metadata-files.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
