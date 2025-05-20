@@ -374,7 +374,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
           const fetchedFile = await getFile(newFileIdIfPersisted);
           resolvedFile = fetchedFile || {
             id: newFileIdIfPersisted,
-            name: browserFile.name,
+            filename: browserFile.name,
             type: browserFile.type,
             size: browserFile.size,
             blob: browserFile,
@@ -385,7 +385,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         } else {
           resolvedFile = {
             id: `phantom-${uuidv4()}`,
-            name: browserFile.name,
+            filename: browserFile.name,
             type: browserFile.type,
             size: browserFile.size,
             blob: browserFile,
@@ -449,7 +449,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         return (
           <Image
             src={objectUrl}
-            alt={file.name || 'Stored image preview'}
+            alt={file.filename || 'Stored image preview'}
             width={120}
             height={120}
             className="max-w-full max-h-full object-contain pointer-events-none"
@@ -461,7 +461,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         <span className="flex items-center justify-center h-full w-full">
           <span
             aria-hidden="true"
-            className={`${getFileIconClassName(file.name)} text-4xl`}
+            className={`${getFileIconClassName(file.filename)} text-4xl`}
             title={file.type || 'File'}
           ></span>
         </span>
@@ -573,16 +573,16 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                           onClick={() => handleLibraryFileClick(file)}
                           className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 hover:border-blue-400'}`}
                           aria-pressed={isSelected}
-                          aria-label={`Select file: ${file.name || 'Untitled'}`}
+                          aria-label={`Select file: ${file.filename || 'Untitled'}`}
                         >
                           <div className="aspect-square w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
                             {renderDefaultLibraryPreview(file)}
                           </div>
                           <p
                             className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none"
-                            title={file.name}
+                            title={file.filename}
                           >
-                            {file.name || 'Untitled'}
+                            {file.filename || 'Untitled'}
                           </p>
                           <p className="text-[10px] text-gray-500 pointer-events-none">
                             {formatBytes(file.size)}

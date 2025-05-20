@@ -7,7 +7,7 @@ export interface InlineFile {
 
 export interface StoredFile extends InlineFile {
   id: string;
-  name: string;
+  filename: string;
   size: number;
   thumbnailBlob?: Blob;
   createdAt: Date;

@@ -311,7 +311,8 @@ export default function GenericStorageClient({
       setIsProcessing(true);
       setError(null);
       const itemToDelete = displayedItems.find((f) => f.id === itemId);
-      const itemName = itemToDelete?.name || `${itemTypeSingular} ID ${itemId}`;
+      const itemName =
+        itemToDelete?.filename || `${itemTypeSingular} ID ${itemId}`;
       try {
         const marked = await markFileAsTemporary(itemId);
         if (marked) {
@@ -416,7 +417,7 @@ export default function GenericStorageClient({
         const url = URL.createObjectURL(item.blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = item.name || `download-${itemId}`;
+        link.download = item.filename || `download-${itemId}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -499,7 +500,7 @@ export default function GenericStorageClient({
 
     for (const id of idsToDelete) {
       const item = displayedItems.find((f) => f.id === id);
-      const name = item?.name || `${itemTypeSingular} ID ${id}`;
+      const name = item?.filename || `${itemTypeSingular} ID ${id}`;
       try {
         await markFileAsTemporary(id);
       } catch (err) {

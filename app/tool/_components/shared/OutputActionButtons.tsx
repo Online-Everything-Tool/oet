@@ -11,18 +11,20 @@ import {
   DocumentPlusIcon,
 } from '@heroicons/react/24/outline';
 import React from 'react';
+import { StoredFile } from '@/src/types/storage';
 
 interface OutputActionButtonsProps {
   canPerform: boolean;
   isSaveSuccess: boolean;
-  isCopySuccess: boolean;
+  isCopySuccess?: boolean;
   isDownloadSuccess: boolean;
   onInitiateSave: () => void;
   onInitiateDownload: () => void;
-  onCopy: () => void;
+  onCopy?: () => void;
   onClear: () => void;
   directiveName: string;
   outputConfig: OutputConfig;
+  selectedOutputItems?: StoredFile[];
 }
 
 export const OutputActionButtons = React.memo(function OutputActionButtons({
@@ -36,6 +38,7 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
   onClear,
   directiveName,
   outputConfig,
+  selectedOutputItems = [],
 }: OutputActionButtonsProps) {
   if (!canPerform) {
     return (
@@ -57,6 +60,7 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
         currentToolDirective={directiveName}
         currentToolOutputConfig={outputConfig}
         buttonText="Send To..."
+        selectedOutputItems={selectedOutputItems}
       />
       <Button
         variant="primary"
@@ -85,20 +89,22 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
       >
         Download
       </Button>
-      <Button
-        variant="accent2"
-        onClick={onCopy}
-        disabled={isCopySuccess}
-        iconLeft={
-          isCopySuccess ? (
-            <CheckIcon className="h-5 w-5" />
-          ) : (
-            <ClipboardDocumentIcon className="h-5 w-5" />
-          )
-        }
-      >
-        Copy
-      </Button>
+      {onCopy && (
+        <Button
+          variant="accent2"
+          onClick={onCopy}
+          disabled={isCopySuccess}
+          iconLeft={
+            isCopySuccess ? (
+              <CheckIcon className="h-5 w-5" />
+            ) : (
+              <ClipboardDocumentIcon className="h-5 w-5" />
+            )
+          }
+        >
+          Copy
+        </Button>
+      )}
       <Button
         variant="neutral"
         onClick={onClear}

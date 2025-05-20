@@ -164,7 +164,7 @@ export default function ZipFileExplorerClient({
           const representativeMimeType = getMimeTypeForFile(node.name);
           placeholders.push({
             id: `zip-placeholder-${node.id.replace(/[^a-zA-Z0-9]/g, '-')}`,
-            name: node.name,
+            filename: node.name,
             type: representativeMimeType,
             size: 1,
             blob: new Blob(['p'], { type: representativeMimeType }),
@@ -197,7 +197,9 @@ export default function ZipFileExplorerClient({
   const processZipFile = useCallback(
     async (fileToProcess: StoredFile) => {
       if (!fileToProcess.blob) {
-        setClientError(`File content for "${fileToProcess.name}" is missing.`);
+        setClientError(
+          `File content for "${fileToProcess.filename}" is missing.`
+        );
         setIsLoadingZipProcessing(false);
         return;
       }
@@ -229,7 +231,7 @@ export default function ZipFileExplorerClient({
         let finalStateUpdate: PersistedZipExplorerState;
         const baseUpdate: Partial<PersistedZipExplorerState> = {
           selectedFileId: fileToProcess.id,
-          selectedFileName: fileToProcess.name,
+          selectedFileName: fileToProcess.filename,
           selectedFileSize: fileToProcess.size,
         };
 
@@ -267,7 +269,7 @@ export default function ZipFileExplorerClient({
         const errorState = {
           ...DEFAULT_ZIP_EXPLORER_STATE,
           selectedFileId: fileToProcess.id,
-          selectedFileName: fileToProcess.name,
+          selectedFileName: fileToProcess.filename,
           selectedFileSize: fileToProcess.size,
         };
         setPersistentState(errorState);
@@ -402,7 +404,7 @@ export default function ZipFileExplorerClient({
         (receivedFileItem.type === 'application/zip' ||
           receivedFileItem.type === 'application/x-zip-compressed' ||
           ('name' in receivedFileItem &&
-            (receivedFileItem as StoredFile).name
+            (receivedFileItem as StoredFile).filename
               .toLowerCase()
               .endsWith('.zip')))
       ) {
@@ -642,7 +644,7 @@ export default function ZipFileExplorerClient({
         if (
           file.type === 'application/zip' ||
           file.type === 'application/x-zip-compressed' ||
-          file.name.toLowerCase().endsWith('.zip')
+          file.filename.toLowerCase().endsWith('.zip')
         ) {
           const oldExtractedFileIds = persistentState.extractedFileIds;
           setCurrentZipFile(file);
@@ -810,7 +812,7 @@ export default function ZipFileExplorerClient({
         compressionOptions: { level: 6 },
       });
       const base =
-        currentZipFile?.name?.replace(/\.zip$/i, '') ||
+        currentZipFile?.filename?.replace(/\.zip$/i, '') ||
         persistentState.selectedFileName?.replace(/\.zip$/i, '') ||
         'archive';
       const dlFilename = `${base}_selection.zip`;
@@ -1061,14 +1063,14 @@ export default function ZipFileExplorerClient({
         <div className="mt-2 text-sm text-[rgb(var(--color-text-muted))] h-5">
           {isLoadingZipProcessing && currentZipFile && (
             <span>
-              Processing: <em>{currentZipFile.name}</em>...
+              Processing: <em>{currentZipFile.filename}</em>...
             </span>
           )}
           {!isLoadingZipProcessing &&
             currentZipFile &&
             rawFileTree.length > 0 && (
               <span>
-                Loaded: <strong>{currentZipFile.name}</strong> (
+                Loaded: <strong>{currentZipFile.filename}</strong> (
                 {persistentState.selectedFileSize
                   ? formatBytesCompact(persistentState.selectedFileSize)
                   : 'size unknown'}
@@ -1080,8 +1082,8 @@ export default function ZipFileExplorerClient({
             rawFileTree.length === 0 &&
             !displayError && (
               <span>
-                Loaded <strong>{currentZipFile.name}</strong>, but it appears
-                empty or unreadable.
+                Loaded <strong>{currentZipFile.filename}</strong>, but it
+                appears empty or unreadable.
               </span>
             )}
           {!isLoadingUserActions &&
@@ -1244,7 +1246,7 @@ export default function ZipFileExplorerClient({
           <div className="flex flex-wrap justify-between items-center mb-2 gap-2">
             <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">
               Contents of “
-              {currentZipFile?.name ||
+              {currentZipFile?.filename ||
                 persistentState.selectedFileName ||
                 'Archive'}
               ”:

@@ -76,7 +76,7 @@ const useImageProcessing = (): UseImageProcessingReturn => {
 
       setOriginalImageSrc(null);
       clearProcessingOutput();
-      setFileName(inputFile.name);
+      setFileName(inputFile.filename);
 
       if (!inputFile.blob || !inputFile.type?.startsWith('image/')) {
         const errMsg = `Invalid input file: ID ${inputFile.id || 'unknown'}, Type ${inputFile.type || 'unknown'}`;

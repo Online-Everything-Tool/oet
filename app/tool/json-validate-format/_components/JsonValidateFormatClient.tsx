@@ -163,7 +163,7 @@ export default function JsonValidateFormatClient({
         try {
           newJsonInput = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -395,7 +395,7 @@ export default function JsonValidateFormatClient({
       if (!file.blob) {
         setToolState((prevState) => ({
           ...prevState,
-          errorMsg: `Error: File "${file.name}" has no content.`,
+          errorMsg: `Error: File "${file.filename}" has no content.`,
         }));
         return;
       }
@@ -403,7 +403,7 @@ export default function JsonValidateFormatClient({
         const text = await file.blob.text();
         setToolState({
           jsonInput: text,
-          lastLoadedFilename: file.name,
+          lastLoadedFilename: file.filename,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
@@ -413,7 +413,7 @@ export default function JsonValidateFormatClient({
           lastLoadedFilename: null,
           outputValue: '',
           isValid: null,
-          errorMsg: `Error reading file "${file.name}": ${msg}`,
+          errorMsg: `Error reading file "${file.filename}": ${msg}`,
         }));
         setCurrentOutputFilename(null);
       }

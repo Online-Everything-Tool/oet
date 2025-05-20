@@ -27,69 +27,73 @@ const RecentToolItem: React.FC<{
   const { getFile } = useFileLibrary();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false);
-  const currentImageIdRef = useRef<string | null>(null);
+  const activeImageUrlIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let newObjectUrl: string | null = null;
+    let objectUrlCreatedInThisEffectRun: string | null = null;
 
     if (entry.previewType === 'image' && entry.previewImageId) {
-      if (entry.previewImageId !== currentImageIdRef.current || !imageUrl) {
+      if (entry.previewImageId !== activeImageUrlIdRef.current || !imageUrl) {
         setIsLoadingImage(true);
-        if (
-          imageUrl &&
-          currentImageIdRef.current &&
-          currentImageIdRef.current !== entry.previewImageId
-        ) {
-          URL.revokeObjectURL(imageUrl);
-        }
+
         setImageUrl(null);
-        currentImageIdRef.current = entry.previewImageId;
+        activeImageUrlIdRef.current = entry.previewImageId;
 
         getFile(entry.previewImageId)
           .then((storedFile) => {
-            if (currentImageIdRef.current !== entry.previewImageId) return;
+            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
             if (storedFile) {
               const blobToUse = storedFile.thumbnailBlob || storedFile.blob;
               if (blobToUse) {
-                newObjectUrl = URL.createObjectURL(blobToUse);
-                setImageUrl(newObjectUrl);
+                objectUrlCreatedInThisEffectRun =
+                  URL.createObjectURL(blobToUse);
+                setImageUrl(objectUrlCreatedInThisEffectRun);
               } else {
                 setImageUrl(null);
+                activeImageUrlIdRef.current = null;
               }
             } else {
               setImageUrl(null);
+              activeImageUrlIdRef.current = null;
             }
           })
           .catch((err) => {
-            if (currentImageIdRef.current !== entry.previewImageId) return;
+            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
             console.error(
               `[RecentToolItem] Error fetching image ${entry.previewImageId}:`,
               err
             );
             setImageUrl(null);
+            activeImageUrlIdRef.current = null;
           })
           .finally(() => {
-            if (currentImageIdRef.current !== entry.previewImageId) return;
+            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
             setIsLoadingImage(false);
           });
       } else {
         setIsLoadingImage(false);
       }
     } else {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
       setImageUrl(null);
-      currentImageIdRef.current = null;
+      activeImageUrlIdRef.current = null;
       setIsLoadingImage(false);
     }
 
     return () => {
-      if (newObjectUrl) {
-        URL.revokeObjectURL(newObjectUrl);
+      if (objectUrlCreatedInThisEffectRun) {
+        URL.revokeObjectURL(objectUrlCreatedInThisEffectRun);
       }
     };
-  }, [entry.previewType, entry.previewImageId, getFile, imageUrl]);
+  }, [entry.previewType, entry.previewImageId, getFile]);
+
+  useEffect(() => {
+    const urlInStateWhenEffectRan = imageUrl;
+    return () => {
+      if (urlInStateWhenEffectRan) {
+        URL.revokeObjectURL(urlInStateWhenEffectRan);
+      }
+    };
+  }, [imageUrl]);
 
   const itemLinkClasses =
     variant === 'header'
@@ -131,10 +135,9 @@ const RecentToolItem: React.FC<{
             <Image
               src={imageUrl}
               alt={entry.displayableItemName || 'Image preview'}
-              layout="fill"
-              objectFit="contain"
+              fill
+              className="object-contain rounded"
               unoptimized
-              className="rounded"
             />
           </div>
         ) : (
@@ -242,10 +245,10 @@ export default function RecentlyUsedToolsWidget({
       : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3';
 
   if (!isLoaded) {
-    const loadingTitleMargin = variant === 'header' ? '' : ' mb-3';
+    const loadingTitleMargin = variant === 'default' ? 'mb-3' : '';
     return (
       <div className={containerClasses}>
-        <h2 className={`${titleClasses}${loadingTitleMargin}`}>
+        <h2 className={`${titleClasses} ${loadingTitleMargin}`}>
           Recently Used
         </h2>
         <p
@@ -259,14 +262,10 @@ export default function RecentlyUsedToolsWidget({
 
   if (toolsToDisplay.length === 0) {
     if (variant === 'header') return null;
-
     return (
       <div className={containerClasses}>
-        <h2 className={`${titleClasses} mb-3`}>
-          {' '}
-          {/* FIXED: Only mb-3 needed as variant is 'default' */}
-          Recently Used
-        </h2>
+        <h2 className={`${titleClasses} mb-3`}>Recently Used</h2>{' '}
+        {/* Corrected: always mb-3 here */}
         <p className="text-sm text-[rgb(var(--color-text-muted))] italic text-center py-4">
           No tools with recent activity to display.
         </p>

@@ -13,10 +13,10 @@ export function getDisplayInfoForFilePreview(
   fileOrMime: StoredFile | string,
   originalName?: string
 ): FilePreviewDisplayInfo {
-  if (typeof fileOrMime === 'object' && fileOrMime.name) {
+  if (typeof fileOrMime === 'object' && fileOrMime.filename) {
     return {
-      iconName: fileOrMime.name,
-      displayName: fileOrMime.name,
+      iconName: fileOrMime.filename,
+      displayName: fileOrMime.filename,
       mimeType: fileOrMime.type,
     };
   }

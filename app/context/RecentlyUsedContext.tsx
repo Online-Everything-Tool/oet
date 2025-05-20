@@ -110,21 +110,14 @@ export const RecentlyUsedProvider = ({
 
   useEffect(() => {
     if (isLoadingMetadata) {
-      console.log(
-        '[RecentlyUsedCtx] Metadata loading, deferring LiveQuery setup.'
-      );
       return;
     }
-    console.log('[RecentlyUsedCtx] Metadata loaded, setting up LiveQuery.');
 
     const db = getDbInstance();
     let subscription: Subscription | undefined;
 
     try {
       const observable = liveQuery(async () => {
-        console.log(
-          '[RecentlyUsedCtx] LiveQuery triggered: Fetching tool states.'
-        );
         const toolStateFilesFromDb = await db.files
           .where('type')
           .equals('application/x-oet-tool-state+json')
@@ -144,9 +137,6 @@ export const RecentlyUsedProvider = ({
 
           const metadata = getToolMetadata(directive);
           if (!metadata) {
-            console.warn(
-              `[RecentlyUsedCtx] Metadata not found for directive: ${directive}.`
-            );
             continue;
           }
 
@@ -186,9 +176,6 @@ export const RecentlyUsedProvider = ({
                 Object.assign(entry, customPreviewDetails);
                 if (!entry.previewSource) entry.previewSource = 'custom';
                 previewDetermined = true;
-                console.log(
-                  `[RecentlyUsedCtx] Custom preview applied for ${directive} via module.`
-                );
               }
             } catch (customPreviewError) {
               console.error(
@@ -259,21 +246,27 @@ export const RecentlyUsedProvider = ({
 
           if (
             !previewDetermined &&
-            metadata.inputConfig?.stateFiles !== 'none'
+            metadata.inputConfig?.stateFiles &&
+            metadata.inputConfig.stateFiles !== 'none'
           ) {
             const stateFilesConfig = metadata.inputConfig.stateFiles;
+
             if (Array.isArray(stateFilesConfig)) {
               for (const inDef of stateFilesConfig) {
                 if (previewDetermined) break;
+
                 const fileIds = extractFileIdsFromState(
                   toolCurrentState,
                   inDef
                 );
+
                 if (fileIds.length > 0) {
                   const firstFileId = fileIds[0];
+
                   const refFile = (await db.files.get(firstFileId)) as
                     | StoredFile
                     | undefined;
+
                   if (refFile) {
                     entry.itemMimeType = refFile.type;
                     const displayInfo = getDisplayInfoForFilePreview(refFile);
@@ -320,9 +313,6 @@ export const RecentlyUsedProvider = ({
             }
           }
         }
-        console.log(
-          `[RecentlyUsedCtx] LiveQuery returning ${processedEntries.length} tools with previews.`
-        );
         return processedEntries;
       });
 
@@ -331,9 +321,6 @@ export const RecentlyUsedProvider = ({
           setRecentTools(updatedRecentToolsWithPreview);
           if (!isLoaded) {
             setIsLoaded(true);
-            console.log('[RecentlyUsedCtx] LiveQuery initial data loaded.');
-          } else {
-            console.log('[RecentlyUsedCtx] LiveQuery data updated.');
           }
         },
         error: (err) => {
@@ -342,7 +329,6 @@ export const RecentlyUsedProvider = ({
           if (!isLoaded) setIsLoaded(true);
         },
       });
-
       console.log('[RecentlyUsedCtx] LiveQuery subscription established.');
     } catch (error) {
       console.error('[RecentlyUsedCtx] Error setting up LiveQuery:', error);
@@ -351,7 +337,6 @@ export const RecentlyUsedProvider = ({
 
     return () => {
       if (subscription) {
-        console.log('[RecentlyUsedCtx] Unsubscribing from LiveQuery.');
         subscription.unsubscribe();
       }
     };

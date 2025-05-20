@@ -150,7 +150,7 @@ export default function TextReverseClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -396,19 +396,19 @@ export default function TextReverseClient({
       if (files.length === 0) return;
       const file = files[0];
       if (!file.blob) {
-        setUiError(`Error: File "${file.name}" has no content.`);
+        setUiError(`Error: File "${file.filename}" has no content.`);
         return;
       }
       try {
         const text = await file.blob.text();
         setToolState({
           inputText: text,
-          lastLoadedFilename: file.name,
+          lastLoadedFilename: file.filename,
         });
         setUiError('');
       } catch (e) {
         setUiError(
-          `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`
+          `Error reading file "${file.filename}": ${e instanceof Error ? e.message : 'Unknown error'}`
         );
         setToolState({
           inputText: '',

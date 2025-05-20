@@ -76,7 +76,7 @@ export default function useToolState<T extends object>(
 
         const stateFileObject: StoredFile = {
           id: stateFileId,
-          name: stateName,
+          filename: stateName,
           type: 'application/x-oet-tool-state+json',
           size: stateBlob.size,
           blob: stateBlob,

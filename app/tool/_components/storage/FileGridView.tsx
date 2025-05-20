@@ -96,7 +96,7 @@ export default function FileGridView({
             onKeyDown={(e) => handleKeyDown(e, file.id)}
             tabIndex={0}
             aria-selected={isSelected}
-            aria-label={`File: ${file.name || 'Untitled'}`}
+            aria-label={`File: ${file.filename || 'Untitled'}`}
           >
             <div className="flex flex-row w-full justify-between items-center px-2">
               <div data-element="checkbox" className="justify-self-start">
@@ -105,7 +105,7 @@ export default function FileGridView({
                   onChange={() => onToggleSelection(file.id)}
                   onClick={(e) => e.stopPropagation()}
                   disabled={isProcessing}
-                  aria-label={`Select file ${file.name}`}
+                  aria-label={`Select file ${file.filename}`}
                   inputClassName="cursor-pointer"
                   tabIndex={-1}
                 />
@@ -182,9 +182,9 @@ export default function FileGridView({
             <div className="w-full text-center">
               <p
                 className="text-xs text-center font-medium text-gray-800 truncate w-full px-1 pointer-events-none"
-                title={file.name}
+                title={file.filename}
               >
-                {file.name || 'Untitled'}
+                {file.filename || 'Untitled'}
               </p>
               <p className="text-[10px] text-gray-500 pointer-events-none mb-1">
                 {formatBytes(file.size)}

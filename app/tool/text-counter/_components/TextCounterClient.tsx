@@ -121,7 +121,7 @@ export default function TextCounterClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           } else {
             loadedFilename = null;
           }
@@ -284,7 +284,7 @@ export default function TextCounterClient({
       const file = files[0];
 
       if (!file.blob) {
-        setClientError(`Error: File "${file.name}" has no content.`);
+        setClientError(`Error: File "${file.filename}" has no content.`);
         return;
       }
 
@@ -294,21 +294,24 @@ export default function TextCounterClient({
           file.type || ''
         ) &&
         !/\.(txt|md|csv|json|xml|log|js|ts|css|html|htm|ini|cfg|sh|py|rb|php|sql)$/i.test(
-          file.name
+          file.filename
         )
       ) {
         setClientError(
-          `Error: File "${file.name}" doesn't appear to be a text-based file. Please select a text file.`
+          `Error: File "${file.filename}" doesn't appear to be a text-based file. Please select a text file.`
         );
         return;
       }
 
       try {
         const textContent = await file.blob.text();
-        setToolState({ inputText: textContent, lastLoadedFilename: file.name });
+        setToolState({
+          inputText: textContent,
+          lastLoadedFilename: file.filename,
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
-        setClientError(`Error reading file "${file.name}": ${msg}`);
+        setClientError(`Error reading file "${file.filename}": ${msg}`);
         setToolState({ inputText: '', lastLoadedFilename: null });
       }
     },

@@ -144,7 +144,7 @@ export default function UrlEncodeDecodeClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -428,7 +428,7 @@ export default function UrlEncodeDecodeClient({
       if (!file.blob) {
         setToolState((prev) => ({
           ...prev,
-          errorMsg: `Error: File "${file.name}" has no content.`,
+          errorMsg: `Error: File "${file.filename}" has no content.`,
         }));
         return;
       }
@@ -436,7 +436,7 @@ export default function UrlEncodeDecodeClient({
         const text = await file.blob.text();
         setToolState({
           inputText: text,
-          lastLoadedFilename: file.name,
+          lastLoadedFilename: file.filename,
         });
       } catch (e) {
         setToolState((prev) => ({
@@ -444,7 +444,7 @@ export default function UrlEncodeDecodeClient({
           inputText: '',
           lastLoadedFilename: null,
           outputValue: '',
-          errorMsg: `Error reading file "${file.name}": ${e instanceof Error ? e.message : 'Unknown error'}`,
+          errorMsg: `Error reading file "${file.filename}": ${e instanceof Error ? e.message : 'Unknown error'}`,
         }));
         setCurrentOutputFilename(null);
       }

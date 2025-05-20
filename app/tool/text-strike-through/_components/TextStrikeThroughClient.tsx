@@ -123,7 +123,7 @@ export default function TextStrikeThroughClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);

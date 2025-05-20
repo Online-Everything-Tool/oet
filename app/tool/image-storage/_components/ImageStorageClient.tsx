@@ -70,7 +70,7 @@ export default function ImageStorageClient({
         {previewUrl && file.type?.startsWith('image/') ? (
           <Image
             src={previewUrl}
-            alt={file.name || 'Preview'}
+            alt={file.filename || 'Preview'}
             layout="fill"
             objectFit="contain"
             unoptimized

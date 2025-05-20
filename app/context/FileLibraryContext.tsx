@@ -150,7 +150,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
   const addFile = useCallback(
     async (
       blob: Blob,
-      name: string,
+      filename: string,
       type: string,
       isTemporary: boolean = true,
       toolRoute?: string
@@ -161,7 +161,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       const now = new Date();
       const newFileRecord: StoredFile = {
         id,
-        name,
+        filename,
         type,
         size: blob.size,
         blob,

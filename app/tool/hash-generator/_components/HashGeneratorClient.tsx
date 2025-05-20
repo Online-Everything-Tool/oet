@@ -158,7 +158,7 @@ export default function HashGeneratorClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -416,7 +416,7 @@ export default function HashGeneratorClient({
       if (!file.blob) {
         setToolState((prev) => ({
           ...prev,
-          errorMsg: `Error: File "${file.name}" has no content.`,
+          errorMsg: `Error: File "${file.filename}" has no content.`,
         }));
         return;
       }
@@ -425,13 +425,13 @@ export default function HashGeneratorClient({
         isTextBasedMimeType(file.type) ||
         file.type === '' ||
         file.type === 'application/octet-stream' ||
-        file.name.endsWith('.txt')
+        file.filename?.endsWith('.txt')
       ) {
         try {
           const text = await file.blob.text();
           setToolState({
             inputText: text,
-            lastLoadedFilename: file.name,
+            lastLoadedFilename: file.filename,
           });
         } catch (e) {
           const msg = e instanceof Error ? e.message : 'File read error';
@@ -440,7 +440,7 @@ export default function HashGeneratorClient({
             inputText: '',
             lastLoadedFilename: null,
             outputValue: '',
-            errorMsg: `Error reading file "${file.name}": ${msg}. Ensure it's text-based.`,
+            errorMsg: `Error reading file "${file.filename}": ${msg}. Ensure it's text-based.`,
           }));
           setCurrentOutputFilename(null);
         }

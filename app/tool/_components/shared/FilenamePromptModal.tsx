@@ -16,7 +16,7 @@ interface FilenamePromptModalProps {
   onConfirm: (filename: string) => void;
   filenameAction?: string;
   initialFilename?: string;
-  promptMessage?: string;
+  promptMessage?: string | React.ReactNode;
   inputLabel?: string;
   confirmButtonText?: string;
   title?: string;
@@ -95,9 +95,9 @@ export default function FilenamePromptModal({
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4">
             {promptMessage && (
-              <p className="text-sm text-[rgb(var(--color-text-muted))]">
+              <div className="text-sm text-[rgb(var(--color-text-muted))]">
                 {promptMessage}
-              </p>
+              </div>
             )}
             <div>
               <label

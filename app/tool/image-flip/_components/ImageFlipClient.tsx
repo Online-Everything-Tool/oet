@@ -247,7 +247,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
           if (mounted && file?.blob) {
             localOrigObjUrl = URL.createObjectURL(file.blob);
             setOriginalImageSrcForUI(localOrigObjUrl);
-            setOriginalFilenameForDisplay(file.name);
+            setOriginalFilenameForDisplay(file.filename);
           } else if (mounted) {
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
@@ -330,8 +330,11 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         return;
       }
       const baseName =
-        inputFile.name?.substring(0, inputFile.name.lastIndexOf('.')) ||
-        inputFile.name ||
+        inputFile.filename?.substring(
+          0,
+          inputFile.filename?.lastIndexOf('.')
+        ) ||
+        inputFile.filename ||
         `image-${toolState.selectedFileId?.substring(0, 8)}`;
       const ext = inputFile.type?.split('/')[1] || 'png';
       const outputFileName = `flipped-${toolState.flipType}-${baseName}.${ext}`;
@@ -399,7 +402,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         }
       } else if (files?.length) {
         setUiError(
-          `Selected file "${files[0].name}" is not a recognized image type.`
+          `Selected file "${files[0].filename}" is not a recognized image type.`
         );
       }
     },

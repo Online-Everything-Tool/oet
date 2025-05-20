@@ -132,16 +132,16 @@ export default function FileListView({
                     onChange={() => onToggleSelection(file.id)}
                     onClick={(e) => e.stopPropagation()}
                     disabled={isProcessing}
-                    aria-label={`Select file ${file.name}`}
+                    aria-label={`Select file ${file.filename}`}
                     inputClassName="cursor-pointer"
                   />
                 </td>
                 {/* Data Cells */}
                 <td
                   className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-xs"
-                  title={file.name}
+                  title={file.filename}
                 >
-                  {file.name}
+                  {file.filename}
                 </td>
                 <td
                   className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs"

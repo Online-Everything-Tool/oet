@@ -142,7 +142,7 @@ export default function CaseConverterClient({
         try {
           newText = await firstItem.blob.text();
           if ('id' in firstItem && 'name' in firstItem) {
-            loadedFilename = (firstItem as StoredFile).name;
+            loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
           const errorMsg = e instanceof Error ? e.message : String(e);
@@ -438,19 +438,19 @@ export default function CaseConverterClient({
       if (files.length === 0) return;
       const file = files[0];
       if (!file.blob) {
-        setUiError(`Error: File "${file.name}" has no content.`);
+        setUiError(`Error: File "${file.filename}" has no content.`);
         return;
       }
       try {
         const text = await file.blob.text();
         setToolState({
           inputText: text,
-          lastLoadedFilename: file.name,
+          lastLoadedFilename: file.filename,
         });
         setUiError('');
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
-        setUiError(`Error reading file "${file.name}": ${msg}`);
+        setUiError(`Error reading file "${file.filename}": ${msg}`);
         setToolState({
           inputText: '',
           lastLoadedFilename: null,

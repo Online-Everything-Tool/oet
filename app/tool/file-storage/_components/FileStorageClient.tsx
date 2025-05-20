@@ -30,7 +30,7 @@ export default function FileStorageClient({
         {previewUrl && fileType.startsWith('image/') ? (
           <Image
             src={previewUrl}
-            alt={file.name || 'Preview'}
+            alt={file.filename || 'Preview'}
             layout="fill"
             objectFit="contain"
             unoptimized
@@ -39,7 +39,7 @@ export default function FileStorageClient({
           <span className="flex items-center justify-center h-full w-full text-3xl">
             <span
               aria-hidden="true"
-              className={getFileIconClassName(file.name)}
+              className={getFileIconClassName(file.filename)}
               title={file.type || 'File'}
             ></span>
           </span>
