@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import ToolHeader from '../../_components/ToolHeader';
 import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
+import { ToolMetadata } from '@/src/types/tools';
 
 interface RawEntityItem {
   name?: string;
@@ -137,9 +138,9 @@ async function loadAndProcessEntities(): Promise<{
 }
 
 export default async function HtmlEntityPage() {
+  const typedMetadata = metadata as ToolMetadata;
   const { entities, categories } = await loadAndProcessEntities();
   const toolTitle = metadata.title || 'Html Entity Explorer';
-  const toolRoute = '/tool/html-entity-explorer';
 
   if (entities.length === 0) {
     console.warn(
@@ -149,8 +150,7 @@ export default async function HtmlEntityPage() {
 
   return (
     <div className="relative flex flex-col gap-4">
-      {/* Render ToolSettings */}
-      <ToolSettings toolRoute={toolRoute} />
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <HtmlEntityExplorerClient
         initialEntities={entities}

@@ -15,7 +15,7 @@ export default function CryptoWalletGeneratorPage() {
 
   return (
     <div className="relative flex flex-col gap-4">
-      <ToolSettings toolRoute={toolRoute} />
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <CryptoWalletGeneratorClient

@@ -709,7 +709,7 @@ export default function UrlEncodeDecodeClient({
           </div>
         </div>
       )}
-      <div>        
+      <div>
         <label
           htmlFor="url-output-main"
           className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1"

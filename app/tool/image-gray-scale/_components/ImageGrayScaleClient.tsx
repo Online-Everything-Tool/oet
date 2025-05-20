@@ -675,8 +675,7 @@ export default function ImageGrayScaleClient({
             aria-hidden="true"
           />
           <div>
-            <strong className="font-semibold">Error:</strong>{' '}
-            {displayError}
+            <strong className="font-semibold">Error:</strong> {displayError}
           </div>
         </div>
       )}

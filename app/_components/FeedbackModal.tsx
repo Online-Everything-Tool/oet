@@ -2,24 +2,42 @@
 'use client';
 
 import React from 'react';
+import type { ToolMetadata } from '@/src/types/tools';
+import { XMarkIcon } from '@heroicons/react/24/outline';
 
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
-
   dialogRef: React.RefObject<HTMLDivElement | null>;
+  toolMetadata?: ToolMetadata;
 }
-
-const GITHUB_ISSUES_URL =
-  'https://github.com/Online-Everything-Tool/oet/issues/new/choose';
 
 export default function FeedbackModal({
   isOpen,
   onClose,
   dialogRef,
+  toolMetadata,
 }: FeedbackModalProps) {
   if (!isOpen) {
     return null;
+  }
+
+  let githubIssuesUrl =
+    'https://github.com/Online-Everything-Tool/oet/issues/new/choose';
+  let modalTitle = 'Provide Feedback';
+
+  if (toolMetadata) {
+    modalTitle = `Provide Feedback for ${toolMetadata.title}`;
+    const issueTitle = `Feedback: ${toolMetadata.title}`;
+    let issueBody = `**Tool:** ${toolMetadata.title} (\`${toolMetadata.directive}\`)\n`;
+    if (typeof window !== 'undefined') {
+      issueBody += `**Page URL:** ${window.location.href}\n`;
+    }
+    issueBody += `\n**Feedback/Bug/Suggestion:**\n\n\n`;
+    issueBody += `**Steps to Reproduce (if applicable):**\n1. \n2. \n3. \n`;
+
+    const labels = `tool-feedback,${toolMetadata.directive}`;
+    githubIssuesUrl = `https://github.com/Online-Everything-Tool/oet/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}&labels=${encodeURIComponent(labels)}`;
   }
 
   return (
@@ -29,46 +47,28 @@ export default function FeedbackModal({
       role="dialog"
       aria-modal="true"
     >
-      {/* Modal Content Container (Centered, styled) */}
-      {/* --- Cast to specific type here as we know it's HTMLDivElement when rendered --- */}
       <div
         ref={dialogRef as React.RefObject<HTMLDivElement>}
         className="bg-[rgb(var(--color-bg-component))] rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col"
       >
-        {/* Modal Header */}
         <div className="p-4 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center">
           <h2
             id="feedback-dialog-title"
             className="text-lg font-semibold text-[rgb(var(--color-text-base))]"
           >
-            Provide Feedback
+            {modalTitle}
           </h2>
-          {/* Standard HTML close button */}
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
             aria-label="Close Feedback Modal"
           >
-            {/* SVG 'X' icon */}
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <XMarkIcon className="h-6 w-6" aria-hidden="true" />{' '}
+            {/* MODIFIED: Use Heroicon */}
           </button>
         </div>
 
-        {/* Modal Body */}
         <div className="p-6 overflow-y-auto space-y-4">
           <p className="text-sm text-gray-600">
             Found a bug, have an idea for a new tool, or want to suggest an
@@ -76,9 +76,10 @@ export default function FeedbackModal({
           </p>
           <p className="text-sm text-gray-600">
             Please use our GitHub Issues page to share your thoughts.
+            {toolMetadata ? " We've pre-filled some details for you." : ''}
           </p>
           <a
-            href={GITHUB_ISSUES_URL}
+            href={githubIssuesUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block w-full text-center px-5 py-2.5 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-primary-bg))] transition-colors duration-150 ease-in-out"
@@ -87,7 +88,6 @@ export default function FeedbackModal({
           </a>
         </div>
 
-        {/* Modal Footer */}
         <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end">
           <button
             type="button"

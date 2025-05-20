@@ -14,7 +14,7 @@ export default function LinkedinPostFormatterPage() {
 
   return (
     <div className="relative flex flex-col gap-4">
-      <ToolSettings toolRoute={toolRoute} />
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader
         title={toolTitle}
         description={typedMetadata.description || ''}

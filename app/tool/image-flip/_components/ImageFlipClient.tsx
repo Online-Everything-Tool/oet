@@ -716,8 +716,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
             aria-hidden="true"
           />
           <div>
-            <strong className="font-semibold">Error:</strong>{' '}
-            {displayError}
+            <strong className="font-semibold">Error:</strong> {displayError}
           </div>
         </div>
       )}

@@ -1,6 +1,50 @@
 // FILE: app/lib/utils.ts
 import { getClassWithColor } from 'file-icons-js';
 import mime from 'mime-types';
+import { StoredFile } from './db';
+
+export interface FilePreviewDisplayInfo {
+  iconName: string;
+  displayName: string;
+  mimeType?: string;
+}
+
+export function getDisplayInfoForFilePreview(
+  fileOrMime: StoredFile | string,
+  originalName?: string
+): FilePreviewDisplayInfo {
+  if (typeof fileOrMime === 'object' && fileOrMime.name) {
+    return {
+      iconName: fileOrMime.name,
+      displayName: fileOrMime.name,
+      mimeType: fileOrMime.type,
+    };
+  }
+
+  const mimeTypeStr =
+    typeof fileOrMime === 'string' ? fileOrMime : fileOrMime.type;
+  const baseName = originalName
+    ? originalName.substring(0, originalName.lastIndexOf('.')) || originalName
+    : 'file';
+
+  const extension = mime.extension(mimeTypeStr || '');
+
+  if (extension) {
+    const generatedName = `${baseName}.${extension}`;
+    return {
+      iconName: generatedName,
+      displayName: originalName || generatedName,
+      mimeType: mimeTypeStr,
+    };
+  }
+
+  return {
+    iconName: originalName || baseName + '.dat',
+    displayName:
+      originalName || (mimeTypeStr ? `${mimeTypeStr} data` : 'Unknown File'),
+    mimeType: mimeTypeStr,
+  };
+}
 
 const FILENAME_TO_MIMETYPE_OVERRIDES: Record<string, string> = {
   ts: 'application/typescript',

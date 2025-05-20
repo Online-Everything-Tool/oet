@@ -1,4 +1,7 @@
 // FILE: src/types/tools.ts
+
+import type { RecentToolEntry } from '@/app/context/RecentlyUsedContext';
+
 export interface ParamConfig {
   paramName: string;
   type: 'string' | 'enum' | 'boolean' | 'number' | 'json';
@@ -48,3 +51,8 @@ export interface ToolMetadata {
   status?: string;
   [key: string]: unknown;
 }
+
+export type CustomRecentActivityPreviewFn = (
+  currentState: Record<string, unknown>,
+  metadata: ToolMetadata
+) => Partial<RecentToolEntry> | null;

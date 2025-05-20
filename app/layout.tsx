@@ -10,6 +10,7 @@ import { FileLibraryProvider } from './context/FileLibraryContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
 import { MetadataProvider } from './context/MetadataContext';
+import { RecentlyUsedProvider } from './context/RecentlyUsedContext';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
@@ -98,10 +99,12 @@ export default function RootLayout({
         <MetadataProvider>
           <FileLibraryProvider>
             <FavoritesProvider>
-              <Header />
-              <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
-                {children}
-              </main>
+              <RecentlyUsedProvider>
+                <Header />
+                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                  {children}
+                </main>
+              </RecentlyUsedProvider>
             </FavoritesProvider>
           </FileLibraryProvider>
         </MetadataProvider>

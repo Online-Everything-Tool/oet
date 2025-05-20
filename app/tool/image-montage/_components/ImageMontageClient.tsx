@@ -615,7 +615,7 @@ export default function ImageMontageClient({
             className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-500"
             aria-hidden="true"
           />
-          <div>            
+          <div>
             <strong className="font-semibold">Error:</strong>
             {combinedError}
           </div>

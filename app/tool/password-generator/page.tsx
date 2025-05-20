@@ -9,13 +9,12 @@ import type { ToolMetadata } from '@/src/types/tools';
 
 export default function PasswordGeneratorPage() {
   const typedMetadata = metadata as ToolMetadata;
-
   const toolTitle = typedMetadata.title || 'Password Generator';
   const toolRoute = '/tool/password-generator';
 
   return (
     <div className="relative flex flex-col gap-4">
-      <ToolSettings toolRoute={toolRoute}></ToolSettings>
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader
         title={toolTitle}
         description={typedMetadata.description || ''}

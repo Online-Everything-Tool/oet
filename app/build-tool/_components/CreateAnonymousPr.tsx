@@ -163,18 +163,14 @@ export default function CreateAnonymousPr({
           Generation Context Review
         </h3>
         <p className="text-sm">
-          <span className="font-medium text-gray-600">
-            Target Directive:
-          </span>
+          <span className="font-medium text-gray-600">Target Directive:</span>
           <code className="bg-gray-200 text-gray-800 px-1 py-0.5 rounded text-xs font-mono">
             {toolDirective}
           </code>
         </p>
         {validationResult?.generativeDescription && (
           <div>
-            <p className="text-sm font-medium text-gray-600">
-              AI Description:
-            </p>
+            <p className="text-sm font-medium text-gray-600">AI Description:</p>
             <blockquote className="text-sm text-gray-800 pl-2 italic border-l-2 border-gray-300 ml-1 my-1">
               “{validationResult.generativeDescription}”
             </blockquote>
@@ -368,9 +364,7 @@ export default function CreateAnonymousPr({
           }
           className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting
-            ? 'Submitting Anonymously...'
-            : 'Submit Anonymous PR'}
+          {isSubmitting ? 'Submitting Anonymously...' : 'Submit Anonymous PR'}
         </button>
         <button
           type="button"

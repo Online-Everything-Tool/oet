@@ -1,113 +1,161 @@
-// FILE: app/_components/Header.tsx
+// --- FILE: app/_components/Header.tsx ---
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useFavorites } from '@/app/context/FavoritesContext';
+import { useRecentlyUsed } from '@/app/context/RecentlyUsedContext';
+import RecentlyUsedToolsWidget from './RecentlyUsedToolsWidget';
 
-import { StarIcon } from '@heroicons/react/24/solid';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+import { ClockIcon } from '@heroicons/react/24/outline';
 
 import Button from '@/app/tool/_components/form/Button';
 
 export default function Header() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
+  const { recentTools, isLoaded: recentsLoaded } = useRecentlyUsed();
+
   const [showFavoritesDropdown, setShowFavoritesDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [showRecentsDropdown, setShowRecentsDropdown] = useState(false);
+
+  const favoritesDropdownRef = useRef<HTMLDivElement>(null);
+  const recentsDropdownRef = useRef<HTMLDivElement>(null);
 
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
   const pathname = usePathname();
   const isHome = pathname === '/';
   const isToolPage = pathname.startsWith('/tool/');
 
+  const currentToolDirective = useMemo(() => {
+    if (isToolPage) {
+      return pathname.split('/tool/')[1]?.replace(/\/$/, '');
+    }
+    return undefined;
+  }, [pathname, isToolPage]);
+
+  const headerRecentTools = useMemo(() => {
+    if (!recentsLoaded) return [];
+    return recentTools
+      .filter((tool) => tool.directive !== currentToolDirective)
+      .slice(0, 5);
+  }, [recentTools, recentsLoaded, currentToolDirective]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
+        favoritesDropdownRef.current &&
+        !favoritesDropdownRef.current.contains(event.target as Node)
       ) {
         setShowFavoritesDropdown(false);
+      }
+      if (
+        recentsDropdownRef.current &&
+        !recentsDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowRecentsDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownRef]);
+  }, []);
 
   const toggleFavoritesDropdown = () => {
     setShowFavoritesDropdown((prev) => !prev);
+    if (showRecentsDropdown) setShowRecentsDropdown(false);
   };
 
-  const formatDirectiveTitle = (directive: string): string => {
-    return directive
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, (l) => l.toUpperCase());
+  const toggleRecentsDropdown = () => {
+    setShowRecentsDropdown((prev) => !prev);
+    if (showFavoritesDropdown) setShowFavoritesDropdown(false);
   };
 
-  const isCurrentlyFavorite = favoritesLoaded && favorites.length > 0;
+  const closeAllDropdowns = () => {
+    setShowFavoritesDropdown(false);
+    setShowRecentsDropdown(false);
+  };
 
   return (
     <header className="bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] shadow-md sticky top-0 z-50">
       <nav className="container mx-auto max-w-6xl px-4 py-3 flex justify-between items-center">
-        {/* OET Logo/Link (remains a simple Link) */}
         <Link
           href="/"
           className="text-xl font-bold hover:text-indigo-200 transition-colors duration-200"
+          onClick={closeAllDropdowns}
         >
           OET
         </Link>
 
-        {/* Right side controls */}
         <div className="flex items-center space-x-1 md:space-x-2">
-          {/* Build Tool Link (Conditional - styled Link) */}
           {isHome && (
             <Link
               href="/build-tool/"
               className="hidden sm:inline-block text-sm font-medium hover:text-indigo-200 transition-colors duration-200 px-3 py-1.5 rounded hover:bg-[rgba(255,255,255,0.1)]"
+              onClick={closeAllDropdowns}
             >
               Build Tool
             </Link>
           )}
 
-          {/* Favorites Button (Conditional - uses custom Button) */}
+          {/* Recently Used Button & Dropdown (Only on Tool Pages) */}
           {isToolPage && (
-            <div className="relative inline-block" ref={dropdownRef}>
+            <div className="relative inline-block" ref={recentsDropdownRef}>
               <Button
                 variant="link"
-                onClick={toggleFavoritesDropdown}
-                disabled={!favoritesLoaded}
+                onClick={toggleRecentsDropdown}
+                disabled={!recentsLoaded || headerRecentTools.length === 0}
                 className="!px-2 !py-1 rounded hover:!bg-[rgba(255,255,255,0.1)] relative"
-                aria-label="View Favorites"
-                title="View Favorites"
+                aria-label="View Recently Used Tools"
+                title="View Recently Used Tools"
                 aria-haspopup="true"
-                aria-expanded={showFavoritesDropdown}
+                aria-expanded={showRecentsDropdown}
               >
-                <StarIcon
-                  className={`h-5 w-5 transition-colors ${isCurrentlyFavorite ? 'text-yellow-400' : 'text-indigo-200 hover:text-yellow-300'}`}
-                  aria-hidden="true"
+                <ClockIcon
+                  className={`h-5 w-5 ${headerRecentTools.length > 0 ? 'text-indigo-200 hover:text-white' : 'text-indigo-300'}`}
                 />
-                {favoritesLoaded && favoritesCount > 0 && (
+                {recentsLoaded && headerRecentTools.length > 0 && (
                   <span
-                    className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
-                    title={`${favoritesCount} favorite tools`}
+                    className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
+                    title={`${headerRecentTools.length} other recent tools`}
                     aria-hidden="true"
                   >
-                    {favoritesCount > 9 ? '9+' : favoritesCount}
+                    {headerRecentTools.length}
                   </span>
                 )}
                 <span className="sr-only">
-                  Favorites ({favoritesCount} items)
+                  Recently Used ({headerRecentTools.length} items)
                 </span>
               </Button>
+              {showRecentsDropdown && headerRecentTools.length > 0 && (
+                <div
+                  className="absolute right-0 mt-2 w-auto origin-top-right z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <RecentlyUsedToolsWidget
+                    variant="header"
+                    currentToolDirectiveToExclude={currentToolDirective}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
-              {/* Dropdown Menu (logic remains the same) */}
+          {/* Favorites Button (Logic for showing on tool page, etc.) */}
+          {isToolPage && (
+            <div className="relative inline-block" ref={favoritesDropdownRef}>
+              <Button variant="link" onClick={toggleFavoritesDropdown}>
+                <StarIconSolid
+                  className={`h-5 w-5 transition-colors ${favoritesCount > 0 ? 'text-yellow-400' : 'text-indigo-200 hover:text-yellow-300'}`}
+                />
+                {/* ... (favorites count badge) ... */}
+              </Button>
               {showFavoritesDropdown && (
-                <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 py-1">
-                  <div
-                    role="menu"
-                    aria-orientation="vertical"
-                    aria-labelledby="favorites-menu-button"
-                    tabIndex={-1}
-                  >
+                <div
+                  className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 py-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div role="menu" aria-orientation="vertical" tabIndex={-1}>
                     {favoritesLoaded && favorites.length > 0 ? (
                       favorites.map((directive) => (
                         <Link
@@ -116,9 +164,11 @@ export default function Header() {
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate"
                           role="menuitem"
                           tabIndex={-1}
-                          onClick={() => setShowFavoritesDropdown(false)}
+                          onClick={closeAllDropdowns}
                         >
-                          {formatDirectiveTitle(directive)}
+                          {directive
+                            .replace(/-/g, ' ')
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
                         </Link>
                       ))
                     ) : (

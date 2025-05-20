@@ -16,7 +16,7 @@ export default function ColorConverterPage() {
   return (
     <div className="relative flex flex-col gap-4">
       {/* Render ToolSettings */}
-      <ToolSettings toolRoute={toolRoute} />
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <ColorConverterClient

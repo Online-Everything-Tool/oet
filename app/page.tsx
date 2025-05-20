@@ -5,6 +5,7 @@ import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget';
 import { ToolMetadata } from '@/src/types/tools';
+import RecentlyUsedToolsWidget from './_components/RecentlyUsedToolsWidget';
 
 interface ToolDisplayData {
   href: string;
@@ -140,8 +141,7 @@ export default async function Home() {
         <h1 className="text-3xl md:text-4xl font-bold text-[rgb(var(--color-text-base))] mb-2">
           <span className="line-through decoration-red-600 decoration-3">
             Online
-          </span>
-          {' '}
+          </span>{' '}
           Everything Tool
         </h1>
         <p className="text-lg text-[rgb(var(--color-text-muted))]">
@@ -160,6 +160,8 @@ export default async function Home() {
       </div>
 
       <FavoriteToolsWidget />
+
+      <RecentlyUsedToolsWidget />
 
       <ToolListWidget initialTools={availableTools} />
 

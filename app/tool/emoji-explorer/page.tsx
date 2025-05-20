@@ -6,14 +6,16 @@ import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
 
 import { getEmojis, RichEmojiData } from '@/src/constants/emojis';
+import { ToolMetadata } from '@/src/types/tools';
 
 export default async function EmojiExplorerPage() {
+  const typedMetadata = metadata as ToolMetadata;
   const allEmojis: RichEmojiData[] = await getEmojis();
   const toolTitle = metadata.title || 'Emoji Explorer';
-  const toolRoute = '/tool/emoji-explorer';
+
   return (
     <div className="relative p-0">
-      <ToolSettings toolRoute={toolRoute} />
+      <ToolSettings toolMetadata={typedMetadata} />
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <EmojiSearchClient initialEmojis={allEmojis ?? []} />
     </div>

@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     }
 
     const rawResponseText = result.response.text().trim();
-    console.log('rawResponseText:', rawResponseText)
+    console.log('rawResponseText:', rawResponseText);
     const cleanedResponseText = rawResponseText.replace(
       /^```json\s*|\s*```$/g,
       ''
