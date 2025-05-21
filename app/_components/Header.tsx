@@ -31,7 +31,7 @@ export default function Header() {
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
   const pathname = usePathname();
 
-  const isBuildPage = pathname.startsWith('/build-tool/');
+  const isBuildPage = pathname.startsWith('/build-tool');
   const isHomePage = pathname === '/';
   const isToolPage = pathname.startsWith('/tool/');
 
