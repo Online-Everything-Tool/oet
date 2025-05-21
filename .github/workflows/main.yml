@@ -37,6 +37,5 @@ jobs:
           aws sqs send-message \
             --queue-url https://sqs.us-east-1.amazonaws.com/822884795371/oet \
             --message-body "{\"event\":\"code_update\",\"repository\":\"${{ github.repository }}\",\"commit\":\"${{ github.sha }}\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" \
-            --message-group-id "oet-code-update" # Optional: For FIFO queues, use if needed. Standard queues don't require it.
         env:
           AWS_DEFAULT_REGION: us-east-1 
