@@ -11,28 +11,28 @@ const OUTPUT_FILE = path.join(
 // Define the core files that provide overall project context
 const CORE_CONTEXT_FILES_TO_BUNDLE = [
   'package.json',
-  'tsconfig.json',
-  'next.config.ts', // Added next.config.ts as it's important context
+
   'app/page.tsx',
   'app/layout.tsx',
   'app/globals.css',
+
   'src/types/tools.ts',
   'src/types/storage.ts',
-  'src/types/build.ts', // Added build types
+
   'app/lib/db.ts',
   'app/lib/itdeDataUtils.ts',
   'app/lib/sessionStorageUtils.ts',
   'app/lib/utils.ts',
-  'app/lib/colorUtils.ts', // Added colorUtils
+
   'app/context/FileLibraryContext.tsx',
   'app/context/MetadataContext.tsx',
-  'app/context/RecentlyUsedContext.tsx', // Added
-  'app/context/FavoritesContext.tsx', // Added
+
   'app/tool/_hooks/useImageProcessing.ts',
   'app/tool/_hooks/useItdeDiscovery.ts',
   'app/tool/_hooks/useItdeTargetHandler.ts',
   'app/tool/_hooks/useToolState.ts',
   'app/tool/_hooks/useToolUrlState.ts',
+  
   'app/tool/_components/form/Button.tsx',
   'app/tool/_components/form/Checkbox.tsx',
   'app/tool/_components/form/Input.tsx',
@@ -40,19 +40,14 @@ const CORE_CONTEXT_FILES_TO_BUNDLE = [
   'app/tool/_components/form/Range.tsx',
   'app/tool/_components/form/Select.tsx',
   'app/tool/_components/form/Textarea.tsx',
+  
   'app/tool/_components/shared/FilenamePromptModal.tsx',
   'app/tool/_components/shared/FileSelectionModal.tsx',
   'app/tool/_components/shared/IncomingDataModal.tsx',
   'app/tool/_components/shared/ItdeAcceptChoiceModal.tsx',
   'app/tool/_components/shared/ReceiveItdeDataTrigger.tsx',
   'app/tool/_components/shared/SendToToolButton.tsx',
-  'app/tool/_components/shared/OutputActionButtons.tsx', // Added
-  'app/tool/_components/storage/FileDropZone.tsx', // Added
-  'app/tool/_components/storage/FileGridView.tsx', // Added
-  'app/tool/_components/storage/FileListView.tsx', // Added
-  'app/tool/_components/storage/GenericStorageClient.tsx', // Added
-  'app/tool/_components/storage/StorageControls.tsx', // Added
-  // Add any other crucial shared components/hooks/types here
+  'app/tool/_components/shared/OutputActionButtons.tsx',
 ];
 
 async function getFileContent(projectRelativePath) {

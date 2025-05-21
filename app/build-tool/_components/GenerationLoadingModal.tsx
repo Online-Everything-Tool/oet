@@ -11,7 +11,7 @@ interface GenerationLoadingModalProps {
 export default function GenerationLoadingModal({
   isOpen,
   title = 'Processing Request',
-  message = 'Please wait while we generate the tool resources. This may take a few minutes...',
+  message = 'Please wait while we generate the tool resources. This will definitely take a few minutes...',
 }: GenerationLoadingModalProps) {
   if (!isOpen) {
     return null;
