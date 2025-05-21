@@ -101,7 +101,7 @@ export default function RootLayout({
             <FavoritesProvider>
               <RecentlyUsedProvider>
                 <Header />
-                <main className="flex-grow container mx-auto max-w-6xl px-4 py-8">
+                <main className="flex-grow container mx-auto max-w-6xl px-4 py-4">
                   {children}
                 </main>
               </RecentlyUsedProvider>

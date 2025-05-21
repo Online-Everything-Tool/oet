@@ -1,6 +1,7 @@
 // FILE: app/_components/BuildToolWidget.tsx
 import React from 'react';
 import Link from 'next/link';
+import { WrenchIcon } from '@heroicons/react/24/solid';
 
 interface BuildToolWidgetProps {
   suggestedDirectives: string[];
@@ -26,7 +27,7 @@ export default function BuildToolWidget({
           href="/build-tool/"
           className="inline-block px-5 py-2 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors"
         >
-          Build a Tool
+          <WrenchIcon className="h-5 w-5 inline" /> Build a Tool
         </Link>
         <p className="text-[rgb(var(--color-text-muted))] mt-4">
           Use AI (Gemini) to validate the directive and attempt to generate a

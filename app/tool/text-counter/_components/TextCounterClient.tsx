@@ -400,7 +400,6 @@ export default function TextCounterClient({
           />
           <Button
             variant="neutral-outline"
-            size="sm"
             onClick={() => setIsLoadFileModalOpen(true)}
             iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
           >

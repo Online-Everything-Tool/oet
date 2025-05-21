@@ -4,6 +4,8 @@
 import React from 'react';
 import type { ToolMetadata } from '@/src/types/tools';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import Button from '../tool/_components/form/Button';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -86,16 +88,6 @@ export default function FeedbackModal({
           >
             Open GitHub Issues
           </a>
-        </div>
-
-        <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

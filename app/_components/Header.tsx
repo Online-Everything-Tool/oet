@@ -3,17 +3,22 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useFavorites } from '@/app/context/FavoritesContext';
 import { useRecentlyUsed } from '@/app/context/RecentlyUsedContext';
 import RecentlyUsedToolsWidget from './RecentlyUsedToolsWidget';
 
-import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
-import { ClockIcon } from '@heroicons/react/24/outline';
+import {
+  ListBulletIcon,
+  StarIcon as StarIconSolid,
+  WrenchIcon,
+} from '@heroicons/react/24/solid';
 
 import Button from '@/app/tool/_components/form/Button';
 
 export default function Header() {
+  const router = useRouter();
+
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const { recentTools, isLoaded: recentsLoaded } = useRecentlyUsed();
 
@@ -25,7 +30,9 @@ export default function Header() {
 
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
   const pathname = usePathname();
-  const isHome = pathname === '/';
+
+  const isBuildPage = pathname.startsWith('/build-tool/');
+  const isHomePage = pathname === '/';
   const isToolPage = pathname.startsWith('/tool/');
 
   const currentToolDirective = useMemo(() => {
@@ -61,6 +68,11 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const buildTool = () => {
+    closeAllDropdowns();
+    router.push('/build-tool/');
+  };
+
   const toggleFavoritesDropdown = () => {
     setShowFavoritesDropdown((prev) => !prev);
     if (showRecentsDropdown) setShowRecentsDropdown(false);
@@ -88,31 +100,29 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center space-x-1 md:space-x-2">
-          {isHome && (
-            <Link
-              href="/build-tool/"
-              className="hidden sm:inline-block text-sm font-medium hover:text-indigo-200 transition-colors duration-200 px-3 py-1.5 rounded hover:bg-[rgba(255,255,255,0.1)]"
-              onClick={closeAllDropdowns}
+          {!isBuildPage && (
+            <Button
+              onClick={buildTool}
+              className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.4)] text-white"
+              aria-label="Build Tool"
+              title="Build AI Assisted Tool"
+              iconLeft={<WrenchIcon className="h-5 w-5" />}
             >
               Build Tool
-            </Link>
+            </Button>
           )}
-
-          {/* Recently Used Button & Dropdown (Only on Tool Pages) */}
-          {isToolPage && (
+          {!isHomePage && (
             <div className="relative inline-block" ref={recentsDropdownRef}>
               <Button
-                variant="link"
                 onClick={toggleRecentsDropdown}
                 disabled={!recentsLoaded || headerRecentTools.length === 0}
+                className="rounded bg-[rgba(255,255,255,0.2)] relative hover:!bg-[rgba(255,255,255,0.4)]"
                 aria-label="View Recently Used Tools"
                 title="View Recently Used Tools"
                 aria-haspopup="true"
                 aria-expanded={showRecentsDropdown}
               >
-                <ClockIcon
-                  className={`h-5 w-5 ${headerRecentTools.length > 0 ? 'text-indigo-200 hover:text-white' : 'text-indigo-300'}`}
-                />
+                <ListBulletIcon className="h-5 w-5 text-white" />
                 {recentsLoaded && headerRecentTools.length > 0 && (
                   <span
                     className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-green-500 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
@@ -141,13 +151,32 @@ export default function Header() {
           )}
 
           {/* Favorites Button (Logic for showing on tool page, etc.) */}
-          {isToolPage && (
+          {!isHomePage && (
             <div className="relative inline-block" ref={favoritesDropdownRef}>
-              <Button variant="link" onClick={toggleFavoritesDropdown}>
+              <Button
+                onClick={toggleFavoritesDropdown}
+                disabled={!favoritesLoaded}
+                className="rounded bg-[rgba(255,255,255,0.2)]  hover:!bg-[rgba(255,255,255,0.4)] relative"
+                aria-label="View Favorites"
+                title="View Favorites"
+                aria-haspopup="true"
+                aria-expanded={showFavoritesDropdown}
+              >
                 <StarIconSolid
-                  className={`h-5 w-5 transition-colors ${favoritesCount > 0 ? 'text-yellow-400' : 'text-indigo-200 hover:text-yellow-300'}`}
+                  className={`"h-5 w-5 transition-colors ${favoritesCount > 0 ? 'text-yellow-400' : 'text-indigo-200 hover:text-yellow-300'}`}
                 />
-                {/* ... (favorites count badge) ... */}
+                {favoritesLoaded && favoritesCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4"
+                    title={`${favoritesCount} favorite tools`}
+                    aria-hidden="true"
+                  >
+                    {favoritesCount > 9 ? '9+' : favoritesCount}
+                  </span>
+                )}
+                <span className="sr-only">
+                  Favorites ({favoritesCount} items)
+                </span>
               </Button>
               {showFavoritesDropdown && (
                 <div

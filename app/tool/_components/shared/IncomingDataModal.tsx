@@ -11,6 +11,7 @@ import {
   StopCircleIcon,
 } from '@heroicons/react/24/outline';
 import type { IncomingSignal } from '../../_hooks/useItdeTargetHandler';
+import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface IncomingDataModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ export default function IncomingDataModal({
         </div>
 
         <div className="p-1 overflow-y-auto flex-grow">
-          <p className="px-4 pt-3 pb-2 text-xs text-[rgb(var(--color-text-muted))]">
+          <p className="px-4 pt-3 pb-2 text-sm text-[rgb(var(--color-text-muted))]">
             One or more tools have sent data. Accepting will typically replace
             or add to your current input.
           </p>
@@ -88,17 +89,15 @@ export default function IncomingDataModal({
                 <div className="flex gap-2 flex-shrink-0 mt-2 sm:mt-0">
                   <Button
                     variant="neutral-outline"
-                    size="sm"
                     onClick={() => onIgnore(signal.sourceDirective)}
-                    iconLeft={<StopCircleIcon className="h-4 w-4" />}
+                    iconLeft={<StopCircleIcon className="h-5 w-5" />}
                   >
                     Ignore
                   </Button>
                   <Button
-                    variant="primary"
-                    size="sm"
+                    variant="primary-outline"
                     onClick={() => onAccept(signal.sourceDirective)}
-                    iconLeft={<ArrowDownCircleIcon className="h-4 w-4" />}
+                    iconLeft={<ArrowDownCircleIcon className="h-5 w-5" />}
                   >
                     Accept
                   </Button>
@@ -111,14 +110,17 @@ export default function IncomingDataModal({
         <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex flex-col sm:flex-row justify-between items-center gap-3">
           <Button
             variant="danger-outline"
-            size="sm"
             onClick={onIgnoreAll}
             iconLeft={<ArchiveBoxXMarkIcon className="h-5 w-5" />}
           >
-            Ignore All Pending ({signals.length})
+            Ignore All ({signals.length})
           </Button>
-          <Button variant="neutral" onClick={onDeferAll}>
-            Defer All (Close)
+          <Button
+            variant="neutral"
+            onClick={onDeferAll}
+            iconLeft={<XCircleIcon className="h-5 w-5" />}
+          >
+            Defer
           </Button>
         </div>
       </div>

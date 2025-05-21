@@ -604,7 +604,6 @@ export default function JsonValidateFormatClient({
             />
             <Button
               variant="neutral-outline"
-              size="sm"
               onClick={() => setIsLoadFileModalOpen(true)}
               iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}
             >

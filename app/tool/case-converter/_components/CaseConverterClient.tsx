@@ -6,7 +6,6 @@ import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
-import RadioGroup from '../../_components/form/RadioGroup';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
@@ -27,6 +26,7 @@ import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
 import importedMetadata from '../metadata.json';
+import Select from '../../_components/form/Select';
 
 const SENTENCE_CASE_REGEX = /(^\s*\w|[.!?]\s*\w)/g;
 const TITLE_WORD_DELIMITERS = /([\s\-_]+)/;
@@ -410,9 +410,11 @@ export default function CaseConverterClient({
     setDownloadSuccess(false);
   };
 
-  const handleCaseTypeChange = (newCaseType: CaseType) => {
+  const handleCaseTypeChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
     setToolState({
-      caseType: newCaseType,
+      caseType: event.target.value as CaseType,
     });
   };
 
@@ -633,7 +635,6 @@ export default function CaseConverterClient({
             />
             <Button
               variant="neutral-outline"
-              size="sm"
               onClick={() => setIsLoadFileModalOpen(true)}
               iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}
             >
@@ -653,34 +654,42 @@ export default function CaseConverterClient({
           spellCheck="false"
         />
       </div>
-      <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
-        <RadioGroup
-          name="caseType"
-          legend="Convert to:"
-          options={CASE_TYPES.map((ct) => ({
-            value: ct.value,
-            label: ct.label,
-          }))}
-          selectedValue={toolState.caseType}
-          onChange={handleCaseTypeChange}
-          layout="horizontal"
-          className="flex-grow"
-          radioClassName="text-sm mb-2 mr-2"
-          labelClassName="font-medium"
-        />
-        <div className="flex flex-wrap gap-3 justify-end mt-2">
-          <OutputActionButtons
-            canPerform={canPerformOutputActions}
-            isSaveSuccess={saveSuccess}
-            isCopySuccess={copySuccess}
-            isDownloadSuccess={downloadSuccess}
-            onInitiateSave={() => initiateOutputAction('save')}
-            onInitiateDownload={() => initiateOutputAction('download')}
-            onCopy={handleCopyToClipboard}
-            onClear={handleClear}
-            directiveName={directiveName}
-            outputConfig={metadata.outputConfig}
-          />
+      <div className="flex flex-col border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]">
+        <div className="flex flex-wrap gap-4 items-center p-3">
+          <div className="flex items-center gap-2 flex-grow sm:flex-grow-0">
+            <label
+              htmlFor="case-type-select"
+              className="text-sm font-medium text-[rgb(var(--color-text-muted))] whitespace-nowrap"
+            >
+              Case Type:
+            </label>
+            <Select
+              id="case-type-select"
+              name="caseType"
+              options={CASE_TYPES.map((ct) => ({
+                value: ct.value,
+                label: ct.label,
+              }))}
+              value={toolState.caseType}
+              onChange={handleCaseTypeChange}
+              selectClassName="text-sm py-1.5 pl-2 pr-8 min-w-[120px]"
+            />
+          </div>
+          <div className="flex-grow"></div>
+          <div className="flex flex-wrap gap-3 justify-end mt-2">
+            <OutputActionButtons
+              canPerform={canPerformOutputActions}
+              isSaveSuccess={saveSuccess}
+              isCopySuccess={copySuccess}
+              isDownloadSuccess={downloadSuccess}
+              onInitiateSave={() => initiateOutputAction('save')}
+              onInitiateDownload={() => initiateOutputAction('download')}
+              onCopy={handleCopyToClipboard}
+              onClear={handleClear}
+              directiveName={directiveName}
+              outputConfig={metadata.outputConfig}
+            />
+          </div>
         </div>
       </div>
       {uiError && (

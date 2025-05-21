@@ -57,7 +57,7 @@ interface LayoutData {
 
 const calculateLayout = (
   images: MontageImage[],
-  effectType: MontageEffect
+  montageEffectType: MontageEffect
 ): LayoutData | null => {
   if (images.length === 0) return null;
 
@@ -71,7 +71,7 @@ const calculateLayout = (
     let itemRenderHeightForBounds = 0;
     let itemActualDrawWidth = 0;
 
-    if (effectType === 'polaroid') {
+    if (montageEffectType === 'polaroid') {
       itemActualDrawWidth = TOTAL_POLAROID_WIDTH;
       itemRenderWidthForBounds =
         TOTAL_POLAROID_WIDTH + SHADOW_EFFECTIVE_EXTENSION;
@@ -107,7 +107,7 @@ const calculateLayout = (
     } else {
       const prevImgData = images[index - 1];
       let prevItemActualDrawWidth = 0;
-      if (effectType === 'polaroid')
+      if (montageEffectType === 'polaroid')
         prevItemActualDrawWidth = TOTAL_POLAROID_WIDTH;
       else {
         const prevFit = calculateAspectRatioFit(
@@ -135,7 +135,7 @@ const calculateLayout = (
       let itemRenderWidthForBounds = 0;
       let itemRenderHeightForBounds = 0;
       let itemActualDrawWidth = 0;
-      if (effectType === 'polaroid') {
+      if (montageEffectType === 'polaroid') {
         itemActualDrawWidth = TOTAL_POLAROID_WIDTH;
         itemRenderWidthForBounds =
           TOTAL_POLAROID_WIDTH + SHADOW_EFFECTIVE_EXTENSION;
@@ -195,7 +195,7 @@ interface UseMontageCanvasReturn {
 
 export function useMontageCanvas(
   montageImages: MontageImage[],
-  effect: MontageEffect
+  montageEffect: MontageEffect
 ): UseMontageCanvasReturn {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -219,7 +219,7 @@ export function useMontageCanvas(
         return null;
       }
 
-      const layout = calculateLayout(montageImages, effect);
+      const layout = calculateLayout(montageImages, montageEffect);
       if (!layout) {
         if (!forBlobGeneration && canvasRef.current)
           ctx.clearRect(
@@ -269,7 +269,7 @@ export function useMontageCanvas(
 
         let currentItemDrawWidth = 0;
         let currentItemDrawHeight = 0;
-        if (effect === 'polaroid') {
+        if (montageEffect === 'polaroid') {
           currentItemDrawWidth = TOTAL_POLAROID_WIDTH;
           currentItemDrawHeight = TOTAL_POLAROID_HEIGHT;
         } else {
@@ -289,7 +289,7 @@ export function useMontageCanvas(
         ctx.translate(finalCenterX, finalCenterY);
         ctx.rotate(tiltRad);
 
-        if (effect === 'polaroid') {
+        if (montageEffect === 'polaroid') {
           ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
           ctx.shadowBlur = 10;
           ctx.shadowOffsetX = 2;
@@ -409,7 +409,7 @@ export function useMontageCanvas(
       });
       return layout;
     },
-    [montageImages, effect]
+    [montageImages, montageEffect]
   );
 
   useEffect(() => {
@@ -458,7 +458,7 @@ export function useMontageCanvas(
 
       let itemWidthForBounds = 0,
         itemHeightForBounds = 0;
-      if (effect === 'polaroid') {
+      if (montageEffect === 'polaroid') {
         itemWidthForBounds = TOTAL_POLAROID_WIDTH + SHADOW_EFFECTIVE_EXTENSION;
         itemHeightForBounds =
           TOTAL_POLAROID_HEIGHT + SHADOW_EFFECTIVE_EXTENSION;
@@ -539,7 +539,7 @@ export function useMontageCanvas(
         tempRenderCanvas.toBlob(resolve, 'image/png', 0.95)
       );
     }
-  }, [montageImages, effect, drawLogic]);
+  }, [montageImages, montageEffect, drawLogic]);
 
   return { canvasRef, generateMontageBlob };
 }

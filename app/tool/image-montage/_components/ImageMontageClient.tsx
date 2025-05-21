@@ -68,7 +68,7 @@ export default function ImageMontageClient({
 }: ImageMontageClientProps) {
   const {
     persistedImages,
-    effect,
+    montageEffect,
     montageImagesForCanvas,
     processedFileId: currentProcessedFileIdFromHook,
     lastUserGivenFilename,
@@ -93,7 +93,7 @@ export default function ImageMontageClient({
   const {
     canvasRef: actualCanvasRef,
     generateMontageBlob: actualGenerateMontageBlob,
-  } = useMontageCanvas(montageImagesForCanvas, effect);
+  } = useMontageCanvas(montageImagesForCanvas, montageEffect);
 
   const [isGeneratingForAction, setIsGeneratingForAction] = useState(false);
   const [manualSaveSuccess, setManualSaveSuccess] = useState<boolean>(false);
@@ -168,7 +168,7 @@ export default function ImageMontageClient({
       if (prevPersistedImagesJsonRef.current !== currentPersistedImagesJson) {
         hasMeaningfulChange = true;
       }
-      if (prevEffectRef.current !== effect) {
+      if (prevEffectRef.current !== montageEffect) {
         hasMeaningfulChange = true;
       }
     }
@@ -187,10 +187,10 @@ export default function ImageMontageClient({
     }
 
     prevPersistedImagesJsonRef.current = currentPersistedImagesJson;
-    prevEffectRef.current = effect;
+    prevEffectRef.current = montageEffect;
   }, [
     persistedImages,
-    effect,
+    montageEffect,
     currentProcessedFileIdFromHook,
     isLoadingState,
     isGeneratingForAction,
@@ -359,7 +359,7 @@ export default function ImageMontageClient({
     setUiError(null);
     let suggestedFilename = lastUserGivenFilename;
     if (!suggestedFilename)
-      suggestedFilename = `MyMontage-${effect}-${Date.now()}.png`;
+      suggestedFilename = `MyMontage-${montageEffect}-${Date.now()}.png`;
 
     const currentOutputIsTemporary =
       currentProcessedFileInfo?.isTemporary === true ||
@@ -383,7 +383,7 @@ export default function ImageMontageClient({
     hasInputs,
     currentProcessedFileIdFromHook,
     lastUserGivenFilename,
-    effect,
+    montageEffect,
     currentProcessedFileInfo,
   ]);
 
@@ -396,7 +396,7 @@ export default function ImageMontageClient({
     setIsGeneratingForAction(true);
     let blobToDownload: Blob | null = null;
     const filenameForDownloadPrompt =
-      lastUserGivenFilename || `MyMontage-${effect}-${Date.now()}.png`;
+      lastUserGivenFilename || `MyMontage-${montageEffect}-${Date.now()}.png`;
 
     if (
       currentProcessedFileInfo &&
@@ -425,7 +425,7 @@ export default function ImageMontageClient({
     hasInputs,
     currentProcessedFileIdFromHook,
     lastUserGivenFilename,
-    effect,
+    montageEffect,
     currentProcessedFileInfo,
     getFile,
     actualGenerateMontageBlob,
@@ -511,7 +511,7 @@ export default function ImageMontageClient({
         if (blobToDownload) {
           const newState: ImageMontageToolPersistedState = {
             persistedImages,
-            effect,
+            montageEffect,
             processedFileId: currentProcessedFileIdFromHook,
             lastUserGivenFilename: chosenFilename,
           };
@@ -543,7 +543,7 @@ export default function ImageMontageClient({
       autoUpdateTemporaryMontageDebounced,
       saveStateNow,
       currentProcessedFileIdFromHook,
-      effect,
+      montageEffect,
       persistedImages,
     ]
   );
@@ -627,7 +627,7 @@ export default function ImageMontageClient({
               { value: 'polaroid', label: 'Polaroid' },
               { value: 'natural', label: 'Borderless' },
             ]}
-            selectedValue={effect}
+            selectedValue={montageEffect}
             onChange={(newEffectValue) =>
               handleEffectChange(newEffectValue as MontageEffect)
             }
@@ -783,7 +783,7 @@ export default function ImageMontageClient({
         onConfirm={handleFilenameConfirm}
         initialFilename={
           filenameActionContext?.currentFilenameToPrompt ||
-          `MyMontage-${effect}-${Date.now()}.png`
+          `MyMontage-${montageEffect}-${Date.now()}.png`
         }
         title={
           filenameActionContext?.type === 'download'

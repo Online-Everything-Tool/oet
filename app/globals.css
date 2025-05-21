@@ -56,6 +56,7 @@ html {
   --color-button-neutral-bg: 216 216 220; /* zinc-200 / gray-200 */
   --color-button-neutral-hover-bg: 193 193 196; /* zinc-300 / gray-300 */
   --color-button-neutral-text: var(--color-text-base);
+
   /* Accent Button (Purple) */
   --color-button-accent-bg: 126 34 206; /* purple-600 */
   --color-button-accent-hover-bg: 107 33 168; /* purple-700 */

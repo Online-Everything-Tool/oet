@@ -159,10 +159,9 @@ export default function SendToToolButton({
               {discoveredTargets.map((target) => (
                 <Button
                   key={target.directive}
-                  variant="neutral"
                   onClick={() => handleSelectTarget(target)}
                   fullWidth
-                  className="!justify-start !text-left !block !w-full !px-4 !py-3 !text-sm !text-gray-700 hover:!bg-gray-100 hover:!text-gray-900 !transition-colors !duration-150 !shadow-none !border-none !rounded-none"
+                  className="!justify-start !text-left !block !w-full !px-4 !py-3 !text-sm !text-gray-700 !bg-gray-250 hover:!bg-gray-100 hover:!text-gray-900 !transition-colors !duration-150 !shadow-none !border-none !rounded-none"
                   role="menuitem"
                   tabIndex={-1}
                   disabled={isPreDispatching}

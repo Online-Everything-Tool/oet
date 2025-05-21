@@ -33,14 +33,14 @@ export type MontageEffect = 'polaroid' | 'natural';
 
 export interface ImageMontageToolPersistedState {
   persistedImages: PersistedMontageImage[];
-  effect: MontageEffect;
+  montageEffect: MontageEffect;
   processedFileId: string | null;
   lastUserGivenFilename: string | null;
 }
 
 const DEFAULT_MONTAGE_TOOL_STATE: ImageMontageToolPersistedState = {
   persistedImages: [],
-  effect: 'polaroid',
+  montageEffect: 'polaroid',
   processedFileId: null,
   lastUserGivenFilename: null,
 };
@@ -61,7 +61,7 @@ interface UseMontageStateProps {
 
 export interface UseMontageStateReturn {
   persistedImages: PersistedMontageImage[];
-  effect: MontageEffect;
+  montageEffect: MontageEffect;
   montageImagesForCanvas: MontageImage[];
   processedFileId: string | null;
   lastUserGivenFilename: string | null;
@@ -74,7 +74,7 @@ export interface UseMontageStateReturn {
   handleMoveImageLeft: (instanceId: string) => void;
   handleMoveImageRight: (instanceId: string) => void;
   handleZIndexChange: (instanceId: string, direction: 'up' | 'down') => void;
-  handleEffectChange: (effect: MontageEffect) => void;
+  handleEffectChange: (montageEffect: MontageEffect) => void;
 
   handleSaveSuccess: (
     savedFileId: string,
@@ -551,7 +551,7 @@ export function useMontageState({
     async (newEffect: MontageEffect) => {
       const newState = {
         ...toolStateRef.current,
-        effect:
+        montageEffect:
           newEffect /* processedFileId & lastUserGivenFilename unchanged */,
       };
       setToolStateInternal(newState);
@@ -699,7 +699,7 @@ export function useMontageState({
 
   return {
     persistedImages: toolState.persistedImages,
-    effect: toolState.effect,
+    montageEffect: toolState.montageEffect,
     montageImagesForCanvas,
     processedFileId: toolState.processedFileId,
     lastUserGivenFilename: toolState.lastUserGivenFilename,
