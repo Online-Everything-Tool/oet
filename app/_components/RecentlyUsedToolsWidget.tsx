@@ -84,7 +84,7 @@ const RecentToolItem: React.FC<{
         URL.revokeObjectURL(objectUrlCreatedInThisEffectRun);
       }
     };
-  }, [entry.previewType, entry.previewImageId, getFile, imageUrl]);
+  }, [entry.previewType, entry.previewImageId, getFile]);
 
   useEffect(() => {
     const urlInStateWhenEffectRan = imageUrl;

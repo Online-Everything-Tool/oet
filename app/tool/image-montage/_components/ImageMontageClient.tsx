@@ -143,11 +143,11 @@ export default function ImageMontageClient({
     )
       return;
     if (persistedImages.length === 0) {
-      await setTemporaryMontageOutput(null, 'auto-montage');
+      await setTemporaryMontageOutput(null, 'auto');
       return;
     }
     const newBlob = await actualGenerateMontageBlob();
-    await setTemporaryMontageOutput(newBlob, 'auto-montage');
+    await setTemporaryMontageOutput(newBlob, 'auto');
   }, AUTO_UPDATE_DEBOUNCE_MS_CLIENT);
 
   const prevPersistedImagesJsonRef = useRef<string | undefined>(undefined);
@@ -679,10 +679,10 @@ export default function ImageMontageClient({
 
       {persistedImages.length > 0 && (
         <div className="flex-shrink-0 pb-4 border-b border-[rgb(var(--color-border-base))]">
-          <h2 className="text-base font-semibold mb-2 text-[rgb(var(--color-text-muted))]">
+          <h2 className="text-base font-semibold text-[rgb(var(--color-text-muted))]">
             Adjust & Reorder Input Images ({persistedImages.length})
           </h2>
-          <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-start items-stretch">
+          <div className="flex space-x-4 overflow-x-auto py-2 px-1 justify-center items-stretch">
             {montageImagesForCanvas.map((imgData, index) => {
               const sourcePersistedImage = persistedImages.find(
                 (p) => p.instanceId === imgData.instanceId

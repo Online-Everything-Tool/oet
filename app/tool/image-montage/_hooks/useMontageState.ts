@@ -601,7 +601,7 @@ export function useMontageState({
   const setTemporaryMontageOutput = useCallback(
     async (
       blob: Blob | null,
-      tempNameRoot: string = 'auto-montage'
+      tempNameRoot: string = 'auto'
     ): Promise<string | null> => {
       const currentPersistedProcessedIdInState =
         toolStateRef.current.processedFileId;

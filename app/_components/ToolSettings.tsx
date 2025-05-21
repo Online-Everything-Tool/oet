@@ -95,9 +95,9 @@ export default function ToolSettings({ toolMetadata }: ToolSettingsProps) {
           }
         >
           {isCurrentlyFavorite ? (
-            <StarIconSolid className="h-5 w-5" aria-hidden="true" />
+            <StarIconSolid className="h-6 w-6" aria-hidden="true" />
           ) : (
-            <StarIconOutline className="h-5 w-5" aria-hidden="true" />
+            <StarIconOutline className="h-6 w-6" aria-hidden="true" />
           )}
         </button>
       )}
@@ -110,65 +110,10 @@ export default function ToolSettings({ toolMetadata }: ToolSettingsProps) {
         className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <ChatBubbleBottomCenterTextIcon
-          className="h-5 w-5"
+          className="h-6 w-6"
           aria-hidden="true"
         />
       </button>
-
-      {isSettingsOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4"
-          aria-labelledby="settings-dialog-title"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            ref={settingsDialogRef}
-            className="bg-[rgb(var(--color-bg-component))] rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col"
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center">
-              <h2
-                id="settings-dialog-title"
-                className="text-lg font-semibold text-[rgb(var(--color-text-base))]"
-              >
-                History Settings
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
-                aria-label="Close Settings"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end">
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(false)}
-                className="px-4 py-2 rounded-md text-sm font-medium bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))]"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <FeedbackModal
         isOpen={isFeedbackOpen}
