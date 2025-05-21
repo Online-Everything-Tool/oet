@@ -4,8 +4,6 @@
 import React from 'react';
 import type { ToolMetadata } from '@/src/types/tools';
 import { XMarkIcon } from '@heroicons/react/24/outline';
-import Button from '../tool/_components/form/Button';
-import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface FeedbackModalProps {
   isOpen: boolean;
