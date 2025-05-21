@@ -1167,7 +1167,7 @@ export default function ZipFileExplorerClient({
               <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))] mb-1">
                 View Toggles:
               </label>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-stretch gap-2">
                 <Button
                   onClick={toggleShowOnlySelected}
                   variant={
@@ -1176,16 +1176,17 @@ export default function ZipFileExplorerClient({
                       : 'neutral-outline'
                   }
                   size="sm"
+                  iconLeft={<FunnelIcon className="h-4 w-4" />}
                   disabled={isLoadingUserActions || selectedPathsSet.size === 0}
                   title={
                     persistentState.showOnlySelected
                       ? 'Show all'
-                      : 'Show selected'
+                      : 'Filter selected'
                   }
                 >
                   {persistentState.showOnlySelected
                     ? `Selected (${placeholderSelectedItemsForDiscovery.length})`
-                    : 'Show Selected'}
+                    : 'Filter Selected'}
                 </Button>
                 <Button
                   onClick={toggleHideEmptyFolders}
@@ -1255,15 +1256,14 @@ export default function ZipFileExplorerClient({
               {selectedPathsSet.size > 0 &&
                 placeholderSelectedItemsForDiscovery.length > 0 && (
                   <Button
-                    variant="secondary-outline"
-                    size="sm"
+                    variant="secondary"
                     onClick={handleDownloadSelected}
                     disabled={isLoadingUserActions}
                     isLoading={isActionInProgress && !isLoadingZipProcessing}
                     loadingText="Zipping..."
-                    iconLeft={<DownloadIcon className="h-4 w-4" />}
+                    iconLeft={<DownloadIcon className="h-5 w-5" />}
                     title="Download selected files"
-                  >{`DL Sel (${placeholderSelectedItemsForDiscovery.length})`}</Button>
+                  >{`Download (${placeholderSelectedItemsForDiscovery.length})`}</Button>
                 )}
               {selectedPathsSet.size > 0 &&
                 placeholderSelectedItemsForDiscovery.length > 0 && (
@@ -1274,7 +1274,7 @@ export default function ZipFileExplorerClient({
                     }
                     selectedOutputItems={placeholderSelectedItemsForDiscovery}
                     onBeforeSignal={handlePreSignalForZip}
-                    buttonText={`Send Sel (${placeholderSelectedItemsForDiscovery.length})`}
+                    buttonText="Send To..."
                     className={
                       isLoadingUserActions
                         ? 'opacity-50 cursor-not-allowed'

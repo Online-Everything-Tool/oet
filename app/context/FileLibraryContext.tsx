@@ -40,7 +40,10 @@ export interface FileLibraryFunctions {
     excludeToolState?: boolean,
     excludeAlreadyTemporary?: boolean
   ) => Promise<{ markedCount: number; markedIds: string[] }>;
-  makeFilePermanent: (id: string) => Promise<void>;
+  makeFilePermanentAndUpdate: (
+    id: string,
+    newFilename?: string
+  ) => Promise<boolean>;
   updateFileBlob: (
     id: string,
     newBlob: Blob,
@@ -203,35 +206,60 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
     [generateAndSaveThumbnail]
   );
 
-  const makeFilePermanent = useCallback(async (id: string): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    let db;
-    try {
-      db = getDbInstance();
-      if (!db?.files)
-        throw new Error("Database 'files' table is not available.");
-      const count = await db.files.update(id, {
-        isTemporary: false,
-        lastModified: new Date(),
-      });
-      if (count === 0) {
+  const makeFilePermanentAndUpdate = useCallback(
+    async (id: string, newFilename?: string): Promise<boolean> => {
+      setLoading(true);
+      setError(null);
+      let db;
+      try {
+        db = getDbInstance();
+        if (!db?.files)
+          throw new Error("Database 'files' table is not available.");
+
+        const fileToUpdate = await db.files.get(id);
+        if (!fileToUpdate) {
+          console.warn(
+            `[FileLibrary MakePermanentUpdate] File ${id} not found.`
+          );
+          setLoading(false);
+          return false;
+        }
+
+        const updates: Partial<StoredFile> = {
+          isTemporary: false,
+          lastModified: new Date(),
+        };
+
+        if (typeof newFilename === 'string' && newFilename.trim() !== '') {
+          updates.filename = newFilename.trim();
+        }
+
+        const count = await db.files.update(id, updates);
+        if (count > 0) {
+          console.log(
+            `[FileLibrary MakePermanentUpdate] File ${id} made permanent with name ${newFilename}.`
+          );
+          setLoading(false);
+          return true;
+        }
         console.warn(
-          `[FileLibrary MakePermanent] File ${id} not found or not updated.`
+          `[FileLibrary MakePermanentUpdate] File ${id} not updated.`
         );
+        setLoading(false);
+        return false;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`Failed to make file ${id} permanent and update: ${msg}`);
+        console.error(
+          `[FileLibrary MakePermanentUpdate] Error for ID ${id}: ${msg}`,
+          err
+        );
+        setLoading(false);
+        throw err;
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to make file ${id} permanent: ${msg}`);
-      console.error(
-        `[FileLibrary MakePermanent] Error for ID ${id}: ${msg}`,
-        err
-      );
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   const updateFileBlob = useCallback(
     async (
@@ -604,7 +632,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       addFile,
       markFileAsTemporary,
       markAllFilesAsTemporary,
-      makeFilePermanent,
+      makeFilePermanentAndUpdate,
       updateFileBlob,
       cleanupOrphanedTemporaryFiles,
       deleteFilePermanently,
@@ -615,7 +643,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       addFile,
       markFileAsTemporary,
       markAllFilesAsTemporary,
-      makeFilePermanent,
+      makeFilePermanentAndUpdate,
       updateFileBlob,
       cleanupOrphanedTemporaryFiles,
       deleteFilePermanently,

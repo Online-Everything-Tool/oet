@@ -89,7 +89,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
   const directiveName = metadata.directive;
 
-  const { getFile, makeFilePermanent, cleanupOrphanedTemporaryFiles } =
+  const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
     useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
@@ -462,7 +462,9 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       ) {
         setIsManuallySaving(true);
         try {
-          await makeFilePermanent(currentStateSnapshot.processedFileId);
+          await makeFilePermanentAndUpdate(
+            currentStateSnapshot.processedFileId
+          );
           setWasLastProcessedOutputPermanent(true);
         } catch (err) {
           setUiError(
@@ -478,7 +480,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
       wasLastProcessedOutputPermanent,
       isProcessingImage,
       isManuallySaving,
-      makeFilePermanent,
+      makeFilePermanentAndUpdate,
       setState,
       saveStateNow,
     ]
@@ -547,7 +549,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      await makeFilePermanent(toolState.processedFileId);
+      await makeFilePermanentAndUpdate(toolState.processedFileId);
       setWasLastProcessedOutputPermanent(true);
       setManualSaveSuccess(true);
       setTimeout(() => setManualSaveSuccess(false), 2500);
@@ -562,7 +564,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
     toolState.processedFileId,
     wasLastProcessedOutputPermanent,
     manualSaveSuccess,
-    makeFilePermanent,
+    makeFilePermanentAndUpdate,
   ]);
 
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);

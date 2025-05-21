@@ -117,7 +117,9 @@ export default function StorageControls({
       <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
         <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
           <Button
-            variant={currentLayout === 'list' ? 'primary' : 'neutral'}
+            variant={
+              currentLayout === 'list' ? 'primary-outline' : 'neutral-outline'
+            }
             size="sm"
             onClick={() => onLayoutChange('list')}
             disabled={isLoading}
@@ -126,10 +128,12 @@ export default function StorageControls({
               currentLayout === 'list' ? 'shadow' : 'hover:bg-gray-200'
             }
           >
-            <Bars3Icon className="h-5 w-5" />
+            <Bars3Icon className="h-4 w-4" />
           </Button>
           <Button
-            variant={currentLayout === 'grid' ? 'primary' : 'neutral'}
+            variant={
+              currentLayout === 'grid' ? 'primary-outline' : 'neutral-outline'
+            }
             size="sm"
             onClick={() => onLayoutChange('grid')}
             disabled={isLoading}
@@ -138,13 +142,15 @@ export default function StorageControls({
               currentLayout === 'grid' ? 'shadow' : 'hover:bg-gray-200'
             }
           >
-            <ViewColumnsIcon className="h-5 w-5" />
+            <ViewColumnsIcon className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="border-l pl-3 ml-1">
           <Button
-            variant={isFilterSelectedActive ? 'accent' : 'neutral'}
+            variant={
+              isFilterSelectedActive ? 'accent-outline' : 'neutral-outline'
+            }
             size="sm"
             onClick={onToggleFilterSelected}
             disabled={isLoading || !hasSelection}
@@ -153,7 +159,7 @@ export default function StorageControls({
                 ? 'Show all files'
                 : 'Show only selected files'
             }
-            iconLeft={<FunnelIcon className="h-5 w-5" />}
+            iconLeft={<FunnelIcon className="h-4 w-4" />}
             className={`${isFilterSelectedActive ? 'shadow' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
           >
             {isFilterSelectedActive

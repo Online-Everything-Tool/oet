@@ -35,12 +35,14 @@ export interface ImageMontageToolPersistedState {
   persistedImages: PersistedMontageImage[];
   effect: MontageEffect;
   processedFileId: string | null;
+  lastUserGivenFilename: string | null;
 }
 
 const DEFAULT_MONTAGE_TOOL_STATE: ImageMontageToolPersistedState = {
   persistedImages: [],
   effect: 'polaroid',
   processedFileId: null,
+  lastUserGivenFilename: null,
 };
 
 const DEFAULT_OVERLAP_PERCENT = 20;
@@ -62,6 +64,7 @@ export interface UseMontageStateReturn {
   effect: MontageEffect;
   montageImagesForCanvas: MontageImage[];
   processedFileId: string | null;
+  lastUserGivenFilename: string | null;
 
   addStoredFiles: (storedFiles: StoredFile[]) => Promise<void>;
   removePersistedImage: (instanceId: string) => Promise<void>;
@@ -73,7 +76,10 @@ export interface UseMontageStateReturn {
   handleZIndexChange: (instanceId: string, direction: 'up' | 'down') => void;
   handleEffectChange: (effect: MontageEffect) => void;
 
-  setProcessedFileIdAfterPermanentSave: (fileId: string | null) => void;
+  handleSaveSuccess: (
+    savedFileId: string,
+    chosenFilename: string
+  ) => Promise<void>;
   setTemporaryMontageOutput: (
     blob: Blob | null,
     tempNameRoot?: string
@@ -83,7 +89,9 @@ export interface UseMontageStateReturn {
   errorLoadingState: string | null;
   isLoadingImages: boolean;
   imageLoadingError: string | null;
-  saveStateNow: () => Promise<void>;
+  saveStateNow: (
+    optionalNewState?: ImageMontageToolPersistedState
+  ) => Promise<void>;
 }
 
 export function useMontageState({
@@ -120,6 +128,7 @@ export function useMontageState({
   const {
     getFile,
     addFile,
+    updateFileBlob,
     markFileAsTemporary,
     cleanupOrphanedTemporaryFiles,
   } = useFileLibrary();
@@ -132,7 +141,6 @@ export function useMontageState({
 
   useEffect(() => {
     if (isLoadingState) return;
-
     const newImageLoadingStatus = { ...imageLoadingStatus };
     let didStatusChange = false;
     const localErrorAccumulator: string[] = [];
@@ -148,17 +156,16 @@ export function useMontageState({
       ) {
         newImageLoadingStatus[uniqueKeyForMaps] = 'loading';
         didStatusChange = true;
-
         getFile(imageId)
           .then((storedFile) => {
             if (!storedFile?.blob)
-              throw new Error(`Blob missing for image ID ${imageId} (${name})`);
-
+              throw new Error(
+                `Blob missing for image ID ${imageId} (${filename})`
+              );
             const objectURL = URL.createObjectURL(storedFile.blob);
             objectUrlsRef.current.set(uniqueKeyForMaps, objectURL);
-
             const img = new Image();
-            img.onload = () => {
+            img.onload = async () => {
               setLoadedImageElements((prevMap) =>
                 new Map(prevMap).set(uniqueKeyForMaps, img)
               );
@@ -166,7 +173,6 @@ export function useMontageState({
                 ...prev,
                 [uniqueKeyForMaps]: 'loaded',
               }));
-
               const currentPImages = toolStateRef.current.persistedImages;
               const pImgForDimension = currentPImages.find(
                 (pi) => pi.instanceId === instanceId
@@ -178,18 +184,25 @@ export function useMontageState({
                 img.naturalWidth > 0 &&
                 img.naturalHeight > 0
               ) {
-                setToolStateInternal((prevToolState) => ({
-                  ...prevToolState,
-                  persistedImages: prevToolState.persistedImages.map((p) =>
-                    p.instanceId === instanceId
-                      ? {
-                          ...p,
-                          originalWidth: img.naturalWidth,
-                          originalHeight: img.naturalHeight,
-                        }
-                      : p
-                  ),
-                }));
+                let updatedStateForDimensions: ImageMontageToolPersistedState | null =
+                  null;
+                setToolStateInternal((prevToolState) => {
+                  updatedStateForDimensions = {
+                    ...prevToolState,
+                    persistedImages: prevToolState.persistedImages.map((p) =>
+                      p.instanceId === instanceId
+                        ? {
+                            ...p,
+                            originalWidth: img.naturalWidth,
+                            originalHeight: img.naturalHeight,
+                          }
+                        : p
+                    ),
+                  };
+                  return updatedStateForDimensions;
+                });
+                if (updatedStateForDimensions)
+                  await saveStateNow(updatedStateForDimensions);
               }
             };
             img.onerror = () => {
@@ -213,12 +226,10 @@ export function useMontageState({
             }));
             const errorText = `Error loading ${filename || imageId}: ${err.message || String(err)}`;
             localErrorAccumulator.push(errorText);
-
             setImageLoadingError(localErrorAccumulator.join('; '));
           });
       }
     });
-
     let elementsCleaned = false;
     const imageIdsInCurrentPersistedImages = new Set(
       toolState.persistedImages.map((p) => p.imageId)
@@ -247,7 +258,6 @@ export function useMontageState({
         return newMap;
       });
     }
-
     if (
       didStatusChange &&
       JSON.stringify(newImageLoadingStatus) !==
@@ -261,8 +271,16 @@ export function useMontageState({
     } else if (localErrorAccumulator.length === 0 && imageLoadingError) {
       setImageLoadingError(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolState.persistedImages, isLoadingState, getFile]);
+  }, [
+    toolState.persistedImages,
+    isLoadingState,
+    getFile,
+    saveStateNow,
+    setToolStateInternal,
+    imageLoadingStatus,
+    loadedImageElements,
+    imageLoadingError,
+  ]);
 
   useEffect(() => {
     const urls = objectUrlsRef.current;
@@ -304,6 +322,7 @@ export function useMontageState({
     async (storedFiles: StoredFile[]): Promise<void> => {
       if (!storedFiles || storedFiles.length === 0) return;
       setImageLoadingError(null);
+      let finalUpdatedState: ImageMontageToolPersistedState | null = null;
       setToolStateInternal((prevState) => {
         let maxZIndex = prevState.persistedImages.reduce(
           (max, img) => Math.max(max, img.zIndex),
@@ -329,15 +348,13 @@ export function useMontageState({
           }
         });
         if (newlyAddedImages.length === 0) return prevState;
-        const updatedState = {
+        finalUpdatedState = {
           ...prevState,
           persistedImages: [...prevState.persistedImages, ...newlyAddedImages],
-          processedFileId: null,
         };
-
-        saveStateNow(updatedState);
-        return updatedState;
+        return finalUpdatedState;
       });
+      if (finalUpdatedState) await saveStateNow(finalUpdatedState);
     },
     [setToolStateInternal, saveStateNow]
   );
@@ -345,32 +362,29 @@ export function useMontageState({
   const removePersistedImage = useCallback(
     async (instanceIdToRemove: string) => {
       let imageIdToPotentiallyCleanup: string | null = null;
-      let updatedState: ImageMontageToolPersistedState | null = null;
-
+      let updatedStateForSave: ImageMontageToolPersistedState | null = null;
       setToolStateInternal((prevState) => {
         const imgToRemoveDetails = prevState.persistedImages.find(
           (p) => p.instanceId === instanceIdToRemove
         );
         if (imgToRemoveDetails)
           imageIdToPotentiallyCleanup = imgToRemoveDetails.imageId;
-
         const newPersistedImages = prevState.persistedImages.filter(
           (img) => img.instanceId !== instanceIdToRemove
         );
-        updatedState = {
+        updatedStateForSave = {
           ...prevState,
           persistedImages: newPersistedImages,
-          processedFileId: null,
         };
-        return updatedState;
+        return updatedStateForSave;
       });
-      if (updatedState) await saveStateNow(updatedState);
-
+      if (updatedStateForSave) await saveStateNow(updatedStateForSave);
       if (imageIdToPotentiallyCleanup) {
-        const isStillUsed = toolStateRef.current.persistedImages.some(
-          (p) => p.imageId === imageIdToPotentiallyCleanup
-        );
-        if (!isStillUsed) {
+        const isStillUsedByOtherInstances =
+          toolStateRef.current.persistedImages.some(
+            (p) => p.imageId === imageIdToPotentiallyCleanup
+          );
+        if (!isStillUsedByOtherInstances) {
           const fileInfo = await getFile(imageIdToPotentiallyCleanup);
           if (fileInfo && fileInfo.isTemporary) {
             await markFileAsTemporary(imageIdToPotentiallyCleanup);
@@ -393,9 +407,7 @@ export function useMontageState({
     const oldPersistedImageSourceIds = [
       ...new Set(toolStateRef.current.persistedImages.map((p) => p.imageId)),
     ];
-
     await clearPersistentToolStateAndDexie();
-
     if (oldProcessedId) {
       const fileInfo = await getFile(oldProcessedId);
       if (fileInfo && fileInfo.isTemporary) {
@@ -406,15 +418,12 @@ export function useMontageState({
     const orphanedSourceImageIdsToCleanup: string[] = [];
     for (const sourceId of oldPersistedImageSourceIds) {
       const fileInfo = await getFile(sourceId);
-
-      if (fileInfo && fileInfo.isTemporary) {
+      if (fileInfo && fileInfo.isTemporary)
         orphanedSourceImageIdsToCleanup.push(sourceId);
-      }
     }
     if (orphanedSourceImageIdsToCleanup.length > 0) {
-      for (const idToMark of orphanedSourceImageIdsToCleanup) {
+      for (const idToMark of orphanedSourceImageIdsToCleanup)
         await markFileAsTemporary(idToMark);
-      }
       await cleanupOrphanedTemporaryFiles(orphanedSourceImageIdsToCleanup);
     }
   }, [
@@ -425,10 +434,10 @@ export function useMontageState({
   ]);
 
   const modifyPersistedImage = useCallback(
-    (
+    async (
       instanceId: string,
       updates: Partial<
-        Omit<PersistedMontageImage, 'instanceId' | 'imageId' | 'name'>
+        Omit<PersistedMontageImage, 'instanceId' | 'imageId' | 'filename'>
       >
     ) => {
       let finalState: ImageMontageToolPersistedState | null = null;
@@ -438,11 +447,10 @@ export function useMontageState({
           persistedImages: prevState.persistedImages.map((img) =>
             img.instanceId === instanceId ? { ...img, ...updates } : img
           ),
-          processedFileId: null,
         };
         return finalState;
       });
-      if (finalState) saveStateNow(finalState);
+      if (finalState) await saveStateNow(finalState);
     },
     [setToolStateInternal, saveStateNow]
   );
@@ -461,33 +469,31 @@ export function useMontageState({
   );
 
   const handleMoveImageOrder = useCallback(
-    (instanceId: string, direction: 'left' | 'right') => {
+    async (instanceId: string, direction: 'left' | 'right') => {
       let finalState: ImageMontageToolPersistedState | null = null;
       setToolStateInternal((prevState) => {
         const indexToMove = prevState.persistedImages.findIndex(
           (img) => img.instanceId === instanceId
         );
-        if (
-          (direction === 'left' && indexToMove <= 0) ||
-          (direction === 'right' &&
-            indexToMove >= prevState.persistedImages.length - 1)
-        )
-          return prevState;
+        if (indexToMove === -1) return prevState;
         const newTargetIndex =
           direction === 'left' ? indexToMove - 1 : indexToMove + 1;
+        if (
+          newTargetIndex < 0 ||
+          newTargetIndex >= prevState.persistedImages.length
+        )
+          return prevState;
         const newImages = [...prevState.persistedImages];
-        [newImages[newTargetIndex], newImages[indexToMove]] = [
-          newImages[indexToMove],
-          newImages[newTargetIndex],
-        ];
+        const itemToMove = newImages.splice(indexToMove, 1)[0];
+        newImages.splice(newTargetIndex, 0, itemToMove);
         finalState = {
           ...prevState,
-          persistedImages: newImages,
-          processedFileId: null,
+          persistedImages:
+            newImages /* processedFileId & lastUserGivenFilename unchanged */,
         };
         return finalState;
       });
-      if (finalState) saveStateNow(finalState);
+      if (finalState) await saveStateNow(finalState);
     },
     [setToolStateInternal, saveStateNow]
   );
@@ -497,7 +503,7 @@ export function useMontageState({
     handleMoveImageOrder(instanceId, 'right');
 
   const handleZIndexChange = useCallback(
-    (instanceId: string, direction: 'up' | 'down') => {
+    async (instanceId: string, direction: 'up' | 'down') => {
       let finalState: ImageMontageToolPersistedState | null = null;
       setToolStateInternal((prevState) => {
         const imagesSortedByZ = [...prevState.persistedImages].sort(
@@ -506,6 +512,7 @@ export function useMontageState({
         const currentIndexInSorted = imagesSortedByZ.findIndex(
           (img) => img.instanceId === instanceId
         );
+        if (currentIndexInSorted === -1) return prevState;
         if (
           (direction === 'up' &&
             currentIndexInSorted >= imagesSortedByZ.length - 1) ||
@@ -531,38 +538,64 @@ export function useMontageState({
               return { ...img, zIndex: currentImageOriginalZ };
             return img;
           }),
-          processedFileId: null,
+          /* processedFileId & lastUserGivenFilename unchanged */
         };
         return finalState;
       });
-      if (finalState) saveStateNow(finalState);
+      if (finalState) await saveStateNow(finalState);
     },
     [setToolStateInternal, saveStateNow]
   );
 
   const handleEffectChange = useCallback(
-    (newEffect: MontageEffect) => {
-      setToolStateInternal((prevState) => ({
-        ...prevState,
-        effect: newEffect,
-        processedFileId: null,
-      }));
-      saveStateNow({
+    async (newEffect: MontageEffect) => {
+      const newState = {
         ...toolStateRef.current,
-        effect: newEffect,
-        processedFileId: null,
-      });
+        effect:
+          newEffect /* processedFileId & lastUserGivenFilename unchanged */,
+      };
+      setToolStateInternal(newState);
+      await saveStateNow(newState);
     },
     [setToolStateInternal, saveStateNow]
   );
 
-  const setProcessedFileIdAfterPermanentSave = useCallback(
-    async (fileId: string | null) => {
-      setToolStateInternal((prev) => ({ ...prev, processedFileId: fileId }));
+  const handleSaveSuccess = useCallback(
+    async (savedFileId: string, chosenFilename: string) => {
+      const oldProcessedId = toolStateRef.current.processedFileId;
+      let wasOldProcessedTemporary = false;
 
-      await saveStateNow({ ...toolStateRef.current, processedFileId: fileId });
+      if (oldProcessedId && oldProcessedId !== savedFileId) {
+        const oldFileInfo = await getFile(oldProcessedId);
+        if (oldFileInfo && oldFileInfo.isTemporary === true) {
+          wasOldProcessedTemporary = true;
+        }
+      }
+
+      const newState = {
+        ...toolStateRef.current,
+        processedFileId: savedFileId,
+        lastUserGivenFilename: chosenFilename,
+      };
+      setToolStateInternal(newState);
+      await saveStateNow(newState);
+
+      if (
+        oldProcessedId &&
+        oldProcessedId !== savedFileId &&
+        wasOldProcessedTemporary
+      ) {
+        await markFileAsTemporary(oldProcessedId);
+        await cleanupOrphanedTemporaryFiles([oldProcessedId]);
+      }
     },
-    [setToolStateInternal, saveStateNow]
+    [
+      setToolStateInternal,
+      saveStateNow,
+      getFile,
+      markFileAsTemporary,
+      cleanupOrphanedTemporaryFiles,
+    ]
   );
 
   const setTemporaryMontageOutput = useCallback(
@@ -570,72 +603,93 @@ export function useMontageState({
       blob: Blob | null,
       tempNameRoot: string = 'auto-montage'
     ): Promise<string | null> => {
-      const oldProcessedId = toolStateRef.current.processedFileId;
-      let wasOldProcessedTemporary = false;
-      if (oldProcessedId) {
-        const oldFileInfo = await getFile(oldProcessedId);
-        if (oldFileInfo)
-          wasOldProcessedTemporary = oldFileInfo.isTemporary === true;
-        else {
-          setToolStateInternal((prev) => ({ ...prev, processedFileId: null }));
+      const currentPersistedProcessedIdInState =
+        toolStateRef.current.processedFileId;
+      let currentOutputStoredFile: StoredFile | undefined = undefined;
+
+      if (currentPersistedProcessedIdInState) {
+        currentOutputStoredFile = await getFile(
+          currentPersistedProcessedIdInState
+        );
+        if (
+          !currentOutputStoredFile &&
+          toolStateRef.current.processedFileId !== null
+        ) {
+          const stateWithoutOldId = {
+            ...toolStateRef.current,
+            processedFileId: null,
+          };
+          setToolStateInternal(stateWithoutOldId);
+          await saveStateNow(stateWithoutOldId);
         }
       }
 
       if (!blob) {
-        if (oldProcessedId && wasOldProcessedTemporary) {
-          console.log(
-            `[MontageState setTemporary] New blob is null, cleaning up old temp: ${oldProcessedId}`
-          );
-          await markFileAsTemporary(oldProcessedId);
-          await cleanupOrphanedTemporaryFiles([oldProcessedId]);
+        if (
+          currentOutputStoredFile &&
+          currentOutputStoredFile.isTemporary === true
+        ) {
+          await markFileAsTemporary(currentOutputStoredFile.id);
+          await cleanupOrphanedTemporaryFiles([currentOutputStoredFile.id]);
         }
-
         if (toolStateRef.current.processedFileId !== null) {
-          setToolStateInternal((prev) => ({ ...prev, processedFileId: null }));
-          await saveStateNow({
+          const stateWithNullId = {
             ...toolStateRef.current,
             processedFileId: null,
-          });
+          };
+          setToolStateInternal(stateWithNullId);
+          await saveStateNow(stateWithNullId);
         }
         return null;
       }
 
-      const tempFilename = `${tempNameRoot}-${Date.now()}.png`;
-      try {
-        const newTempId = await addFile(blob, tempFilename, 'image/png', true);
+      const tempFilename = `${tempNameRoot}-${toolRoute.split('/').pop() || 'montage'}.png`;
 
-        setToolStateInternal((prev) => ({
-          ...prev,
-          processedFileId: newTempId,
-        }));
-        await saveStateNow({
+      if (
+        currentOutputStoredFile &&
+        currentOutputStoredFile.isTemporary === true
+      ) {
+        try {
+          await updateFileBlob(currentOutputStoredFile.id, blob, false);
+
+          return currentOutputStoredFile.id;
+        } catch (_e) {
+          /* Fall through */
+        }
+      }
+
+      try {
+        const newTempId = await addFile(
+          blob,
+          tempFilename,
+          'image/png',
+          true,
+          toolRoute
+        );
+        if (
+          currentOutputStoredFile &&
+          currentOutputStoredFile.id !== newTempId &&
+          currentOutputStoredFile.isTemporary === true
+        ) {
+          await markFileAsTemporary(currentOutputStoredFile.id);
+          await cleanupOrphanedTemporaryFiles([currentOutputStoredFile.id]);
+        }
+        const stateWithNewTempId = {
           ...toolStateRef.current,
           processedFileId: newTempId,
-        });
-
-        if (
-          oldProcessedId &&
-          wasOldProcessedTemporary &&
-          oldProcessedId !== newTempId
-        ) {
-          console.log(
-            `[MontageState setTemporary] Cleaning up replaced old temp: ${oldProcessedId}`
-          );
-          await markFileAsTemporary(oldProcessedId);
-          await cleanupOrphanedTemporaryFiles([oldProcessedId]);
-        }
+        };
+        setToolStateInternal(stateWithNewTempId);
+        await saveStateNow(stateWithNewTempId);
         return newTempId;
-      } catch (e) {
-        console.error(
-          '[MontageState setTemporary] Error saving temporary montage output:',
-          e
-        );
+      } catch (_e) {
         return null;
       }
     },
     [
+      toolRoute,
       addFile,
       getFile,
+      updateFileBlob,
       markFileAsTemporary,
       cleanupOrphanedTemporaryFiles,
       setToolStateInternal,
@@ -648,6 +702,7 @@ export function useMontageState({
     effect: toolState.effect,
     montageImagesForCanvas,
     processedFileId: toolState.processedFileId,
+    lastUserGivenFilename: toolState.lastUserGivenFilename,
     addStoredFiles,
     removePersistedImage,
     clearMontage,
@@ -657,7 +712,7 @@ export function useMontageState({
     handleMoveImageRight,
     handleZIndexChange,
     handleEffectChange,
-    setProcessedFileIdAfterPermanentSave,
+    handleSaveSuccess,
     setTemporaryMontageOutput,
     isLoadingState,
     errorLoadingState,

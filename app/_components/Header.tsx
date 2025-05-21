@@ -105,7 +105,6 @@ export default function Header() {
                 variant="link"
                 onClick={toggleRecentsDropdown}
                 disabled={!recentsLoaded || headerRecentTools.length === 0}
-                className="!px-2 !py-1 rounded hover:!bg-[rgba(255,255,255,0.1)] relative"
                 aria-label="View Recently Used Tools"
                 title="View Recently Used Tools"
                 aria-haspopup="true"

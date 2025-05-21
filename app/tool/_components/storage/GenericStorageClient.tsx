@@ -37,7 +37,7 @@ export interface StorageHookReturnType {
     excludeToolState?: boolean,
     excludeAlreadyTemporary?: boolean
   ) => Promise<{ markedCount: number; markedIds: string[] }>;
-  makeFilePermanent?: (id: string) => Promise<void>;
+  makeFilePermanentAndUpdate?: (id: string) => Promise<boolean>;
   cleanupOrphanedTemporaryFiles: (
     fileIds?: string[]
   ) => Promise<{ deletedCount: number; candidatesChecked: number }>;
@@ -264,20 +264,20 @@ export default function GenericStorageClient({
   );
 
   const handleToggleFilterSelected = useCallback(() => {
-    setPersistentState((prev) => {
-      const newState = {
-        ...prev,
-        isFilterSelectedActive: !prev.isFilterSelectedActive,
-      };
-      saveStateNow(newState);
-      return newState;
-    });
-  }, [setPersistentState, saveStateNow]);
+    const nextIsFilterSelectedActive = !persistentState.isFilterSelectedActive;
+    const newState = {
+      ...persistentState,
+      isFilterSelectedActive: nextIsFilterSelectedActive,
+    };
+
+    setPersistentState(newState);
+    saveStateNow(newState);
+  }, [persistentState, setPersistentState, saveStateNow]);
 
   const handleModalFilesSelected = useCallback(
     async (
       filesFromModal: StoredFile[],
-      _source: 'library' | 'upload',
+      source: 'library' | 'upload',
       filterToThese?: boolean
     ) => {
       setIsAddModalOpen(false);
@@ -286,23 +286,36 @@ export default function GenericStorageClient({
 
       await loadAndDisplayItems();
 
-      if (filterToThese && filesFromModal.length > 0) {
-        const addedItemIds = filesFromModal
+      if (filesFromModal.length > 0) {
+        const newFileIds = filesFromModal
           .map((f) => f.id)
-          .filter((id): id is string => !!id);
-        if (addedItemIds.length > 0) {
-          const newState = {
-            ...persistentState,
-            selectedItemIds: addedItemIds,
-            isFilterSelectedActive: true,
-          };
-          setPersistentState(newState);
-          await saveStateNow(newState);
+          .filter((id): id is string => !!id && !id.startsWith('phantom-'));
+
+        if (newFileIds.length > 0) {
+          setPersistentState((prevState) => {
+            let finalSelectedIds: string[];
+            let finalFilterActiveState: boolean;
+
+            if (source === 'upload') {
+              finalSelectedIds = newFileIds;
+              finalFilterActiveState = filterToThese ? true : false;
+            } else {
+              finalSelectedIds = newFileIds;
+              finalFilterActiveState = false;
+            }
+
+            const newState: PersistedStorageState = {
+              ...prevState,
+              selectedItemIds: finalSelectedIds,
+              isFilterSelectedActive: finalFilterActiveState,
+            };
+            return newState;
+          });
         }
       }
       setIsProcessing(false);
     },
-    [loadAndDisplayItems, persistentState, setPersistentState, saveStateNow]
+    [loadAndDisplayItems, setPersistentState]
   );
 
   const handleDeleteSingleItem = useCallback(
@@ -468,16 +481,24 @@ export default function GenericStorageClient({
 
   const handleToggleSelection = useCallback(
     async (itemId: string) => {
-      const newSelectedArray = new Set(persistentState.selectedItemIds);
-      if (newSelectedArray.has(itemId)) {
-        newSelectedArray.delete(itemId);
+      const newSelectedSet = new Set(persistentState.selectedItemIds);
+      if (newSelectedSet.has(itemId)) {
+        newSelectedSet.delete(itemId);
       } else {
-        newSelectedArray.add(itemId);
+        newSelectedSet.add(itemId);
       }
+
+      const newFilterActiveState =
+        newSelectedSet.size > 0
+          ? persistentState.isFilterSelectedActive
+          : false;
+
       const newState = {
         ...persistentState,
-        selectedItemIds: Array.from(newSelectedArray),
+        selectedItemIds: Array.from(newSelectedSet),
+        isFilterSelectedActive: newFilterActiveState,
       };
+
       setPersistentState(newState);
       await saveStateNow(newState);
     },

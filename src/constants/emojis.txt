@@ -1,4 +1,4 @@
-export const emojiTextData: string = `# emoji-test.txt
+# emoji-test.txt
 # Date: 2024-08-14, 23:51:54 GMT
 # © 2024 Unicode®, Inc.
 # Unicode and the Unicode Logo are registered trademarks of Unicode, Inc. in the U.S. and other countries.
@@ -5329,4 +5329,3 @@ export const emojiTextData: string = `# emoji-test.txt
 # component : 9
 
 #EOF
-`;

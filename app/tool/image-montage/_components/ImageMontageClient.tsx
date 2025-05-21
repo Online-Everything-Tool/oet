@@ -9,7 +9,11 @@ import React, {
   useRef,
 } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
-import { useMontageState, MontageEffect } from '../_hooks/useMontageState';
+import {
+  useMontageState,
+  MontageEffect,
+  ImageMontageToolPersistedState,
+} from '../_hooks/useMontageState';
 import { useMontageCanvas } from '../_hooks/useMontageCanvas';
 import ImageAdjustmentCard, {
   MontageImageForCard,
@@ -55,10 +59,8 @@ type FilenameActionType = 'library_save' | 'download';
 interface FilenameActionContextState {
   type: FilenameActionType;
   currentFilenameToPrompt: string;
-
   originalFileIdToActUpon?: string | null;
   wasOriginalFileTemporary?: boolean;
-  originalFilename?: string | null;
 }
 
 export default function ImageMontageClient({
@@ -69,6 +71,7 @@ export default function ImageMontageClient({
     effect,
     montageImagesForCanvas,
     processedFileId: currentProcessedFileIdFromHook,
+    lastUserGivenFilename,
     addStoredFiles,
     removePersistedImage,
     clearMontage,
@@ -78,12 +81,13 @@ export default function ImageMontageClient({
     handleMoveImageRight,
     handleZIndexChange,
     handleEffectChange,
-    setProcessedFileIdAfterPermanentSave,
+    handleSaveSuccess,
     setTemporaryMontageOutput,
     isLoadingState,
     errorLoadingState,
     isLoadingImages,
     imageLoadingError,
+    saveStateNow,
   } = useMontageState({ toolRoute });
 
   const {
@@ -116,7 +120,7 @@ export default function ImageMontageClient({
     string | null
   >(null);
 
-  const { getFile, addFile, updateFileBlob, markFileAsTemporary } =
+  const { addFile, getFile, updateFileBlob, makeFilePermanentAndUpdate } =
     useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const directiveName = metadata.directive;
@@ -136,71 +140,104 @@ export default function ImageMontageClient({
       !initialToolStateLoadCompleteRef.current ||
       isLoadingState ||
       isGeneratingForAction
-    ) {
-      console.log(
-        '[MontageClient AutoUpdate] Debounced call skipped. Loading/Busy:',
-        isLoadingState,
-        isGeneratingForAction,
-        initialToolStateLoadCompleteRef.current
-      );
+    )
       return;
-    }
-
     if (persistedImages.length === 0) {
-      console.log(
-        '[MontageClient AutoUpdate] Inputs cleared, calling setTemporaryMontageOutput with null blob.'
-      );
       await setTemporaryMontageOutput(null, 'auto-montage');
       return;
     }
-
-    console.log(
-      '[MontageClient AutoUpdate] Inputs/Effect changed, generating temporary montage...'
-    );
-
     const newBlob = await actualGenerateMontageBlob();
-
-    if (newBlob) {
-      console.log(
-        '[MontageClient AutoUpdate] Blob generated, calling setTemporaryMontageOutput.'
-      );
-      await setTemporaryMontageOutput(newBlob, 'auto-montage');
-    } else {
-      console.warn(
-        '[MontageClient AutoUpdate] actualGenerateMontageBlob returned null. Calling setTemporaryMontageOutput with null blob.'
-      );
-      await setTemporaryMontageOutput(null, 'auto-montage');
-    }
+    await setTemporaryMontageOutput(newBlob, 'auto-montage');
   }, AUTO_UPDATE_DEBOUNCE_MS_CLIENT);
 
+  const prevPersistedImagesJsonRef = useRef<string | undefined>(undefined);
+  const prevEffectRef = useRef<MontageEffect | undefined>(undefined);
+
   useEffect(() => {
-    if (!isLoadingState && initialToolStateLoadCompleteRef.current) {
-      if (!isGeneratingForAction) {
+    const currentPersistedImagesJson = JSON.stringify(persistedImages);
+    let hasMeaningfulChange = false;
+
+    if (
+      prevPersistedImagesJsonRef.current === undefined &&
+      prevEffectRef.current === undefined
+    ) {
+      if (persistedImages.length > 0 && !currentProcessedFileIdFromHook) {
+        hasMeaningfulChange = true;
+      }
+    } else {
+      if (prevPersistedImagesJsonRef.current !== currentPersistedImagesJson) {
+        hasMeaningfulChange = true;
+      }
+      if (prevEffectRef.current !== effect) {
+        hasMeaningfulChange = true;
+      }
+    }
+
+    if (
+      !isLoadingState &&
+      initialToolStateLoadCompleteRef.current &&
+      !isGeneratingForAction
+    ) {
+      if (hasMeaningfulChange) {
         console.log(
-          '[MontageClient useEffect for AutoUpdate] Calling debounced autoUpdate. Images:',
-          persistedImages.length,
-          'Effect:',
-          effect
+          '[MontageClient AutoUpdate useEffect] Meaningful change detected, triggering auto-update.'
         );
         autoUpdateTemporaryMontageDebounced();
       }
     }
+
+    prevPersistedImagesJsonRef.current = currentPersistedImagesJson;
+    prevEffectRef.current = effect;
   }, [
     persistedImages,
     effect,
-    autoUpdateTemporaryMontageDebounced,
+    currentProcessedFileIdFromHook,
     isLoadingState,
     isGeneratingForAction,
+    autoUpdateTemporaryMontageDebounced,
   ]);
 
   const itdeSendableItems = useMemo(() => {
-    return currentProcessedFileInfo ? [currentProcessedFileInfo] : [];
-  }, [currentProcessedFileInfo]);
+    if (currentProcessedFileInfo) return [currentProcessedFileInfo];
+    if (currentProcessedFileIdFromHook) {
+      return [
+        {
+          id: currentProcessedFileIdFromHook,
+          type: 'image/png',
+          filename: 'montage.png',
+          size: 0,
+          blob: new Blob(),
+          createdAt: new Date(),
+          isTemporary: true,
+        },
+      ];
+    }
+    return [];
+  }, [currentProcessedFileInfo, currentProcessedFileIdFromHook]);
 
+  const hasInputs = persistedImages.length > 0;
   const isLoadingOverall =
     isLoadingState || isLoadingImages || isGeneratingForAction;
   const combinedError = uiError || errorLoadingState || imageLoadingError;
-  const hasInputs = persistedImages.length > 0;
+
+  const canInitiateSaveToLibrary = useMemo(() => {
+    console.log('canInitiateSaveToLibrary:', currentProcessedFileInfo);
+    if (isGeneratingForAction) return false;
+    if (!hasInputs && !currentProcessedFileIdFromHook) return false;
+
+    if (
+      currentProcessedFileInfo &&
+      currentProcessedFileInfo.isTemporary === false
+    ) {
+      return false;
+    }
+    return true;
+  }, [
+    currentProcessedFileInfo,
+    hasInputs,
+    currentProcessedFileIdFromHook,
+    isGeneratingForAction,
+  ]);
 
   useEffect(() => {
     if (!isLoadingState && !initialToolStateLoadCompleteRef.current) {
@@ -314,77 +351,52 @@ export default function ImageMontageClient({
   );
 
   const handleInitiateSaveToLibrary = useCallback(async () => {
-    if (!hasInputs) {
-      setUiError('Nothing to save. Add images to create a montage first.');
+    if (!canInitiateSaveToLibrary) return;
+    if (!hasInputs && !currentProcessedFileIdFromHook) {
+      setUiError('Nothing to save.');
       return;
     }
     setUiError(null);
+    let suggestedFilename = lastUserGivenFilename;
+    if (!suggestedFilename)
+      suggestedFilename = `MyMontage-${effect}-${Date.now()}.png`;
 
-    const associatedFileDetails = currentProcessedFileIdFromHook
-      ? (await getFile(currentProcessedFileIdFromHook)) || null
-      : null;
-
-    if (!associatedFileDetails) {
-      console.log(
-        '[MontageClient Save] No valid processed file, generating fresh blob for save.'
-      );
-      setIsGeneratingForAction(true);
-      const blob = await actualGenerateMontageBlob();
-      setIsGeneratingForAction(false);
-      if (!blob) {
-        setUiError('Failed to generate montage for saving.');
-        return;
-      }
-
-      setFilenameActionContext({
-        type: 'library_save',
-        currentFilenameToPrompt: `MyMontage-${effect}-${Date.now()}.png`,
-        originalFileIdToActUpon: null,
-        wasOriginalFileTemporary: true,
-      });
-      setIsFilenameModalOpen(true);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any)._tempMontageBlobForSave = blob;
-      return;
-    }
-
-    let initialModalFilename: string;
-
-    if (
-      associatedFileDetails.isTemporary === true ||
-      !associatedFileDetails.filename
-    ) {
-      initialModalFilename = `MyMontage-${effect}-${Date.now()}.png`;
-    } else {
-      initialModalFilename = associatedFileDetails.filename;
-    }
-
+    const currentOutputIsTemporary =
+      currentProcessedFileInfo?.isTemporary === true ||
+      !currentProcessedFileIdFromHook;
     setFilenameActionContext({
       type: 'library_save',
-      currentFilenameToPrompt: initialModalFilename,
-      originalFileIdToActUpon: associatedFileDetails.id,
-      wasOriginalFileTemporary: associatedFileDetails.isTemporary,
-      originalFilename: associatedFileDetails.filename,
+      currentFilenameToPrompt: suggestedFilename,
+      originalFileIdToActUpon: currentProcessedFileIdFromHook,
+      wasOriginalFileTemporary: currentOutputIsTemporary,
     });
     setIsFilenameModalOpen(true);
+    if (currentOutputIsTemporary && currentProcessedFileInfo?.blob) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any)._tempMontageBlobForSave = currentProcessedFileInfo.blob;
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any)._tempMontageBlobForSave;
+    }
   }, [
+    canInitiateSaveToLibrary,
     hasInputs,
     currentProcessedFileIdFromHook,
-    getFile,
+    lastUserGivenFilename,
     effect,
-    actualGenerateMontageBlob,
+    currentProcessedFileInfo,
   ]);
 
   const handleDownloadClick = useCallback(async () => {
-    if (!hasInputs) {
-      setUiError('Nothing to download. Add images first.');
+    if (!hasInputs && !currentProcessedFileIdFromHook) {
+      setUiError('Nothing to download.');
       return;
     }
     setUiError(null);
     setIsGeneratingForAction(true);
-
     let blobToDownload: Blob | null = null;
-    let filenameForDownloadPrompt = `MyMontage-${effect}-${Date.now()}.png`;
+    const filenameForDownloadPrompt =
+      lastUserGivenFilename || `MyMontage-${effect}-${Date.now()}.png`;
 
     if (
       currentProcessedFileInfo &&
@@ -392,30 +404,12 @@ export default function ImageMontageClient({
       currentProcessedFileInfo.blob
     ) {
       blobToDownload = currentProcessedFileInfo.blob;
-      if (
-        currentProcessedFileInfo.isTemporary === false &&
-        currentProcessedFileInfo.filename
-      ) {
-        filenameForDownloadPrompt = currentProcessedFileInfo.filename;
-      }
     } else if (currentProcessedFileIdFromHook) {
       const file = await getFile(currentProcessedFileIdFromHook);
-      if (file?.blob) {
-        blobToDownload = file.blob;
-        if (file.isTemporary === false && file.filename)
-          filenameForDownloadPrompt = file.filename;
-      }
+      if (file?.blob) blobToDownload = file.blob;
     }
-
-    if (!blobToDownload) {
-      console.log(
-        '[MontageClient Download] No processed blob, generating fresh for download.'
-      );
-      blobToDownload = await actualGenerateMontageBlob();
-    }
-
+    if (!blobToDownload) blobToDownload = await actualGenerateMontageBlob();
     setIsGeneratingForAction(false);
-
     if (blobToDownload) {
       setFilenameActionContext({
         type: 'download',
@@ -430,9 +424,10 @@ export default function ImageMontageClient({
   }, [
     hasInputs,
     currentProcessedFileIdFromHook,
+    lastUserGivenFilename,
+    effect,
     currentProcessedFileInfo,
     getFile,
-    effect,
     actualGenerateMontageBlob,
   ]);
 
@@ -442,6 +437,7 @@ export default function ImageMontageClient({
       setIsFilenameModalOpen(false);
       setFilenameActionContext(null);
       if (!actionCtx) return;
+      autoUpdateTemporaryMontageDebounced.cancel();
 
       if (actionCtx.type === 'library_save') {
         setIsGeneratingForAction(true);
@@ -449,18 +445,13 @@ export default function ImageMontageClient({
         let blobToSave = (window as any)._tempMontageBlobForSave as Blob | null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (blobToSave) delete (window as any)._tempMontageBlobForSave;
-
-        if (!blobToSave && actionCtx.originalFileIdToActUpon) {
-          const originalFile = await getFile(actionCtx.originalFileIdToActUpon);
+        const originalFileId = actionCtx.originalFileIdToActUpon;
+        const wasOriginalTemporary = actionCtx.wasOriginalFileTemporary;
+        if (!blobToSave && originalFileId) {
+          const originalFile = await getFile(originalFileId);
           if (originalFile?.blob) blobToSave = originalFile.blob;
         }
-        if (!blobToSave) {
-          console.log(
-            "[MontageClient Confirm Save] Regenerating blob for save action as it wasn't readily available."
-          );
-          blobToSave = await actualGenerateMontageBlob();
-        }
-
+        if (!blobToSave) blobToSave = await actualGenerateMontageBlob();
         if (!blobToSave) {
           setUiError('Failed to get montage data for saving.');
           setIsGeneratingForAction(false);
@@ -468,37 +459,39 @@ export default function ImageMontageClient({
         }
 
         try {
-          let finalPersistedId: string;
-          const isUpdateInPlace =
-            actionCtx.wasOriginalFileTemporary === false &&
-            actionCtx.originalFileIdToActUpon &&
-            chosenFilename === actionCtx.originalFilename;
-
-          if (isUpdateInPlace) {
-            await updateFileBlob(
-              actionCtx.originalFileIdToActUpon!,
-              blobToSave,
-              true
+          let finalSavedId: string | null = null;
+          if (originalFileId && wasOriginalTemporary) {
+            const promoted = await makeFilePermanentAndUpdate(
+              originalFileId,
+              chosenFilename
             );
-            finalPersistedId = actionCtx.originalFileIdToActUpon!;
-          } else {
-            if (
-              actionCtx.wasOriginalFileTemporary === true &&
-              actionCtx.originalFileIdToActUpon
-            ) {
-              await markFileAsTemporary(actionCtx.originalFileIdToActUpon);
+            if (promoted) {
+              finalSavedId = originalFileId;
+              const currentBlobInPromotedFile = (await getFile(originalFileId))
+                ?.blob;
+              if (currentBlobInPromotedFile !== blobToSave) {
+                await updateFileBlob(originalFileId, blobToSave, true);
+              }
             }
-            finalPersistedId = await addFile(
+          }
+          if (!finalSavedId) {
+            finalSavedId = await addFile(
               blobToSave,
               chosenFilename,
               'image/png',
               false
             );
           }
-
-          setProcessedFileIdAfterPermanentSave(finalPersistedId);
-
+          await handleSaveSuccess(finalSavedId, chosenFilename);
           setManualSaveSuccess(true);
+
+          const updatedFileInfo = await getFile(finalSavedId);
+          setCurrentProcessedFileInfo(updatedFileInfo || null);
+
+          console.log(
+            '[MontageClient Confirm Save] currentProcessedFileInfo updated after save:',
+            updatedFileInfo
+          );
           setTimeout(() => setManualSaveSuccess(false), 2500);
         } catch (err) {
           setUiError(
@@ -516,6 +509,14 @@ export default function ImageMontageClient({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           delete (window as any)._tempMontageBlobForDownload;
         if (blobToDownload) {
+          const newState: ImageMontageToolPersistedState = {
+            persistedImages,
+            effect,
+            processedFileId: currentProcessedFileIdFromHook,
+            lastUserGivenFilename: chosenFilename,
+          };
+          await saveStateNow(newState);
+
           const url = URL.createObjectURL(blobToDownload);
           const link = document.createElement('a');
           link.href = url;
@@ -534,11 +535,16 @@ export default function ImageMontageClient({
     [
       filenameActionContext,
       actualGenerateMontageBlob,
+      addFile,
       getFile,
       updateFileBlob,
-      addFile,
-      markFileAsTemporary,
-      setProcessedFileIdAfterPermanentSave,
+      makeFilePermanentAndUpdate,
+      handleSaveSuccess,
+      autoUpdateTemporaryMontageDebounced,
+      saveStateNow,
+      currentProcessedFileIdFromHook,
+      effect,
+      persistedImages,
     ]
   );
 
@@ -553,7 +559,6 @@ export default function ImageMontageClient({
     currentProcessedFileInfo?.isTemporary === false;
   const outputActionButtonsSaveSuccess =
     isOutputKnownPermanent || manualSaveSuccess;
-
   const canPerformOutputActionsOverall =
     (hasInputs || !!currentProcessedFileIdFromHook) && !isLoadingOverall;
 
@@ -613,8 +618,7 @@ export default function ImageMontageClient({
             disabled={isLoadingOverall && !isLoadingState}
             iconLeft={<PhotoIcon className="h-5 w-5" />}
           >
-            {' '}
-            Add Images{' '}
+            Add Images
           </Button>
           <RadioGroup
             name="montageEffect"
@@ -644,6 +648,7 @@ export default function ImageMontageClient({
             />
             <OutputActionButtons
               canPerform={canPerformOutputActionsOverall}
+              canInitiateSave={canInitiateSaveToLibrary}
               isSaveSuccess={outputActionButtonsSaveSuccess}
               isDownloadSuccess={downloadSuccess}
               onInitiateSave={handleInitiateSaveToLibrary}
@@ -786,21 +791,20 @@ export default function ImageMontageClient({
             : 'Save Montage to Library'
         }
         promptMessage={
-          filenameActionContext?.type === 'download' ? (
-            'Enter a filename for the download:'
-          ) : filenameActionContext?.type === 'library_save' ? (
+          filenameActionContext?.type === 'library_save' &&
+          lastUserGivenFilename &&
+          filenameActionContext.currentFilenameToPrompt ===
+            lastUserGivenFilename ? (
             <>
               <p className="mb-1">
-                You are re-saving &ldquo;
-                <strong>{filenameActionContext.originalFilename}</strong>
-                &rdquo;.
+                You are re-saving “<strong>{lastUserGivenFilename}</strong>”.
               </p>
               <p>
                 Keep this name to update it, or enter a new name for a copy.
               </p>
             </>
           ) : (
-            'Enter a filename to save this montage permanently:'
+            'Enter a filename:'
           )
         }
         confirmButtonText={

@@ -26,7 +26,7 @@ SPECIFIC_FILES=(
 
 # *** ADDED: Define files to explicitly exclude ***
 EXCLUDE_FILES=(
-  "src/constants/emojis-text.ts"
+  "src/constants/emojis.txt"
   "src/constants/html-entities-data.json"
   # Add other specific files to exclude here, e.g.,
   # "app/some/other/file/to/exclude.ts"

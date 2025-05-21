@@ -18,6 +18,7 @@ interface OutputActionButtonsProps {
   isSaveSuccess: boolean;
   isCopySuccess?: boolean;
   isDownloadSuccess: boolean;
+  canInitiateSave?: boolean;
   onInitiateSave: () => void;
   onInitiateDownload: () => void;
   onCopy?: () => void;
@@ -32,6 +33,7 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
   isSaveSuccess,
   isCopySuccess,
   isDownloadSuccess,
+  canInitiateSave = true,
   onInitiateSave,
   onInitiateDownload,
   onCopy,
@@ -65,7 +67,7 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
       <Button
         variant="primary"
         onClick={onInitiateSave}
-        disabled={isSaveSuccess}
+        disabled={isSaveSuccess || !canInitiateSave}
         iconLeft={
           isSaveSuccess ? (
             <CheckIcon className="h-5 w-5" />

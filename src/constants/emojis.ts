@@ -1,4 +1,4 @@
-import { emojiTextData } from './emojis-text';
+import fs from 'fs/promises';
 
 export interface RichEmojiData {
   emoji: string;
@@ -10,9 +10,13 @@ export interface RichEmojiData {
   subgroup: string;
 }
 
-export const getEmojis = (): RichEmojiData[] => {
+export const getEmojis = async (): Promise<RichEmojiData[]> => {
   try {
-    const lines = emojiTextData.split('\n');
+    const fileContent = await fs.readFile(
+      './src/constants/emojis.txt',
+      'utf-8'
+    );
+    const lines = fileContent.split('\n');
     const emojis: RichEmojiData[] = [];
     let currentGroup = 'Unknown';
     let currentSubgroup = 'Unknown';

@@ -60,15 +60,9 @@ export default function ImageAdjustmentCard({
   onRemoveImage,
 }: ImageAdjustmentCardProps) {
   return (
-    <div className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border border-gray-200 rounded-lg bg-white shadow-sm w-[190px]">
-      {' '}
-      {/* Increased width slightly for remove button */}
+    <div className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border border-gray-200 rounded-lg bg-white shadow-sm w-[160px]">
       <div className="flex flex-col items-center w-full mb-1">
-        {' '}
-        {/* Reduced mb */}
         <div className="w-full flex justify-end mb-0.5">
-          {' '}
-          {/* Container for remove button */}
           <Button
             variant="link"
             size="sm"

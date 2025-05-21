@@ -348,8 +348,11 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
       for (const browserFile of addedFiles) {
         const now = new Date();
         let newFileIdIfPersisted: string | null = null;
-        let isTemporaryForDbWrite = true;
-        if (persistThisUploadBatch) isTemporaryForDbWrite = false;
+
+        let isTemporaryForLocalObject = true;
+        if (persistThisUploadBatch) {
+          isTemporaryForLocalObject = !saveUploadsPreference;
+        }
 
         if (persistThisUploadBatch) {
           try {
@@ -357,7 +360,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               browserFile,
               browserFile.name,
               browserFile.type,
-              !(mode === 'addNewFiles') || !saveUploadsPreference
+              !saveUploadsPreference
             );
           } catch (_saveErr) {
             setModalError(
@@ -380,7 +383,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             blob: browserFile,
             createdAt: now,
             lastModified: now,
-            isTemporary: isTemporaryForDbWrite,
+            isTemporary: !saveUploadsPreference,
           };
         } else {
           resolvedFile = {
@@ -391,7 +394,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             blob: browserFile,
             createdAt: now,
             lastModified: now,
-            isTemporary: true,
+            isTemporary: isTemporaryForLocalObject,
           };
         }
         resolvedFileObjects.push(resolvedFile);

@@ -249,14 +249,15 @@ export default function EmojiSearchClient({
         </div>
         <div className="relative">
           <Button
-            variant="neutral-outline"
+            variant={
+              activeFilterCount > 0 ? 'accent-outline' : 'neutral-outline'
+            }
+            size="sm"
             onClick={toggleFilterPanel}
             title={isFilterPanelOpen ? 'Hide Filters' : 'Show Filters'}
             aria-expanded={isFilterPanelOpen}
             className="!p-3"
-            iconLeft={
-              <FunnelIcon className="h-5 w-5 text-[rgb(var(--color-text-muted))]" />
-            }
+            iconLeft={<FunnelIcon className="h-4 w-4" />}
           >
             Filter
             {activeFilterCount > 0 && (

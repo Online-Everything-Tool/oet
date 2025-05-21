@@ -10,27 +10,105 @@ import React, {
 } from 'react';
 import { getUniqueSortedValues } from '@/app/lib/utils';
 import Button from '../form/Button';
-import { XMarkIcon, FunnelIcon } from '@heroicons/react/20/solid';
-import { getEmojis, RichEmojiData } from '@/src/constants/emojis';
+import Input from '../form/Input';
+import {
+  XMarkIcon,
+  FunnelIcon,
+  MagnifyingGlassIcon,
+  CheckIcon,
+} from '@heroicons/react/20/solid';
+import { RichEmojiData } from '@/src/constants/emojis';
+import useToolState from '../../_hooks/useToolState';
+
+interface EmojiExplorerToolState {
+  searchTerm: string;
+  selectedGroup: string;
+  selectedSubgroup: string;
+  selectedVersion: string;
+  recentlyCopiedEmojis: RichEmojiData[];
+}
+
+const DEFAULT_EMOJI_EXPLORER_STATE: EmojiExplorerToolState = {
+  searchTerm: '',
+  selectedGroup: '',
+  selectedSubgroup: '',
+  selectedVersion: '',
+  recentlyCopiedEmojis: [],
+};
+
+const MAX_RECENTLY_COPIED = 20;
 
 interface EmojiExplorerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEmojiSelect: (emoji: string) => void;
+
+  toolRouteForRecentState?: string;
 }
 
 export default function EmojiExplorerModal({
   isOpen,
   onClose,
   onEmojiSelect,
+  toolRouteForRecentState = '/tool/emoji-explorer',
 }: EmojiExplorerModalProps) {
-  const allEmojis: RichEmojiData[] = getEmojis();
+  const [modalEmojisList, setModalEmojisList] = useState<RichEmojiData[]>([]);
+  const [isLoadingModalData, setIsLoadingModalData] = useState<boolean>(false);
+  const [modalDataError, setModalDataError] = useState<string | null>(null);
+  const hasFetchedDataRef = useRef(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [selectedSubgroup, setSelectedSubgroup] = useState<string>('');
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const modalBodyRef = useRef<HTMLDivElement>(null);
+  const [lastCopiedValue, setLastCopiedValue] = useState<{
+    type: string;
+    value: string;
+  } | null>(null);
+
+  const {
+    state: emojiExplorerToolState,
+    setState: setEmojiExplorerToolState,
+    isLoadingState: isLoadingEmojiExplorerToolState,
+  } = useToolState<EmojiExplorerToolState>(
+    toolRouteForRecentState,
+    DEFAULT_EMOJI_EXPLORER_STATE
+  );
+
+  useEffect(() => {
+    if (isOpen && !hasFetchedDataRef.current && !isLoadingModalData) {
+      setIsLoadingModalData(true);
+      setModalDataError(null);
+      fetch('/api/get-emojis')
+        .then(async (res) => {
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(
+              errorData.error || `Failed to fetch emojis: ${res.status}`
+            );
+          }
+          return res.json();
+        })
+        .then((data: { emojis: RichEmojiData[]; error?: string }) => {
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          setModalEmojisList(data.emojis || []);
+          hasFetchedDataRef.current = true;
+        })
+        .catch((err) => {
+          console.error('Error fetching emojis for modal:', err);
+          setModalDataError(err.message || 'Could not load emoji data.');
+          setModalEmojisList([]);
+        })
+        .finally(() => {
+          setIsLoadingModalData(false);
+        });
+    } else if (!isOpen) {
+    }
+  }, [isOpen, isLoadingModalData]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -43,18 +121,20 @@ export default function EmojiExplorerModal({
   }, [isOpen]);
 
   const availableGroups = useMemo(
-    () => getUniqueSortedValues(allEmojis, 'group', 'asc'),
-    [allEmojis]
+    () => getUniqueSortedValues(modalEmojisList, 'group', 'asc'),
+    [modalEmojisList]
   );
   const availableVersions = useMemo(
-    () => getUniqueSortedValues(allEmojis, 'version', 'version-desc'),
-    [allEmojis]
+    () => getUniqueSortedValues(modalEmojisList, 'version', 'version-desc'),
+    [modalEmojisList]
   );
   const derivedAvailableSubgroups = useMemo(() => {
     if (!selectedGroup) return [];
-    const filteredByGroup = allEmojis.filter((e) => e.group === selectedGroup);
+    const filteredByGroup = modalEmojisList.filter(
+      (e) => e.group === selectedGroup
+    );
     return getUniqueSortedValues(filteredByGroup, 'subgroup', 'asc');
-  }, [allEmojis, selectedGroup]);
+  }, [modalEmojisList, selectedGroup]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -64,33 +144,39 @@ export default function EmojiExplorerModal({
     return count;
   }, [selectedGroup, selectedSubgroup, selectedVersion]);
 
-  const filteredEmojis = useMemo(() => {
+  const filteredEmojis = useMemo<RichEmojiData[]>(() => {
+    if (modalEmojisList.length === 0) {
+      return [];
+    }
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
+    let emojisToReturn = modalEmojisList;
 
-    let emojisToFilter = allEmojis;
-
-    if (selectedGroup) {
-      emojisToFilter = emojisToFilter.filter(
-        (emoji) => emoji.group === selectedGroup
-      );
-      if (selectedSubgroup) {
-        emojisToFilter = emojisToFilter.filter(
-          (emoji) => emoji.subgroup === selectedSubgroup
-        );
-      }
+    if (lowerCaseSearchTerm || selectedGroup || selectedVersion) {
+      emojisToReturn = modalEmojisList.filter((emoji) => {
+        if (
+          lowerCaseSearchTerm &&
+          !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)
+        )
+          return false;
+        if (selectedGroup && emoji.group !== selectedGroup) return false;
+        if (
+          selectedGroup &&
+          selectedSubgroup &&
+          emoji.subgroup !== selectedSubgroup
+        )
+          return false;
+        if (selectedVersion && emoji.version !== selectedVersion) return false;
+        return true;
+      });
     }
-    if (selectedVersion) {
-      emojisToFilter = emojisToFilter.filter(
-        (emoji) => emoji.version === selectedVersion
-      );
-    }
-    if (lowerCaseSearchTerm) {
-      emojisToFilter = emojisToFilter.filter((emoji) =>
-        emoji.name.toLowerCase().includes(lowerCaseSearchTerm)
-      );
-    }
-    return emojisToFilter;
-  }, [searchTerm, allEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
+    return emojisToReturn;
+  }, [
+    searchTerm,
+    modalEmojisList,
+    selectedGroup,
+    selectedSubgroup,
+    selectedVersion,
+  ]);
 
   const emojisGroupedByName = useMemo(() => {
     if (filteredEmojis.length === 0) return {};
@@ -108,13 +194,14 @@ export default function EmojiExplorerModal({
   }, [filteredEmojis]);
 
   const sortedGroupNames = useMemo(() => {
+    if (modalEmojisList.length === 0) return [];
     return Object.keys(emojisGroupedByName).sort((a, b) => {
-      const indexA = allEmojis.findIndex((e) => e.group === a);
-      const indexB = allEmojis.findIndex((e) => e.group === b);
+      const indexA = modalEmojisList.findIndex((e) => e.group === a);
+      const indexB = modalEmojisList.findIndex((e) => e.group === b);
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
       return a.localeCompare(b);
     });
-  }, [emojisGroupedByName, allEmojis]);
+  }, [emojisGroupedByName, modalEmojisList]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) =>
     setSearchTerm(event.target.value);
@@ -127,17 +214,50 @@ export default function EmojiExplorerModal({
     setSelectedSubgroup(event.target.value);
   const handleVersionChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
     setSelectedVersion(event.target.value);
+
   const handleClearFilters = useCallback(() => {
     setSelectedGroup('');
     setSelectedSubgroup('');
     setSelectedVersion('');
   }, []);
-  const handleEmojiSelectInternal = useCallback(
-    (emojiData: RichEmojiData) => {
-      onEmojiSelect(emojiData.emoji);
+
+  const copyToClipboardInternal = useCallback(
+    async (textToCopy: string, copyContentType: string, emojiName?: string) => {
+      if (!textToCopy) return;
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setLastCopiedValue({ type: copyContentType, value: textToCopy });
+        setTimeout(() => setLastCopiedValue(null), 1500);
+      } catch (err) {
+        console.error(`Failed to copy ${emojiName} ${copyContentType}:`, err);
+      }
     },
-    [onEmojiSelect]
+    []
   );
+
+  const handleEmojiSelectInternal = useCallback(
+    (emojiData: RichEmojiData, source: 'grid' | 'recent' = 'grid') => {
+      onEmojiSelect(emojiData.emoji);
+      copyToClipboardInternal(emojiData.emoji, 'emoji', emojiData.name);
+
+      if (source === 'grid') {
+        setEmojiExplorerToolState((prev) => {
+          const newRecentlyCopied = [
+            emojiData,
+            ...prev.recentlyCopiedEmojis.filter(
+              (e) => e.codePoints !== emojiData.codePoints
+            ),
+          ].slice(0, MAX_RECENTLY_COPIED);
+          return { ...prev, recentlyCopiedEmojis: newRecentlyCopied };
+        });
+      }
+    },
+    [onEmojiSelect, copyToClipboardInternal, setEmojiExplorerToolState]
+  );
+
+  const handleClearRecentlyCopiedInModal = useCallback(() => {
+    setEmojiExplorerToolState({ recentlyCopiedEmojis: [] });
+  }, [setEmojiExplorerToolState]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -160,6 +280,73 @@ export default function EmojiExplorerModal({
     return null;
   }
 
+  const renderContent = () => {
+    if (isLoadingModalData) {
+      return (
+        <p className="text-center text-gray-500 py-10 animate-pulse">
+          Loading emojis...
+        </p>
+      );
+    }
+    if (modalDataError) {
+      return (
+        <p className="text-center text-red-500 py-10">
+          Error: {modalDataError}
+        </p>
+      );
+    }
+    if (modalEmojisList.length === 0 && hasFetchedDataRef.current) {
+      return (
+        <p className="text-center text-gray-500 py-10">
+          No emoji data found or loaded.
+        </p>
+      );
+    }
+    if (modalEmojisList.length === 0 && !hasFetchedDataRef.current) {
+      return (
+        <p className="text-center text-gray-500 py-10 animate-pulse">
+          Preparing emoji list...
+        </p>
+      );
+    }
+
+    return (
+      <>
+        {filteredEmojis.length === 0 &&
+          (searchTerm || activeFilterCount > 0) && (
+            <p className="text-center text-gray-500 py-10">
+              No emojis match your search or filter.
+            </p>
+          )}
+        {sortedGroupNames.map((groupName) => (
+          <div key={groupName} className="mb-4">
+            <h3 className="text-sm font-semibold text-gray-500 py-1 mb-1">
+              {groupName}
+            </h3>
+            <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1">
+              {emojisGroupedByName[groupName].map((emojiData) => (
+                <button
+                  key={emojiData.codePoints || emojiData.name}
+                  onClick={() => handleEmojiSelectInternal(emojiData, 'grid')}
+                  className="text-2xl p-1 rounded hover:bg-gray-200 aspect-square flex items-center justify-center transition-colors duration-100"
+                  title={emojiData.name}
+                  aria-label={`Insert emoji: ${emojiData.name}`}
+                >
+                  {lastCopiedValue?.type === 'emoji' &&
+                  lastCopiedValue?.value === emojiData.emoji ? (
+                    <CheckIcon className="h-5 w-5 text-green-500" />
+                  ) : (
+                    emojiData.emoji
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </>
+    );
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
@@ -179,24 +366,29 @@ export default function EmojiExplorerModal({
           >
             Select Emoji
           </h2>
-          <input
+          <Input
             type="search"
-            placeholder="Search by name..."
+            id="modal-emoji-search"
             value={searchTerm}
             onChange={handleSearchChange}
-            className="border border-gray-300 rounded px-2 py-1 text-sm mx-2 flex-grow min-w-0"
-            aria-label="Search emojis"
+            placeholder="Search by name..."
+            inputClassName="px-2 py-1 text-sm"
+            containerClassName="mx-2 flex-grow min-w-0"
+            iconLeft={<MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />}
           />
           <div className="relative flex-shrink-0">
             <Button
-              variant="neutral-outline"
+              variant={
+                activeFilterCount > 0 ? 'accent-outline' : 'neutral-outline'
+              }
               size="sm"
               onClick={toggleFilterPanel}
               title={isFilterPanelOpen ? 'Hide Filters' : 'Show Filters'}
               aria-expanded={isFilterPanelOpen}
               className="!p-2"
+              iconLeft={<FunnelIcon className="h-5 w-5" />}
             >
-              <FunnelIcon className="h-5 w-5" />
+              Filter
             </Button>
             {activeFilterCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[rgb(var(--color-button-accent-bg))] text-[10px] font-medium text-[rgb(var(--color-button-accent-text))] px-1">
@@ -216,7 +408,7 @@ export default function EmojiExplorerModal({
         </div>
 
         {isFilterPanelOpen && (
-          <div className="p-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3 flex-shrink-0">
+          <div className="p-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3 flex-shrink-0 animate-slide-down">
             <div className="flex justify-between items-center">
               <h3 className="text-sm font-medium text-gray-700">
                 Filter Options
@@ -301,43 +493,52 @@ export default function EmojiExplorerModal({
           </div>
         )}
 
-        <div ref={modalBodyRef} className="p-4 overflow-y-auto flex-grow">
-          {allEmojis.length === 0 && (
-            <p className="text-center text-gray-500 py-10">
-              No emoji data found or loaded.
-            </p>
-          )}
-          {allEmojis.length > 0 && (
-            <>
-              {filteredEmojis.length === 0 &&
-                (searchTerm || activeFilterCount > 0) && (
-                  <p className="text-center text-gray-500 py-10">
-                    No emojis match your search or filter.
-                  </p>
+        {!isLoadingEmojiExplorerToolState &&
+          emojiExplorerToolState.recentlyCopiedEmojis.length > 0 && (
+            <div className="p-3 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+              <div className="flex justify-between items-center mb-1.5">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Recently Copied
+                </h3>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={handleClearRecentlyCopiedInModal}
+                  title="Clear recently copied emojis from Emoji Explorer tool"
+                  className="!p-0.5 text-xs"
+                >
+                  <XMarkIcon className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {emojiExplorerToolState.recentlyCopiedEmojis.map(
+                  (emojiData) => (
+                    <Button
+                      key={`${emojiData.codePoints}-recent-modal`}
+                      variant="neutral-outline"
+                      size="sm"
+                      onClick={() =>
+                        handleEmojiSelectInternal(emojiData, 'recent')
+                      }
+                      title={`Copy: ${emojiData.name}`}
+                      className="!p-1.5 !text-lg leading-none aspect-square"
+                      aria-label={`Copy emoji: ${emojiData.name}`}
+                    >
+                      {lastCopiedValue?.type === 'emoji' &&
+                      lastCopiedValue?.value === emojiData.emoji ? (
+                        <CheckIcon className="h-4 w-4 text-green-500" />
+                      ) : (
+                        emojiData.emoji
+                      )}
+                    </Button>
+                  )
                 )}
-              {sortedGroupNames.map((groupName) => (
-                <div key={groupName} className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-500 bg-white py-1 mb-1 z-5">
-                    {groupName}
-                  </h3>
-
-                  <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1">
-                    {emojisGroupedByName[groupName].map((emojiData) => (
-                      <button
-                        key={emojiData.codePoints || emojiData.name}
-                        onClick={() => handleEmojiSelectInternal(emojiData)}
-                        className="text-2xl p-1 rounded hover:bg-gray-200 aspect-square flex items-center justify-center transition-colors duration-100"
-                        title={emojiData.name}
-                        aria-label={`Insert emoji: ${emojiData.name}`}
-                      >
-                        {emojiData.emoji}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </>
+              </div>
+            </div>
           )}
+
+        <div ref={modalBodyRef} className="p-4 overflow-y-auto flex-grow">
+          {renderContent()}
         </div>
       </div>
     </div>
