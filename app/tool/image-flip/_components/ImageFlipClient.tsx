@@ -132,7 +132,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
   }, [processedStoredFileForItde]);
 
   const generateDefaultOutputFilename = useCallback(() => {
-    const originalName = originalFilenameForDisplay || 'processed-image';
+    const originalName = originalFilenameForDisplay || '';
     const baseName =
       originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
     let extension = 'png';
