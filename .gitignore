@@ -18,6 +18,8 @@ public/assets
 public/api/tool-metadata
 public/api/directives.json
 
+app/api/generate-tool-resources
+
 public/sw.js
 public/swe-worker-*.js
 public/workbox-*.js
