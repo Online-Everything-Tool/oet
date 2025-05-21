@@ -4,15 +4,13 @@ import withSerwist from '@serwist/next';
 
 const nextConfig: NextConfig = {
   images: { unoptimized: true },
-  experimental: {
-    serverComponentsExternalPackages: [
-      'tiny-secp256k1',
-      'ecpair',
-      'bitcoinjs-lib',
-      'ethers', 
-      '@solana/web3.js',
-    ],
-  },
+  serverExternalPackages: [
+    'tiny-secp256k1',
+    'ecpair',
+    'bitcoinjs-lib',
+    'ethers', 
+    '@solana/web3.js',
+  ],  
   webpack(config, options) {
     config.experiments = config.experiments || {};
     config.experiments.asyncWebAssembly = true;
