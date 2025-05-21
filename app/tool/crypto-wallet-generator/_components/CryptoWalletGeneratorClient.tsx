@@ -10,8 +10,12 @@ import React, {
 } from 'react';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
-import ECPairFactory from 'ecpair';
-import * as tinysecp from 'tiny-secp256k1';
+// Removed: import ECPairFactory from 'ecpair';
+// Removed: import * as tinysecp from 'tiny-secp256k1';
+import * as secp from '@noble/secp256k1'; // Added
+import bs58check from 'bs58check'; // Added
+import { Buffer } from 'buffer'; // For converting Uint8Array to Buffer where needed by bitcoinjs-lib
+
 import { Keypair } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -31,7 +35,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { XCircleIcon } from '@heroicons/react/24/solid';
 
-const ECPair = ECPairFactory(tinysecp);
+// Removed: const ECPair = ECPairFactory(tinysecp);
 type WalletType = 'ethereum' | 'bitcoin' | 'solana';
 
 interface WalletEntry {
@@ -77,21 +81,13 @@ export default function CryptoWalletGeneratorClient({
 
   const initialSetupRanRef = useRef(false);
 
-  console.log(
-    `[CryptoGenerator] Render. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}, toolSettings.walletType: ${toolSettings.walletType}, generatedWallets: ${generatedWallets.length}`
-  );
-
   const handleGenerateWallet = useCallback(
     async (typeForGeneration: WalletType) => {
       if (generating) {
-        console.log('[handleGenerateWallet] Bailed: Already generating.');
         return;
       }
       setGenerating(true);
       setError(null);
-      console.log(
-        `[handleGenerateWallet] START. Generating for type: ${typeForGeneration}`
-      );
 
       let newWalletEntry: WalletEntry | null = null;
       try {
@@ -104,11 +100,18 @@ export default function CryptoWalletGeneratorClient({
           generatedPrivateKey = wallet.privateKey;
           generatedPublicKey = wallet.address;
         } else if (typeForGeneration === 'bitcoin') {
-          const keyPair = ECPair.makeRandom();
-          generatedPrivateKey = keyPair.toWIF();
+          const privKeyBytes: Uint8Array = secp.utils.randomPrivateKey();
+          const pubKeyBytes: Uint8Array = secp.getPublicKey(privKeyBytes, true); // true for compressed
+
+          // Create payload for WIF: version (0x80) + private key + compression flag (0x01)
+          const payload = Buffer.allocUnsafe(34);
+          payload[0] = 0x80; // Mainnet private key
+          Buffer.from(privKeyBytes).copy(payload, 1);
+          payload[33] = 0x01; // Compression flag
+          generatedPrivateKey = bs58check.encode(payload);
+
           const { address } = bitcoin.payments.p2pkh({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pubkey: keyPair.publicKey as any,
+            pubkey: Buffer.from(pubKeyBytes), // bitcoinjs-lib expects Buffer
           });
           if (!address)
             throw new Error('Failed to generate Bitcoin P2PKH address.');
@@ -116,9 +119,12 @@ export default function CryptoWalletGeneratorClient({
         } else if (typeForGeneration === 'solana') {
           const keypair = Keypair.generate();
           generatedPublicKey = keypair.publicKey.toBase58();
+          // Solana's secretKey is 64 bytes. First 32 are the private key, next 32 are public key.
+          // For typical "private key" display, usually the full secret key (or just first 32 bytes) is shown.
+          // We'll show the full 64-byte secret key, similar to what Phantom wallet exports.
           generatedPrivateKey = ethers.encodeBase58(keypair.secretKey);
           privateKeyFormatNote =
-            'Base58 encoded secret key bytes (NOT a mnemonic phrase)';
+            'Full 64-byte secret key (Base58 encoded), NOT a mnemonic phrase.';
         } else {
           throw new Error(
             `Invalid wallet type for generation: ${typeForGeneration}`
@@ -136,103 +142,47 @@ export default function CryptoWalletGeneratorClient({
         setGeneratedWallets((prev) =>
           [newWalletEntry!, ...prev].slice(0, MAX_DISPLAYED_WALLETS)
         );
-        console.log(
-          '[handleGenerateWallet] Success. New wallet ID:',
-          newWalletEntry.id,
-          'Type:',
-          newWalletEntry.type
-        );
       } catch (err: unknown) {
         const errorMessage = `Error generating ${typeForGeneration} wallet: ${err instanceof Error ? err.message : 'An unexpected error occurred.'}`;
         setError(errorMessage);
         console.error('[handleGenerateWallet] Error:', err);
       } finally {
         setGenerating(false);
-        console.log('[handleGenerateWallet] FINALLY. Generating set to false.');
       }
     },
     [generating]
   );
 
   useEffect(() => {
-    console.log(
-      `[CryptoGenerator InitialSetupEffect] Running. isLoadingToolSettings: ${isLoadingToolSettings}, initialSetupRan: ${initialSetupRanRef.current}`
-    );
     if (isLoadingToolSettings || initialSetupRanRef.current) {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] Bailing or already ran. isLoading: ${isLoadingToolSettings}, ran: ${initialSetupRanRef.current}`
-      );
       return;
     }
     initialSetupRanRef.current = true;
-    console.log(
-      `[CryptoGenerator InitialSetupEffect] Proceeding with setup. Current toolSettings.walletType: ${toolSettings.walletType}`
-    );
 
     let typeFromUrl: WalletType | null = null;
-    let shouldUpdateSettings = false;
-    let finalWalletTypeForSettings = toolSettings.walletType;
-
     if (urlStateParams && urlStateParams.length > 0) {
       const params = new URLSearchParams(window.location.search);
       const urlParamValue = params.get('walletType') as WalletType | null;
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] URL Params string: '${params.toString()}'. Extracted 'walletType': ${urlParamValue}`
-      );
       if (
         urlParamValue &&
         ['ethereum', 'bitcoin', 'solana'].includes(urlParamValue)
       ) {
         typeFromUrl = urlParamValue;
-        console.log(
-          `[CryptoGenerator InitialSetupEffect] Valid walletType from URL: ${typeFromUrl}`
-        );
         if (typeFromUrl !== toolSettings.walletType) {
-          finalWalletTypeForSettings = typeFromUrl;
-          shouldUpdateSettings = true;
-          console.log(
-            `[CryptoGenerator InitialSetupEffect] URL type '${typeFromUrl}' differs from state '${toolSettings.walletType}'. Will update settings.`
-          );
-        } else {
-          console.log(
-            `[CryptoGenerator InitialSetupEffect] URL type '${typeFromUrl}' matches state '${toolSettings.walletType}'. No settings update needed from URL type directly.`
-          );
+          setToolSettings({ walletType: typeFromUrl });
         }
-      } else {
-        console.log(
-          `[CryptoGenerator InitialSetupEffect] No valid 'walletType' in URL, or param invalid.`
-        );
       }
-    } else {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] urlStateParams prop not provided or empty. Skipping URL processing.`
-      );
-    }
-
-    if (shouldUpdateSettings) {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] Applying setToolSettings with walletType: ${finalWalletTypeForSettings}`
-      );
-      setToolSettings({ walletType: finalWalletTypeForSettings });
     }
 
     if (typeFromUrl && generatedWallets.length === 0 && !generating) {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] Auto-generating wallet of type: ${typeFromUrl} (wallets empty, URL param was present)`
-      );
       handleGenerateWallet(typeFromUrl);
-    } else if (typeFromUrl && generatedWallets.length > 0) {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] URL param present, but wallets NOT empty. No auto-generation.`
-      );
-    } else if (!typeFromUrl) {
-      console.log(
-        `[CryptoGenerator InitialSetupEffect] No URL param. No auto-generation.`
-      );
     }
-    console.log(`[CryptoGenerator InitialSetupEffect] END.`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoadingToolSettings, urlStateParams, toolSettings.walletType]);
+  }, [
+    isLoadingToolSettings,
+    urlStateParams,
+    toolSettings.walletType /* We only want to react to toolSettings.walletType for setToolSettings part, not for auto-generation logic after initial load */,
+  ]);
 
   const toggleSpecificPrivateKeyVisibility = useCallback((id: string) => {
     setGeneratedWallets((prevWallets) =>
@@ -246,10 +196,6 @@ export default function CryptoWalletGeneratorClient({
 
   const handleTypeChange = useCallback(
     (newType: WalletType) => {
-      console.log(
-        '[CryptoGenerator handleTypeChange] User manually selected new type:',
-        newType
-      );
       setToolSettings({ walletType: newType });
       setError(null);
     },
@@ -279,9 +225,6 @@ export default function CryptoWalletGeneratorClient({
   );
 
   const handleClearAllWallets = useCallback(() => {
-    console.log(
-      '[CryptoGenerator handleClearAllWallets] Clearing all wallets.'
-    );
     setGeneratedWallets([]);
     setError(null);
   }, []);
@@ -341,9 +284,6 @@ export default function CryptoWalletGeneratorClient({
   );
 
   if (isLoadingToolSettings && !initialSetupRanRef.current) {
-    console.log(
-      '[CryptoGenerator] Showing main loading state (initial settings load & setup not run).'
-    );
     return (
       <p className="text-center p-4 italic text-gray-500 animate-pulse">
         Loading Wallet Generator...

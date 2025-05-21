@@ -4,21 +4,16 @@ import withSerwist from '@serwist/next';
 
 const nextConfig: NextConfig = {
   images: { unoptimized: true },
-  serverExternalPackages: [
-    'tiny-secp256k1',
-    'ecpair',
-    'bitcoinjs-lib',
-    'ethers', 
-    '@solana/web3.js',
-  ],  
+  serverExternalPackages: ['bitcoinjs-lib', 'ethers'],
+
   webpack(config, options) {
     config.experiments = config.experiments || {};
-    config.experiments.asyncWebAssembly = true;
+    config.experiments.asyncWebAssembly = true; // Crucial for client-side WASM
     config.module ??= {};
     config.module.rules ??= [];
     config.module.rules.push({
       test: /\.wasm$/,
-      type: 'webassembly/async',
+      type: 'webassembly/async', // Crucial for client-side WASM
     });
     return config;
   },
