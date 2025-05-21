@@ -10,11 +10,10 @@ import React, {
 } from 'react';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
-// Removed: import ECPairFactory from 'ecpair';
-// Removed: import * as tinysecp from 'tiny-secp256k1';
-import * as secp from '@noble/secp256k1'; // Added
-import bs58check from 'bs58check'; // Added
-import { Buffer } from 'buffer'; // For converting Uint8Array to Buffer where needed by bitcoinjs-lib
+
+import * as secp from '@noble/secp256k1';
+import bs58check from 'bs58check';
+import { Buffer } from 'buffer';
 
 import { Keypair } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,7 +34,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { XCircleIcon } from '@heroicons/react/24/solid';
 
-// Removed: const ECPair = ECPairFactory(tinysecp);
 type WalletType = 'ethereum' | 'bitcoin' | 'solana';
 
 interface WalletEntry {
@@ -101,17 +99,16 @@ export default function CryptoWalletGeneratorClient({
           generatedPublicKey = wallet.address;
         } else if (typeForGeneration === 'bitcoin') {
           const privKeyBytes: Uint8Array = secp.utils.randomPrivateKey();
-          const pubKeyBytes: Uint8Array = secp.getPublicKey(privKeyBytes, true); // true for compressed
+          const pubKeyBytes: Uint8Array = secp.getPublicKey(privKeyBytes, true);
 
-          // Create payload for WIF: version (0x80) + private key + compression flag (0x01)
           const payload = Buffer.allocUnsafe(34);
-          payload[0] = 0x80; // Mainnet private key
+          payload[0] = 0x80;
           Buffer.from(privKeyBytes).copy(payload, 1);
-          payload[33] = 0x01; // Compression flag
+          payload[33] = 0x01;
           generatedPrivateKey = bs58check.encode(payload);
 
           const { address } = bitcoin.payments.p2pkh({
-            pubkey: Buffer.from(pubKeyBytes), // bitcoinjs-lib expects Buffer
+            pubkey: Buffer.from(pubKeyBytes),
           });
           if (!address)
             throw new Error('Failed to generate Bitcoin P2PKH address.');
@@ -119,9 +116,7 @@ export default function CryptoWalletGeneratorClient({
         } else if (typeForGeneration === 'solana') {
           const keypair = Keypair.generate();
           generatedPublicKey = keypair.publicKey.toBase58();
-          // Solana's secretKey is 64 bytes. First 32 are the private key, next 32 are public key.
-          // For typical "private key" display, usually the full secret key (or just first 32 bytes) is shown.
-          // We'll show the full 64-byte secret key, similar to what Phantom wallet exports.
+
           generatedPrivateKey = ethers.encodeBase58(keypair.secretKey);
           privateKeyFormatNote =
             'Full 64-byte secret key (Base58 encoded), NOT a mnemonic phrase.';

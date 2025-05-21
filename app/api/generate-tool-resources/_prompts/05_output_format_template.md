@@ -1,20 +1,66 @@
 **Output Format:**
-Return ONLY a valid JSON object adhering EXACTLY to the following structure. Do NOT include any extra text, explanations, or markdown formatting outside the JSON structure itself.
-The `generatedFiles` object MUST be a map where keys are the full relative file paths from the project root (e.g., "app/tool/{{TOOL_DIRECTIVE}}/page.tsx", "app/tool/{{TOOL_DIRECTIVE}}/\_components/{{COMPONENT_NAME}}Client.tsx", "app/tool/{{TOOL_DIRECTIVE}}/\_hooks/useLogic.ts") and values are the complete source code strings for EACH generated file.
-The value for the metadata file (`app/tool/{{TOOL_DIRECTIVE}}/metadata.json`) MUST be a valid JSON _string_.
-\`\`\`json
-{
-"message": "<Brief message about generation success or any warnings>",
-"generatedFiles": {
-"app/tool/{{TOOL_DIRECTIVE}}/page.tsx": "<Full source code for server component wrapper>",
-"app/tool/{{TOOL_DIRECTIVE}}/\_components/{{COMPONENT_NAME}}Client.tsx": "<Full source code for main client component>",
-"app/tool/{{TOOL_DIRECTIVE}}/metadata.json": "<JSON STRING for metadata file>"
-},
-"identifiedDependencies": [
-{ "packageName": "string", "reason": "string (optional)", "importUsed": "string (optional)" }
-]
-}
-\`\`\`
-Ensure the code within "generatedFiles" values is complete and valid source code. Ensure the "metadata" value is a valid JSON _string_. Do not add comments like "// Content for ..." within the generated code strings unless they are actual necessary code comments.
+Return ONLY a single plain text block. Do NOT use any JSON or Markdown formatting for the overall response structure.
 
-CRITICAL REMINDER: When generating the string values for the `generatedFiles` map (which contain source code), all special characters _within that source code_, such as newlines, double quotes, and backslashes, MUST be properly escaped to form a valid JSON string. For example, a newline character in the code must become `\\n` in the JSON string value, and a double quote `"` in the code must become `\\"` in the JSON string value.
+Within this single text block, provide the content for each generated file, plus identified dependencies and a message, using the following EXACT delimiter format:
+
+**For each generated file:**
+
+---START_FILE:{{Full_File_Path_From_Project_Root}}---
+{{Complete_Raw_Source_Code_For_This_File}}
+---END_FILE:{{Full_File_Path_From_Project_Root}}---
+
+Replace `{{Full_File_Path_From_Project_Root}}` with the actual full path (e.g., `app/tool/{{TOOL_DIRECTIVE}}/page.tsx`, `app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx`, `app/tool/{{TOOL_DIRECTIVE}}/_hooks/use{{COMPONENT_NAME}}.ts`, `app/tool/{{TOOL_DIRECTIVE}}/metadata.json`).
+The content between the start and end file delimiters MUST be the complete, raw source code for that file. For `metadata.json`, this means the content will be a raw JSON string.
+
+**For identified dependencies:**
+
+---START_DEPS---
+[
+{"packageName": "string", "reason": "string (optional)", "importUsed": "string (optional)"}
+// , ... more dependencies if any
+]
+---END_DEPS---
+
+The content between `---START_DEPS---` and `---END_DEPS---` MUST be a valid JSON array string, or an empty array `[]` if no external dependencies are identified.
+
+**For the overall message:**
+
+---START_MESSAGE---
+<Brief message about generation success or any warnings>
+---END_MESSAGE---
+
+**Example of the complete plain text output structure:**
+
+```text
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
+import React from 'react';
+// ... content for page.tsx ...
+export default function ToolPage() { /* ... */ }
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
+
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
+'use client';
+// ... content for {{COMPONENT_NAME}}Client.tsx ...
+export default function ToolClient() { /* ... */ }
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
+
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/metadata.json---
+{
+  "title": "{{TOOL_DIRECTIVE}}",
+  "description": "Generated description here."
+  // ... other metadata fields ...
+}
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/metadata.json---
+
+---START_DEPS---
+[
+  {"packageName": "example-lib", "reason": "Used for demonstration"}
+]
+---END_DEPS---
+
+---START_MESSAGE---
+Successfully generated resources for {{TOOL_DIRECTIVE}}.
+---END_MESSAGE---
+
+
+```

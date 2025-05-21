@@ -10,6 +10,8 @@ import {
 import fs from 'fs/promises';
 import path from 'path';
 
+import bundledCoreContextData from './_contexts/_core_context_files.json';
+
 interface RequestBody {
   toolDirective: string;
   generativeDescription: string;
@@ -25,128 +27,36 @@ interface LibraryDependency {
   importUsed?: string;
 }
 
-interface GeminiGenerationResponse {
+interface ClientResponsePayload {
+  success: boolean;
   message: string;
   generatedFiles: Record<string, string> | null;
   identifiedDependencies: LibraryDependency[] | null;
+  error?: string;
 }
 
 const DEFAULT_MODEL_NAME =
   process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
 const API_KEY = process.env.GEMINI_API_KEY;
 
-const CORE_CONTEXT_FILES = [
-  'package.json',
-  'tsconfig.json',
-  'app/page.tsx',
-  'app/layout.tsx',
-  'app/globals.css',
-
-  'src/types/tools.ts',
-  'src/types/storage.ts',
-
-  'app/lib/db.ts',
-  'app/lib/itdeDataUtils.ts',
-  'app/lib/sessionStorageUtils.ts',
-  'app/lib/utils.ts',
-
-  'app/context/FileLibraryContext.tsx',
-  'app/context/MetadataContext.tsx',
-
-  'app/tool/_hooks/useImageProcessing.ts',
-  'app/tool/_hooks/useItdeDiscovery.ts',
-  'app/tool/_hooks/useItdeTargetHandler.ts',
-  'app/tool/_hooks/useToolState.ts',
-  'app/tool/_hooks/useToolUrlState.ts',
-
-  'app/tool/_components/form/Button.tsx',
-  'app/tool/_components/form/Checkbox.tsx',
-  'app/tool/_components/form/Input.tsx',
-  'app/tool/_components/form/RadioGroup.tsx',
-  'app/tool/_components/form/Range.tsx',
-  'app/tool/_components/form/Select.tsx',
-  'app/tool/_components/form/Textarea.tsx',
-
-  'app/tool/_components/shared/FilenamePromptModal.tsx',
-  'app/tool/_components/shared/FileSelectionModal.tsx',
-  'app/tool/_components/shared/IncomingDataModal.tsx',
-  'app/tool/_components/shared/ItdeAcceptChoiceModal.tsx',
-  'app/tool/_components/shared/ReceiveItdeDataTrigger.tsx',
-  'app/tool/_components/shared/SendToToolButton.tsx',
-];
-
-function toPascalCase(kebabCase: string): string {
-  if (!kebabCase) return '';
-  return kebabCase
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
+function directiveToSnakeCase(directive: string): string {
+  return directive.replace(/-/g, '_');
 }
 
-async function getExampleFileContent(
-  directive: string
-): Promise<{ filePath: string; content: string }[]> {
-  const toolDirectoryPath = path.join(process.cwd(), 'app', 'tool', directive);
-  const results: { filePath: string; content: string }[] = [];
-
-  try {
-    await fs.access(toolDirectoryPath);
-
-    const getAllFiles = async (
-      dirPath: string,
-      baseDirForRelativePath: string
-    ): Promise<void> => {
-      const entries = await fs.readdir(dirPath, { withFileTypes: true });
-      for (const entry of entries) {
-        const fullPath = path.join(dirPath, entry.name);
-        if (entry.isDirectory()) {
-          await getAllFiles(fullPath, baseDirForRelativePath);
-        } else if (entry.isFile()) {
-          const relativePathToToolRoot = path.relative(
-            baseDirForRelativePath,
-            fullPath
-          );
-
-          const projectRelativePath = path
-            .join('app', 'tool', directive, relativePathToToolRoot)
-            .replace(/\\/g, '/');
-          try {
-            const content = await fs.readFile(fullPath, 'utf-8');
-            results.push({ filePath: projectRelativePath, content });
-          } catch (readError: unknown) {
-            const message =
-              readError instanceof Error
-                ? readError.message
-                : String(readError);
-            console.warn(
-              `[API generate-tool/getExample] Error reading file ${projectRelativePath} for tool ${directive}:`,
-              message
-            );
-          }
-        }
-      }
-    };
-    await getAllFiles(toolDirectoryPath, toolDirectoryPath);
-  } catch (dirError: unknown) {
-    const isFsError =
-      typeof dirError === 'object' && dirError !== null && 'code' in dirError;
-    const errorCode = isFsError ? (dirError as { code: string }).code : null;
-    if (errorCode === 'ENOENT') {
-      console.log(
-        `[API generate-tool/getExample] Example tool directory not found: app/tool/${directive}`
-      );
-    } else {
-      const message =
-        dirError instanceof Error ? dirError.message : String(dirError);
-      console.warn(
-        `[API generate-tool/getExample] Error accessing example tool directory app/tool/${directive}:`,
-        message
-      );
-    }
-    return [];
+function formatFileContentObjectForPrompt(
+  filesObject: Record<string, string>,
+  sectionTitleSegment: string
+): string {
+  let contentString = `\n\n--- START ${sectionTitleSegment.toUpperCase()} ---\n`;
+  if (Object.keys(filesObject).length === 0) {
+    contentString += `// No files found for ${sectionTitleSegment}.\n`;
   }
-  results.sort((a, b) => a.filePath.localeCompare(b.filePath));
-  return results;
+  for (const [filePath, content] of Object.entries(filesObject)) {
+    const lang = filePath.split('.').pop() || '';
+    contentString += `\n\`\`\`${lang}\n// File: ${filePath}\n${content}\n\`\`\`\n`;
+  }
+  contentString += `\n--- END ${sectionTitleSegment.toUpperCase()} ---\n`;
+  return contentString;
 }
 
 async function readPromptFile(filename: string): Promise<string> {
@@ -166,13 +76,67 @@ async function readPromptFile(filename: string): Promise<string> {
   }
 }
 
+function toPascalCase(kebabCase: string): string {
+  if (!kebabCase) return '';
+  return kebabCase
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+}
+
+function parseDelimitedAIResponse(
+  responseText: string
+): Omit<ClientResponsePayload, 'success'> {
+  const generatedFiles: Record<string, string> = {};
+  let identifiedDependencies: LibraryDependency[] = [];
+  let message =
+    'AI processing complete, but message section was not found in the response.';
+
+  const fileRegex = /---START_FILE:(.*?)---([\s\S]*?)---END_FILE:\1---/g;
+  let match;
+  while ((match = fileRegex.exec(responseText)) !== null) {
+    const filePath = match[1].trim();
+    const fileContent = match[2].trim();
+    generatedFiles[filePath] = fileContent;
+  }
+
+  const depsRegex = /---START_DEPS---([\s\S]*?)---END_DEPS---/;
+  const depsMatch = responseText.match(depsRegex);
+  if (depsMatch && depsMatch[1]) {
+    try {
+      identifiedDependencies = JSON.parse(depsMatch[1].trim());
+    } catch (e) {
+      console.warn(
+        '[API generate-tool] Failed to parse identifiedDependencies JSON:',
+        e
+      );
+    }
+  }
+
+  const messageRegex = /---START_MESSAGE---([\s\S]*?)---END_MESSAGE---/;
+  const messageMatch = responseText.match(messageRegex);
+  if (messageMatch && messageMatch[1]) {
+    message = messageMatch[1].trim();
+  }
+
+  if (Object.keys(generatedFiles).length === 0) {
+    console.warn(
+      "[API generate-tool] No files extracted from AI's delimited response."
+    );
+  }
+
+  return { message, generatedFiles, identifiedDependencies };
+}
+
 export async function POST(req: NextRequest) {
   if (!API_KEY) {
-    console.error(
-      '[API generate-tool] Error: GEMINI_API_KEY is not configured.'
-    );
     return NextResponse.json(
-      { success: false, message: 'API key not configured' },
+      {
+        success: false,
+        message: 'API key not configured',
+        generatedFiles: null,
+        identifiedDependencies: null,
+      } as ClientResponsePayload,
       { status: 500 }
     );
   }
@@ -192,15 +156,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message:
-            'Missing required fields: toolDirective or generativeDescription.',
-        },
+          message: 'Missing required fields',
+          generatedFiles: null,
+          identifiedDependencies: null,
+        } as ClientResponsePayload,
         { status: 400 }
       );
     }
 
+    let coreContextContent = '';
+    if (
+      bundledCoreContextData &&
+      Object.keys(bundledCoreContextData).length > 0
+    ) {
+      coreContextContent = formatFileContentObjectForPrompt(
+        bundledCoreContextData as Record<string, string>,
+        'Core Project Definitions'
+      );
+    } else {
+      console.warn(
+        '[API generate-tool] Bundled core context data is missing or empty.'
+      );
+      coreContextContent =
+        '\n// Critical Error: Bundled core project context was not loaded.\n';
+    }
+
     let exampleFileContext = '';
-    const directivesToFetch = [
+    const uniqueExampleDirectives = [
       ...new Set(
         [
           ...generativeRequestedDirectives,
@@ -209,61 +191,52 @@ export async function POST(req: NextRequest) {
       ),
     ];
 
-    if (directivesToFetch.length > 0) {
-      console.log(
-        `[API generate-tool] Fetching examples for: ${directivesToFetch.join(', ')}`
-      );
-      exampleFileContext += '\n\n--- Relevant Example File Content ---\n';
-      for (const directive of directivesToFetch) {
-        const files = await getExampleFileContent(directive);
-        if (files.length > 0) {
-          exampleFileContext += `\nExample Tool: ${directive}\n`;
-          files.forEach((file) => {
-            const lang = file.filePath.split('.').pop() || '';
-            exampleFileContext += `\n\`\`\`${lang}\n// File: ${file.filePath}\n${file.content}\n\`\`\`\n`;
-          });
-        } else {
-          exampleFileContext += `\n// No files found or error reading for example tool: ${directive}\n`;
+    if (uniqueExampleDirectives.length > 0) {
+      let exampleContentAccumulator =
+        '\n\n--- Relevant Example File Content (Dynamically Loaded based on request) ---\n';
+      let examplesFound = 0;
+      for (const directive of uniqueExampleDirectives) {
+        const snakeCaseDirective = directiveToSnakeCase(directive);
+        const toolContextFilename = `_${snakeCaseDirective}.json`;
+        const toolContextPath = path.join(
+          process.cwd(),
+          'app',
+          'api',
+          'generate-tool-resources',
+          '_contexts/tool_contexts',
+          toolContextFilename
+        );
+        try {
+          const toolContextJsonString = await fs.readFile(
+            toolContextPath,
+            'utf-8'
+          );
+          const toolContextData = JSON.parse(toolContextJsonString) as Record<
+            string,
+            string
+          >;
+          if (toolContextData && Object.keys(toolContextData).length > 0) {
+            exampleContentAccumulator += `\nExample Tool: ${directive}\n`;
+            exampleContentAccumulator += formatFileContentObjectForPrompt(
+              toolContextData,
+              `Tool: ${directive}`
+            );
+            examplesFound++;
+          } else {
+            /* warning */
+          }
+        } catch (error) {
+          /* warning */
         }
       }
-      exampleFileContext += '\n--- End Example File Content ---\n';
+      if (examplesFound > 0) exampleFileContext = exampleContentAccumulator;
+      else
+        exampleFileContext =
+          '\n// No specifically requested example tool contexts were found or loaded.\n';
     } else {
-      console.log(
-        `[API generate-tool] No specific example directives provided or found.`
-      );
       exampleFileContext =
-        '\nNo specific existing tool examples were requested or found.\n';
+        '\n// No specific existing tool examples were requested for dynamic loading.\n';
     }
-
-    console.log(`[API generate-tool] Reading core context files...`);
-    let coreContextContent = '';
-    for (const filePath of CORE_CONTEXT_FILES) {
-      const fullPath = path.join(process.cwd(), filePath);
-      try {
-        const content = await fs.readFile(fullPath, 'utf-8');
-        const lang = filePath.split('.').pop() || '';
-        coreContextContent += `\n\`\`\`${lang}\n// File: ${filePath}\n${content}\n\`\`\`\n`;
-      } catch (error: unknown) {
-        const isFsError =
-          typeof error === 'object' && error !== null && 'code' in error;
-        const errorCode = isFsError ? (error as { code: string }).code : null;
-        if (errorCode === 'ENOENT') {
-          console.warn(
-            `[API generate-tool] Core context file not found: ${filePath}`
-          );
-          coreContextContent += `\n// File: ${filePath} (Not Found)\n`;
-        } else {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          console.error(
-            `[API generate-tool] Error reading core context file ${filePath}:`,
-            message
-          );
-          coreContextContent += `\n// File: ${filePath} (Error Reading)\n`;
-        }
-      }
-    }
-    console.log(`[API generate-tool] Finished reading core context files.`);
 
     const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({ model: modelName });
@@ -273,9 +246,8 @@ export async function POST(req: NextRequest) {
       topK: 20,
       topP: 0.85,
       maxOutputTokens: 8192,
-      responseMimeType: 'application/json',
+      responseMimeType: 'text/plain',
     };
-
     const safetySettings: SafetySetting[] = [
       {
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -305,12 +277,6 @@ export async function POST(req: NextRequest) {
     const projectStructureRulesContent = await readPromptFile(
       '01_project_structure_rules.md'
     );
-    const coreDefsIntroContent = await readPromptFile(
-      '02_core_project_definitions_intro.md'
-    );
-    const examplesIntroContent = await readPromptFile(
-      '03_provided_examples_intro.md'
-    );
     let generationTaskContent = await readPromptFile(
       '04_generation_task_template.md'
     );
@@ -327,7 +293,6 @@ export async function POST(req: NextRequest) {
       .replace(/{{METADATA_PATH}}/g, metadataPath)
       .replace(/{{TOOL_BASE_PATH}}/g, toolBasePath)
       .replace(/{{COMPONENT_NAME}}/g, componentName);
-
     generationTaskContent = generationTaskContent
       .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
       .replace(/{{SERVER_COMPONENT_PATH}}/g, serverComponentPath)
@@ -335,7 +300,6 @@ export async function POST(req: NextRequest) {
       .replace(/{{METADATA_PATH}}/g, metadataPath)
       .replace(/{{TOOL_BASE_PATH}}/g, toolBasePath)
       .replace(/{{COMPONENT_NAME}}/g, componentName);
-
     outputFormatContent = outputFormatContent
       .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
       .replace(/{{COMPONENT_NAME}}/g, componentName);
@@ -343,20 +307,17 @@ export async function POST(req: NextRequest) {
     const promptParts = [
       taskDefinitionContent,
       projectStructureRulesContent,
-      coreDefsIntroContent,
       coreContextContent,
-      examplesIntroContent,
       exampleFileContext,
       generationTaskContent,
       outputFormatContent,
     ];
     const prompt = promptParts.join('\n\n');
-
     const parts = [{ text: prompt }];
+
     console.log(
       `[API generate-tool] Sending prompt to ${modelName} for ${toolDirective} (Prompt length: ~${prompt.length} chars)...`
     );
-
     const result = await model.generateContent({
       contents: [{ role: 'user', parts }],
       generationConfig,
@@ -367,119 +328,71 @@ export async function POST(req: NextRequest) {
       throw new Error('Gemini API call failed: No response received.');
     }
     const responseText = result.response.text();
-    console.log('--- RAW AI Response Text (generate-tool-resources) ---');
-
-    console.log(responseText);
     console.log(
-      `--- END RAW AI Response Text (length: ${responseText.length}) ---`
+      '[API generate-tool] Raw AI Text Response (delimited format):\n',
+      responseText
     );
 
-    let parsedResponse: GeminiGenerationResponse;
-    try {
-      parsedResponse = JSON.parse(
-        responseText.trim().replace(/^```json\s*|\s*```$/g, '')
-      ) as GeminiGenerationResponse;
-      console.log(
-        '[API generate-tool] Successfully parsed Gemini JSON response.'
-      );
-
-      if (
-        !parsedResponse ||
-        typeof parsedResponse.generatedFiles !== 'object' ||
-        parsedResponse.generatedFiles === null ||
-        Object.keys(parsedResponse.generatedFiles).length < 3
-      ) {
-        console.warn(
-          "[API generate-tool] Parsed response missing core 'generatedFiles' or insufficient files.",
-          parsedResponse?.generatedFiles
-        );
-        throw new Error(
-          'AI response missing expected core generated files or invalid structure.'
-        );
-      }
-      const fileKeys = Object.keys(parsedResponse.generatedFiles);
-      if (
-        !fileKeys.includes(serverComponentPath) ||
-        !fileKeys.includes(clientComponentPath) ||
-        !fileKeys.includes(metadataPath)
-      ) {
-        console.warn(
-          `[API generate-tool] Parsed response 'generatedFiles' missing one or more core keys: ${serverComponentPath}, ${clientComponentPath}, ${metadataPath}. Found: ${fileKeys.join(', ')}`
-        );
-      }
-    } catch (e) {
-      console.error(
-        '[API generate-tool] Failed to parse Gemini JSON response:',
-        e,
-        '\nRaw Response Text Snippet:\n',
-        responseText.substring(0, 1000) + '...'
-      );
-      throw new Error(
-        'Failed to parse generation response from AI. Response was not valid JSON or had unexpected structure.'
-      );
-    }
+    const parsedAIRData = parseDelimitedAIResponse(responseText);
 
     if (
-      typeof parsedResponse.message !== 'string' ||
-      typeof parsedResponse.generatedFiles !== 'object' ||
-      !Object.values(parsedResponse.generatedFiles).every(
-        (content) => typeof content === 'string'
-      ) ||
-      (parsedResponse.identifiedDependencies !== undefined &&
-        parsedResponse.identifiedDependencies !== null &&
-        !Array.isArray(parsedResponse.identifiedDependencies))
+      !parsedAIRData.generatedFiles ||
+      Object.keys(parsedAIRData.generatedFiles).length < 3
     ) {
-      console.error(
-        '[API generate-tool] Invalid structure in parsed AI response (after initial parse):',
-        parsedResponse
-      );
-      throw new Error('Received malformed generation data structure from AI.');
-    }
-
-    const metadataContent = parsedResponse.generatedFiles[metadataPath];
-    if (typeof metadataContent !== 'string') {
-      console.error(
-        `[API generate-tool] Metadata content missing or not a string at path: ${metadataPath}`
+      console.warn(
+        "[API generate-tool] Parsed delimited response missing core 'generatedFiles' or insufficient files."
       );
       throw new Error(
-        `AI response missing metadata content string at path: ${metadataPath}`
+        'AI response missing expected core generated files from delimited output or parsing failed.'
+      );
+    }
+
+    const metadataContent = parsedAIRData.generatedFiles[metadataPath];
+    if (typeof metadataContent !== 'string') {
+      throw new Error(
+        `AI response missing metadata content string at path: ${metadataPath} (after parsing delimited response)`
       );
     }
     try {
       const parsedMetadata = JSON.parse(metadataContent);
       if (
         typeof parsedMetadata !== 'object' ||
-        parsedMetadata === null ||
-        typeof parsedMetadata.title !== 'string' ||
-        typeof parsedMetadata.description !== 'string' ||
         !Array.isArray(parsedMetadata.inputConfig) ||
         typeof parsedMetadata.outputConfig !== 'object'
       ) {
         console.warn(
-          '[API generate-tool] Generated metadata JSON string missing required fields (title, description, inputConfig, outputConfig) or wrong types.'
+          '[API generate-tool] Parsed metadata.json content is not valid JSON or missing required fields.'
         );
       }
     } catch (jsonError) {
       console.error(
-        '[API generate-tool] Generated metadata string is not valid JSON:',
+        '[API generate-tool] Parsed metadata.json content is not valid JSON:',
         metadataContent,
         jsonError
       );
-      throw new Error('AI generated invalid JSON string for metadata.json.');
+      throw new Error(
+        'AI generated invalid JSON string for metadata.json content.'
+      );
     }
 
-    const finalResponseData = {
+    const finalResponseData: ClientResponsePayload = {
       success: true,
-      message: parsedResponse.message,
-      generatedFiles: parsedResponse.generatedFiles,
-      identifiedDependencies: parsedResponse.identifiedDependencies ?? null,
+      message: parsedAIRData.message,
+      generatedFiles: parsedAIRData.generatedFiles,
+      identifiedDependencies: parsedAIRData.identifiedDependencies,
     };
-
     return NextResponse.json(finalResponseData, { status: 200 });
   } catch (error: unknown) {
     console.error('[API generate-tool] Error in POST handler:', error);
     const message =
       error instanceof Error ? error.message : 'An unexpected error occurred.';
+    const errorPayload: ClientResponsePayload = {
+      success: false,
+      message: `Internal Server Error: ${message}`,
+      error: message,
+      generatedFiles: null,
+      identifiedDependencies: null,
+    };
     if (
       error &&
       typeof error === 'object' &&
@@ -490,22 +403,9 @@ export async function POST(req: NextRequest) {
       console.warn(
         '[API generate-tool] Generation blocked by safety settings.'
       );
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Generation blocked due to safety settings.',
-          error: message,
-        },
-        { status: 400 }
-      );
+      errorPayload.message = 'Generation blocked due to safety settings.';
+      return NextResponse.json(errorPayload, { status: 400 });
     }
-    return NextResponse.json(
-      {
-        success: false,
-        message: `Internal Server Error: ${message}`,
-        error: message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json(errorPayload, { status: 500 });
   }
 }
