@@ -3,12 +3,14 @@
 **Current Major Focus:** Complete and stabilize the EC2 + SQS setup for the AI tool generation backend. Thoroughly test the AI Build Tool end-to-end with the new hybrid architecture. Finalize ITDE hardening.
 
 **Guiding Principles for ITDE (Recap):**
+
 - Core tools persist relevant state in Dexie via `useToolState`.
 - ITDE Architecture: `MetadataContext`, `useItdeDiscovery`, `useItdeTargetHandler`, `sessionStorage` signals, ITDE Modals.
 
 ---
 
 ## I. Inter-Tool Data Exchange (ITDE) - Finalization & Testing
+
 - **Phase 1 & 2: Core Infrastructure & Accept/Defer Logic - LARGELY COMPLETE**
   - [x] `MetadataContext.tsx`: Implemented.
   - [x] `sessionStorageUtils.ts`: Implemented.
@@ -37,11 +39,13 @@
   - [x] UI/UX Polish for "Send To..." and "Incoming Data" experiences.
 
 ## II. Storage Component Refactoring & Deletion Logic - COMPLETE
+
 - [x] **Generic `StorageClient.tsx`:** Created and implemented.
 - [x] **`FileStorageClient.tsx` & `ImageStorageClient.tsx`:** Refactored.
 - [x] **Deletion Logic & Thumbnailing:** Refactored.
 
 ## III. AI-Assisted Build Tool - Architecture & Deployment
+
 - **Prompt Construction & Context Loading (Netlify Function/Self-Hosted API):**
   - [x] Refactor `generate-tool-resources` prompt segments into separate Markdown (`.md`) files.
   - [x] Implement build-time bundling for `CORE_CONTEXT_FILES` into `_core_context_files.json`.
@@ -75,15 +79,18 @@
   - [x] `/api/generate-tool-resources` path on Netlify should no longer resolve to a Netlify function (client calls EC2 directly).
 
 ## IV. UI/UX Enhancements & Polish - MEDIUM PRIORITY
+
 - [ ] Flicker (Scrollbar) (Low priority).
 - [ ] `linkedin-post-formatter` Paste Handling.
 
 ## VI. Future Tool Development & Strategic Refactors - HIGH PRIORITY
+
 - [ ] (Build Tool Future) Expand on the generate-tool-resource modal
-- [ ] (Build Tool Future) Explore getting netlify Deploy Preview back to the user 
+- [ ] (Build Tool Future) Explore getting netlify Deploy Preview back to the user
 
 ## VII. Deployment & Operations (New Section)
-  - [x] Netlify DNS configured for custom domain and EC2 subdomain.
-  - [x] **Review Netlify Build Logs & Function Logs Post-Launch:** Monitor errors, performance (for remaining Netlify functions like PR creation, list-models, validate-directive).
-  - [x] **Set up Basic Monitoring/Alerting for EC2 Instance:** CloudWatch alarms (CPU, Status Checks).
-  - [x] **Update Project Documentation (`README.md` or new `DEPLOYMENT.md`):** Detail hybrid Netlify + EC2 architecture and update process.
+
+- [x] Netlify DNS configured for custom domain and EC2 subdomain.
+- [x] **Review Netlify Build Logs & Function Logs Post-Launch:** Monitor errors, performance (for remaining Netlify functions like PR creation, list-models, validate-directive).
+- [x] **Set up Basic Monitoring/Alerting for EC2 Instance:** CloudWatch alarms (CPU, Status Checks).
+- [x] **Update Project Documentation (`README.md` or new `DEPLOYMENT.md`):** Detail hybrid Netlify + EC2 architecture and update process.

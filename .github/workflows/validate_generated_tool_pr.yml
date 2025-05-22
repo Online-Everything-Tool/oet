@@ -30,7 +30,6 @@ jobs:
       ai_analysis_reasoning: ${{ steps.analyze_name.outputs.reasoning }}
       invalid_files_list: ${{ steps.validate_paths.outputs.invalid_files_list }}
 
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -77,11 +76,11 @@ jobs:
       - name: Analyze Directive Name (AI Check)
         id: analyze_name
         if: steps.check_patterns.outputs.check_passed == 'true' # Only if pattern check passed
-        continue-on-error: true 
+        continue-on-error: true
         env:
-            # Use github.server_url to construct APP_URL dynamically or use a fixed one if deployed elsewhere
-            # For Netlify, it's usually your site's URL. For EC2, your EC2 API URL.
-            APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }} # Default to live site if secret not set
+          # Use github.server_url to construct APP_URL dynamically or use a fixed one if deployed elsewhere
+          # For Netlify, it's usually your site's URL. For EC2, your EC2 API URL.
+          APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }} # Default to live site if secret not set
         run: |
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
           API_ENDPOINT="${APP_URL}/api/analyze-directive-name/"
@@ -141,7 +140,7 @@ jobs:
             echo "validation_passed=true" >> $GITHUB_OUTPUT; 
             exit 0; 
           fi
-          
+
           ALLOWED_FOLDER_PATTERN="^app/tool/${TOOL_DIRECTIVE}/"
           # Also allow changes to .github/workflows/ for the PR itself, or project root files like package.json (if we automate dep add later)
           # For now, strictly tool folder.
@@ -172,7 +171,7 @@ jobs:
               echo "Skipping strict path validation for file with status '$status': $filepath"
             fi
           done
-          
+
           if $ALL_PATHS_VALID; then
             echo "validation_passed=true" >> $GITHUB_OUTPUT
           else
