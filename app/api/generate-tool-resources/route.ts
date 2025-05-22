@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
           } else {
             /* warning */
           }
-        } catch (error) {
+        } catch (_error) {
           /* warning */
         }
       }

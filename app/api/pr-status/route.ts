@@ -127,10 +127,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const octokit = await getAuthenticatedOctokit();
-    let headShaToUse: string;
-    let pullRequestUrl: string;
-    let prHeadBranchName: string | null = null;
-
     console.log(
       `[EC2 API /pr-status] Fetching PR data for PR #${actualPrNumber}`
     );
@@ -139,9 +135,9 @@ export async function GET(request: NextRequest) {
       repo: GITHUB_REPO_NAME,
       pull_number: actualPrNumber,
     });
-    headShaToUse = prData.head.sha;
-    pullRequestUrl = prData.html_url;
-    prHeadBranchName = prData.head.ref;
+    const headShaToUse = prData.head.sha;
+    const pullRequestUrl = prData.html_url;
+    const prHeadBranchName = prData.head.ref;
 
     console.log(
       `[EC2 API /pr-status] Using Head SHA: ${headShaToUse} for PR #${actualPrNumber} (Branch: ${prHeadBranchName || 'N/A'})`
@@ -264,6 +260,7 @@ export async function GET(request: NextRequest) {
             `[EC2 API /pr-status] Netlify preview URL not found in PR comments.`
           );
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (commentError: any) {
         console.warn(
           `[EC2 API /pr-status] Error fetching or parsing PR comments: ${commentError.message}`
