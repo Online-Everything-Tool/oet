@@ -32,7 +32,7 @@ const CORE_CONTEXT_FILES_TO_BUNDLE = [
   'app/tool/_hooks/useItdeTargetHandler.ts',
   'app/tool/_hooks/useToolState.ts',
   'app/tool/_hooks/useToolUrlState.ts',
-  
+
   'app/tool/_components/form/Button.tsx',
   'app/tool/_components/form/Checkbox.tsx',
   'app/tool/_components/form/Input.tsx',
@@ -40,7 +40,7 @@ const CORE_CONTEXT_FILES_TO_BUNDLE = [
   'app/tool/_components/form/Range.tsx',
   'app/tool/_components/form/Select.tsx',
   'app/tool/_components/form/Textarea.tsx',
-  
+
   'app/tool/_components/shared/FilenamePromptModal.tsx',
   'app/tool/_components/shared/FileSelectionModal.tsx',
   'app/tool/_components/shared/IncomingDataModal.tsx',

@@ -98,7 +98,8 @@ export default function GenerateToolResources({
     }
 
     try {
-      const response = await fetch(process.env.GENERATE_API_URL + '/api/generate-tool-resources', {
+      const apiUrl = process.env.NEXT_PUBLIC_GENERATE_API_URL;
+      const response = await fetch(`${apiUrl}/api/generate-tool-resources`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
