@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: CiTest320669",
+  "directive": "ci-test-320669",
+  "description": "A dummy tool for testing CI workflows: ci-test-320669",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
