@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: ImageBlur",
+  "directive": "image-blur",
+  "description": "A dummy tool for testing CI workflows: image-blur",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
