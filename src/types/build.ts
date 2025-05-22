@@ -4,7 +4,7 @@ export interface ResouceGenerationEpic {
   epicCompanyName: string;
   epicCompanyEmployee: string;
   epicCompanyJobTitle: string;
-  epicGenerationMessages: string[]
+  epicGenerationMessages: string[];
 }
 
 export interface AiModel {

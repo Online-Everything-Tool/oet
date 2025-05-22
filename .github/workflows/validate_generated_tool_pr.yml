@@ -51,7 +51,7 @@ jobs:
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
           # Updated path to the JSON patterns file
           JSON_PATTERN_FILE="app/api/validate-directive/_data/tool-directive-patterns.json"
-          
+
           echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
           if [ -z "$TOOL_DIRECTIVE" ]; then
             echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
@@ -64,13 +64,13 @@ jobs:
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          
+
           echo "DEBUG: Content of $JSON_PATTERN_FILE (raw):"
           cat "$JSON_PATTERN_FILE"
           echo "--- End of raw JSON pattern file content ---"
 
           TEMP_CLEANED_PATTERNS_FILE=$(mktemp)
-          
+
           # Use jq to extract all patterns from the arrays, join them into a single list for grep
           # This handles prefixPatterns, suffixPatterns, complexPatterns
           jq -r '.prefixPatterns[], .suffixPatterns[], .complexPatterns[] // empty' "$JSON_PATTERN_FILE" | \
@@ -87,7 +87,7 @@ jobs:
           echo "DEBUG: Using cleaned patterns from $TEMP_CLEANED_PATTERNS_FILE for grep:"
           cat "$TEMP_CLEANED_PATTERNS_FILE"
           echo "--- End of Cleaned Patterns for grep ---"
-          
+
           if echo "$TOOL_DIRECTIVE" | grep -q -E -f "$TEMP_CLEANED_PATTERNS_FILE"; then
             echo "Directive '$TOOL_DIRECTIVE' matches an allowed pattern."
             echo "check_passed=true" >> $GITHUB_OUTPUT
@@ -96,7 +96,7 @@ jobs:
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1 
           fi
-          
+
           rm "$TEMP_CLEANED_PATTERNS_FILE"
 
       - name: Analyze Directive Name (AI Check)
