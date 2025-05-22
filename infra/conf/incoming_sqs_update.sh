@@ -38,20 +38,13 @@ else
 fi
 
 
-log_action "Fetching latest changes for branch '$GIT_BRANCH'..."
-git fetch origin "$GIT_BRANCH"
+log_action "Pulling latest code..."
+GIT_PULL_OUTPUT=$(git pull 2>&1)
 if [ $? -ne 0 ]; then
-  log_action "ERROR: git fetch failed. Aborting update."
+  log_action "ERROR: git pull failed: $GIT_PULL_OUTPUT. Aborting update."
   exit 1
 fi
-
-log_action "Resetting to latest 'origin/$GIT_BRANCH'..."
-GIT_PULL_OUTPUT=$(git reset --hard "origin/$GIT_BRANCH" 2>&1)
-if [ $? -ne 0 ]; then
-  log_action "ERROR: git reset --hard failed: $GIT_PULL_OUTPUT. Aborting update."
-  exit 1
-fi
-log_action "Git reset successful: $GIT_PULL_OUTPUT"
+log_action "Git pull successful: $GIT_PULL_OUTPUT"
 
 log_action "Running npm run prebuild (to regenerate context files, etc.)..."
 NPM_BUILD_OUTPUT=$(npm run prebuild 2>&1)
