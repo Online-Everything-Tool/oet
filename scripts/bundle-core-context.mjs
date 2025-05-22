@@ -12,16 +12,13 @@ const OUTPUT_FILE = path.join(
 const CORE_CONTEXT_FILES_TO_BUNDLE = [
   'package.json',
 
-  'app/page.tsx',
   'app/layout.tsx',
   'app/globals.css',
 
   'src/types/tools.ts',
   'src/types/storage.ts',
 
-  'app/lib/db.ts',
   'app/lib/itdeDataUtils.ts',
-  'app/lib/sessionStorageUtils.ts',
   'app/lib/utils.ts',
 
   'app/context/FileLibraryContext.tsx',

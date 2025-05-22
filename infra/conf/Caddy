@@ -1,0 +1,8 @@
+oet.online-everything-tool.com {
+        header {
+                Access-Control-Allow-Origin "https://online-everything-tool.com"
+                Access-Control-Allow-Methods "GET, POST, OPTIONS"
+                Access-Control-Allow-Headers "Content-Type"
+        }
+        reverse_proxy localhost:3000
+}
