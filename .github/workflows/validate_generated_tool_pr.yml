@@ -24,14 +24,13 @@ jobs:
       ai_analysis_is_typo: ${{ steps.analyze_name.outputs.is_typo }}
       ai_analysis_suggestions_json: ${{ steps.analyze_name.outputs.suggestions }}
       ai_analysis_reasoning: ${{ steps.analyze_name.outputs.reasoning }}
-      # Combined critical check result for easy downstream use
       critical_initial_checks_passed: ${{ (steps.check_patterns.outputs.check_passed == 'true' && steps.validate_paths.outputs.validation_passed == 'true') }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Fetch all history for accurate diff base
+          fetch-depth: 0 
 
       - name: Extract Tool Directive
         id: extract_directive
@@ -46,13 +45,12 @@ jobs:
           echo "Extracted Tool Directive: $TOOL_DIRECTIVE"
           echo "tool_directive=${TOOL_DIRECTIVE}" >> $GITHUB_OUTPUT
 
-      - name: Check Directive Pattern
+      - name: Check Directive Pattern # MODIFIED STEP SCRIPT BELOW
         id: check_patterns
         run: |
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
           PATTERN_FILE=".github/tool-directive-patterns.txt"
-          MATCH_FOUND=false
-
+          
           echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
           if [ -z "$TOOL_DIRECTIVE" ]; then
             echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
@@ -65,56 +63,27 @@ jobs:
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
+          
           echo "DEBUG: Content of $PATTERN_FILE (raw, showing potential hidden chars):"
-          cat -A "$PATTERN_FILE" # Shows non-printable characters
+          cat -A "$PATTERN_FILE"
           echo "--- End of raw pattern file content ---"
 
-          # Read patterns, remove comments, remove blank lines, remove carriage returns
-          # Process line by line to avoid issues with patterns stored in a single variable
+          TEMP_CLEANED_PATTERNS_FILE=$(mktemp)
+          # awk: skip comments (#), ensure line not blank (NF), remove CR, print cleaned pattern
+          awk '!/^#/ && NF {gsub(/\r$/,""); print}' "$PATTERN_FILE" > "$TEMP_CLEANED_PATTERNS_FILE"
 
-          # Temporarily store cleaned patterns
-          TEMP_PATTERN_LIST=""
-          while IFS= read -r line || [ -n "$line" ]; do # Process last line even if no newline
-            cleaned_line=$(echo "$line" | sed 's/#.*//' | tr -d '\r' | xargs) # Remove comments, CR, trim
-            if [ -n "$cleaned_line" ]; then
-              TEMP_PATTERN_LIST="${TEMP_PATTERN_LIST}${cleaned_line}\n"
-            fi
-          done < "$PATTERN_FILE"
-
-          PATTERNS_TO_CHECK=$(echo -e "$TEMP_PATTERN_LIST" | sed '/^$/d') # Remove any resulting blank lines
-
-          if [ -z "$PATTERNS_TO_CHECK" ]; then 
+          if [ ! -s "$TEMP_CLEANED_PATTERNS_FILE" ]; then # -s checks if file exists and has size > 0
             echo "::warning::No active patterns found in '$PATTERN_FILE' after cleaning. Assuming pass."
             echo "check_passed=true" >> $GITHUB_OUTPUT
+            rm "$TEMP_CLEANED_PATTERNS_FILE"
             exit 0
           fi
 
-          echo "DEBUG: Cleaned patterns to check (each on a new line):"
-          echo "$PATTERNS_TO_CHECK"
-          echo "--- End of Cleaned Patterns ---"
-
-          echo "$PATTERNS_TO_CHECK" | while IFS= read -r current_pattern; do
-            # No need to re-trim if TEMP_PATTERN_LIST was built carefully
-            if [ -n "$current_pattern" ]; then 
-                echo "DEBUG: Checking '$TOOL_DIRECTIVE' against pattern '$current_pattern'"
-                # Use bash regex matching for more directness if available
-                if [[ "$TOOL_DIRECTIVE" =~ $current_pattern ]]; then 
-                  echo "DEBUG: MATCH FOUND (bash regex) with pattern: '$current_pattern'"
-                  MATCH_FOUND=true; break
-                else
-                  # Fallback or alternative: grep
-                  if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$current_pattern"; then
-                     echo "DEBUG: MATCH FOUND (grep) with pattern: '$current_pattern'"
-                     MATCH_FOUND=true; break
-                  else
-                     echo "DEBUG: NO MATCH with pattern: '$current_pattern'"
-                  fi
-                fi
-            fi
-          done
-
-          if $MATCH_FOUND; then 
+          echo "DEBUG: Using cleaned patterns from $TEMP_CLEANED_PATTERNS_FILE for grep:"
+          cat "$TEMP_CLEANED_PATTERNS_FILE"
+          echo "--- End of Cleaned Patterns for grep ---"
+          
+          if echo "$TOOL_DIRECTIVE" | grep -q -E -f "$TEMP_CLEANED_PATTERNS_FILE"; then
             echo "Directive '$TOOL_DIRECTIVE' matches an allowed pattern."
             echo "check_passed=true" >> $GITHUB_OUTPUT
           else 
@@ -122,11 +91,13 @@ jobs:
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1 
           fi
+          
+          rm "$TEMP_CLEANED_PATTERNS_FILE" # Clean up temp file
 
       - name: Analyze Directive Name (AI Check)
         id: analyze_name
         if: steps.check_patterns.outputs.check_passed == 'true'
-        continue-on-error: true
+        continue-on-error: true 
         env:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
         run: |
@@ -146,11 +117,8 @@ jobs:
             -o response.json)
 
           echo "AI Analysis API HTTP Status: $HTTP_STATUS"
-          # echo "AI Analysis API Response Body:" # Can be verbose
-          # cat response.json || echo "<empty response body>"
-
           ANALYSIS_SUCCEEDED_FLAG="false"; SCORE_VAL="N/A"; IS_TYPO_VAL="N/A"; SUGGESTIONS_JSON_STR="[]"; REASONING_TEXT="Analysis could not be performed."
-
+          
           if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]] && jq -e . response.json > /dev/null 2>&1; then
              echo "AI Analysis API call successful and response is valid JSON."
              SCORE_VAL=$(jq -r '.score // 0.5' response.json)
@@ -161,12 +129,11 @@ jobs:
           else
              echo "::warning::AI Analysis API call failed or returned invalid JSON (HTTP Status: $HTTP_STATUS). Analysis results will be marked as N/A."
           fi
-
+          
           echo "analysis_succeeded=$ANALYSIS_SUCCEEDED_FLAG" >> $GITHUB_OUTPUT
           echo "score=$SCORE_VAL" >> $GITHUB_OUTPUT
           echo "is_typo=$IS_TYPO_VAL" >> $GITHUB_OUTPUT
           echo "suggestions=$SUGGESTIONS_JSON_STR" >> $GITHUB_OUTPUT
-          # Multiline output for reasoning
           {
             echo "reasoning<<EOF_REASONING"
             echo "$REASONING_TEXT"
@@ -184,22 +151,22 @@ jobs:
             echo "validation_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
-          git fetch origin main --depth=1 # Fetch only the main branch history needed
+          
+          git fetch origin main --depth=1 
           BASE_SHA=$(git merge-base HEAD origin/main)
           if [ -z "$BASE_SHA" ]; then 
             echo "::error::Could not determine merge base with main branch."
             echo "validation_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-
+          
           CHANGED_FILES_WITH_STATUS=$(git diff --name-status $BASE_SHA HEAD)
           if [ -z "$CHANGED_FILES_WITH_STATUS" ]; then 
             echo "No files changed compared to main. Assuming pass for path validation."
             echo "validation_passed=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-
+          
           ALLOWED_FOLDER_PATTERN="^app/tool/${TOOL_DIRECTIVE}/"
           INVALID_FILES_FOUND=""
           ALL_PATHS_VALID=true
@@ -210,17 +177,9 @@ jobs:
 
           echo "$CHANGED_FILES_WITH_STATUS" | while IFS=$'\t' read -r status filepath; do
             if [ -z "$filepath" ]; then continue; fi
-            if [[ "$status" == "A" || "$status" == "M" || "$status" == "C" || "$status" == "R" ]]; then # Check Added, Modified, Copied, Renamed
-              # For Renamed files, filepath is the new path. The old path would be in the second column if using --name-status R<score> <old> <new>
-              # For simplicity, just checking the new path for R.
+            if [[ "$status" == "A" || "$status" == "M" || "$status" == "C" || "$status" == "R" ]]; then 
               actual_path_to_check=$filepath
-              if [[ "$status" == "R"* ]]; then # If Renamed, diff output might be R<score>\t<oldpath>\t<newpath>
-                  # This simple IFS might not split R<score> old new correctly.
-                  # A more robust way for renames would be `git diff --name-only --diff-filter=R $BASE_SHA HEAD` for new paths
-                  # and `git diff --name-only --diff-filter=R --find-renames $BASE_SHA HEAD` for old paths.
-                  # For now, assume filepath is the relevant path (new path for R).
-                  # This part might need refinement if you handle complex renames where old path matters.
-                  # For now, we assume $filepath is the path that needs to be in the allowed folder.
+              if [[ "$status" == "R"* ]]; then 
                   echo "Rename detected, checking path: $filepath"
               fi
 
@@ -235,12 +194,11 @@ jobs:
               echo "Skipping strict path validation for file with status '$status': $filepath"
             fi
           done
-
+          
           if $ALL_PATHS_VALID; then
             echo "validation_passed=true" >> $GITHUB_OUTPUT
           else
             echo "validation_passed=false" >> $GITHUB_OUTPUT
-            # Prepare for multiline output in GitHub Actions
             INVALID_FILES_ESCAPED="${INVALID_FILES_FOUND//'%'/'%25'}"
             INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\n'/'%0A'}"
             INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\r'/'%0D'}"
@@ -254,10 +212,10 @@ jobs:
     if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read 
 
     outputs:
-      douglas_check_step_outcome: ${{ steps.douglas_checker_run.outcome }} # 'success', 'failure', or 'skipped' (if step itself had issues)
+      douglas_check_step_outcome: ${{ steps.douglas_checker_run.outcome }} 
 
     steps:
       - name: Checkout OET Code (PR branch)
@@ -266,7 +224,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20' 
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
 
@@ -284,11 +242,10 @@ jobs:
           fi
           echo "Removing app/api..."
           rm -rf app/api || echo "No app/api directory to remove or removal failed (continuing)."
-
+          
           if [ -d "app/tool" ]; then
             echo "Removing other tool directories from app/tool/ ..."
             cd app/tool
-            # Ensure TOOL_DIRECTIVE is not empty before using it in grep
             ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
             cd ../.. 
           else
@@ -297,9 +254,9 @@ jobs:
           echo "Project structure pruned for static check."
 
       - name: Build OET for Static Export
-        id: build_oet # Give this step an id to check its outcome
+        id: build_oet 
         env:
-          NEXT_OUTPUT_MODE: export
+          NEXT_OUTPUT_MODE: export 
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
           npm run build 
@@ -309,14 +266,13 @@ jobs:
             exit 1
           fi
           echo "'out' directory found."
-        continue-on-error: true # Allow build to fail but capture outcome
+        continue-on-error: true 
 
       - name: Serve Static Output Locally
         id: serve_static
-        if: steps.build_oet.outcome == 'success' # Only serve if build succeeded
+        if: steps.build_oet.outcome == 'success' 
         run: |
           echo "Starting static server for 'out' directory on port 3001..."
-          # Ensure port is free
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
             echo "Port 3001 is in use. Attempting to kill process..."
             sudo fuser -k 3001/tcp || echo "Failed to kill process on port 3001, or it was already free."
@@ -327,15 +283,15 @@ jobs:
           echo "Server PID: $SERVER_PID"
           echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
           echo "Local server URL: http://localhost:3001"
-
+          
           echo "Waiting for server on port 3001..."
           timeout 30s bash -c 'until curl -sSf http://localhost:3001 > /dev/null; do echo -n "."; sleep 1; done' \
           || (echo "::error::Local server (npx serve) did not start on port 3001 in time." && (sudo kill -9 $SERVER_PID || true) && exit 1)
           echo "Server is up!"
-        continue-on-error: true # Allow server step to fail but capture outcome
+        continue-on-error: true 
 
       - name: Clone Douglas Checker
-        if: steps.serve_static.outcome == 'success' # Only if server started
+        if: steps.serve_static.outcome == 'success' 
         run: |
           echo "Cloning Douglas checker..."
           git clone https://github.com/Online-Everything-Tool/douglas.git ./douglas-checker
@@ -343,7 +299,7 @@ jobs:
             echo "::error::Failed to clone Douglas checker repository."
             exit 1
           fi
-
+          
       - name: Install Douglas Checker Dependencies
         if: steps.serve_static.outcome == 'success'
         working-directory: ./douglas-checker
@@ -357,7 +313,7 @@ jobs:
 
       - name: Run Douglas Ethos Check
         id: douglas_checker_run
-        if: steps.serve_static.outcome == 'success' # Only if server started
+        if: steps.serve_static.outcome == 'success' 
         working-directory: ./douglas-checker
         env:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
@@ -374,19 +330,19 @@ jobs:
               echo "::error::Douglas checker (dist/check-tool.js) still not found after compile attempt." && exit 1
             fi
           fi
-
+          
           COMMAND_ARGS=("$TARGET_URL" --outputSummaryFile "$SUMMARY_FILE_PATH" --screenshotPath "$SCREENSHOT_FILE_PATH")
           echo "Executing: node ./dist/check-tool.js ${COMMAND_ARGS[@]}"
           node ./dist/check-tool.js "${COMMAND_ARGS[@]}"
-        continue-on-error: true
+        continue-on-error: true 
 
       - name: Upload Douglas Summary Artifact
-        if: always() && steps.serve_static.outcome == 'success' # Only if server was attempted
+        if: always() && steps.serve_static.outcome == 'success' 
         uses: actions/upload-artifact@v4
         with:
           name: douglas-summary-${{ github.run_id }}
           path: ${{ runner.temp }}/douglas_summary.md
-          if-no-files-found: warn
+          if-no-files-found: warn 
 
       - name: Upload Douglas Screenshot Artifact
         if: always() && steps.serve_static.outcome == 'success'
@@ -394,14 +350,13 @@ jobs:
         with:
           name: douglas-screenshot-${{ github.run_id }}
           path: ${{ runner.temp }}/douglas_screenshot.png
-          if-no-files-found: warn
+          if-no-files-found: warn 
 
       - name: Kill Static Server
         if: always() && steps.serve_static.outcome == 'success' && steps.serve_static.outputs.server_pid
         run: |
           echo "Attempting to kill static server PID: ${{ steps.serve_static.outputs.server_pid }}..."
           (sudo kill -9 ${{ steps.serve_static.outputs.server_pid }} || echo "Kill failed, server might be already stopped.")
-          # Double check with fuser
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
              echo "Port 3001 still in use after PID kill, attempting fuser kill..."
              sudo fuser -k 3001/tcp || echo "fuser kill also failed or port now free."
@@ -413,12 +368,12 @@ jobs:
     name: 3. Report PR Validation Status
     needs:
       - initial_checks
-      - build_and_run_douglas_checker
+      - build_and_run_douglas_checker 
     if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
-      actions: read
+      pull-requests: write 
+      actions: read 
 
     steps:
       - name: Download Douglas Summary Artifact
@@ -426,23 +381,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: douglas-summary-${{ github.run_id }}
-          path: ${{ runner.temp }}/douglas-artifacts/summary
-        continue-on-error: true
+          path: ${{ runner.temp }}/douglas-artifacts/summary 
+        continue-on-error: true 
 
       - name: Read Douglas Summary Content
         id: read_summary
-        # Only run if download was successful AND the file actually exists
         if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
           SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
-          # Escape for multiline environment variable and then for JSON in github-script
-          SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" # Must be first for %0A, %0D
+          SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" 
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\r'/'%0D'}"
           echo "summary_markdown=${SUMMARY_CONTENT}" >> $GITHUB_OUTPUT
         shell: bash
-        continue-on-error: true # If cat fails, use default in env
+        continue-on-error: true 
 
       - name: Construct and Post PR Comment
         id: post_comment
@@ -459,7 +412,7 @@ jobs:
           AI_IS_TYPO: ${{ needs.initial_checks.outputs.ai_analysis_is_typo }}
           AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
           AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
-
+          
           BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
           DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
           DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or check was skipped.' }}
@@ -468,7 +421,10 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { repo, owner } = context.repo;
+            const core = require('@actions/core'); // Make sure to require core
+            const github = require('@actions/github'); // Make sure to require github
+
+            const { repo, owner } = context.repo; // context is available globally in github-script
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
             if (isNaN(issue_number)) {
               core.setFailed("PR Number is not available for commenting.");
@@ -504,15 +460,14 @@ jobs:
               commentBody += `    - Score: ${process.env.AI_SCORE}\n`;
               commentBody += `    - Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? 'Yes ❗' : 'No'}\n`;
               let reasoning = process.env.AI_REASONING || "No reasoning provided.";
-              // Ensure reasoning is treated as a single block of text in Markdown
-              reasoning = reasoning.replace(/%0A/g, '\n    '); // Indent subsequent lines
+              reasoning = reasoning.replace(/%0A/g, '\n    '); 
               commentBody += `    - Reasoning:\n    ${reasoning}\n`;
               try {
                 const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON || '[]');
                 if (suggestions.length > 0) {
                   commentBody += `    - Suggestions: ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
                 }
-              } catch (e) { console.warn("Could not parse AI suggestions JSON for comment"); }
+              } catch (e) { console.warn("Could not parse AI suggestions JSON for comment: " + e.message); }
             } else {
               commentBody += `    - ⚠️ AI name analysis could not be performed or API call failed.\n`;
             }
@@ -521,27 +476,20 @@ jobs:
             // --- 2. Local Build & Douglas Ethos Check ---
             commentBody += `### 2. Local Build & Douglas Ethos Check\n`;
             const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT;
-            const buildStepSucceeded = (buildDouglasJobResult === 'success'); // Simplistic check, outcome of job matters more
-
+            
             if (buildDouglasJobResult === 'skipped') {
               commentBody += `🟡 Local build and Douglas check were skipped (likely due to initial validation failures).\n`;
             } else {
-              // Check if the build step itself (within the job) succeeded or failed
-              // This requires an output from the build step, or inferring from job result
-              // For now, we assume if job isn't skipped, build was attempted.
-              // A more robust check would be an explicit output from the build step.
-              // We use buildDouglasJobResult to infer build success or failure.
-              if(buildStepSucceeded) {
+              if(buildDouglasJobResult === 'success') { // Assuming build part was successful if job not skipped
                 commentBody += `✅ **Local Static Build Successful.**\n`;
-              } else {
-                commentBody += `🚨 **Local Static Build FAILED!** (or Douglas job setup failed before Douglas script ran)\n`;
-                commentBody += `   Please check the [Action run logs](${process.env.ACTION_RUN_URL}?pr=${issue_number}#step:2:1) for details on the build failure.\n`;
+              } else { // Job failed, implies build or a setup step before Douglas script failed
+                commentBody += `🚨 **Local Static Build FAILED!** (or a setup step before Douglas script ran failed)\n`;
+                commentBody += `   Please check the [Action run logs](${process.env.ACTION_RUN_URL}?pr=${issue_number}#step:2:1) for details on the failure.\n`; // Point to the build_and_run_douglas_checker job (job index 2 usually)
               }
 
-              // Douglas summary content
               const douglasSummary = process.env.DOUGLAS_SUMMARY_MD.replace(/%0A/g, '\n').replace(/%0D/g, '');
-              commentBody += `\n${douglasSummary}\n`; // Douglas summary has its own header
-              if (buildDouglasJobResult !== 'skipped') {
+              commentBody += `\n${douglasSummary}\n`; 
+              if (buildDouglasJobResult !== 'skipped') { // Only show artifact link if job attempted
                 commentBody += `   (View full Douglas artifacts including screenshot [on the Action run page](${process.env.ACTION_RUN_URL}?pr=${issue_number}))\n`;
               }
             }
@@ -551,11 +499,10 @@ jobs:
             commentBody += `### 3. Next Steps\n`;
             const criticalInitialChecksPassed = initialChecksJobResult === 'success';
             const douglasActualCheckPassed = process.env.DOUGLAS_CHECK_STEP_OUTCOME === 'success';
-            // Assuming build success if Douglas check was even attempted and passed/failed based on its own logic
-            const overallBuildAndDouglasSuccess = buildDouglasJobResult === 'success' && douglasActualCheckPassed;
+            // Consider overall success only if initial checks passed AND the build/Douglas job passed AND Douglas step passed
+            const overallLocalChecksSuccess = criticalInitialChecksPassed && buildDouglasJobResult === 'success' && douglasActualCheckPassed;
 
-
-            if (criticalInitialChecksPassed && overallBuildAndDouglasSuccess) {
+            if (overallLocalChecksSuccess) {
               commentBody += `✅ All local checks passed!\n`;
               commentBody += `⏳ A Netlify Deploy Preview should be building now. Its status will appear as a separate check from Netlify on this PR.\n`;
               commentBody += `👍 Once ready, please test your tool thoroughly using the Deploy Preview link!\n`;
@@ -564,7 +511,6 @@ jobs:
               commentBody += `🔴 The Netlify Deploy Preview may not build successfully or may not reflect the intended functionality until these issues are addressed.\n`;
             }
 
-            // Post the comment
             try {
               await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
             } catch (e) {
@@ -579,22 +525,24 @@ jobs:
               failWorkflow = true;
               failureReason += "Initial PR Validations failed. ";
             }
-            // If build_and_run_douglas_checker job failed, it's a critical failure.
-            // This could be build failure, server start failure, or Douglas finding issues (if Douglas script failure propagates to job failure)
             if (buildDouglasJobResult === 'failure') {
               failWorkflow = true;
-              failureReason += "Local Build or Douglas Ethos Check process failed. ";
+              failureReason += "Local Build or Douglas Ethos Check process failed (job failed). ";
             } else if (buildDouglasJobResult === 'success' && !douglasActualCheckPassed) {
-              // If build job succeeded, but the Douglas step within it specifically failed
               failWorkflow = true;
-              failureReason += "Douglas Ethos Check detected violations. ";
+              failureReason += "Douglas Ethos Check detected violations (job succeeded but Douglas script failed). ";
             }
 
             if (failWorkflow) {
               core.setFailed(`Workflow failed: ${failureReason.trim()} See PR comment and Action logs for details.`);
             }
-      - name: Fail workflow if checks failed (explicit)
-        if: steps.post_comment.outputs.outcome == 'success' && (needs.initial_checks.result == 'failure' || needs.build_and_run_douglas_checker.result == 'failure' || (needs.build_and_run_douglas_checker.result == 'success' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'success'))
+      # This explicit fail step is a fallback if the core.setFailed in github-script isn't sufficient
+      # or if there are edge cases. It checks the direct results/outcomes of jobs/steps.
+      - name: Fail workflow if critical checks failed (explicit check)
+        if: >
+          needs.initial_checks.result == 'failure' ||
+          needs.build_and_run_douglas_checker.result == 'failure' ||
+          (needs.build_and_run_douglas_checker.result == 'success' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'success')
         run: |
-          echo "One or more critical checks failed. Marking workflow as failed."
+          echo "::error::One or more critical checks failed. Marking workflow as failed."
           exit 1
