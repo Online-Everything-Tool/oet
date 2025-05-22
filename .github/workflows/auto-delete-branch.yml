@@ -41,7 +41,7 @@ jobs:
         uses: dawidd6/action-delete-branch@v3 # A popular and reliable action for this
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }} # Uses the default GITHUB_TOKEN
-          branch_name: ${{ steps.extract_branch.outputs.branch_name }}
+          branches: ${{ steps.extract_branch.outputs.branch_name }}
           # Optional: Set `fail_if_branch_not_found: false` if you don't want the action to fail
           # if the branch was somehow already deleted (e.g., manually or by another process).
           # Default is true, which is usually fine.
