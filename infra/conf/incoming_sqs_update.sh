@@ -1,7 +1,7 @@
 #!/bin/bash
 
 REPO_DIR=$(dirname "$0") # Assumes this script is in the repo root
-LOG_FILE="/var/log/oet_code_update_action.log" # Separate log for actions
+LOG_FILE="/home/ubuntu/log/oet_code_update_action.log" # Separate log for actions
 GIT_BRANCH="main"
 
 export NVM_DIR="$HOME/.nvm" 

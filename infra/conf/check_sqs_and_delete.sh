@@ -4,7 +4,7 @@ QUEUE_URL="https://sqs.us-east-1.amazonaws.com/822884795371/oet"
 REGION="us-east-1"
 REPO_DIR="/home/ubuntu/oet"
 UPDATE_SCRIPT_PATH="$REPO_DIR/incoming_sqs_update.sh"
-LOG_FILE="/var/log/oet_sqs_checker.log"
+LOG_FILE="/home/ubuntu/log//oet_sqs_checker.log"
 
 log_message() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
