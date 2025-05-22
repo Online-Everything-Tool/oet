@@ -53,22 +53,64 @@ jobs:
           PATTERN_FILE=".github/tool-directive-patterns.txt"
           MATCH_FOUND=false
 
+          echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
+          if [ -z "$TOOL_DIRECTIVE" ]; then
+            echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
+            echo "check_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
           if [ ! -f "$PATTERN_FILE" ]; then 
             echo "::error::Pattern file '$PATTERN_FILE' not found."
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-          PATTERNS_TO_CHECK=$(grep -v '^#' "$PATTERN_FILE" | grep -v '^[[:space:]]*$')
+          echo "DEBUG: Content of $PATTERN_FILE (raw, showing potential hidden chars):"
+          cat -A "$PATTERN_FILE" # Shows non-printable characters
+          echo "--- End of raw pattern file content ---"
+
+          # Read patterns, remove comments, remove blank lines, remove carriage returns
+          # Process line by line to avoid issues with patterns stored in a single variable
+
+          # Temporarily store cleaned patterns
+          TEMP_PATTERN_LIST=""
+          while IFS= read -r line || [ -n "$line" ]; do # Process last line even if no newline
+            cleaned_line=$(echo "$line" | sed 's/#.*//' | tr -d '\r' | xargs) # Remove comments, CR, trim
+            if [ -n "$cleaned_line" ]; then
+              TEMP_PATTERN_LIST="${TEMP_PATTERN_LIST}${cleaned_line}\n"
+            fi
+          done < "$PATTERN_FILE"
+
+          PATTERNS_TO_CHECK=$(echo -e "$TEMP_PATTERN_LIST" | sed '/^$/d') # Remove any resulting blank lines
+
           if [ -z "$PATTERNS_TO_CHECK" ]; then 
-            echo "::warning::No active patterns found in '$PATTERN_FILE'. Assuming pass for pattern check."
+            echo "::warning::No active patterns found in '$PATTERN_FILE' after cleaning. Assuming pass."
             echo "check_passed=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          echo "$PATTERNS_TO_CHECK" | while IFS= read -r pattern; do
-            if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$pattern"; then
-              MATCH_FOUND=true; break
+          echo "DEBUG: Cleaned patterns to check (each on a new line):"
+          echo "$PATTERNS_TO_CHECK"
+          echo "--- End of Cleaned Patterns ---"
+
+          echo "$PATTERNS_TO_CHECK" | while IFS= read -r current_pattern; do
+            # No need to re-trim if TEMP_PATTERN_LIST was built carefully
+            if [ -n "$current_pattern" ]; then 
+                echo "DEBUG: Checking '$TOOL_DIRECTIVE' against pattern '$current_pattern'"
+                # Use bash regex matching for more directness if available
+                if [[ "$TOOL_DIRECTIVE" =~ $current_pattern ]]; then 
+                  echo "DEBUG: MATCH FOUND (bash regex) with pattern: '$current_pattern'"
+                  MATCH_FOUND=true; break
+                else
+                  # Fallback or alternative: grep
+                  if echo "$TOOL_DIRECTIVE" | grep -q -E -- "$current_pattern"; then
+                     echo "DEBUG: MATCH FOUND (grep) with pattern: '$current_pattern'"
+                     MATCH_FOUND=true; break
+                  else
+                     echo "DEBUG: NO MATCH with pattern: '$current_pattern'"
+                  fi
+                fi
             fi
           done
 
