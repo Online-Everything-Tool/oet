@@ -107,7 +107,7 @@ jobs:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
         run: |
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
-          API_ENDPOINT="${APP_URL}/api/analyze-directive-name/"
+          API_ENDPOINT="${APP_URL}/api/analyze-directive-name"
           EXISTING_DIRECTIVES_JSON='[]' 
           GENERATIVE_DESC_TEXT="Function related to ${TOOL_DIRECTIVE//-/ }"
 
