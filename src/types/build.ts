@@ -1,5 +1,12 @@
 // FILE: src/types/build.ts
 
+export interface ResouceGenerationEpic {
+  epicCompanyName: string;
+  epicCompanyEmployee: string;
+  epicCompanyJobTitle: string;
+  epicGenerationMessages: string[]
+}
+
 export interface AiModel {
   name: string;
   displayName: string;

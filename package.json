@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write .",
-    "prebuild": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && rm -rf app/api/generate-tool-resources/_contexts && node scripts/generate-metadata-files.mjs && node scripts/generate-directive-index.mjs && node scripts/bundle-core-context.mjs && node scripts/bundle-individual-tool-contexts.mjs"
+    "prebuild": "rm -f public/api/directives.json && rm -rf public/api/tool-metadata && rm -rf app/api/generate-tool-resources/_contexts && node scripts/generate-metadata-files.mjs && node scripts/generate-directive-index.mjs && node scripts/bundle-core-context.mjs && node scripts/bundle-individual-tool-contexts.mjs",
+    "test": "node scripts/generate-test-pr.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

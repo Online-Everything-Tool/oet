@@ -49,8 +49,9 @@ jobs:
         id: check_patterns
         run: |
           TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
-          PATTERN_FILE=".github/tool-directive-patterns.txt"
-
+          # Updated path to the JSON patterns file
+          JSON_PATTERN_FILE="app/api/validate-directive/_data/tool-directive-patterns.json"
+          
           echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
           if [ -z "$TOOL_DIRECTIVE" ]; then
             echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
@@ -58,24 +59,26 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "$PATTERN_FILE" ]; then 
-            echo "::error::Pattern file '$PATTERN_FILE' not found."
+          if [ ! -f "$JSON_PATTERN_FILE" ]; then 
+            echo "::error::JSON Pattern file '$JSON_PATTERN_FILE' not found."
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1
           fi
+          
+          echo "DEBUG: Content of $JSON_PATTERN_FILE (raw):"
+          cat "$JSON_PATTERN_FILE"
+          echo "--- End of raw JSON pattern file content ---"
 
-          echo "DEBUG: Content of $PATTERN_FILE (raw, showing potential hidden chars):"
-          cat -A "$PATTERN_FILE"
-          echo "--- End of raw pattern file content ---"
-
-          # Create a temporary file with cleaned patterns (one per line)
           TEMP_CLEANED_PATTERNS_FILE=$(mktemp)
-          # awk: skip comments (#), ensure line not blank (NF), remove CR from EOL, print cleaned pattern
-          awk '!/^#/ && NF {gsub(/\r$/,""); print}' "$PATTERN_FILE" > "$TEMP_CLEANED_PATTERNS_FILE"
-          # Note: xargs was removed from the awk line as awk handles field splitting; gsub handles CR.
+          
+          # Use jq to extract all patterns from the arrays, join them into a single list for grep
+          # This handles prefixPatterns, suffixPatterns, complexPatterns
+          jq -r '.prefixPatterns[], .suffixPatterns[], .complexPatterns[] // empty' "$JSON_PATTERN_FILE" | \
+          awk '!/^#/ && NF {gsub(/\r$/,""); print}' > "$TEMP_CLEANED_PATTERNS_FILE"
+          # The `// empty` for complexPatterns handles if that key is missing or null
 
-          if [ ! -s "$TEMP_CLEANED_PATTERNS_FILE" ]; then # -s checks if file exists and has size > 0
-            echo "::warning::No active patterns found in '$PATTERN_FILE' after cleaning. Assuming pass."
+          if [ ! -s "$TEMP_CLEANED_PATTERNS_FILE" ]; then
+            echo "::warning::No active patterns found in '$JSON_PATTERN_FILE' after cleaning and jq extraction. Assuming pass."
             echo "check_passed=true" >> $GITHUB_OUTPUT
             rm "$TEMP_CLEANED_PATTERNS_FILE"
             exit 0
@@ -84,20 +87,17 @@ jobs:
           echo "DEBUG: Using cleaned patterns from $TEMP_CLEANED_PATTERNS_FILE for grep:"
           cat "$TEMP_CLEANED_PATTERNS_FILE"
           echo "--- End of Cleaned Patterns for grep ---"
-
-          # Use grep with -f to read patterns from the cleaned file
-          # -q for quiet (suppress output), -E for extended regex
-          # The exit status of grep will be 0 if a match is found, non-0 otherwise.
+          
           if echo "$TOOL_DIRECTIVE" | grep -q -E -f "$TEMP_CLEANED_PATTERNS_FILE"; then
             echo "Directive '$TOOL_DIRECTIVE' matches an allowed pattern."
             echo "check_passed=true" >> $GITHUB_OUTPUT
           else 
-            echo "::error::Directive '$TOOL_DIRECTIVE' does not match any allowed patterns in '$PATTERN_FILE'."
+            echo "::error::Directive '$TOOL_DIRECTIVE' does not match any allowed patterns in '$JSON_PATTERN_FILE'."
             echo "check_passed=false" >> $GITHUB_OUTPUT
             exit 1 
           fi
-
-          rm "$TEMP_CLEANED_PATTERNS_FILE" # Clean up temp file
+          
+          rm "$TEMP_CLEANED_PATTERNS_FILE"
 
       - name: Analyze Directive Name (AI Check)
         id: analyze_name
