@@ -426,8 +426,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core'); // Make sure to require core
-            const github = require('@actions/github'); // Make sure to require github
 
             const { repo, owner } = context.repo; // context is available globally in github-script
             const issue_number = parseInt(process.env.PR_NUMBER, 10);

@@ -50,4 +50,5 @@ jobs:
         if: |
           steps.extract_branch.outputs.branch_name == github.event.repository.default_branch ||
           steps.extract_branch.outputs.branch_name == github.event.pull_request.base.ref
-        run: echo "Skipping deletion of default or base branch: ${{ steps.extract_branch.outputs.branch_name }}"
+        run: |
+          echo "Skipping deletion of default or base branch: ${{ steps.extract_branch.outputs.branch_name }}"
