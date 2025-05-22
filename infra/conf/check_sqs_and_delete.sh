@@ -4,7 +4,7 @@ QUEUE_URL="https://sqs.us-east-1.amazonaws.com/822884795371/oet"
 REGION="us-east-1"
 REPO_DIR="/home/ubuntu/oet"
 UPDATE_SCRIPT_PATH="$REPO_DIR/incoming_sqs_update.sh"
-LOG_FILE="/home/ubuntu/log//oet_sqs_checker.log"
+LOG_FILE="/home/ubuntu/log/oet_sqs_checker.log"
 
 log_message() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
@@ -17,7 +17,7 @@ if ! command -v aws &> /dev/null; then
     exit 1
 fi
 
-MESSAGE_OUTPUT=$(aws sqs receive-message \
+MESSAGE_OUTPUT=$(/usr/local/bin/aws sqs receive-message \
   --queue-url "$QUEUE_URL" \
   --max-number-of-messages 1 \
   --region "$REGION" \
@@ -28,7 +28,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-RECEIPT_HANDLE=$(echo "$MESSAGE_OUTPUT" | jq -r '.Messages[0].ReceiptHandle // empty')
+RECEIPT_HANDLE=$(echo "$MESSAGE_OUTPUT" | /usr/bin/jq -r '.Messages[0].ReceiptHandle // empty')
 
 if [ -z "$RECEIPT_HANDLE" ]; then
   log_message "No new messages in SQS queue. Nothing to do."
@@ -45,7 +45,7 @@ if [ -f "$UPDATE_SCRIPT_PATH" ]; then
   if [ $UPDATE_SCRIPT_EXIT_CODE -ne 0 ]; then
     log_message "ERROR: Update script at $UPDATE_SCRIPT_PATH failed with exit code $UPDATE_SCRIPT_EXIT_CODE."
     log_message "WARNING: SQS Message with ReceiptHandle $RECEIPT_HANDLE will NOT be deleted due to update script failure."
-    exit 1 # Exit so cron knows there was an issue, message remains for retry/inspection
+    exit 1
   else
     log_message "Update script completed successfully."
   fi

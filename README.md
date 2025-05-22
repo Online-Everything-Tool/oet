@@ -3,9 +3,6 @@
 <!-- Optional: Add your new organization logo/icon here -->
 <!-- ![OET Logo](URL_TO_YOUR_LOGO.png) -->
 
-<!-- Optional: Add Badges (Build Status, License, Version, etc.) -->
-<!-- Example: [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) -->
-
 **A versatile collection of useful online tools, accessible directly from your browser.**
 
 OET aims to provide a single, easy-to-use interface for various common (and maybe uncommon!) tasks you might need to perform online, without needing to install separate applications.
@@ -30,7 +27,7 @@ OET aims to provide a single, easy-to-use interface for various common (and mayb
 - **Language:** [TypeScript](https://www.typescriptlang.org/)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/)
 - **AI Integration:** [Google Gemini](https://gemini.google.com/)
-- **Deployment:** [AWS Cloudfront / S3 / API Gateway] _(Adjust as needed)_
+- **Deployment:** [Netlify](https://www.netlify.com/)
 
 ## 📜 New Tool Rules & Guidelines
 
@@ -50,7 +47,7 @@ Follow these instructions to get a local copy up and running for development pur
 
 **Prerequisites:**
 
-- Node.js (Version specified in `.nvmrc` or >= v18 recommended)
+- Node.js (Version specified in `.nvmrc` or >= v20 recommended)
 - Package manager: This project uses **npm** (based on `package-lock.json`). Ensure you have it installed.
 
 **Installation:**
@@ -64,7 +61,7 @@ Follow these instructions to get a local copy up and running for development pur
     ```bash
     npm install
     ```
-3.  **Set up Environment Variables:** Copy `.env.blank` to `.env` and fill in the required values (especially `GEMINI_API_KEY` for full functionality).
+3.  **Set up Environment Variables:** Copy `.env.blank` to `.env` and fill in the required values.
     ```bash
     cp .env.blank .env
     # Now edit .env with your credentials
@@ -77,7 +74,7 @@ Follow these instructions to get a local copy up and running for development pur
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) file for details on our code of conduct and the full process for submitting pull requests. _(Reminder: Create CONTRIBUTING.md)_
+Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) file for details on our code of conduct and the full process for submitting pull requests.
 
 **Ways to contribute:**
 
@@ -88,7 +85,7 @@ Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE). _(Reminder: Add LICENSE file)_
+This project is licensed under the [MIT License](LICENSE).
 
 ## 📧 Contact
 

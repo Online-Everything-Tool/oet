@@ -43,7 +43,6 @@ SCAN_DIRS=(
   "app/history"
   "app/tool/_components" # For shared tool components like Range, FileSelectionModal
   "app/tool/_hooks"    # For shared tool hooks
-  "infra/cloudformation"
   "infra/generate_context"
   "infra/analyze_context"
 )
