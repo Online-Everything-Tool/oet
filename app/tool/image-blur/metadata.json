@@ -1,0 +1,24 @@
+{
+  "title": "Image Blur",
+  "directive": "image-blur",
+  "description": "Blurs an uploaded image to varying degrees.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["image/*"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "blur", "graphics"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
