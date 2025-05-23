@@ -1,0 +1,24 @@
+{
+  "title": "Image Blur",
+  "directive": "image-blur",
+  "description": "Blurs an image to varying degrees using client-side processing.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["image/*"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "blur", "client-side"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
