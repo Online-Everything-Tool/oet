@@ -11,6 +11,7 @@ import { FavoritesProvider } from './context/FavoritesContext';
 import Header from './_components/Header';
 import { MetadataProvider } from './context/MetadataContext';
 import { RecentlyUsedProvider } from './context/RecentlyUsedContext';
+import Footer from './_components/Footer';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
@@ -104,6 +105,7 @@ export default function RootLayout({
                 <main className="flex-grow container mx-auto max-w-6xl px-4 py-4">
                   {children}
                 </main>
+                <Footer />
               </RecentlyUsedProvider>
             </FavoritesProvider>
           </FileLibraryProvider>
