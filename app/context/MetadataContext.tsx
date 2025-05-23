@@ -43,10 +43,6 @@ interface MetadataProviderProps {
   children: ReactNode;
 }
 
-interface DirectivesResponse {
-  directives: string[];
-}
-
 export const MetadataProvider = ({ children }: MetadataProviderProps) => {
   const [toolMetadataMap, setToolMetadataMap] = useState<
     Record<string, ToolMetadata>
@@ -56,71 +52,38 @@ export const MetadataProvider = ({ children }: MetadataProviderProps) => {
 
   useEffect(() => {
     let isMounted = true;
-    const fetchAllMetadata = async () => {
+    const fetchBundledMetadata = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const directivesResponse = await fetch('/api/directives.json');
-        if (!directivesResponse.ok) {
+        const response = await fetch('/api/all-tool-metadata.json'); // Fetch the new bundled file
+        if (!response.ok) {
           throw new Error(
-            `Failed to fetch directives list: ${directivesResponse.status}`
+            `Failed to fetch bundled tool metadata: ${response.status} ${response.statusText}`
           );
         }
-        const directivesData: DirectivesResponse =
-          await directivesResponse.json();
-        const directives = directivesData.directives;
-
-        if (!Array.isArray(directives) || directives.length === 0) {
-          setToolMetadataMap({});
-          if (isMounted) setIsLoading(false);
-          console.warn(
-            '[MetadataContext] No directives found or invalid format in directives.json'
-          );
-          return;
-        }
-
-        const metadataPromises = directives.map(async (directive) => {
-          try {
-            const metaResponse = await fetch(
-              `/api/tool-metadata/${directive}.json`
-            );
-            if (!metaResponse.ok) {
-              console.warn(
-                `[MetadataContext] Failed to fetch metadata for ${directive}: ${metaResponse.status}`
-              );
-              return { directive, metadata: null };
-            }
-            const metadata: ToolMetadata = await metaResponse.json();
-            return { directive, metadata };
-          } catch (fetchError) {
-            console.error(
-              `[MetadataContext] Error fetching metadata for ${directive}:`,
-              fetchError
-            );
-            return { directive, metadata: null };
-          }
-        });
-
-        const results = await Promise.all(metadataPromises);
+        const bundledData: Record<string, ToolMetadata> = await response.json();
 
         if (!isMounted) return;
 
-        const newMetadataMap: Record<string, ToolMetadata> = {};
-        results.forEach((result) => {
-          if (result.metadata) {
-            newMetadataMap[result.directive] = result.metadata;
-          }
-        });
-        setToolMetadataMap(newMetadataMap);
+        if (typeof bundledData === 'object' && bundledData !== null) {
+          setToolMetadataMap(bundledData);
+        } else {
+          console.warn(
+            '[MetadataContext] Fetched bundled metadata is not a valid object.'
+          );
+          setToolMetadataMap({});
+        }
       } catch (err) {
         if (isMounted) {
           const errorMessage =
             err instanceof Error
               ? err.message
-              : 'An unknown error occurred while fetching metadata.';
+              : 'An unknown error occurred while fetching bundled metadata.';
           console.error(
-            '[MetadataContext] Failed to load tool metadata:',
-            errorMessage
+            '[MetadataContext] Failed to load bundled tool metadata:',
+            errorMessage,
+            err
           );
           setError(errorMessage);
           setToolMetadataMap({});
@@ -132,7 +95,7 @@ export const MetadataProvider = ({ children }: MetadataProviderProps) => {
       }
     };
 
-    fetchAllMetadata();
+    fetchBundledMetadata();
 
     return () => {
       isMounted = false;
