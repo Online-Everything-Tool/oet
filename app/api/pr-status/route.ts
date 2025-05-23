@@ -18,9 +18,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
   if (octokitInstance) return octokitInstance;
 
   if (!appId || !privateKeyBase64) {
-    console.error(
-      '[api/pr-status] GitHub App credentials missing on server.'
-    );
+    console.error('[api/pr-status] GitHub App credentials missing on server.');
     throw new Error(
       'Server configuration error: GitHub App credentials missing.'
     );
@@ -127,9 +125,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const octokit = await getAuthenticatedOctokit();
-    console.log(
-      `[api/pr-status] Fetching PR data for PR #${actualPrNumber}`
-    );
+    console.log(`[api/pr-status] Fetching PR data for PR #${actualPrNumber}`);
     const { data: prData } = await octokit.rest.pulls.get({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,

@@ -34,14 +34,14 @@ The content between `---START_DEPS---` and `---END_DEPS---` MUST be a valid JSON
 ```text
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
 import React from 'react';
-// ... content for page.tsx ...
-export default function ToolPage() { /* ... */ }
+// imports for page.tsx ...
+export default function {{COMPONENT_NAME}}Page() { /* contents for {{COMPONENT_NAME}}Page */ }
 ---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
 
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
 'use client';
-// ... content for {{COMPONENT_NAME}}Client.tsx ...
-export default function ToolClient() { /* ... */ }
+// imports for {{COMPONENT_NAME}}Client.tsx ...
+export default function {{COMPONENT_NAME}}Client() { /* contents for {{COMPONENT_NAME}}Client */ }
 ---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
 
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/metadata.json---

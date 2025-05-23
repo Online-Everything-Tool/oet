@@ -68,7 +68,7 @@ export default function ValidateDirective({
     }
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_GENERATE_API_URL;
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
       const response = await fetch(`${apiUrl}/api/validate-directive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

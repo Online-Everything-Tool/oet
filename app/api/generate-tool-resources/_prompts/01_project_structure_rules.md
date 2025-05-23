@@ -8,7 +8,10 @@
 3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
     - **Custom Hooks:** For tool-specific complex state logic, side effects, or reusable calculations, create custom hooks in `app/tool/<directive>/_hooks/<hookName>.ts`.
     - **Sub-Components:** For complex UI sections, break them into smaller, focused presentational components in `app/tool/<directive>/_components/<SubComponentName>.tsx`.
-4.  **UI:** Use standard HTML elements and where possible used components from `app/tool/_components/form` using CSS using project's CSS variables from `app/globals.css` (e.g., `rgb(var(--color-text-base))`). Keep UI clean and functional.
+4.  **UI:**
+    - Use standard HTML elements and where possible used components from `app/tool/_components/form` and from `app/tool/_components/shared`. Use CSS using project's CSS variables from `app/globals.css` (e.g., `rgb(var(--color-text-base))`). Keep UI clean and functional.
+    - For components or input fields that trigger frequent updates or re-computations (e.g., live text input processing, sliders), consider using the `use-debounce` hook (available in the project) to optimize performance and prevent excessive processing.
+    - Leverage existing project dependencies listed in `package.json` when their functionality is applicable, rather than re-implementing standard solutions.
 5.  **State Management:**
     - Primary tool state (inputs, outputs that need to persist, user settings for the tool) MUST use the `useToolState` hook for persistence in Dexie. Structure the state object logically.
     - Simple state that represents a meaningful input, configuration, or result that could be shared between users via a URL link can use the `useToolUrlState` hook. Define corresponding `urlStateParams` in `metadata.json` for such cases. For most other internal tool state and primary input/output references, prefer `useToolState`.
