@@ -86,7 +86,7 @@
 ## VI. Future Tool Development & Strategic Refactors - HIGH PRIORITY
 
 - [ ] (Build Tool Future) Expand on the generate-tool-resource modal
-- [ ] (Build Tool Future) Explore getting netlify Deploy Preview back to the user
+- [x] (Build Tool Future) Explore getting netlify Deploy Preview back to the user (Core functionality: URL is fetched and displayed. URL can be updated with preview link for shareability).
 
 ## VII. Deployment & Operations (New Section)
 
