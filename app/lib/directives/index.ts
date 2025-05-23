@@ -12,10 +12,7 @@ import { getRecentActivityPreview as password_generatorPreview } from './passwor
 import { getRecentActivityPreview as text_counterPreview } from './text-counter';
 
 // Create a map of directive names to their preview functions
-export const directivePreviewFunctions: Record<
-  string,
-  CustomRecentActivityPreviewFn | undefined
-> = {
+export const directivePreviewFunctions: Record<string, CustomRecentActivityPreviewFn | undefined> = {
   'crypto-wallet-generator': crypto_wallet_generatorPreview,
   'password-generator': password_generatorPreview,
   'text-counter': text_counterPreview,

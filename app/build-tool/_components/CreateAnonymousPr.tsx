@@ -9,7 +9,7 @@ import React, {
   useRef,
 } from 'react';
 import Link from 'next/link';
-import Image from 'next/image'; // For Imgur screenshot
+import Image from 'next/image';
 
 import type {
   GenerationResult,
@@ -18,12 +18,10 @@ import type {
 } from '@/src/types/build';
 import Button from '@/app/tool/_components/form/Button';
 
-// Define types for PR CI Status (mirroring your EC2 API response)
-// Ideally, share these from a common types file
 interface CiCheck {
   name: string;
-  status: string; // 'queued', 'in_progress', 'completed', 'skipped', etc.
-  conclusion: string | null; // 'success', 'failure', 'neutral', etc.
+  status: string;
+  conclusion: string | null;
   url?: string;
   started_at?: string | null;
   completed_at?: string | null;
@@ -40,10 +38,9 @@ interface PrCiStatus {
   overallStatus: 'pending' | 'success' | 'failure' | 'error';
   lastUpdated: string;
   error?: string;
-  // Potentially add imgurScreenshotUrl if API is enhanced to parse it from PR comment
+
   imgurScreenshotUrl?: string | null;
 }
-// End type definitions
 
 interface CreateAnonymousPrProps {
   toolDirective: string;
@@ -52,16 +49,16 @@ interface CreateAnonymousPrProps {
   additionalDescription: string;
   userSelectedDirectives: string[];
   selectedModel: string;
-  // onPrSubmissionSuccess: (result: PrSubmissionResult) => void; // Old prop
+
   onBack: () => void;
-  // New props if PR creation happens in parent and this component just monitors
+
   initialPrUrl?: string | null;
   initialPrNumber?: number | null;
-  onFlowComplete?: () => void; // To signal parent to reset or show final success
+  onFlowComplete?: () => void;
 }
 
-const POLLING_INTERVAL = 10000; // 10 seconds
-const MAX_POLLING_ATTEMPTS = 360; // 10s * 360 = 1 hour max polling
+const POLLING_INTERVAL = 10000;
+const MAX_POLLING_ATTEMPTS = 360;
 
 export default function CreateAnonymousPr({
   toolDirective,
@@ -71,11 +68,11 @@ export default function CreateAnonymousPr({
   userSelectedDirectives,
   selectedModel,
   onBack,
-  initialPrUrl, // New prop
-  initialPrNumber, // New prop
-  onFlowComplete, // New prop
+  initialPrUrl,
+  initialPrNumber,
+  onFlowComplete,
 }: CreateAnonymousPrProps) {
-  const [isSubmittingPr, setIsSubmittingPr] = useState(false); // For initial PR creation
+  const [isSubmittingPr, setIsSubmittingPr] = useState(false);
   const [prCreationFeedback, setPrCreationFeedback] = useState<string | null>(
     null
   );
@@ -83,7 +80,6 @@ export default function CreateAnonymousPr({
     'idle' | 'error' | 'success'
   >('idle');
 
-  // State for PR monitoring
   const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl || null);
   const [prNumber, setPrNumber] = useState<number | null>(
     initialPrNumber || null
@@ -95,7 +91,6 @@ export default function CreateAnonymousPr({
 
   const [expandedFilePath, setExpandedFilePath] = useState<string | null>(null);
 
-  // --- Existing Memoized values for file display ---
   const mainFilePath = useMemo(
     () => `app/tool/${toolDirective}/page.tsx`,
     [toolDirective]
@@ -118,9 +113,7 @@ export default function CreateAnonymousPr({
       setExpandedFilePath(null);
     }
   }, [mainFilePath, mainFileContent, sortedFilePaths]);
-  // --- End Existing Memoized values ---
 
-  // Effect to start polling if prNumber is set (e.g., after PR creation or if passed as prop)
   useEffect(() => {
     if (
       prNumber &&
@@ -131,10 +124,8 @@ export default function CreateAnonymousPr({
     ) {
       console.log(`[CreateAnonymousPr] Starting polling for PR #${prNumber}`);
       setIsPolling(true);
-      pollingAttemptsRef.current = 0; // Reset attempts
-      setPollingError(null); // Clear previous errors
-      // Initial fetch immediately
-      // fetchPrStatus(); // fetchPrStatus will be called by interval setup
+      pollingAttemptsRef.current = 0;
+      setPollingError(null);
     }
   }, [prNumber, prUrl, prCreationStatus, isPolling, ciStatus]);
 
@@ -152,11 +143,9 @@ export default function CreateAnonymousPr({
     try {
       const response = await fetch(`/api/pr-status?prNumber=${prNumber}`);
       if (!response.ok) {
-        const errData = await response
-          .json()
-          .catch(() => ({
-            error: `API request failed with status ${response.status}`,
-          }));
+        const errData = await response.json().catch(() => ({
+          error: `API request failed with status ${response.status}`,
+        }));
         throw new Error(
           errData.error || `Failed to fetch PR status: ${response.status}`
         );
@@ -178,7 +167,7 @@ export default function CreateAnonymousPr({
           onFlowComplete &&
           (data.overallStatus === 'success' || data.overallStatus === 'failure')
         ) {
-          onFlowComplete(); // Signal parent that the monitoring part is "done"
+          onFlowComplete();
         }
       } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
         console.warn(
@@ -189,21 +178,18 @@ export default function CreateAnonymousPr({
         );
         setIsPolling(false);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('[CreateAnonymousPr] Error polling PR status:', error);
       setPollingError(
         error.message || 'An unknown error occurred while fetching PR status.'
       );
-      // Optionally stop polling on certain errors
-      // setIsPolling(false);
     }
   }, [prNumber, onFlowComplete]);
 
-  // Polling interval effect
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     if (isPolling && prNumber) {
-      // Initial fetch right away
       fetchPrStatus();
       intervalId = setInterval(fetchPrStatus, POLLING_INTERVAL);
     }
@@ -213,7 +199,7 @@ export default function CreateAnonymousPr({
   const handleAnonymousSubmitClick = async () => {
     setPrCreationStatus('idle');
     setPrCreationFeedback(null);
-    setCiStatus(null); // Clear previous CI status if any
+    setCiStatus(null);
     setPrUrl(null);
     setPrNumber(null);
 
@@ -224,14 +210,12 @@ export default function CreateAnonymousPr({
       );
       return;
     }
-    // ... (other validations from your existing component) ...
 
     setIsSubmittingPr(true);
     setPrCreationFeedback('Submitting Pull Request to GitHub (anonymously)...');
 
     try {
       const response = await fetch('/api/create-anonymous-pr', {
-        // This is your Netlify function
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +240,7 @@ export default function CreateAnonymousPr({
         );
       }
 
-      setPrCreationFeedback(data.message); // "Successfully created PR..."
+      setPrCreationFeedback(data.message);
       setPrUrl(data.url);
       const match = data.url.match(/\/pull\/(\d+)/);
       if (match && match[1]) {
@@ -264,7 +248,8 @@ export default function CreateAnonymousPr({
       } else {
         throw new Error('Could not parse PR number from URL: ' + data.url);
       }
-      setPrCreationStatus('success'); // This will trigger the polling useEffect
+      setPrCreationStatus('success');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Anonymous PR Submission Error:', error);
       setPrCreationStatus('error');
@@ -288,15 +273,14 @@ export default function CreateAnonymousPr({
         conclusion === 'cancelled'
       )
         return '❌';
-      if (conclusion === 'skipped') return '⚪️'; // White circle for skipped
-      if (conclusion === 'neutral') return '➖'; // Neutral dash
-      return '❔'; // Unknown completed state
+      if (conclusion === 'skipped') return '⚪️';
+      if (conclusion === 'neutral') return '➖';
+      return '❔';
     }
     if (status === 'in_progress' || status === 'queued') return '⏳';
-    return '❓'; // Default unknown
+    return '❓';
   };
 
-  // If PR has been created and we have a PR number, show monitoring UI
   if (prNumber && prUrl && prCreationStatus === 'success') {
     return (
       <section className="p-4 border rounded-lg bg-white shadow-sm border-green-300">
@@ -378,10 +362,10 @@ export default function CreateAnonymousPr({
               ))}
             </ul>
 
-            {ciStatus.imgurScreenshotUrl && ( // Assuming you enhance API to return this
+            {ciStatus.imgurScreenshotUrl && (
               <div className="mt-4">
                 <h4 className="text-sm font-semibold text-gray-600 mb-1">
-                  Douglas's View of Your Tool:
+                  Douglas&apos;s View of Your Tool:
                 </h4>
                 <Image
                   src={ciStatus.imgurScreenshotUrl}
@@ -458,7 +442,6 @@ export default function CreateAnonymousPr({
     );
   }
 
-  // --- Original UI for PR Creation (Step 3 before submission) ---
   return (
     <section
       className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isSubmittingPr ? 'opacity-70' : ''} ${prCreationStatus === 'error' ? 'border-red-300' : 'border-purple-300'}`}
@@ -544,7 +527,7 @@ export default function CreateAnonymousPr({
             !generationResult.generatedFiles ||
             mainFileContent === null
           }
-          className="bg-purple-600 hover:bg-purple-700 text-white" // Simplified variant
+          className="bg-purple-600 hover:bg-purple-700 text-white"
         >
           {isSubmittingPr ? 'Submitting PR...' : 'Submit Anonymous PR'}
         </Button>

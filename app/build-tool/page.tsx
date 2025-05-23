@@ -5,27 +5,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ValidateDirective from './_components/ValidateDirective';
 import GenerateToolResources from './_components/GenerateToolResources';
 import CreateAnonymousPr from './_components/CreateAnonymousPr';
-import Button from '../tool/_components/form/Button'; // Assuming Button is here now
+import Button from '../tool/_components/form/Button';
 
 import type {
   AiModel,
-  ValidationResult, // Includes generativeDescription, generativeRequestedDirectives, and potentially ResouceGenerationEpic
-  GenerationResult, // Includes generatedFiles, identifiedDependencies, message
+  ValidationResult,
+  GenerationResult,
   ApiListModelsResponse,
-  // ApiPrSubmissionResponseData, // This is handled within CreateAnonymousPr
-} from '@/src/types/build'; // Ensure your types are correctly defined and exported
+} from '@/src/types/build';
 
-// This type might be defined in a shared location if also used by /api/directives.json
 interface DirectivesListData {
   directives: string[];
 }
 
-type BuildStep = 'validation' | 'generation' | 'submission'; // Simplified steps
+type BuildStep = 'validation' | 'generation' | 'submission';
 
 export default function BuildToolPage() {
   const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
 
-  // --- State for API data and user inputs ---
   const [toolDirective, setToolDirective] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [availableModels, setAvailableModels] = useState<AiModel[]>([]);
@@ -42,7 +39,6 @@ export default function BuildToolPage() {
   const [apiUnavailableMessage, setApiUnavailableMessage] =
     useState<string>('');
 
-  // --- State to pass between steps ---
   const [validationResult, setValidationResult] =
     useState<ValidationResult | null>(null);
   const [additionalDescription, setAdditionalDescription] = useState('');
@@ -52,7 +48,6 @@ export default function BuildToolPage() {
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);
 
-  // --- Fetch AI Models ---
   useEffect(() => {
     const fetchModels = async () => {
       setModelsLoading(true);
@@ -67,12 +62,11 @@ export default function BuildToolPage() {
             response.status === 502 ||
             response.status === 504
           ) {
-            // Common for unavailable API
             setIsApiUnavailable(true);
             const specificMsg =
               'The AI model listing API (/api/list-models) is currently unavailable. This build feature requires server functionality.';
             setApiUnavailableMessage(specificMsg);
-            setModelsError(specificMsg); // Also set modelsError for immediate display
+            setModelsError(specificMsg);
             console.error(specificMsg);
             return;
           }
@@ -93,9 +87,9 @@ export default function BuildToolPage() {
           process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
         const defaultModel =
           models.find((m) => m.name === defaultEnvModelName) ??
-          models.find((m) => m.name.includes('flash')) ?? // Prefer flash
-          models.find((m) => m.name.includes('pro')) ?? // Then pro
-          (models.length > 0 ? models[0] : null); // Then first available
+          models.find((m) => m.name.includes('flash')) ??
+          models.find((m) => m.name.includes('pro')) ??
+          (models.length > 0 ? models[0] : null);
 
         if (defaultModel) {
           setSelectedModel(defaultModel.name);
@@ -103,12 +97,11 @@ export default function BuildToolPage() {
           console.warn(
             '[BuildToolPage] Default model not found, but other models exist. User must select.'
           );
-          // No default selected, user will have to pick from the dropdown
         }
-        // If models.length is 0, modelsError is already set.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         console.error('[BuildToolPage] Error fetching AI models:', error);
-        setIsApiUnavailable(true); // Assume API is down if fetch fails
+        setIsApiUnavailable(true);
         const specificMsg =
           'Failed to connect to the AI model API. This build feature may require server functionality.';
         setApiUnavailableMessage(specificMsg);
@@ -121,10 +114,8 @@ export default function BuildToolPage() {
     fetchModels();
   }, []);
 
-  // --- Fetch Existing Tool Directives ---
   useEffect(() => {
     if (isApiUnavailable) {
-      // Don't fetch if API already marked as unavailable
       setDirectivesLoading(false);
       setDirectivesError(
         'Skipped fetching directives due to API unavailability.'
@@ -136,7 +127,7 @@ export default function BuildToolPage() {
       setDirectivesLoading(true);
       setDirectivesError(null);
       try {
-        const response = await fetch('/api/directives.json'); // This is a static file
+        const response = await fetch('/api/directives.json');
         if (!response.ok) {
           throw new Error(
             `Failed to fetch directives list (/api/directives.json - ${response.status})`
@@ -147,6 +138,7 @@ export default function BuildToolPage() {
           throw new Error('Invalid format in directives.json file.');
         }
         setAllAvailableToolDirectives(data.directives);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         console.error('[BuildToolPage] Error fetching tool directives:', error);
         setDirectivesError(
@@ -158,12 +150,11 @@ export default function BuildToolPage() {
       }
     };
     fetchDirectives();
-  }, [isApiUnavailable]); // Re-run if isApiUnavailable changes (though unlikely to recover in same session)
+  }, [isApiUnavailable]);
 
-  // --- Step Navigation Callbacks ---
   const handleValidationSuccess = useCallback((result: ValidationResult) => {
     setValidationResult(result);
-    // Pre-fill userSelectedDirectives with AI suggestions, or empty if none
+
     setUserSelectedDirectives(result.generativeRequestedDirectives || []);
     setCurrentStep('generation');
   }, []);
@@ -176,16 +167,13 @@ export default function BuildToolPage() {
   const handleReset = useCallback(() => {
     setCurrentStep('validation');
     setToolDirective('');
-    // Keep selectedModel as is, user might want to use it again
+
     setValidationResult(null);
     setAdditionalDescription('');
     setUserSelectedDirectives([]);
     setGenerationResult(null);
-    // Note: availableModels, modelsLoading, modelsError are not reset here
-    // as they are fetched once on page load.
   }, []);
 
-  // --- Render Logic ---
   const renderCurrentStep = () => {
     if (isApiUnavailable) {
       return (
@@ -203,7 +191,7 @@ export default function BuildToolPage() {
           </p>
           <p className="text-sm text-gray-600">
             To contribute a new tool manually, please see the{' '}
-            <a // Changed to <a> for external link
+            <a
               href="https://github.com/Online-Everything-Tool/oet/blob/main/CONTRIBUTING.md"
               target="_blank"
               rel="noopener noreferrer"
@@ -224,14 +212,13 @@ export default function BuildToolPage() {
       );
     }
     if (modelsError && availableModels.length === 0) {
-      // Only show fatal model error if no models loaded
       return (
         <p className="text-center text-red-500 p-4">
           Error loading AI models: {modelsError}
         </p>
       );
     }
-    // Non-fatal model error (e.g. default not found but list populated) is handled in ValidateDirective
+
     if (directivesError) {
       return (
         <p className="text-center text-red-500 p-4">
@@ -249,10 +236,10 @@ export default function BuildToolPage() {
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
             availableModels={availableModels}
-            modelsLoading={modelsLoading} // Will be false here, but pass for consistency
-            modelsError={modelsError} // Pass non-fatal model errors
+            modelsLoading={modelsLoading}
+            modelsError={modelsError}
             onValidationSuccess={handleValidationSuccess}
-            onReset={handleReset} // Allows ValidateDirective to have a reset button if desired
+            onReset={handleReset}
           />
         );
       case 'generation':

@@ -1,11 +1,9 @@
 // EC2 Server: app/api/pr-status/route.ts
-// Handles GET requests like /api/pr-status?prNumber=123
 
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
 
-// --- GitHub App Authentication ---
 const GITHUB_REPO_OWNER =
   process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool';
 const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'oet';
@@ -63,7 +61,6 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
   console.log('[api/pr-status] GitHub App authentication successful.');
   return octokitInstance;
 }
-// --- End GitHub App Authentication ---
 
 interface CiCheck {
   name: string;
@@ -92,7 +89,7 @@ interface CiCheck {
 interface PrCiStatusResponse {
   prUrl: string;
   prNumber: number;
-  headSha: string; // Made non-optional as we'll always fetch PR data
+  headSha: string;
   prHeadBranch: string | null;
   checks: CiCheck[];
   netlifyPreviewUrl: string | null;
@@ -139,7 +136,6 @@ export async function GET(request: NextRequest) {
       `[api/pr-status] Using Head SHA: ${headShaToUse} for PR #${actualPrNumber} (Branch: ${prHeadBranchName || 'N/A'})`
     );
 
-    // --- Fetch GitHub Action Check Runs ---
     const { data: allCheckRunsForRef } = await octokit.rest.checks.listForRef({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
@@ -180,7 +176,7 @@ export async function GET(request: NextRequest) {
       'netlify',
       'deploy preview',
       GITHUB_REPO_NAME.toLowerCase(),
-    ]; // Using GITHUB_REPO_NAME for site name in check
+    ];
 
     for (const run of sortedChecks) {
       ciChecks.push({
@@ -210,9 +206,7 @@ export async function GET(request: NextRequest) {
         netlifyCheckRunSucceeded = true;
       }
     }
-    // --- End Fetch GitHub Action Check Runs ---
 
-    // --- Fetch Netlify Preview URL from PR Comments ---
     let netlifyPreviewUrl: string | null = null;
     if (actualPrNumber > 0) {
       console.log(
@@ -246,7 +240,7 @@ export async function GET(request: NextRequest) {
               console.log(
                 `[api/pr-status] Extracted Netlify preview URL from PR comment: ${netlifyPreviewUrl}`
               );
-              netlifyCheckRunSucceeded = true; // If URL found in comment, assume Netlify deployment was successful
+              netlifyCheckRunSucceeded = true;
               break;
             }
           }
@@ -263,7 +257,6 @@ export async function GET(request: NextRequest) {
         );
       }
     }
-    // --- End Fetch Netlify Preview URL from PR Comments ---
 
     let overallStatus: PrCiStatusResponse['overallStatus'] = 'pending';
     if (anyWorkflowCheckFailed) {
@@ -271,8 +264,6 @@ export async function GET(request: NextRequest) {
     } else if (allWorkflowChecksCompleted && netlifyCheckRunSucceeded) {
       overallStatus = 'success';
     }
-    // If allWorkflowChecksCompleted is true, but netlifyCheckRunSucceeded is false, it remains 'pending'
-    // or if some checks are still running, it's 'pending'.
 
     return NextResponse.json(
       {
