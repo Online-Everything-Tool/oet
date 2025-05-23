@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
       temperature: 0.3,
       topK: 20,
       topP: 0.85,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 16384,
       responseMimeType: 'text/plain',
     };
     const safetySettings: SafetySetting[] = [

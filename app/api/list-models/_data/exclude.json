@@ -1,0 +1,72 @@
+[
+  {
+    "name": "models/gemini-2.0-flash-preview-image-generation",
+    "displayName": "Gemini 2.0 Flash Preview Image Generation",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-2.5-flash-preview-tts",
+    "displayName": "Gemini 2.5 Flash Preview TTS",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-1.0-pro-vision-latest",
+    "displayName": "Gemini 1.0 Pro Vision",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-pro-vision",
+    "displayName": "Gemini 1.0 Pro Vision",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-2.0-pro-exp",
+    "displayName": "Gemini 2.0 Pro Experimental",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-2.0-pro-exp-02-05",
+    "displayName": "Gemini 2.0 Pro Experimental 02-05",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-2.5-pro-exp-03-25",
+    "displayName": "Gemini 2.5 Pro Experimental 03-25",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-2.5-pro-preview-tts",
+    "displayName": "Gemini 2.5 Pro Preview TTS",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemini-exp-1206",
+    "displayName": "Gemini Experimental 1206",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemma-3-12b-it",
+    "displayName": "Gemma 3 12B",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemma-3-1b-it",
+    "displayName": "Gemma 3 1B",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemma-3-27b-it",
+    "displayName": "Gemma 3 27B",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemma-3-4b-it",
+    "displayName": "Gemma 3 4B",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  },
+  {
+    "name": "models/gemma-3n-e4b-it",
+    "displayName": "Gemma 3n E4B",
+    "reason": "Failed direct JSON mode compatibility test with Gemini API."
+  }
+]

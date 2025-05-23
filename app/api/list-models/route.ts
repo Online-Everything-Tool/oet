@@ -1,6 +1,7 @@
-// /app/api/list-models/route.ts
-
-import { NextResponse } from 'next/server';
+// FILE: app/api/list-models/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -10,104 +11,362 @@ if (!API_KEY) {
   );
 }
 
-export async function GET(_request: Request) {
-  console.log('[API /list-models] Received request (Using REST API)');
+const MIN_INPUT_TOKEN_LIMIT_FOR_CODE_GEN = 100000;
+
+const EXCLUDE_FILE_PATH = path.join(
+  process.cwd(),
+  'app',
+  'api',
+  'list-models',
+  '_data',
+  'exclude.json'
+);
+
+let excludedModelNamesCache = new Set<string>();
+let lastExcludeFileReadTime = 0;
+const EXCLUDE_CACHE_DURATION =
+  process.env.NODE_ENV === 'development' ? 1000 : 60000;
+
+async function getExcludedModelsSet(): Promise<Set<string>> {
+  const now = Date.now();
+  if (
+    now - lastExcludeFileReadTime > EXCLUDE_CACHE_DURATION ||
+    (lastExcludeFileReadTime !== 0 && excludedModelNamesCache.size === 0)
+  ) {
+    try {
+      const excludeFileContent = await fs.readFile(EXCLUDE_FILE_PATH, 'utf-8');
+      const excludedModelsArray: Array<{ name: string }> =
+        JSON.parse(excludeFileContent);
+      excludedModelNamesCache = new Set(excludedModelsArray.map((m) => m.name));
+      lastExcludeFileReadTime = now;
+      console.log(
+        `[API /list-models] Refreshed exclude.json cache. ${excludedModelNamesCache.size} models excluded.`
+      );
+    } catch (error: unknown) {
+      const isFsError =
+        typeof error === 'object' && error !== null && 'code' in error;
+      const errorCode = isFsError ? (error as { code: string }).code : null;
+      if (errorCode !== 'ENOENT') {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.warn(
+          '[API /list-models] Could not load or parse exclude.json:',
+          errorMessage
+        );
+      }
+      if (lastExcludeFileReadTime === 0)
+        excludedModelNamesCache = new Set<string>();
+      lastExcludeFileReadTime = now;
+    }
+  }
+  return excludedModelNamesCache;
+}
+getExcludedModelsSet().catch((err) => {
+  const errorMessage = err instanceof Error ? err.message : String(err);
+  console.error(
+    '[API /list-models] Initial load of exclude.json failed:',
+    errorMessage
+  );
+});
+
+interface ModelInfo {
+  name: string;
+  displayName: string;
+  version: string;
+  description?: string;
+  inputTokenLimit?: number;
+  outputTokenLimit?: number;
+  supportedGenerationMethods?: string[];
+
+  baseName?: string;
+  isLatestAlias?: boolean;
+  dateSuffix?: Date | null;
+  numericSuffix?: number | null;
+  isPreview?: boolean;
+  isExperimental?: boolean;
+}
+
+function parseModelNameDetails(model: {
+  name: string;
+}): Pick<
+  ModelInfo,
+  | 'baseName'
+  | 'isLatestAlias'
+  | 'dateSuffix'
+  | 'numericSuffix'
+  | 'isPreview'
+  | 'isExperimental'
+> {
+  const name = model.name;
+  const details: Pick<
+    ModelInfo,
+    | 'baseName'
+    | 'isLatestAlias'
+    | 'dateSuffix'
+    | 'numericSuffix'
+    | 'isPreview'
+    | 'isExperimental'
+  > = {
+    isLatestAlias: name.endsWith('-latest'),
+    isPreview: name.includes('-preview-'),
+    isExperimental: name.includes('-exp-') || name.includes('experimental'),
+    dateSuffix: null,
+    numericSuffix: null,
+  };
+
+  let baseName = name;
+  if (details.isLatestAlias) {
+    baseName = name.substring(0, name.lastIndexOf('-latest'));
+  }
+
+  const datePattern = /(?:-(\d{2})-(\d{2})(?:-(\d{4}))?)$/;
+  const dateMatch = baseName.match(datePattern);
+  if (dateMatch) {
+    const month = parseInt(dateMatch[1], 10) - 1;
+    const day = parseInt(dateMatch[2], 10);
+    const yearStr = dateMatch[3];
+    const year = yearStr ? parseInt(yearStr, 10) : new Date().getFullYear();
+
+    if (!isNaN(month) && !isNaN(day) && !isNaN(year)) {
+      details.dateSuffix = new Date(year, month, day);
+      baseName = baseName.substring(0, baseName.lastIndexOf(dateMatch[0]));
+    }
+  } else {
+    const numericMatch = baseName.match(/-(\d+)$/);
+    if (numericMatch) {
+      details.numericSuffix = parseInt(numericMatch[1], 10);
+      baseName = baseName.substring(0, baseName.lastIndexOf(numericMatch[0]));
+    }
+  }
+  details.baseName = baseName;
+  return details;
+}
+
+export async function GET(request: NextRequest) {
+  console.log('[API /list-models] Received GET request.');
 
   if (!API_KEY) {
-    console.error('[API /list-models] GEMINI_API_KEY is missing.');
-    return NextResponse.json(
+    /* ... */ return NextResponse.json(
       { error: 'AI service configuration error (API Key missing).' },
       { status: 500 }
+    );
+  }
+
+  const searchParams = request.nextUrl.searchParams;
+  const filterExcludedParam = searchParams.get('filterExcluded');
+  const shouldFilterExcluded = filterExcludedParam !== 'false';
+  const latestOnlyParam = searchParams.get('latestOnly');
+  const shouldFilterForLatestOnly = latestOnlyParam !== 'false';
+
+  let currentExcludedNames = new Set<string>();
+  if (shouldFilterExcluded) {
+    /* ... */ currentExcludedNames = await getExcludedModelsSet();
+    console.log(
+      `[API /list-models] Applying exclude.json filter: ${currentExcludedNames.size} model(s) currently excluded.`
+    );
+  } else {
+    console.log(
+      '[API /list-models] Not applying exclude.json filter (filterExcluded=false).'
     );
   }
 
   const REST_API_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
 
   try {
-    console.log(
-      `[API /list-models] Fetching models from REST endpoint: ${REST_API_ENDPOINT.split('?')[0]}...`
-    );
-
-    const response = await fetch(REST_API_ENDPOINT, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    console.log(
-      `[API /list-models] REST API response status: ${response.status}`
-    );
-
+    const response = await fetch(REST_API_ENDPOINT);
     if (!response.ok) {
-      let errorBody = 'Unknown API error';
+      /* ... error handling ... */
+      let errorBody = `Google API request failed with status ${response.status}`;
       try {
         const errorData = await response.json();
-        console.error('[API /list-models] REST API Error Response:', errorData);
-        errorBody =
-          errorData?.error?.message ||
-          `API request failed with status ${response.status}`;
-      } catch (_parseError) {
-        console.error(
-          '[API /list-models] Failed to parse error response body.'
-        );
-        errorBody = `API request failed with status ${response.status}`;
+        const message = errorData?.error?.message;
+        if (message) errorBody = String(message);
+      } catch (_e) {
+        /*ignore*/
       }
+      console.error(`[API /list-models] Google API Error: ${errorBody}`);
       throw new Error(errorBody);
     }
-
     const data = await response.json();
 
-    const modelsFromApi = data?.models || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const googleModels: any[] = data?.models || [];
     console.log(
-      `[API /list-models] Received ${modelsFromApi.length} models from REST API.`
+      `[API /list-models] Received ${googleModels.length} models from Google API.`
     );
 
-    const availableModels = [];
-    for (const model of modelsFromApi) {
-      if (
-        model.supportedGenerationMethods &&
-        model.supportedGenerationMethods.includes('generateContent')
-      ) {
-        availableModels.push({
-          name: model.name,
-          displayName: model.displayName || model.name,
-          version: model.version || 'unknown',
+    const augmentedAndPrunedModels: ModelInfo[] = googleModels
+      .map((apiModel) => {
+        const parsedDetails = parseModelNameDetails(apiModel);
+        return {
+          name: apiModel.name,
+          displayName: apiModel.displayName || apiModel.name,
+          version: apiModel.version || 'unknown',
+          description: apiModel.description,
+          inputTokenLimit: apiModel.inputTokenLimit,
+          outputTokenLimit: apiModel.outputTokenLimit,
+          supportedGenerationMethods: apiModel.supportedGenerationMethods,
+          ...parsedDetails,
+        };
+      })
+      .filter((model) => {
+        const modelNameLower = (model.name || '').toLowerCase();
+        const displayNameLower = (model.displayName || '').toLowerCase();
+        const descriptionLower = (model.description || '').toLowerCase();
+
+        if (shouldFilterExcluded && currentExcludedNames.has(model.name))
+          return false;
+
+        if (
+          !model.supportedGenerationMethods ||
+          !model.supportedGenerationMethods.includes('generateContent')
+        )
+          return false;
+
+        if (
+          modelNameLower.includes('embedding') ||
+          displayNameLower.includes('embedding')
+        )
+          return false;
+        if (descriptionLower.includes('deprecated')) return false;
+        if (modelNameLower.includes('-tuning')) return false;
+        if (
+          descriptionLower.includes('replaced by') ||
+          modelNameLower.includes('exp-0827') ||
+          modelNameLower.includes('exp-0924') ||
+          modelNameLower.includes('exp-1206')
+        )
+          return false;
+        if (
+          modelNameLower.includes('-tts') ||
+          displayNameLower.includes('tts') ||
+          modelNameLower.includes('image-generation')
+        )
+          return false;
+        if (
+          displayNameLower.includes('thinking') ||
+          descriptionLower.includes('for cursor testing')
+        )
+          return false;
+        if ((model.inputTokenLimit || 0) < MIN_INPUT_TOKEN_LIMIT_FOR_CODE_GEN)
+          return false;
+        return true;
+      });
+
+    console.log(
+      `[API /list-models] After initial pruning & augmentation: ${augmentedAndPrunedModels.length} models.`
+    );
+
+    let finalModelsToReturn: ModelInfo[];
+    if (shouldFilterForLatestOnly) {
+      console.log('[API /list-models] Applying latestOnly filter.');
+      const families = new Map<string, ModelInfo[]>();
+      augmentedAndPrunedModels.forEach((model) => {
+        const key = model.baseName || model.name;
+        if (!families.has(key)) families.set(key, []);
+        families.get(key)!.push(model);
+      });
+
+      finalModelsToReturn = [];
+      families.forEach((familyModels) => {
+        if (familyModels.length === 0) return;
+        familyModels.sort((a, b) => {
+          if (a.isLatestAlias && !b.isLatestAlias) return -1;
+          if (!a.isLatestAlias && b.isLatestAlias) return 1;
+          if (a.dateSuffix && b.dateSuffix)
+            return b.dateSuffix.getTime() - a.dateSuffix.getTime();
+          if (a.dateSuffix && !b.dateSuffix) return -1;
+          if (!a.dateSuffix && b.dateSuffix) return 1;
+
+          const aNum =
+            a.numericSuffix === null || a.numericSuffix === undefined
+              ? -Infinity
+              : a.numericSuffix;
+          const bNum =
+            b.numericSuffix === null || b.numericSuffix === undefined
+              ? -Infinity
+              : b.numericSuffix;
+          if (aNum !== -Infinity && bNum !== -Infinity) return bNum - aNum;
+          if (aNum !== -Infinity && bNum === -Infinity) return -1;
+          if (aNum === -Infinity && bNum !== -Infinity) return 1;
+
+          return (b.version || '').localeCompare(a.version || '');
         });
-      } else {
-        console.log(
-          `[API /list-models] Skipping model (unsupported method or missing data): ${model.displayName || model.name}`
-        );
-      }
+        finalModelsToReturn.push(familyModels[0]);
+      });
+      console.log(
+        `[API /list-models] After latestOnly filter: ${finalModelsToReturn.length} models.`
+      );
+    } else {
+      finalModelsToReturn = augmentedAndPrunedModels;
     }
-    console.log(
-      `[API /list-models] Finished processing. Found ${availableModels.length} compatible models.`
+
+    const outputFormattedModels = finalModelsToReturn.map(
+      ({
+        baseName,
+        isLatestAlias,
+        dateSuffix,
+        numericSuffix,
+        isPreview,
+        isExperimental,
+        supportedGenerationMethods,
+        ...rest
+      }) => {
+        let finalDisplayName = rest.displayName || rest.name;
+        const nameLower = (rest.name || '').toLowerCase();
+        const displayNameLower = finalDisplayName.toLowerCase();
+
+        if (
+          (isPreview || nameLower.includes('-preview-')) &&
+          !displayNameLower.includes('preview')
+        ) {
+          finalDisplayName = `${finalDisplayName} (Preview)`;
+        } else if (
+          (isExperimental || nameLower.includes('-exp-')) &&
+          !displayNameLower.includes('experimental') &&
+          !displayNameLower.includes('exp')
+        ) {
+          finalDisplayName = `${finalDisplayName} (Experimental)`;
+        }
+        return { ...rest, displayName: finalDisplayName };
+      }
     );
 
-    availableModels.sort((a, b) => {
-      if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
-      if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
-      if (a.name.includes('pro') && !b.name.includes('pro')) return -1;
-      if (!a.name.includes('pro') && b.name.includes('pro')) return 1;
-      return a.displayName.localeCompare(b.displayName);
+    outputFormattedModels.sort((a, b) => {
+      /* ... your existing final sort logic ... */
+      const isALatest = a.name.includes('-latest');
+      const isBLatest = b.name.includes('-latest');
+      if (isALatest && !isBLatest) return -1;
+      if (!isALatest && isBLatest) return 1;
+      const isA25 = a.name.includes('2.5');
+      const isB25 = b.name.includes('2.5');
+      if (isA25 && !isB25) return -1;
+      if (!isA25 && isB25) return 1;
+      const isA15 = a.name.includes('1.5');
+      const isB15 = b.name.includes('1.5');
+      if (isA15 && !isB15) return -1;
+      if (!isA15 && isB15) return 1;
+      const isAPro = a.name.includes('-pro');
+      const isBPro = b.name.includes('-pro');
+      if (isAPro && !isBPro) return -1;
+      if (!isAPro && isBPro) return 1;
+      const isAFlash = a.name.includes('-flash');
+      const isBFlash = b.name.includes('-flash');
+      if (isAFlash && !isBFlash) return -1;
+      if (!isAFlash && isBFlash) return 1;
+      return (a.displayName || a.name).localeCompare(b.displayName || b.name);
     });
 
-    return NextResponse.json({ models: availableModels }, { status: 200 });
-  } catch (error: unknown) {
-    console.error(
-      '[API /list-models] Error occurred during model listing fetch process.'
+    return NextResponse.json(
+      { models: outputFormattedModels },
+      { status: 200 }
     );
-    let message = 'Failed to fetch available AI models.';
-
-    if (error instanceof Error) {
-      console.error(`[API /list-models] Error Name: ${error.name}`);
-      console.error(`[API /list-models] Error Message: ${error.message}`);
-      console.error(`[API /list-models] Error Stack: ${error.stack}`);
-      message = error.message;
-    } else {
-      console.error('[API /list-models] Unknown error type:', error);
-    }
-
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[API /list-models] Error in GET handler:', errorMessage);
+    return NextResponse.json(
+      { error: `Failed to fetch models: ${errorMessage}` },
+      { status: 500 }
+    );
   }
 }

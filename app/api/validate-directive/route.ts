@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     temperature: 0.4,
     topK: 40,
     topP: 0.9,
-    maxOutputTokens: 1024,
+    maxOutputTokens: 4096,
     responseMimeType: 'application/json',
   };
 
@@ -199,6 +199,10 @@ export async function POST(req: NextRequest) {
       safetySettings,
     });
 
+    console.log(
+      `[API validate-directive] RAW FULL RESULT for ${modelName}:`,
+      JSON.stringify(result, null, 2)
+    );
     if (!result.response) {
       console.error(
         '[API validate-directive] Gemini API call failed: No response field.'
