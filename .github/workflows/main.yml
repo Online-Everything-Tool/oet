@@ -1,4 +1,4 @@
-name: Build online-everything-tool and notify EC2 of Code Update
+name: Build online-everything-tool
 
 on:
   push:

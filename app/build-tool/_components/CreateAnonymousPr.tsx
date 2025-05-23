@@ -49,7 +49,6 @@ interface CreateAnonymousPrProps {
   userSelectedDirectives: string[];
   selectedModel: string;
   onBack: () => void;
-  onStartOver: () => void;
   initialPrNumber?: number | null;
   initialPrUrl?: string | null;
   onFlowComplete?: () => void;
@@ -66,7 +65,6 @@ export default function CreateAnonymousPr({
   userSelectedDirectives,
   selectedModel,
   onBack,
-  onStartOver,
   initialPrNumber,
   initialPrUrl,
   onFlowComplete,

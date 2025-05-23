@@ -412,7 +412,6 @@ export default function BuildToolClient() {
                 setCurrentStep('generation');
               }
             }}
-            onStartOver={handleReset}
             initialPrNumber={directLoadPrNumber}
             initialPrUrl={null}
             onFlowComplete={() => {

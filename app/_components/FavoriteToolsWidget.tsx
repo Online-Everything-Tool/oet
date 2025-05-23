@@ -1,8 +1,9 @@
 // --- FILE: app/_components/FavoriteToolsWidget.tsx ---
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React from 'react';
 import Link from 'next/link';
+import { useMetadata } from '../context/MetadataContext';
 import { useFavorites } from '../context/FavoritesContext';
 import type { ToolMetadata } from '@/src/types/tools';
 
@@ -48,64 +49,10 @@ const FavoriteItem = React.memo(
 FavoriteItem.displayName = 'FavoriteItem';
 
 export default function FavoriteToolsWidget() {
+  const { isLoading, getToolMetadata } = useMetadata();
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
-  const [metadataCache, setMetadataCache] = useState<
-    Record<string, ToolMetadata | null>
-  >({});
-  const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
-  const fetchMetadata = useCallback(
-    async (directive: string) => {
-      if (metadataCache[directive] !== undefined) return;
-
-      setMetadataCache((prev) => ({ ...prev, [directive]: null }));
-
-      try {
-        const response = await fetch(`/api/tool-metadata/${directive}.json`);
-        if (response.ok) {
-          const data: ToolMetadata = await response.json();
-          setMetadataCache((prev) => ({ ...prev, [directive]: data }));
-        } else {
-          if (response.status === 404)
-            console.warn(`[FavWidget] Metadata not found for ${directive}`);
-          else
-            console.error(
-              `[FavWidget] Failed to fetch metadata for ${directive} (${response.status})`
-            );
-          setMetadataCache((prev) => ({ ...prev, [directive]: null }));
-        }
-      } catch (fetchError: unknown) {
-        console.error(
-          `[FavWidget] Error fetching metadata for ${directive}:`,
-          fetchError
-        );
-        setMetadataCache((prev) => ({ ...prev, [directive]: null }));
-      }
-    },
-    [metadataCache]
-  );
-
-  useEffect(() => {
-    if (!favoritesLoaded || favorites.length === 0) return;
-
-    const directivesToFetch = favorites.filter(
-      (dir) => metadataCache[dir] === undefined
-    );
-
-    if (directivesToFetch.length > 0) {
-      setIsLoadingMetadata(true);
-      Promise.all(directivesToFetch.map(fetchMetadata)).finally(() => {
-        const stillLoading = favorites.some(
-          (dir) => metadataCache[dir] === undefined
-        );
-        setIsLoadingMetadata(stillLoading);
-      });
-    } else {
-      setIsLoadingMetadata(false);
-    }
-  }, [favorites, favoritesLoaded, metadataCache, fetchMetadata]);
-
-  if (!favoritesLoaded) {
+  if (!favoritesLoaded || isLoading) {
     return (
       <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8">
         <h2 className="text-lg font-semibold mb-3 text-[rgb(var(--color-text-muted))]">
@@ -132,13 +79,12 @@ export default function FavoriteToolsWidget() {
     );
   }
 
-  const favoriteItems = favorites.map((directive) => (
-    <FavoriteItem
-      key={directive}
-      directive={directive}
-      metadata={metadataCache[directive]}
-    />
-  ));
+  const favoriteItems = favorites.map((directive) => {
+    const metadata = getToolMetadata(directive);
+    return (
+      <FavoriteItem key={directive} directive={directive} metadata={metadata} />
+    );
+  });
 
   return (
     <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8">
@@ -153,11 +99,6 @@ export default function FavoriteToolsWidget() {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {favoriteItems}
       </div>
-      {isLoadingMetadata && (
-        <p className="text-xs text-center text-gray-400 italic pt-2">
-          Loading details...
-        </p>
-      )}
     </div>
   );
 }
