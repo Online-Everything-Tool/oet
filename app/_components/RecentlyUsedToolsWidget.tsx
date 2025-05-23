@@ -18,6 +18,7 @@ const MAX_DISPLAY_ITEMS_HEADER = 5;
 interface RecentlyUsedToolsWidgetProps {
   variant?: 'default' | 'header';
   currentToolDirectiveToExclude?: string;
+  onItemClick?: () => void;
 }
 
 const RecentToolItem: React.FC<{

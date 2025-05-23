@@ -50,8 +50,8 @@ interface CreateAnonymousPrProps {
   selectedModel: string;
   onBack: () => void;
   onStartOver: () => void;
-  initialPrUrl?: string | null;
   initialPrNumber?: number | null;
+  initialPrUrl?: string | null;
   onFlowComplete?: () => void;
 }
 
@@ -59,7 +59,7 @@ const POLLING_INTERVAL = 10000;
 const MAX_POLLING_ATTEMPTS = 360;
 
 export default function CreateAnonymousPr({
-  toolDirective,
+  toolDirective: initialToolDirective,
   generationResult,
   validationResult,
   additionalDescription,
@@ -67,8 +67,8 @@ export default function CreateAnonymousPr({
   selectedModel,
   onBack,
   onStartOver,
-  initialPrUrl,
   initialPrNumber,
+  initialPrUrl,
   onFlowComplete,
 }: CreateAnonymousPrProps) {
   const [isSubmittingPr, setIsSubmittingPr] = useState(false);
@@ -83,6 +83,10 @@ export default function CreateAnonymousPr({
   const [prNumber, setPrNumber] = useState<number | null>(
     initialPrNumber || null
   );
+  const [currentToolDirective, setCurrentToolDirective] = useState<string>(
+    initialToolDirective || ''
+  );
+
   const [ciStatus, setCiStatus] = useState<PrCiStatus | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [pollingError, setPollingError] = useState<string | null>(null);
@@ -90,9 +94,26 @@ export default function CreateAnonymousPr({
 
   const [expandedFilePath, setExpandedFilePath] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (initialPrNumber && prCreationStatus === 'idle') {
+      console.log(
+        `[CreateAnonymousPr] Direct load for PR #${initialPrNumber}. Setting up for monitoring.`
+      );
+      setPrNumber(initialPrNumber);
+
+      setCurrentToolDirective(
+        initialToolDirective || `tool-for-pr-${initialPrNumber}`
+      );
+      setPrCreationStatus('success');
+      setPrCreationFeedback(
+        `Resuming monitoring for PR #${initialPrNumber}...`
+      );
+    }
+  }, [initialPrNumber, initialPrUrl, initialToolDirective, prCreationStatus]);
+
   const mainFilePath = useMemo(
-    () => `app/tool/${toolDirective}/page.tsx`,
-    [toolDirective]
+    () => `app/tool/${currentToolDirective}/page.tsx`,
+    [currentToolDirective]
   );
   const mainFileContent = useMemo(
     () => generationResult.generatedFiles?.[mainFilePath] ?? null,
@@ -116,7 +137,6 @@ export default function CreateAnonymousPr({
   useEffect(() => {
     if (
       prNumber &&
-      prUrl &&
       prCreationStatus === 'success' &&
       !isPolling &&
       (!ciStatus || ciStatus.overallStatus === 'pending')
@@ -126,7 +146,7 @@ export default function CreateAnonymousPr({
       pollingAttemptsRef.current = 0;
       setPollingError(null);
     }
-  }, [prNumber, prUrl, prCreationStatus, isPolling, ciStatus]);
+  }, [prNumber, /* prUrl, */ prCreationStatus, isPolling, ciStatus]);
 
   const fetchPrStatus = useCallback(async () => {
     if (!prNumber) {
@@ -151,6 +171,23 @@ export default function CreateAnonymousPr({
       }
       const data: PrCiStatus = await response.json();
       setCiStatus(data);
+
+      if (!prUrl && data.prUrl) {
+        setPrUrl(data.prUrl);
+      }
+      if (
+        (!currentToolDirective ||
+          currentToolDirective.startsWith('tool-for-pr-')) &&
+        data.prHeadBranch
+      ) {
+        const directiveFromBranch = data.prHeadBranch.startsWith('feat/gen-')
+          ? data.prHeadBranch
+              .substring('feat/gen-'.length)
+              .replace(/-[0-9]*$/, '')
+          : data.prHeadBranch;
+        if (directiveFromBranch) setCurrentToolDirective(directiveFromBranch);
+      }
+
       setPollingError(null);
 
       if (
@@ -162,7 +199,6 @@ export default function CreateAnonymousPr({
           `[CreateAnonymousPr] Polling stopped for PR #${prNumber}. Status: ${data.overallStatus}`
         );
         setIsPolling(false);
-
         if (onFlowComplete) {
           console.log(
             '[CreateAnonymousPr] Notifying parent that flow (polling part) is complete.'
@@ -184,14 +220,14 @@ export default function CreateAnonymousPr({
           onFlowComplete();
         }
       }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('[CreateAnonymousPr] Error polling PR status:', error);
       setPollingError(
         error.message || 'An unknown error occurred while fetching PR status.'
       );
     }
-  }, [prNumber, onFlowComplete]);
+  }, [prNumber, onFlowComplete, prUrl, currentToolDirective]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
@@ -208,6 +244,7 @@ export default function CreateAnonymousPr({
     setCiStatus(null);
     setPrUrl(null);
     setPrNumber(null);
+    setCurrentToolDirective(initialToolDirective);
 
     if (!generationResult.generatedFiles || !mainFileContent) {
       setPrCreationStatus('error');
@@ -225,12 +262,12 @@ export default function CreateAnonymousPr({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          toolDirective: toolDirective,
+          toolDirective: initialToolDirective,
           generatedFiles: generationResult.generatedFiles,
           identifiedDependencies: generationResult.identifiedDependencies || [],
           generativeDescription:
             validationResult.generativeDescription ||
-            `AI-generated code for ${toolDirective}`,
+            `AI-generated code for ${initialToolDirective}`,
           additionalDescription: additionalDescription || '',
           generativeRequestedDirectives:
             validationResult.generativeRequestedDirectives || [],
@@ -249,13 +286,16 @@ export default function CreateAnonymousPr({
       setPrCreationFeedback(data.message);
       setPrUrl(data.url);
       const match = data.url.match(/\/pull\/(\d+)/);
+      let createdPrNumber: number | null = null;
       if (match && match[1]) {
-        setPrNumber(parseInt(match[1], 10));
+        createdPrNumber = parseInt(match[1], 10);
+        setPrNumber(createdPrNumber);
       } else {
         throw new Error('Could not parse PR number from URL: ' + data.url);
       }
       setPrCreationStatus('success');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Anonymous PR Submission Error:', error);
       setPrCreationStatus('error');
@@ -287,25 +327,33 @@ export default function CreateAnonymousPr({
     return '❓';
   };
 
-  if (prNumber && prUrl && prCreationStatus === 'success') {
+  if (prNumber && prCreationStatus === 'success') {
     return (
       <section className="p-4 border rounded-lg bg-white shadow-sm border-green-300">
         <h2 className="text-lg font-semibold mb-3 text-gray-700">
-          Step 3: Pull Request Submitted & Monitoring CI
+          {/* Make title dynamic based on whether ciStatus has loaded the directive */}
+          Step 3: Monitoring PR #{prNumber}{' '}
+          {currentToolDirective &&
+          !currentToolDirective.startsWith('tool-for-pr-')
+            ? `for ${currentToolDirective}`
+            : ''}
         </h2>
+        {/* ... (rest of the monitoring UI is the same, using prUrl, prNumber, ciStatus) ... */}
         <p className="text-sm text-green-700 mb-1">
-          {prCreationFeedback || `Pull Request created successfully!`}
+          {prCreationFeedback || `Pull Request monitoring active!`}
         </p>
-        <p className="text-sm mb-4">
-          <Link
-            href={prUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
-          >
-            View Pull Request #{prNumber} on GitHub
-          </Link>
-        </p>
+        {prUrl && (
+          <p className="text-sm mb-4">
+            <Link
+              href={prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              View Pull Request #{prNumber} on GitHub
+            </Link>
+          </p>
+        )}
 
         {isPolling && !ciStatus && !pollingError && (
           <p className="text-sm text-gray-600 italic animate-pulse">
@@ -316,14 +364,18 @@ export default function CreateAnonymousPr({
           <div className="my-4 p-3 bg-red-50 text-red-700 border border-red-200 rounded-md text-sm">
             <strong>Error fetching status:</strong> {pollingError}. Please check
             the{' '}
-            <Link
-              href={prUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              PR on GitHub
-            </Link>{' '}
+            {prUrl ? (
+              <Link
+                href={prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                PR on GitHub
+              </Link>
+            ) : (
+              'PR on GitHub (URL not yet available)'
+            )}{' '}
             for manual updates.
           </div>
         )}
@@ -368,34 +420,20 @@ export default function CreateAnonymousPr({
               ))}
             </ul>
 
-            {ciStatus.imgurScreenshotUrl && (
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold text-gray-600 mb-1">
-                  Douglas&apos;s View of Your Tool:
-                </h4>
-                <Image
-                  src={ciStatus.imgurScreenshotUrl}
-                  alt="Douglas Screenshot"
-                  width={600}
-                  height={400}
-                  className="border rounded-md object-contain" // Added object-contain
-                  unoptimized // Ensures Next.js doesn't try to optimize/require domain whitelisting
-                />
-              </div>
-            )}
-
             {ciStatus.netlifyPreviewUrl ? (
               <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
                 <p className="text-md font-semibold text-green-700">
                   🎉 Deploy Preview Ready!
                 </p>
                 <Link
-                  href={ciStatus.netlifyPreviewUrl}
+                  href={
+                    ciStatus.netlifyPreviewUrl + '/tool/' + currentToolDirective
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block mt-1 text-blue-600 hover:underline break-all"
                 >
-                  {ciStatus.netlifyPreviewUrl}
+                  {ciStatus.netlifyPreviewUrl}/tool/{currentToolDirective}
                 </Link>
                 <p className="text-xs text-green-600 mt-1">
                   Go test your tool!
@@ -428,6 +466,22 @@ export default function CreateAnonymousPr({
               </p>
             ) : null}
 
+            {ciStatus.imgurScreenshotUrl && (
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold text-gray-600 mb-1">
+                  Douglas&apos;s View of Your Tool:
+                </h4>
+                <Image
+                  src={ciStatus.imgurScreenshotUrl}
+                  alt="Douglas Screenshot"
+                  width={600}
+                  height={400}
+                  className="border rounded-md object-contain"
+                  unoptimized
+                />
+              </div>
+            )}
+
             {ciStatus.overallStatus === 'failure' && (
               <p className="text-md font-semibold text-red-700 mt-4">
                 🔴 One or more critical checks failed. Please review the PR on
@@ -436,15 +490,16 @@ export default function CreateAnonymousPr({
             )}
           </div>
         )}
-        <div className="mt-6 flex justify-end">
-          <Button
-            variant="neutral"
-            onClick={onStartOver}
-            disabled={isPolling && ciStatus?.overallStatus === 'pending'}
-          >
-            Build Another Tool / Start Over
-          </Button>
-        </div>
+      </section>
+    );
+  }
+
+  if (initialPrNumber && prCreationStatus === 'idle') {
+    return (
+      <section className="p-4 border rounded-lg bg-white shadow-sm">
+        <p className="text-center p-4 italic text-gray-500 animate-pulse">
+          Loading PR #{initialPrNumber} details...
+        </p>
       </section>
     );
   }
@@ -456,6 +511,7 @@ export default function CreateAnonymousPr({
       <h2 className="text-lg font-semibold mb-3 text-gray-700">
         Step 3: Review & Submit Anonymous PR
       </h2>
+      {/* ... (rest of the Review & Submit UI is the same) ... */}
       {generationResult.message && (
         <p
           className={`text-sm mb-4 p-2 rounded ${generationResult.message.toLowerCase().includes('warning') ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : generationResult.message.toLowerCase().includes('error') ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'}`}
@@ -492,7 +548,6 @@ export default function CreateAnonymousPr({
                     >
                       {filePath}
                     </code>
-                    {/* Chevron icon can be added here if desired */}
                   </button>
                   {isExpanded && (
                     <div className="px-1 pb-1 bg-gray-900">
@@ -517,7 +572,12 @@ export default function CreateAnonymousPr({
           </div>
         ) : (
           <div className="p-4 border border-dashed border-red-300 rounded bg-red-50 text-red-700 text-sm">
-            Error: No files generated.
+            {/* Show a more generic message if generationResult might be a placeholder */}
+            {generationResult &&
+            Object.keys(generationResult.generatedFiles || {}).length === 0 &&
+            initialPrNumber
+              ? 'Loading file details for PR...'
+              : 'Error: No files generated.'}
           </div>
         )}
       </div>

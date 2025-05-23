@@ -208,6 +208,7 @@ export async function GET(request: NextRequest) {
     }
 
     let netlifyPreviewUrl: string | null = null;
+    let imgurScreenshotUrl: string | null = null;
     if (actualPrNumber > 0) {
       console.log(
         `[api/pr-status] Attempting to find Netlify URL in PR #${actualPrNumber} comments...`
@@ -225,24 +226,34 @@ export async function GET(request: NextRequest) {
         );
 
         for (const comment of comments) {
-          if (
-            comment.user?.login?.toLowerCase().includes('netlify') &&
-            comment.body?.includes('Deploy Preview')
-          ) {
-            console.log(
-              `[api/pr-status] Found potential Netlify comment by ${comment.user.login}.`
-            );
-            const urlMatch = comment.body.match(
-              /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
-            );
-            if (urlMatch && urlMatch[0]) {
-              netlifyPreviewUrl = urlMatch[0];
+          if (comment.body) {
+            if (
+              comment.user?.login?.toLowerCase().includes('netlify') &&
+              comment.body?.includes('Deploy Preview')
+            ) {
               console.log(
-                `[api/pr-status] Extracted Netlify preview URL from PR comment: ${netlifyPreviewUrl}`
+                `[api/pr-status] Found potential Netlify comment by ${comment.user.login}.`
               );
-              netlifyCheckRunSucceeded = true;
-              break;
+              const urlMatch = comment.body.match(
+                /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+              );
+              if (urlMatch && urlMatch[0]) {
+                netlifyPreviewUrl = urlMatch[0];
+                console.log(
+                  `[api/pr-status] Extracted Netlify preview URL from PR comment: ${netlifyPreviewUrl}`
+                );
+                netlifyCheckRunSucceeded = true;
+              }
             }
+            if (!imgurScreenshotUrl) {
+              const imgurMatch = comment.body.match(
+                /https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif)/i
+              );
+              if (imgurMatch && imgurMatch[0]) {
+                imgurScreenshotUrl = imgurMatch[0];
+              }
+            }
+            if (netlifyPreviewUrl && imgurScreenshotUrl) break;
           }
         }
         if (!netlifyPreviewUrl) {
@@ -273,6 +284,7 @@ export async function GET(request: NextRequest) {
         prHeadBranch: prHeadBranchName,
         checks: ciChecks,
         netlifyPreviewUrl,
+        imgurScreenshotUrl,
         netlifyDeploymentSucceeded: netlifyCheckRunSucceeded,
         overallStatus,
         lastUpdated: new Date().toISOString(),

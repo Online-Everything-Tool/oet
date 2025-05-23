@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-
+import { useSearchParams, useRouter } from 'next/navigation';
 import ValidateDirective from './_components/ValidateDirective';
 import GenerateToolResources from './_components/GenerateToolResources';
 import CreateAnonymousPr from './_components/CreateAnonymousPr';
@@ -14,14 +14,15 @@ import type {
   GenerationResult,
   ApiListModelsResponse,
 } from '@/src/types/build';
-
 import { useMetadata } from '@/app/context/MetadataContext';
 
 type BuildStep = 'validation' | 'generation' | 'submission';
 
 export default function BuildToolPage() {
-  const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
+  const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
   const [toolDirective, setToolDirective] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [availableModels, setAvailableModels] = useState<AiModel[]>([]);
@@ -33,7 +34,6 @@ export default function BuildToolPage() {
     isLoading: metadataLoading,
     error: metadataError,
   } = useMetadata();
-
   const [allAvailableToolDirectives, setAllAvailableToolDirectives] = useState<
     string[]
   >([]);
@@ -50,6 +50,65 @@ export default function BuildToolPage() {
   >([]);
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);
+
+  const [directLoadPrNumber, setDirectLoadPrNumber] = useState<number | null>(
+    null
+  );
+  const [initialUrlCheckDone, setInitialUrlCheckDone] = useState(false);
+
+  useEffect(() => {
+    if (initialUrlCheckDone || modelsLoading || metadataLoading) {
+      return;
+    }
+
+    const prNumberFromUrl = searchParams.get('prNumber');
+
+    if (prNumberFromUrl) {
+      console.log(
+        '[BuildToolPage] Detected prNumber in URL, attempting direct load to submission step.'
+      );
+      const prNum = parseInt(prNumberFromUrl, 10);
+      if (!isNaN(prNum)) {
+        setDirectLoadPrNumber(prNum);
+        setCurrentStep('submission');
+
+        if (!validationResult) {
+          setValidationResult({
+            generativeDescription: `Loading PR #${prNum} details...`,
+            generativeRequestedDirectives: [],
+          });
+        }
+        if (!generationResult) {
+          setGenerationResult({
+            message: `Loading PR #${prNum} details...`,
+            generatedFiles: {},
+            identifiedDependencies: [],
+          });
+        }
+        if (!selectedModel && availableModels.length > 0) {
+          setSelectedModel(availableModels[0].name);
+        } else if (
+          !selectedModel &&
+          availableModels.length === 0 &&
+          !modelsLoading
+        ) {
+          console.warn(
+            '[BuildToolPage] Direct load to submission, but no AI models available to set a default for selectedModel.'
+          );
+        }
+      }
+    }
+    setInitialUrlCheckDone(true);
+  }, [
+    searchParams,
+    initialUrlCheckDone,
+    modelsLoading,
+    metadataLoading,
+    validationResult,
+    generationResult,
+    selectedModel,
+    availableModels,
+  ]);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -94,11 +153,11 @@ export default function BuildToolPage() {
           models.find((m) => m.name.includes('pro')) ??
           (models.length > 0 ? models[0] : null);
 
-        if (defaultModel) {
+        if (defaultModel && !selectedModel) {
           setSelectedModel(defaultModel.name);
-        } else if (models.length > 0) {
+        } else if (models.length > 0 && !selectedModel) {
           console.warn(
-            '[BuildToolPage] Default model not found, but other models exist. User must select.'
+            '[BuildToolPage] Default model not found, but other models exist.'
           );
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,8 +173,25 @@ export default function BuildToolPage() {
         setModelsLoading(false);
       }
     };
-    fetchModels();
-  }, []);
+
+    if (!initialUrlCheckDone || (initialUrlCheckDone && !directLoadPrNumber)) {
+      fetchModels();
+    } else if (
+      initialUrlCheckDone &&
+      directLoadPrNumber &&
+      availableModels.length === 0 &&
+      !selectedModel
+    ) {
+      fetchModels();
+    } else {
+      setModelsLoading(false);
+    }
+  }, [
+    initialUrlCheckDone,
+    directLoadPrNumber,
+    selectedModel,
+    availableModels.length,
+  ]);
 
   useEffect(() => {
     if (!metadataLoading && toolMetadataMap) {
@@ -124,7 +200,6 @@ export default function BuildToolPage() {
       );
       setAllAvailableToolDirectives(directives);
     }
-
     if (metadataError && !metadataLoading) {
       console.error(
         '[BuildToolPage] Error from MetadataContext:',
@@ -133,6 +208,21 @@ export default function BuildToolPage() {
       setAllAvailableToolDirectives([]);
     }
   }, [metadataLoading, toolMetadataMap, metadataError]);
+
+  const handleReset = useCallback(() => {
+    console.log(
+      '[BuildToolPage] handleReset called. Resetting to validation step.'
+    );
+    setCurrentStep('validation');
+    setToolDirective('');
+    setValidationResult(null);
+    setAdditionalDescription('');
+    setUserSelectedDirectives([]);
+    setGenerationResult(null);
+    setDirectLoadPrNumber(null);
+    setInitialUrlCheckDone(false);
+    router.replace('/build-tool');
+  }, [router]);
 
   const handleValidationSuccess = useCallback((result: ValidationResult) => {
     setValidationResult(result);
@@ -145,19 +235,15 @@ export default function BuildToolPage() {
     setCurrentStep('submission');
   }, []);
 
-  const handleReset = useCallback(() => {
-    console.log(
-      '[BuildToolPage] handleReset called. Resetting to validation step.'
-    );
-    setCurrentStep('validation');
-    setToolDirective('');
-    setValidationResult(null);
-    setAdditionalDescription('');
-    setUserSelectedDirectives([]);
-    setGenerationResult(null);
-  }, []);
-
   const renderCurrentStep = () => {
+    if (!initialUrlCheckDone && !searchParams.get('prNumber')) {
+      return (
+        <p className="text-center p-4 italic text-gray-500 animate-pulse">
+          Initializing...
+        </p>
+      );
+    }
+
     if (isApiUnavailable) {
       return (
         <div className="p-6 border rounded-lg bg-orange-50 border-orange-300 shadow-sm text-center">
@@ -188,7 +274,10 @@ export default function BuildToolPage() {
       );
     }
 
-    if (modelsLoading || metadataLoading) {
+    if (
+      (modelsLoading && !directLoadPrNumber) ||
+      (metadataLoading && !directLoadPrNumber)
+    ) {
       return (
         <p className="text-center p-4 italic text-gray-500 animate-pulse">
           Loading build tool prerequisites...
@@ -251,28 +340,84 @@ export default function BuildToolPage() {
           />
         );
       case 'submission':
+        const isDirectLoad = !!directLoadPrNumber;
+        const submissionToolDirective = isDirectLoad
+          ? toolDirective || ''
+          : toolDirective;
+
+        const effectiveGenerationResult =
+          generationResult ||
+          (isDirectLoad
+            ? ({
+                message: `Loading PR #${directLoadPrNumber} details...`,
+                generatedFiles: {},
+                identifiedDependencies: [],
+              } as GenerationResult)
+            : null);
+        const effectiveValidationResult =
+          validationResult ||
+          (isDirectLoad
+            ? ({
+                generativeDescription: `Loading PR #${directLoadPrNumber} details...`,
+                generativeRequestedDirectives: [],
+              } as ValidationResult)
+            : null);
+
+        let currentSelectedModel = selectedModel;
+        if (!currentSelectedModel && availableModels.length > 0) {
+          currentSelectedModel = availableModels[0].name;
+        } else if (!currentSelectedModel && modelsLoading && isDirectLoad) {
+          return (
+            <p className="text-center p-4 italic text-gray-500 animate-pulse">
+              Loading model info for PR monitoring...
+            </p>
+          );
+        }
+
         if (
-          !generationResult ||
-          !validationResult ||
-          !toolDirective ||
-          !selectedModel
+          !isDirectLoad &&
+          (!effectiveGenerationResult ||
+            !effectiveValidationResult ||
+            !submissionToolDirective ||
+            !currentSelectedModel)
         ) {
           console.warn(
-            "[BuildToolPage] In 'submission' step but critical data missing. Resetting."
+            "[BuildToolPage] In 'submission' step (new flow) but critical data missing. Resetting."
           );
           handleReset();
           return null;
         }
+        if (isDirectLoad && !directLoadPrNumber) {
+          console.warn(
+            "[BuildToolPage] In 'submission' (direct load) but no PR number. Resetting."
+          );
+          handleReset();
+          return null;
+        }
+
         return (
           <CreateAnonymousPr
-            toolDirective={toolDirective}
-            generationResult={generationResult}
-            validationResult={validationResult}
-            additionalDescription={additionalDescription}
-            userSelectedDirectives={userSelectedDirectives}
-            selectedModel={selectedModel}
-            onBack={() => setCurrentStep('generation')}
+            toolDirective={submissionToolDirective}
+            generationResult={effectiveGenerationResult!}
+            validationResult={effectiveValidationResult!}
+            additionalDescription={isDirectLoad ? '' : additionalDescription}
+            userSelectedDirectives={isDirectLoad ? [] : userSelectedDirectives}
+            selectedModel={
+              currentSelectedModel || 'models/gemini-1.5-flash-latest'
+            }
+            onBack={() => {
+              if (isDirectLoad) {
+                handleReset();
+              } else {
+                setCurrentStep('generation');
+              }
+            }}
             onStartOver={handleReset}
+            initialPrNumber={directLoadPrNumber}
+            initialPrUrl={null}
+            onFlowComplete={() => {
+              console.log('PR flow (polling) is complete in child.');
+            }}
           />
         );
       default:
