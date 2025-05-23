@@ -12,11 +12,11 @@
 next-env.d.ts
 /.vscode/
 
+app/lib/directives/index.ts
 
 infra/data
 public/assets
-public/api/tool-metadata
-public/api/directives.json
+public/api/all-tool-metadata.json
 
 app/api/generate-tool-resources/_contexts
 
