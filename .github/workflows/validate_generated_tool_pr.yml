@@ -534,6 +534,7 @@ jobs:
               const imgurUrl = process.env.IMGUR_SCREENSHOT_URL; // Get the Imgur URL
               if (imgurUrl) {
                 commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${imgurUrl})\n\n`;
+                commentBody += `   (Direct link: ${imgurUrl})\n\n`;
               } else { // Fallback to artifact link
                 commentBody += `   (Screenshot not uploaded to Imgur. View screenshot artifact [on the Action run page](${process.env.ACTION_RUN_URL}?pr=${issue_number}))\n`;
               }

@@ -184,7 +184,7 @@ export default function CreateAnonymousPr({
           onFlowComplete();
         }
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('[CreateAnonymousPr] Error polling PR status:', error);
       setPollingError(
@@ -255,7 +255,7 @@ export default function CreateAnonymousPr({
         throw new Error('Could not parse PR number from URL: ' + data.url);
       }
       setPrCreationStatus('success');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Anonymous PR Submission Error:', error);
       setPrCreationStatus('error');
@@ -378,7 +378,8 @@ export default function CreateAnonymousPr({
                   alt="Douglas Screenshot"
                   width={600}
                   height={400}
-                  className="border rounded-md"
+                  className="border rounded-md object-contain" // Added object-contain
+                  unoptimized // Ensures Next.js doesn't try to optimize/require domain whitelisting
                 />
               </div>
             )}
@@ -436,7 +437,6 @@ export default function CreateAnonymousPr({
           </div>
         )}
         <div className="mt-6 flex justify-end">
-          {/* MODIFIED: This button now calls onStartOver */}
           <Button
             variant="neutral"
             onClick={onStartOver}
@@ -535,7 +535,6 @@ export default function CreateAnonymousPr({
         >
           {isSubmittingPr ? 'Submitting PR...' : 'Submit Anonymous PR'}
         </Button>
-        {/* This onBack is for going from Review -> Generation (Step 2) */}
         <Button
           type="button"
           onClick={onBack}
