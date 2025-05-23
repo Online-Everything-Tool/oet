@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+
 import ValidateDirective from './_components/ValidateDirective';
 import GenerateToolResources from './_components/GenerateToolResources';
 import CreateAnonymousPr from './_components/CreateAnonymousPr';
@@ -14,9 +15,7 @@ import type {
   ApiListModelsResponse,
 } from '@/src/types/build';
 
-interface DirectivesListData {
-  directives: string[];
-}
+import { useMetadata } from '@/app/context/MetadataContext';
 
 type BuildStep = 'validation' | 'generation' | 'submission';
 
@@ -29,11 +28,15 @@ export default function BuildToolPage() {
   const [modelsLoading, setModelsLoading] = useState<boolean>(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
 
+  const {
+    toolMetadataMap,
+    isLoading: metadataLoading,
+    error: metadataError,
+  } = useMetadata();
+
   const [allAvailableToolDirectives, setAllAvailableToolDirectives] = useState<
     string[]
   >([]);
-  const [directivesLoading, setDirectivesLoading] = useState<boolean>(true);
-  const [directivesError, setDirectivesError] = useState<string | null>(null);
 
   const [isApiUnavailable, setIsApiUnavailable] = useState<boolean>(false);
   const [apiUnavailableMessage, setApiUnavailableMessage] =
@@ -115,46 +118,24 @@ export default function BuildToolPage() {
   }, []);
 
   useEffect(() => {
-    if (isApiUnavailable) {
-      setDirectivesLoading(false);
-      setDirectivesError(
-        'Skipped fetching directives due to API unavailability.'
+    if (!metadataLoading && toolMetadataMap) {
+      const directives = Object.keys(toolMetadataMap).sort((a, b) =>
+        a.localeCompare(b)
       );
-      return;
+      setAllAvailableToolDirectives(directives);
     }
 
-    const fetchDirectives = async () => {
-      setDirectivesLoading(true);
-      setDirectivesError(null);
-      try {
-        const response = await fetch('/api/directives.json');
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch directives list (/api/directives.json - ${response.status})`
-          );
-        }
-        const data: DirectivesListData = await response.json();
-        if (!Array.isArray(data?.directives)) {
-          throw new Error('Invalid format in directives.json file.');
-        }
-        setAllAvailableToolDirectives(data.directives);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
-        console.error('[BuildToolPage] Error fetching tool directives:', error);
-        setDirectivesError(
-          error.message || 'Could not load existing tools list.'
-        );
-        setAllAvailableToolDirectives([]);
-      } finally {
-        setDirectivesLoading(false);
-      }
-    };
-    fetchDirectives();
-  }, [isApiUnavailable]);
+    if (metadataError && !metadataLoading) {
+      console.error(
+        '[BuildToolPage] Error from MetadataContext:',
+        metadataError
+      );
+      setAllAvailableToolDirectives([]);
+    }
+  }, [metadataLoading, toolMetadataMap, metadataError]);
 
   const handleValidationSuccess = useCallback((result: ValidationResult) => {
     setValidationResult(result);
-
     setUserSelectedDirectives(result.generativeRequestedDirectives || []);
     setCurrentStep('generation');
   }, []);
@@ -165,9 +146,11 @@ export default function BuildToolPage() {
   }, []);
 
   const handleReset = useCallback(() => {
+    console.log(
+      '[BuildToolPage] handleReset called. Resetting to validation step.'
+    );
     setCurrentStep('validation');
     setToolDirective('');
-
     setValidationResult(null);
     setAdditionalDescription('');
     setUserSelectedDirectives([]);
@@ -204,14 +187,17 @@ export default function BuildToolPage() {
         </div>
       );
     }
-    if (modelsLoading || directivesLoading) {
+
+    if (modelsLoading || metadataLoading) {
       return (
         <p className="text-center p-4 italic text-gray-500 animate-pulse">
           Loading build tool prerequisites...
         </p>
       );
     }
-    if (modelsError && availableModels.length === 0) {
+
+    if (modelsError && availableModels.length === 0 && isApiUnavailable) {
+    } else if (modelsError && availableModels.length === 0) {
       return (
         <p className="text-center text-red-500 p-4">
           Error loading AI models: {modelsError}
@@ -219,10 +205,10 @@ export default function BuildToolPage() {
       );
     }
 
-    if (directivesError) {
+    if (metadataError && allAvailableToolDirectives.length === 0) {
       return (
         <p className="text-center text-red-500 p-4">
-          Error loading existing tools: {directivesError}
+          Error loading existing tools list: {metadataError}
         </p>
       );
     }
@@ -286,6 +272,7 @@ export default function BuildToolPage() {
             userSelectedDirectives={userSelectedDirectives}
             selectedModel={selectedModel}
             onBack={() => setCurrentStep('generation')}
+            onStartOver={handleReset}
           />
         );
       default:

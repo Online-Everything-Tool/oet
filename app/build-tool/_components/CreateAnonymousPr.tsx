@@ -38,7 +38,6 @@ interface PrCiStatus {
   overallStatus: 'pending' | 'success' | 'failure' | 'error';
   lastUpdated: string;
   error?: string;
-
   imgurScreenshotUrl?: string | null;
 }
 
@@ -49,9 +48,8 @@ interface CreateAnonymousPrProps {
   additionalDescription: string;
   userSelectedDirectives: string[];
   selectedModel: string;
-
   onBack: () => void;
-
+  onStartOver: () => void;
   initialPrUrl?: string | null;
   initialPrNumber?: number | null;
   onFlowComplete?: () => void;
@@ -68,6 +66,7 @@ export default function CreateAnonymousPr({
   userSelectedDirectives,
   selectedModel,
   onBack,
+  onStartOver,
   initialPrUrl,
   initialPrNumber,
   onFlowComplete,
@@ -163,10 +162,11 @@ export default function CreateAnonymousPr({
           `[CreateAnonymousPr] Polling stopped for PR #${prNumber}. Status: ${data.overallStatus}`
         );
         setIsPolling(false);
-        if (
-          onFlowComplete &&
-          (data.overallStatus === 'success' || data.overallStatus === 'failure')
-        ) {
+
+        if (onFlowComplete) {
+          console.log(
+            '[CreateAnonymousPr] Notifying parent that flow (polling part) is complete.'
+          );
           onFlowComplete();
         }
       } else if (pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS) {
@@ -177,6 +177,12 @@ export default function CreateAnonymousPr({
           'Max polling attempts reached. Please check the PR on GitHub directly.'
         );
         setIsPolling(false);
+        if (onFlowComplete) {
+          console.log(
+            '[CreateAnonymousPr] Notifying parent that flow (polling part) is complete due to max attempts.'
+          );
+          onFlowComplete();
+        }
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
@@ -219,7 +225,7 @@ export default function CreateAnonymousPr({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          /* ... your existing payload ... */ toolDirective: toolDirective,
+          toolDirective: toolDirective,
           generatedFiles: generationResult.generatedFiles,
           identifiedDependencies: generationResult.identifiedDependencies || [],
           generativeDescription:
@@ -430,10 +436,11 @@ export default function CreateAnonymousPr({
           </div>
         )}
         <div className="mt-6 flex justify-end">
+          {/* MODIFIED: This button now calls onStartOver */}
           <Button
             variant="neutral"
-            onClick={onBack}
-            disabled={isPolling || isSubmittingPr}
+            onClick={onStartOver}
+            disabled={isPolling && ciStatus?.overallStatus === 'pending'}
           >
             Build Another Tool / Start Over
           </Button>
@@ -449,8 +456,6 @@ export default function CreateAnonymousPr({
       <h2 className="text-lg font-semibold mb-3 text-gray-700">
         Step 3: Review & Submit Anonymous PR
       </h2>
-      {/* ... (Your existing UI for displaying generated files, context review, etc. - unchanged) ... */}
-      {/* Example: */}
       {generationResult.message && (
         <p
           className={`text-sm mb-4 p-2 rounded ${generationResult.message.toLowerCase().includes('warning') ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' : generationResult.message.toLowerCase().includes('error') ? 'bg-red-100 text-red-800 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'}`}
@@ -487,7 +492,7 @@ export default function CreateAnonymousPr({
                     >
                       {filePath}
                     </code>
-                    {/* ... (Chevron icon) ... */}
+                    {/* Chevron icon can be added here if desired */}
                   </button>
                   {isExpanded && (
                     <div className="px-1 pb-1 bg-gray-900">
@@ -516,7 +521,6 @@ export default function CreateAnonymousPr({
           </div>
         )}
       </div>
-      {/* --- End example of existing UI --- */}
 
       <div className="flex items-center justify-between flex-wrap gap-4">
         <Button
@@ -531,6 +535,7 @@ export default function CreateAnonymousPr({
         >
           {isSubmittingPr ? 'Submitting PR...' : 'Submit Anonymous PR'}
         </Button>
+        {/* This onBack is for going from Review -> Generation (Step 2) */}
         <Button
           type="button"
           onClick={onBack}

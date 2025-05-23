@@ -56,7 +56,7 @@ export const MetadataProvider = ({ children }: MetadataProviderProps) => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/all-tool-metadata.json'); // Fetch the new bundled file
+        const response = await fetch('/api/all-tool-metadata.json');
         if (!response.ok) {
           throw new Error(
             `Failed to fetch bundled tool metadata: ${response.status} ${response.statusText}`
