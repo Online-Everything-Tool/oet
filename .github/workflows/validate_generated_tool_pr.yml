@@ -341,6 +341,43 @@ jobs:
           node ./dist/check-tool.js "${COMMAND_ARGS[@]}"
         continue-on-error: true
 
+      - name: Upload Screenshot to Imgur
+        id: upload_to_imgur
+        if: always() && steps.douglas_checker_run.outcome != 'skipped' && steps.serve_static.outcome == 'success' # Run if Douglas ran, even if it failed
+        env:
+          IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
+        run: |
+          SCREENSHOT_FILE="$RUNNER_TEMP/douglas_screenshot.png"
+          IMAGE_URL=""
+          if [ -f "$SCREENSHOT_FILE" ]; then
+            if [ -z "$IMGUR_CLIENT_ID" ]; then
+              echo "::warning::IMGUR_CLIENT_ID secret not set. Cannot upload screenshot to Imgur."
+            else
+              echo "Uploading $SCREENSHOT_FILE to Imgur..."
+              RESPONSE=$(curl -s -X POST \
+                -H "Authorization: Client-ID $IMGUR_CLIENT_ID" \
+                -F "image=@$SCREENSHOT_FILE" \
+                -F "type=file" \
+                -F "title=Douglas Check for PR ${{ github.event.pull_request.number }} - ${{ needs.initial_checks.outputs.tool_directive }}" \
+                -F "description=Automated ethos check by Douglas for OET PR ${{ github.event.pull_request.number }} on tool ${{ needs.initial_checks.outputs.tool_directive }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+                https://api.imgur.com/3/image)
+              
+              echo "Imgur API Response: $RESPONSE"
+              UPLOAD_SUCCESS=$(echo "$RESPONSE" | jq -r .success)
+              if [ "$UPLOAD_SUCCESS" = "true" ]; then
+                IMAGE_URL=$(echo "$RESPONSE" | jq -r .data.link)
+                echo "Screenshot uploaded to Imgur: $IMAGE_URL"
+              else
+                ERROR_MSG=$(echo "$RESPONSE" | jq -r .data.error)
+                echo "::warning::Failed to upload screenshot to Imgur. Error: $ERROR_MSG"
+              fi
+            fi
+          else
+            echo "::warning::Screenshot file $SCREENSHOT_FILE not found. Cannot upload to Imgur."
+          fi
+          echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+        continue-on-error: true
+        
       - name: Upload Douglas Summary Artifact
         if: always() && steps.serve_static.outcome == 'success'
         uses: actions/upload-artifact@v4

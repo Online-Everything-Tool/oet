@@ -1,4 +1,8 @@
-oet.online-everything-tool.com {
+http://oet.online-everything-tool.com {
+        redir https://{host}{uri} permanent
+}
+
+https://oet.online-everything-tool.com {
         header {
                 Access-Control-Allow-Origin "https://online-everything-tool.com"
                 Access-Control-Allow-Methods "GET, POST, OPTIONS"

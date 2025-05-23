@@ -19,7 +19,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   if (!appId || !privateKeyBase64) {
     console.error(
-      '[EC2 API /pr-status] GitHub App credentials missing on server.'
+      '[api/pr-status] GitHub App credentials missing on server.'
     );
     throw new Error(
       'Server configuration error: GitHub App credentials missing.'
@@ -47,7 +47,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     console.error(
-      `[EC2 API /pr-status] Failed to get repo installation for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Status: ${e?.status}`
+      `[api/pr-status] Failed to get repo installation for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Status: ${e?.status}`
     );
     throw new Error(
       `App installation not found or accessible for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Ensure the GitHub App is installed and has permissions.`
@@ -62,7 +62,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   const { token } = await appAuth({ type: 'installation', installationId });
   octokitInstance = new Octokit({ auth: token });
-  console.log('[EC2 API /pr-status] GitHub App authentication successful.');
+  console.log('[api/pr-status] GitHub App authentication successful.');
   return octokitInstance;
 }
 // --- End GitHub App Authentication ---
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const prNumberStr = searchParams.get('prNumber');
 
-  console.log(`[EC2 API /pr-status] Received request. PR#: ${prNumberStr}`);
+  console.log(`[api/pr-status] Received request. PR#: ${prNumberStr}`);
 
   if (!prNumberStr) {
     return NextResponse.json(
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
   try {
     const octokit = await getAuthenticatedOctokit();
     console.log(
-      `[EC2 API /pr-status] Fetching PR data for PR #${actualPrNumber}`
+      `[api/pr-status] Fetching PR data for PR #${actualPrNumber}`
     );
     const { data: prData } = await octokit.rest.pulls.get({
       owner: GITHUB_REPO_OWNER,
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
     const prHeadBranchName = prData.head.ref;
 
     console.log(
-      `[EC2 API /pr-status] Using Head SHA: ${headShaToUse} for PR #${actualPrNumber} (Branch: ${prHeadBranchName || 'N/A'})`
+      `[api/pr-status] Using Head SHA: ${headShaToUse} for PR #${actualPrNumber} (Branch: ${prHeadBranchName || 'N/A'})`
     );
 
     // --- Fetch GitHub Action Check Runs ---
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
         new Date(b.started_at || 0).getTime()
     );
     console.log(
-      `[EC2 API /pr-status] Found ${sortedChecks.length} unique latest check runs for SHA ${headShaToUse}.`
+      `[api/pr-status] Found ${sortedChecks.length} unique latest check runs for SHA ${headShaToUse}.`
     );
 
     const netlifyKeywords = [
@@ -220,7 +220,7 @@ export async function GET(request: NextRequest) {
     let netlifyPreviewUrl: string | null = null;
     if (actualPrNumber > 0) {
       console.log(
-        `[EC2 API /pr-status] Attempting to find Netlify URL in PR #${actualPrNumber} comments...`
+        `[api/pr-status] Attempting to find Netlify URL in PR #${actualPrNumber} comments...`
       );
       try {
         const { data: comments } = await octokit.rest.issues.listComments({
@@ -240,7 +240,7 @@ export async function GET(request: NextRequest) {
             comment.body?.includes('Deploy Preview')
           ) {
             console.log(
-              `[EC2 API /pr-status] Found potential Netlify comment by ${comment.user.login}.`
+              `[api/pr-status] Found potential Netlify comment by ${comment.user.login}.`
             );
             const urlMatch = comment.body.match(
               /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
             if (urlMatch && urlMatch[0]) {
               netlifyPreviewUrl = urlMatch[0];
               console.log(
-                `[EC2 API /pr-status] Extracted Netlify preview URL from PR comment: ${netlifyPreviewUrl}`
+                `[api/pr-status] Extracted Netlify preview URL from PR comment: ${netlifyPreviewUrl}`
               );
               netlifyCheckRunSucceeded = true; // If URL found in comment, assume Netlify deployment was successful
               break;
@@ -257,13 +257,13 @@ export async function GET(request: NextRequest) {
         }
         if (!netlifyPreviewUrl) {
           console.log(
-            `[EC2 API /pr-status] Netlify preview URL not found in PR comments.`
+            `[api/pr-status] Netlify preview URL not found in PR comments.`
           );
         }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (commentError: any) {
         console.warn(
-          `[EC2 API /pr-status] Error fetching or parsing PR comments: ${commentError.message}`
+          `[api/pr-status] Error fetching or parsing PR comments: ${commentError.message}`
         );
       }
     }
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    console.error('[EC2 API /pr-status] Error in handler:', error);
+    console.error('[api/pr-status] Error in handler:', error);
     let errorMessage = 'Failed to fetch PR CI status.';
     if (error instanceof Error) {
       errorMessage = error.message;
