@@ -230,7 +230,6 @@ jobs:
         run: npm ci
 
       - name: Prepare for Static Build (Isolate New Tool)
-        # ... (This step remains unchanged from your last full paste) ...
         env:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
         run: |
@@ -252,20 +251,65 @@ jobs:
           echo "Project structure pruned for static check."
 
       - name: Build OET for Static Export
-        # ... (This step remains unchanged from your last full paste) ...
         id: build_oet
         env:
           NEXT_OUTPUT_MODE: export
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
-          npm run build 
+          (npm run build | tee ${{ runner.temp }}/build_output.log) 2>&1 | tee -a ${{ runner.temp }}/build_output.log || true
+
           if [ ! -d "out" ]; then
-            echo "::error::Static export 'out' directory not found after build."
-            echo "Ensure 'npm run build' respects NEXT_OUTPUT_MODE for 'output: \"export\"'."
-            exit 1
+            echo "::set-output name=build_failed_flag::true" # Signal build definitely failed
+            echo "::error::Static export 'out' directory not found after build. Build likely failed."
+          else
+            echo "::set-output name=build_failed_flag::false"
+            echo "'out' directory found."
           fi
-          echo "'out' directory found."
-        continue-on-error: true
+
+      - name: Capture Lint Output and Changed Files for AI Fixer
+        id: capture_for_ai_fix
+        if: steps.build_oet.outputs.build_command_failed == 'true'
+        env:
+          TOOL_DIRECTIVE_PATH: app/tool/${{ needs.initial_checks.outputs.tool_directive }}
+        run: |
+          BUILD_LOG_FILE="${{ steps.build_oet.outputs.build_log_path }}"
+          LINT_DATA_DIR="${{ runner.temp }}/lint-data-for-artifact"
+          mkdir -p "$LINT_DATA_DIR"
+          LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
+          FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt" # This will list the paths of new .ts/.tsx files
+
+          LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="false" 
+
+          if [ -f "$BUILD_LOG_FILE" ]; then
+            if grep -q -E "Failed to compile.|requires a value, but a value was not provided" "$BUILD_LOG_FILE"; then
+              echo "Build failed with compilation/lint errors. Capturing log."
+              cp "$BUILD_LOG_FILE" "$LINT_ERRORS_FILE"               
+              echo "Identifying newly added .ts/.tsx files in '$TOOL_DIRECTIVE_PATH' for potential AI fix..."            
+              find "$TOOL_DIRECTIVE_PATH" \( -name "*.ts" -o -name "*.tsx" \) -type f > "$FILES_TO_CHECK_FILE"
+              if [ -s "$FILES_TO_CHECK_FILE" ]; then
+                echo "Found .ts/.tsx files in the tool directory. Preparing for AI lint fix attempt."
+                echo "Files to be checked by AI fixer:"
+                cat "$FILES_TO_CHECK_FILE"
+                LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="true"
+              else
+                echo "::warning::Build failed with lint-like errors, but NO .ts/.tsx files were found in the tool's directory ('$TOOL_DIRECTIVE_PATH'). AI fix will NOT be attempted for this run. This might indicate an issue with file generation or unexpected lint errors."
+              fi
+            else
+              echo "Build command failed, but no clear lint/compile error markers for .ts/.tsx files found in build log. Not treating as lint failure for AI fix."
+            fi
+          else
+            echo "::warning::Build output log ($BUILD_LOG_FILE) not found. Cannot extract lint errors."
+          fi
+
+          echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
+
+      - name: Upload Lint Failure Artifact
+        if: steps.capture_for_ai_fix.outputs.lint_errors_captured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-failure-data-${{ github.sha }}
+          path: ${{ runner.temp }}/lint-data-for-artifact/
+          if-no-files-found: warn # Warn, as files_to_check might be empty if errors are in non-PR files
 
       - name: Serve Static Output Locally
         # ... (This step remains unchanged from your last full paste) ...
@@ -409,45 +453,48 @@ jobs:
     needs:
       - initial_checks
       - build_and_run_douglas_checker
+    # This job runs regardless of the success/failure of needed jobs,
+    # as long as they weren't cancelled and it's not a dependabot PR.
     if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
-      actions: read
+      pull-requests: write # To post comments
+      actions: read # To download artifacts
 
     steps:
       - name: Download Douglas Summary Artifact
-        # ... (This step remains unchanged) ...
         id: download_summary
         uses: actions/download-artifact@v4
         with:
-          name: douglas-summary-${{ github.run_id }}
+          name: douglas-summary-${{ github.run_id }} # Matches upload name
           path: ${{ runner.temp }}/douglas-artifacts/summary
-        continue-on-error: true
+        continue-on-error: true # Allow to continue if artifact not found (e.g., Douglas skipped)
 
       - name: Read Douglas Summary Content
-        # ... (This step remains unchanged) ...
         id: read_summary
+        # Only run if download was successful and the file actually exists
         if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
           SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
+          # Escape for multiline output in GitHub Actions
           SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" 
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\r'/'%0D'}"
           echo "summary_markdown=${SUMMARY_CONTENT}" >> $GITHUB_OUTPUT
-        shell: bash
+        shell: bash # Ensure bash for complex string manipulation if any
         continue-on-error: true
 
       - name: Construct and Post PR Comment
         id: post_comment
         uses: actions/github-script@v7
         env:
-          # ... (all existing env vars for initial_checks and build_douglas_job_result, etc.) ...
           PR_NUMBER: ${{ github.event.pull_request.number }}
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+
+          # Initial Checks Job Outputs
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
-          PATTERN_CHECK_PASSED: ${{ needs.initial_checks.outputs.pattern_check_passed }}
+          # PATTERN_CHECK_PASSED: ${{ needs.initial_checks.outputs.pattern_check_passed }} # Removed this pattern check earlier
           PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
           INVALID_FILES_LIST: ${{ needs.initial_checks.outputs.invalid_files_list }}
           AI_ANALYSIS_SUCCEEDED: ${{ needs.initial_checks.outputs.analysis_succeeded }}
@@ -456,19 +503,24 @@ jobs:
           AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
           AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
 
+          # Build & Douglas Job Outputs
           BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
+          LINT_FIX_ATTEMPTED: ${{ needs.build_and_run_douglas_checker.outputs.lint_fix_attempted }} # Key new output
           DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
-          IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }} # ADDED IMGUR URL ENV
-          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or check was skipped.' }}
+          IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
+
+          # Processed Outputs for Comment
+          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or Douglas checks were skipped.' }}
           ACTION_RUN_URL: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // const core = require('@actions/core'); // Already available
-            // const github = require('@actions/github'); // Already available
+            const core = require('@actions/core');
+            const github = require('@actions/github'); // Octokit instance
 
             const { repo, owner } = context.repo; 
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
+
             if (isNaN(issue_number)) {
               core.setFailed("PR Number is not available for commenting.");
               return;
@@ -476,34 +528,36 @@ jobs:
 
             const toolDirective = process.env.TOOL_DIRECTIVE || "UnknownTool";
             let commentBody = `## 🤖 OET Tool PR Validation Status for \`${toolDirective}\`\n\n`;
+            const actionRunUrl = `${process.env.ACTION_RUN_URL}?pr=${issue_number}`; // For easy linking
 
-            // --- 1. Initial Checks ---
-            // ... (This section remains unchanged from your last full paste) ...
+            // --- 1. Initial PR Validations ---
             commentBody += `### 1. Initial PR Validations\n`;
             const initialChecksJobResult = process.env.INITIAL_CHECKS_JOB_RESULT;
-            const patternPassed = process.env.PATTERN_CHECK_PASSED === 'true';
             const pathsPassed = process.env.PATH_VALIDATION_PASSED === 'true';
+            // const patternPassed = process.env.PATTERN_CHECK_PASSED === 'true'; // No longer used
+
             if (initialChecksJobResult === 'success') {
               commentBody += `✅ **Initial Validations Passed!**\n`;
-              commentBody += `  - Directive \`${toolDirective}\` matches allowed patterns.\n`;
-              commentBody += `  - All changed files are within the allowed directory.\n`;
+              // commentBody += `  - Directive \`${toolDirective}\` matches allowed patterns.\n`; // Removed
+              commentBody += `  - All changed files are within the allowed directory for \`${toolDirective}\`.\n`;
             } else if (initialChecksJobResult === 'failure') {
               commentBody += `🚨 **Initial Validations FAILED!**\n`;
-              if (!patternPassed) commentBody += `  - **Pattern Check Failed:** Directive \`${toolDirective}\` does not match.\n`;
+              // if (!patternPassed) commentBody += `  - **Pattern Check Failed:** Directive \`${toolDirective}\` does not match.\n`; // Removed
               if (!pathsPassed) {
                 const invalidFiles = (process.env.INVALID_FILES_LIST || "List unavailable.").replace(/%0A/g, '\n    - ').replace(/%0D/g, '');
                 commentBody += `  - **Path Validation Failed:** Files changed outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
               }
             } else {
-               commentBody += `🟡 Initial validations were skipped or had an issue (${initialChecksJobResult}).\n`;
+               commentBody += `🟡 Initial validations were skipped or had an issue (Job status: ${initialChecksJobResult}). See [Action logs](${actionRunUrl}) for details.\n`;
             }
+
             commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
             if (process.env.AI_ANALYSIS_SUCCEEDED === 'true') {
-              commentBody += `    - Score: ${process.env.AI_SCORE}\n`;
-              commentBody += `    - Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? 'Yes ❗' : 'No'}\n`;
+              commentBody += `    - Score: **${process.env.AI_SCORE}**\n`;
+              commentBody += `    - Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? '**Yes** ❗' : 'No'}\n`;
               let reasoning = process.env.AI_REASONING || "No reasoning provided.";
-              reasoning = reasoning.replace(/%0A/g, '\n    '); 
-              commentBody += `    - Reasoning:\n    ${reasoning}\n`;
+              reasoning = reasoning.replace(/%0A/g, '\n        '); // Indent multiline reasoning
+              commentBody += `    - Reasoning:\n        ${reasoning}\n`;
               try {
                 const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON || '[]');
                 if (suggestions.length > 0) {
@@ -517,76 +571,124 @@ jobs:
 
             // --- 2. Local Build & Douglas Ethos Check ---
             commentBody += `### 2. Local Build & Douglas Ethos Check\n`;
-            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT;
-            if (buildDouglasJobResult === 'skipped') {
-              commentBody += `🟡 Local build and Douglas check were skipped.\n`;
-            } else {
-              if(buildDouglasJobResult === 'success') {
-                commentBody += `✅ **Local Static Build Successful.**\n`;
-              } else { 
-                commentBody += `🚨 **Local Static Build FAILED!** (or setup failed before Douglas script ran)\n`;
-                commentBody += `   Review [Action logs](${process.env.ACTION_RUN_URL}?pr=${issue_number}#step:2:1) for build failure details.\n`;
-              }
+            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT; // Overall result of the job
+            const lintFixAttempted = process.env.LINT_FIX_ATTEMPTED === 'true';
+            const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME; // Outcome of the specific Douglas script run step
 
-              const douglasSummary = process.env.DOUGLAS_SUMMARY_MD.replace(/%0A/g, '\n').replace(/%0D/g, '');
+            if (lintFixAttempted) {
+              commentBody += `🟡 **Build/Lint Failed.** An AI Lint Fixer workflow has been triggered to attempt automatic corrections.\n`;
+              commentBody += `   Please monitor the [AI Lint Fixer workflow run](${actionRunUrl}) (it will appear as a new check or a separate workflow run triggered by this one's completion).\n`;
+              commentBody += `   Douglas Ethos Check was skipped in this run due to the build failure.\n`;
+            } else if (buildDouglasJobResult === 'skipped') {
+              // This happens if initial_checks failed critically, preventing build_and_run_douglas_checker from running.
+              commentBody += `🟡 Local build and Douglas Ethos Check job were skipped (likely due to earlier critical validation failures in Initial Checks).\n`;
+            } else if (buildDouglasJobResult === 'failure') {
+              // The job itself failed, and it wasn't a lint issue we decided to pass to the AI fixer.
+              commentBody += `🚨 **Local Static Build FAILED!** (AI lint fix was not attempted for this failure).\n`;
+              commentBody += `   Review [Action logs for Build & Douglas Job](${actionRunUrl}) for build failure details.\n`;
+              commentBody += `   Douglas Ethos Check was likely not run or also failed.\n`;
+            } else if (buildDouglasJobResult === 'success') {
+              // Build job succeeded, meaning build was structurally okay and no AI fix was attempted. Now check Douglas.
+              commentBody += `✅ **Local Static Build Successful.**\n`;
+              if (douglasCheckStepOutcome === 'success') {
+                commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
+              } else if (douglasCheckStepOutcome === 'skipped') {
+                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., static server did not start).\n`;
+              } else { // failure, cancelled, timed_out etc.
+                commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome})\n`;
+              }
+              
+              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD).replace(/%0A/g, '\n').replace(/%0D/g, '');
               commentBody += `\n${douglasSummary}\n`; 
               
-              const imgurUrl = process.env.IMGUR_SCREENSHOT_URL; // Get the Imgur URL
+              const imgurUrl = process.env.IMGUR_SCREENSHOT_URL;
               if (imgurUrl) {
-                commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${imgurUrl})\n\n`;
+                commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${imgurUrl})\n`;
                 commentBody += `   (Direct link: ${imgurUrl})\n\n`;
-              } else { // Fallback to artifact link
-                commentBody += `   (Screenshot not uploaded to Imgur. View screenshot artifact [on the Action run page](${process.env.ACTION_RUN_URL}?pr=${issue_number}))\n`;
+              } else if (douglasCheckStepOutcome !== 'skipped') { // Only show if Douglas was meant to run
+                commentBody += `   (Screenshot not uploaded to Imgur or not found. View screenshot artifact [on the Action run page](${actionRunUrl}))\n`;
               }
             }
             commentBody += "\n---\n";
 
             // --- 3. Next Steps ---
-            // ... (This section remains unchanged from your last full paste) ...
             commentBody += `### 3. Next Steps\n`;
             const criticalInitialChecksPassed = initialChecksJobResult === 'success';
-            const douglasActualCheckPassed = process.env.DOUGLAS_CHECK_STEP_OUTCOME === 'success';
-            const overallLocalChecksSuccess = criticalInitialChecksPassed && buildDouglasJobResult === 'success' && douglasActualCheckPassed;
-            if (overallLocalChecksSuccess) {
-              commentBody += `✅ All local checks passed!\n`;
+            // Overall success for *this specific run* (before considering AI fixer re-runs)
+            const thisRunChecksSuccess = criticalInitialChecksPassed && 
+                                         buildDouglasJobResult === 'success' && 
+                                         douglasCheckStepOutcome === 'success';
+
+            if (lintFixAttempted) {
+              commentBody += `⏳ An AI Lint Fix is in progress. If successful, this PR will be updated, and these checks will re-run.\n`;
+              commentBody += `   The current PR status might show as failing until the AI fixer completes and the checks are re-evaluated on the new commit.\n`;
+            } else if (thisRunChecksSuccess) {
+              commentBody += `✅ All local checks for this run passed!\n`;
               commentBody += `⏳ A Netlify Deploy Preview should be building now. Its status will appear as a separate check from Netlify on this PR.\n`;
               commentBody += `👍 Once ready, please test your tool thoroughly using the Deploy Preview link!\n`;
             } else {
-              commentBody += `‼️ **Action Required:** One or more critical local checks failed. Review details above and in [Action run logs](${process.env.ACTION_RUN_URL}?pr=${issue_number}).\n`;
-              commentBody += `🔴 Netlify Deploy Preview may fail or not reflect intended functionality.\n`;
+              commentBody += `‼️ **Action Required:** One or more critical local checks failed in this run. Review details above and in [Action run logs](${actionRunUrl}).\n`;
+              if (!criticalInitialChecksPassed) {
+                 commentBody += `🔴 Initial validations failed. Core tool structure or naming might be incorrect.\n`;
+              } else if (buildDouglasJobResult !== 'success') {
+                 commentBody += `🔴 Local build failed. Netlify Deploy Preview may fail or not reflect intended functionality.\n`;
+              } else { // Initial checks passed, build succeeded, but Douglas failed
+                 commentBody += `🔴 Douglas Ethos Check identified issues.\n`;
+              }
             }
+
+            commentBody += `\n---\n*This comment is auto-generated by OET CI. For full details, see the [Action Run](${actionRunUrl}).*`;
 
             try {
               await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
             } catch (e) {
               core.error(`Failed to post PR comment: ${e.message}`);
+              // Don't fail the whole job just because comment posting failed
             }
 
-            // --- Determine overall workflow failure ---
-            // ... (This logic remains unchanged from your last full paste) ...
-            let failWorkflow = false;
-            let failureReason = "";
-            if (initialChecksJobResult === 'failure') {
-              failWorkflow = true;
-              failureReason += "Initial PR Validations failed. ";
-            }
-            if (buildDouglasJobResult === 'failure') {
-              failWorkflow = true;
-              failureReason += "Local Build or Douglas Ethos Check process failed (job failed). ";
-            } else if (buildDouglasJobResult === 'success' && !douglasActualCheckPassed) {
-              failWorkflow = true;
-              failureReason += "Douglas Ethos Check detected violations (job succeeded but Douglas script failed). ";
-            }
-            if (failWorkflow) {
-              core.setFailed(`Workflow failed: ${failureReason.trim()} See PR comment and Action logs for details.`);
+            // --- Determine overall workflow failure for THIS RUN ---
+            // If a lint fix is being attempted, this specific run of the main workflow should NOT fail the PR checks.
+            // It should allow the AI Fixer workflow and the subsequent re-run of this main workflow to determine the true status.
+            if (lintFixAttempted) {
+              core.notice("AI Lint Fix attempt initiated by the previous job. This workflow run will not set a hard failure status for the PR at this stage. The subsequent run after AI fixes (if any) will determine the PR's mergeability based on checks.");
+              // This job will complete successfully, but the overall check suite for the PR might still show the previous job as "failed"
+              // until the AI fixer pushes and this workflow re-runs successfully on the new commit.
+            } else {
+              // Original failure logic if no AI fix is being attempted
+              let failWorkflow = false;
+              let failureReason = "";
+              if (initialChecksJobResult === 'failure') {
+                failWorkflow = true;
+                failureReason += "Initial PR Validations failed. ";
+              }
+              if (buildDouglasJobResult === 'failure') { 
+                failWorkflow = true;
+                failureReason += "Local Build or dependent setup failed. ";
+              } else if (buildDouglasJobResult === 'success' && douglasCheckStepOutcome !== 'success' && douglasCheckStepOutcome !== 'skipped') {
+                // Build succeeded, Douglas ran but didn't pass (and wasn't skipped)
+                failWorkflow = true;
+                failureReason += "Douglas Ethos Check reported issues. ";
+              }
+              
+              if (failWorkflow) {
+                core.setFailed(`One or more checks failed in this run (and no AI fix was attempted): ${failureReason.trim()}See comment and Action logs.`);
+              }
             }
 
-      - name: Fail workflow if critical checks failed (explicit check)
-        # ... (This step remains unchanged from your last full paste) ...
+      - name: Fail workflow if critical checks failed (and no AI Fix Attempted)
         if: >
-          needs.initial_checks.result == 'failure' ||
-          needs.build_and_run_douglas_checker.result == 'failure' ||
-          (needs.build_and_run_douglas_checker.result == 'success' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'success')
+          (
+            needs.initial_checks.result == 'failure' ||
+            (
+              needs.build_and_run_douglas_checker.result == 'failure' &&
+              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
+            ) ||
+            (
+              needs.build_and_run_douglas_checker.result == 'success' &&
+              (needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped') != 'success' &&
+              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
+            )
+          )
         run: |
-          echo "::error::One or more critical checks failed. Marking workflow as failed."
+          echo "::error::One or more critical checks failed, and no AI Lint Fix was successfully initiated by the previous job to address them. Marking this workflow run as failed."
           exit 1
