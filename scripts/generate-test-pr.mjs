@@ -10,18 +10,14 @@ async function loadEnv() {
   try {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const envPath = path.resolve(__dirname, '..', '.env'); // Assumes script is in 'scripts' subdir of project root
-    console.log(
-      `[Test PR Script - loadEnv] Attempting to load .env from: ${envPath}`
-    );
+    const envPath = path.resolve(__dirname, '..', '.env');
+    // console.log(`[Test PR Script - loadEnv] Attempting to load .env from: ${envPath}`); // Verbose
 
     const envFile = await fs.readFile(envPath, 'utf-8');
-    console.log(
-      '[Test PR Script - loadEnv] .env file content read successfully.'
-    );
+    // console.log('[Test PR Script - loadEnv] .env file content read successfully.'); // Verbose
 
     envFile.split('\n').forEach((line) => {
-      const originalLine = line; // For debugging
+      // const originalLine = line; // For debugging
       if (line.trim() && !line.startsWith('#')) {
         const [key, ...valueParts] = line.split('=');
         const value = valueParts.join('=').replace(/^["']|["']$/g, ''); // Remove surrounding quotes
@@ -30,15 +26,10 @@ async function loadEnv() {
         const trimmedValue = value ? value.trim() : null; // Trim value here
 
         if (trimmedKey && trimmedValue) {
-          // Ensure both key and value are non-empty after trim
           process.env[trimmedKey] = trimmedValue; // Use trimmedValue
-          console.log(
-            `[Test PR Script - loadEnv] Setting process.env.${trimmedKey}`
-          );
+          // console.log(`[Test PR Script - loadEnv] Setting process.env.${trimmedKey}`); // Verbose
         } else {
-          console.log(
-            `[Test PR Script - loadEnv] Skipped line (key or value empty after parse/trim): "${originalLine}"`
-          );
+          // console.log(`[Test PR Script - loadEnv] Skipped line (key or value empty after parse/trim): "${originalLine}"`); // Verbose
         }
       }
     });
@@ -65,12 +56,11 @@ let octokitInstance;
 async function getInstallationOctokit() {
   if (octokitInstance) return octokitInstance;
 
-  // These now refer to the module-scoped variables set in main()
   console.log(
-    `[Test PR Script - getInstallationOctokit] Using GITHUB_APP_ID: "${appId}" (Type: ${typeof appId})`
+    `[Test PR Script - getInstallationOctokit] Using GITHUB_APP_ID from script var.`
   );
   console.log(
-    `[Test PR Script - getInstallationOctokit] Using GITHUB_PRIVATE_KEY_BASE64: "${privateKeyBase64 ? 'SET (length: ' + privateKeyBase64.length + ')' : 'NOT SET'}" (Type: ${typeof privateKeyBase64})`
+    `[Test PR Script - getInstallationOctokit] GITHUB_PRIVATE_KEY_BASE64 is ${privateKeyBase64 ? 'SET' : 'NOT SET'} in script var.`
   );
 
   if (!appId || !privateKeyBase64) {
@@ -140,7 +130,7 @@ function toPascalCase(kebabCase) {
     .join('');
 }
 
-async function createDummyToolFiles(toolDirective) {
+async function createDummyToolFiles(toolDirective, includeLintError = false) {
   const projectRoot = path.resolve(fileURLToPath(import.meta.url), '..', '..');
   const toolDir = path.join(projectRoot, 'app', 'tool', toolDirective);
   const componentsDir = path.join(toolDir, '_components');
@@ -152,14 +142,14 @@ async function createDummyToolFiles(toolDirective) {
 
   const metadataContent = JSON.stringify(
     {
-      title: `CI Test: ${pascalCaseName}`,
+      title: `CI Test: ${pascalCaseName}${includeLintError ? ' (With Lint Error)' : ''}`,
       directive: toolDirective,
-      description: `A dummy tool for testing CI workflows: ${toolDirective}`,
+      description: `A dummy tool for testing CI workflows: ${toolDirective}${includeLintError ? '. This version includes intentional lint errors.' : '.'}`,
       inputConfig: { acceptsMimeTypes: ['text/plain'], stateFiles: 'none' },
       outputConfig: { transferableContent: 'none' },
       tags: ['test', 'ci', 'dummy'],
       includeInSitemap: false,
-      status: 'stable',
+      status: includeLintError ? 'development' : 'stable',
     },
     null,
     2
@@ -188,28 +178,60 @@ export default function ${pascalCaseName}Page() {
 }`;
   await fs.writeFile(path.join(toolDir, 'page.tsx'), pageContent.trim());
 
-  const clientContent = `
+  let clientContentJs = `
 // FILE: app/tool/${toolDirective}/_components/${pascalCaseName}Client.tsx
 'use client';
-import React, { useEffect } from 'react'; // Default to importing useEffect
+import React, { useEffect } from 'react';
+
 export default function ${pascalCaseName}Client({ toolRoute }: { toolRoute: string }) {
   // Minimal client component for testing
+
+  // --- Start of Intentionally Problematic Code (if includeLintError is true) ---
+  // --- End of Intentionally Problematic Code ---
+
   return (
     <div>
-      <h2>Hello from ${pascalCaseName}Client!</h2>
+      <h2>Hello from ${pascalCaseName}Client! (Tool Route: {toolRoute})</h2>
       <p>This is a dummy tool for CI testing.</p>
-      <p>Tool Route: {toolRoute}</p>
       <p>Current Time: {new Date().toLocaleTimeString()}</p>
     </div>
   );
 }`;
+
+  if (includeLintError) {
+    const lintErrorBlock = `
+  let usedAny: any = { message: "I am used and explicitly any." };
+  console.log('Logging usedAny to ensure it is used:', usedAny.message);
+  
+  const unusedAny: any = { value: "I am unused and explicitly any" }; 
+  // This 'unusedAny' should trigger @typescript-eslint/no-unused-vars (likely error in Next.js)
+  // The 'any' type itself might trigger @typescript-eslint/no-explicit-any (error or warning based on config)
+
+  function problematicFunction(param1: any, param2) { // param2 implicitly any
+    const anotherUnused: number = 123; // Another unused variable
+    let result: any = param1 + (param2 || 0); // Using any again
+    return result;
+  }
+  // problematicFunction is defined but not used, which can also be an error/warning.
+`;
+    clientContentJs = clientContentJs.replace(
+      '  // --- End of Intentionally Problematic Code ---',
+      lintErrorBlock + '\n  // --- End of Intentionally Problematic Code ---'
+    );
+  } else {
+    clientContentJs = clientContentJs.replace(
+      '  // --- Start of Intentionally Problematic Code (if includeLintError is true) ---\n  // --- End of Intentionally Problematic Code ---',
+      '  const normallyFineVariable = "This should be fine.";\n  console.log(normallyFineVariable); // Use it to avoid unused var warning if not including other errors'
+    );
+  }
+
   await fs.writeFile(
     path.join(componentsDir, `${pascalCaseName}Client.tsx`),
-    clientContent.trim()
+    clientContentJs.trim()
   );
 
   console.log(
-    `[Test PR Script] Dummy files created locally for tool: ${toolDirective}`
+    `[Test PR Script] Dummy files created locally for tool: ${toolDirective}${includeLintError ? ' (with intentional lint errors)' : ''}`
   );
   return [
     `app/tool/${toolDirective}/metadata.json`,
@@ -231,17 +253,12 @@ async function createBlob(octokit, content) {
 async function main() {
   await loadEnv();
 
-  // Assign to module-scoped variables AFTER loadEnv has populated process.env
   appId = process.env.GITHUB_APP_ID;
   privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
 
-  // Log all process.env keys AFTER loadEnv has run for debugging
-  // console.log('[Test PR Script - main] All process.env keys AFTER loadEnv:', Object.keys(process.env).sort());
+  console.log(`[Test PR Script - main] GITHUB_APP_ID: "${appId}"`);
   console.log(
-    `[Test PR Script - main] GITHUB_APP_ID from process.env (read into module var): "${appId}"`
-  );
-  console.log(
-    `[Test PR Script - main] GITHUB_PRIVATE_KEY_BASE64 from process.env (read into module var): "${privateKeyBase64 ? 'SET (length: ' + privateKeyBase64.length + ')' : 'NOT SET'}"`
+    `[Test PR Script - main] GITHUB_PRIVATE_KEY_BASE64 is ${privateKeyBase64 ? 'SET' : 'NOT SET'}`
   );
 
   const octokit = await getInstallationOctokit();
@@ -255,6 +272,7 @@ async function main() {
     .find((arg) => arg.startsWith('--body='))
     ?.split('=')[1];
   const makeExternalCall = args.includes('--external-call');
+  const includeLintErrorFlag = args.includes('--lint-errors');
 
   if (!toolName) {
     const timestamp = Date.now().toString().slice(-6);
@@ -271,10 +289,18 @@ async function main() {
   }
 
   const newBranchName = `feat/gen-${toolName}-${Date.now().toString().slice(-5)}`;
-  const prTitle = prTitleArg || `feat(CI): Add Test Tool - ${toolName}`;
+  let prTitle = prTitleArg || `feat(CI): Add Test Tool - ${toolName}`;
+  if (includeLintErrorFlag) {
+    prTitle += ' (with lint errors)';
+  }
   let prBody =
     prBodyArg ||
     `This PR was automatically generated by the generate-test-pr.mjs script for testing CI workflows.\n\nTool: \`${toolName}\`\n\n---START_DEPS---\n[]\n---END_DEPS---`;
+
+  if (includeLintErrorFlag) {
+    prBody +=
+      '\n\n**Note:** This PR intentionally includes lint errors for testing the AI Lint Fixer workflow.';
+  }
   if (makeExternalCall) {
     prBody +=
       '\n\n**Note:** This tool is configured to make a test external network call to verify Douglas checker functionality.';
@@ -305,7 +331,10 @@ async function main() {
     });
     console.log(`[Test PR Script] Branch ${newBranchName} created.`);
 
-    const filePaths = await createDummyToolFiles(toolName);
+    const filePaths = await createDummyToolFiles(
+      toolName,
+      includeLintErrorFlag
+    );
 
     if (makeExternalCall) {
       const clientComponentPath = path.join(
@@ -319,14 +348,22 @@ async function main() {
 
       if (
         clientContent.includes(useEffectImportOriginal) &&
-        !clientContent.includes("useEffect } from 'react'")
+        !clientContent.includes("useEffect } from 'react'") &&
+        !clientContent.includes("import React, { useEffect } from 'react';")
       ) {
         clientContent = clientContent.replace(
           useEffectImportOriginal,
           useEffectImportReplacement
         );
-      } else if (!clientContent.includes('import React')) {
-        // If React isn't imported at all (unlikely but safeguard)
+      } else if (
+        !clientContent.includes("import React, { useEffect } from 'react';") &&
+        clientContent.includes("import React from 'react';")
+      ) {
+        clientContent = clientContent.replace(
+          "import React from 'react';",
+          "import React, { useEffect } from 'react';"
+        );
+      } else if (!clientContent.match(/import React[ ,{]/)) {
         clientContent = useEffectImportReplacement + '\n' + clientContent;
       }
 
@@ -379,7 +416,10 @@ async function main() {
     console.log(`[Test PR Script] New tree created (SHA: ${treeData.sha})`);
 
     console.log('[Test PR Script] Creating new commit...');
-    const commitMessage = `feat(CI): Add dummy tool ${toolName}${makeExternalCall ? ' (with external call)' : ''}`;
+    let commitMessage = `feat(CI): Add dummy tool ${toolName}`;
+    if (includeLintErrorFlag) commitMessage += ' (with lint errors)';
+    if (makeExternalCall) commitMessage += ' (with external call)';
+
     const { data: newCommit } = await octokit.rest.git.createCommit({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
@@ -436,12 +476,14 @@ async function main() {
       console.error('  GitHub API Response Data:', error.response.data);
     }
     if (error.stack && !error.status) {
-      console.error('  Stack trace:', error.stack);
+      // console.error('  Stack trace:', error.stack);
+    }
+    if (!error.status) {
+      console.error('Full error object:', error);
     }
   } finally {
     const toolFilesDir = path.join(projectRoot, 'app', 'tool', toolName);
     try {
-      // Check if directory exists before attempting to remove
       const stats = await fs.stat(toolFilesDir).catch(() => null);
       if (stats && stats.isDirectory()) {
         await fs.rm(toolFilesDir, { recursive: true, force: true });
@@ -449,9 +491,7 @@ async function main() {
           `[Test PR Script] Cleaned up local dummy files for ${toolName}.`
         );
       } else {
-        console.log(
-          `[Test PR Script] Local dummy files directory for ${toolName} not found, skipping cleanup or already cleaned.`
-        );
+        // console.log(`[Test PR Script] Local dummy files directory for ${toolName} not found or already cleaned.`);
       }
     } catch (cleanupError) {
       console.warn(

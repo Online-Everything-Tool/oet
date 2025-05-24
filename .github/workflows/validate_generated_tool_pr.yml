@@ -250,21 +250,43 @@ jobs:
           fi
           echo "Project structure pruned for static check."
 
-      - name: Build OET for Static Export
+      - name: Build OET for Static Export (and check for lint issues)
         id: build_oet
         env:
           NEXT_OUTPUT_MODE: export
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
-          (npm run build | tee ${{ runner.temp }}/build_output.log) 2>&1 | tee -a ${{ runner.temp }}/build_output.log || true
+          BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
 
-          if [ ! -d "out" ]; then
-            echo "::set-output name=build_failed_flag::true" # Signal build definitely failed
-            echo "::error::Static export 'out' directory not found after build. Build likely failed."
+          # Run npm build and capture its exit code directly
+          npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
+          BUILD_EXIT_CODE=$? 
+          echo "npm run build exited with code: $BUILD_EXIT_CODE" # Debugging line
+
+          # Set build_command_failed output
+          if [ "$BUILD_EXIT_CODE" -ne 0 ]; then
+            echo "build_command_failed=true" >> $GITHUB_OUTPUT
+            echo "::warning::'npm run build' command failed with exit code $BUILD_EXIT_CODE."
           else
-            echo "::set-output name=build_failed_flag::false"
-            echo "'out' directory found."
+            echo "build_command_failed=false" >> $GITHUB_OUTPUT
+            echo "'npm run build' command succeeded."
           fi
+
+          # Set build_succeeded_structurally output
+          if [ -d "out" ]; then
+            echo "Build output directory 'out' found."
+            echo "build_succeeded_structurally=true" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Build output directory 'out' not found."
+            echo "build_succeeded_structurally=false" >> $GITHUB_OUTPUT
+            # If 'out' dir is not found, it's a structural failure, override build_command_failed if it was somehow false
+            if [ "$BUILD_EXIT_CODE" -eq 0 ]; then # If npm build claimed success but 'out' is missing
+                echo "build_command_failed=true" >> $GITHUB_OUTPUT # Correcting based on structural failure
+                echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
+            fi
+          fi
+
+          echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
       - name: Capture Lint Output and Changed Files for AI Fixer
         id: capture_for_ai_fix
