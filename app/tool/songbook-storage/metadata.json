@@ -1,0 +1,21 @@
+{
+  "title": "Songbook Storage",
+  "directive": "songbook-storage",
+  "description": "A tool to store, organize, and manage digital songbook entries, including lyrics, chords, and song metadata, within the browser.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "songbookAsJsonString",
+        "mimeType": "application/json"
+      }
+    ]
+  },
+  "tags": ["music", "lyrics", "chords", "organizer", "storage", "songbook"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
