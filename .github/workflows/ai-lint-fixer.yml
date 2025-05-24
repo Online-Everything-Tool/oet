@@ -87,7 +87,7 @@ jobs:
         id: call_fix_api
         if: steps.prepare_fix_data.outcome == 'success'
         env:
-          LINT_FIX_API_ENDPOINT: ${{ secrets.YOUR_LINT_FIX_API_ENDPOINT }}
+          LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
           # Your API endpoint should be secured if public, or this action needs network access to it
         run: |
           LINT_ERRORS_CONTENT=$(cat "${{ runner.temp }}/lint-data/lint_errors.txt")
