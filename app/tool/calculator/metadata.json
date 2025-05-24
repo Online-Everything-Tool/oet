@@ -1,0 +1,12 @@
+{
+  "title": "Calculator",
+  "directive": "calculator",
+  "description": "Provides a basic calculator interface for performing arithmetic operations.",
+  "inputConfig": [],
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [],
+  "includeInSitemap": true,
+  "status": "stable"
+}
