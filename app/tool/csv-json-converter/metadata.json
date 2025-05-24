@@ -1,0 +1,33 @@
+{
+  "title": "CSV/JSON Converter",
+  "directive": "csv-json-converter",
+  "description": "This tool converts CSV (Comma Separated Values) data to JSON (JavaScript Object Notation) format and vice-versa.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "direction",
+      "type": "enum",
+      "defaultValue": "csvToJson"
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/csv", "application/json", "text/*"],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "application/json"
+      }
+    ]
+  },
+  "tags": ["csv", "json", "converter", "data"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
