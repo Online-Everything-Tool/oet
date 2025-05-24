@@ -537,9 +537,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core');
-            const github = require('@actions/github'); // Octokit instance
-
             const { repo, owner } = context.repo; 
             const issue_number = parseInt(process.env.PR_NUMBER, 10);
 
