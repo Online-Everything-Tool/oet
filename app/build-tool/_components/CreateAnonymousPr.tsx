@@ -440,8 +440,8 @@ export default function CreateAnonymousPr({
             ) : ciStatus.netlifyDeploymentSucceeded ? (
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded-md">
                 <p className="text-md font-semibold text-yellow-700">
-                  ✅ Netlify Deployment Succeeded (URL being confirmed or
-                  construct manually)
+                  ✅ Deployment Succeeded (URL being confirmed or construct
+                  manually)
                 </p>
                 <p className="text-xs text-yellow-600 mt-1">
                   You can likely access it at:{' '}
@@ -455,12 +455,12 @@ export default function CreateAnonymousPr({
               </div>
             ) : ciStatus.overallStatus === 'pending' && isPolling ? (
               <p className="text-sm text-gray-600 italic animate-pulse mt-4">
-                Netlify Deploy Preview: Building or pending other checks...
+                Deploy Preview: Building or pending other checks...
               </p>
             ) : ciStatus.overallStatus === 'pending' && !isPolling ? (
               <p className="text-sm text-orange-600 mt-4">
-                Polling stopped. Netlify preview may still be processing or
-                encountered an issue. Check GitHub.
+                Polling stopped. Preview may still be processing or encountered
+                an issue. Check GitHub.
               </p>
             ) : null}
 

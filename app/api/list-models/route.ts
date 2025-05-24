@@ -1,7 +1,12 @@
 // FILE: app/api/list-models/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+// Remove fs and path imports if they are no longer needed elsewhere in this file
+// import fs from 'fs/promises';
+// import path from 'path';
+
+// Import the JSON data directly.
+// Make sure your tsconfig.json has "resolveJsonModule": true (it usually does by default in Next.js projects)
+import excludedModelData from './_data/exclude.json';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -13,61 +18,54 @@ if (!API_KEY) {
 
 const MIN_INPUT_TOKEN_LIMIT_FOR_CODE_GEN = 100000;
 
-const EXCLUDE_FILE_PATH = path.join(
-  process.cwd(),
-  'app',
-  'api',
-  'list-models',
-  '_data',
-  'exclude.json'
-);
+// The EXCLUDE_FILE_PATH constant is no longer needed for reading the file content
+// const EXCLUDE_FILE_PATH = path.join( /* ... */ );
 
 let excludedModelNamesCache = new Set<string>();
-let lastExcludeFileReadTime = 0;
-const EXCLUDE_CACHE_DURATION =
-  process.env.NODE_ENV === 'development' ? 1000 : 60000;
 
-async function getExcludedModelsSet(): Promise<Set<string>> {
-  const now = Date.now();
-  if (
-    now - lastExcludeFileReadTime > EXCLUDE_CACHE_DURATION ||
-    (lastExcludeFileReadTime !== 0 && excludedModelNamesCache.size === 0)
+// Simpler function to get excluded models now that we import directly
+function getExcludedModelsSet(): Set<string> {
+  // If you want to retain the caching behavior (e.g., if exclude.json could change *during runtime*
+  // without a redeploy, which is unlikely for a committed file), you can keep it.
+  // Otherwise, for a static import, you can simplify this.
+
+  // Simplest approach: always derive from the imported data.
+  // If exclude.json can change and you want to pick up changes without redeploy (not typical),
+  // you'd need fs.readFile. But for a bundled file, direct import is fine.
+  if (excludedModelNamesCache.size === 0 && excludedModelData.length > 0) {
+    // Initialize cache once from imported data
+    excludedModelNamesCache = new Set(
+      excludedModelData.map((m: { name: string }) => m.name)
+    );
+    console.log(
+      `[API /list-models] Initialized exclude.json cache from direct import. ${excludedModelNamesCache.size} models excluded.`
+    );
+  } else if (
+    excludedModelData.length === 0 &&
+    excludedModelNamesCache.size > 0
   ) {
-    try {
-      const excludeFileContent = await fs.readFile(EXCLUDE_FILE_PATH, 'utf-8');
-      const excludedModelsArray: Array<{ name: string }> =
-        JSON.parse(excludeFileContent);
-      excludedModelNamesCache = new Set(excludedModelsArray.map((m) => m.name));
-      lastExcludeFileReadTime = now;
-      console.log(
-        `[API /list-models] Refreshed exclude.json cache. ${excludedModelNamesCache.size} models excluded.`
-      );
-    } catch (error: unknown) {
-      const isFsError =
-        typeof error === 'object' && error !== null && 'code' in error;
-      const errorCode = isFsError ? (error as { code: string }).code : null;
-      if (errorCode !== 'ENOENT') {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.warn(
-          '[API /list-models] Could not load or parse exclude.json:',
-          errorMessage
-        );
-      }
-      if (lastExcludeFileReadTime === 0)
-        excludedModelNamesCache = new Set<string>();
-      lastExcludeFileReadTime = now;
-    }
+    // If the imported file is empty but cache had data (e.g. from a previous hot reload with a different file)
+    excludedModelNamesCache = new Set();
+    console.log(
+      `[API /list-models] Imported exclude.json is empty. Resetting cache.`
+    );
   }
+  // If you want to keep the time-based cache refresh (less relevant for static import):
+  // const now = Date.now();
+  // if (now - lastExcludeFileReadTime > EXCLUDE_CACHE_DURATION || excludedModelNamesCache.size === 0) {
+  //   excludedModelNamesCache = new Set(excludedModelData.map((m: { name: string }) => m.name));
+  //   lastExcludeFileReadTime = now;
+  //   console.log(
+  //     `[API /list-models] Refreshed exclude.json cache from direct import. ${excludedModelNamesCache.size} models excluded.`
+  //   );
+  // }
   return excludedModelNamesCache;
 }
-getExcludedModelsSet().catch((err) => {
-  const errorMessage = err instanceof Error ? err.message : String(err);
-  console.error(
-    '[API /list-models] Initial load of exclude.json failed:',
-    errorMessage
-  );
-});
+
+// Optionally, initialize the cache once when the module loads if you don't need time-based refresh
+// getExcludedModelsSet(); // Call it once to populate the cache initially.
+
+// ... (rest of your ModelInfo interface, parseModelNameDetails function)
 
 interface ModelInfo {
   name: string;
@@ -146,7 +144,7 @@ export async function GET(request: NextRequest) {
   console.log('[API /list-models] Received GET request.');
 
   if (!API_KEY) {
-    /* ... */ return NextResponse.json(
+    return NextResponse.json(
       { error: 'AI service configuration error (API Key missing).' },
       { status: 500 }
     );
@@ -160,7 +158,10 @@ export async function GET(request: NextRequest) {
 
   let currentExcludedNames = new Set<string>();
   if (shouldFilterExcluded) {
-    /* ... */ currentExcludedNames = await getExcludedModelsSet();
+    // The getExcludedModelsSet now directly uses the imported JSON data.
+    // The caching logic within getExcludedModelsSet can be simplified or removed
+    // if the data is truly static per deployment.
+    currentExcludedNames = getExcludedModelsSet();
     console.log(
       `[API /list-models] Applying exclude.json filter: ${currentExcludedNames.size} model(s) currently excluded.`
     );
@@ -175,7 +176,6 @@ export async function GET(request: NextRequest) {
   try {
     const response = await fetch(REST_API_ENDPOINT);
     if (!response.ok) {
-      /* ... error handling ... */
       let errorBody = `Google API request failed with status ${response.status}`;
       try {
         const errorData = await response.json();
@@ -333,7 +333,6 @@ export async function GET(request: NextRequest) {
     );
 
     outputFormattedModels.sort((a, b) => {
-      /* ... your existing final sort logic ... */
       const isALatest = a.name.includes('-latest');
       const isBLatest = b.name.includes('-latest');
       if (isALatest && !isBLatest) return -1;
