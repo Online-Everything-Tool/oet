@@ -1,7 +1,13 @@
-// /app/build-tool/page.tsx
+// FILE: app/build-tool/_components/BuildToolClient.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import ValidateDirective from './ValidateDirective';
 import GenerateToolResources from './GenerateToolResources';
@@ -17,22 +23,45 @@ import type {
 import { useMetadata } from '@/app/context/MetadataContext';
 
 type BuildStep = 'validation' | 'generation' | 'submission';
+type BuildMode = 'building' | 'monitoring';
 
 export default function BuildToolClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [currentStep, setCurrentStep] = useState<BuildStep>('validation');
+  const getInitialModeAndPr = useCallback(() => {
+    const prNumberFromUrlStr = searchParams.get('prNumber');
+    if (prNumberFromUrlStr) {
+      const prNum = parseInt(prNumberFromUrlStr, 10);
+      if (!isNaN(prNum) && prNum > 0) {
+        return { mode: 'monitoring' as BuildMode, pr: prNum };
+      }
+    }
+    return { mode: 'building' as BuildMode, pr: null };
+  }, [searchParams]);
+
+  const initialDataRef = useRef(getInitialModeAndPr());
+
+  const [currentStep, setCurrentStep] = useState<BuildStep>(
+    initialDataRef.current.mode === 'monitoring' ? 'submission' : 'validation'
+  );
+  const [currentMode, setCurrentMode] = useState<BuildMode>(
+    initialDataRef.current.mode
+  );
+  const [monitoredPrNumber, setMonitoredPrNumber] = useState<number | null>(
+    initialDataRef.current.pr
+  );
+
   const [toolDirective, setToolDirective] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [availableModels, setAvailableModels] = useState<AiModel[]>([]);
-  const [modelsLoading, setModelsLoading] = useState<boolean>(true);
+  const [modelsLoading, setModelsLoading] = useState<boolean>(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
 
   const {
     toolMetadataMap,
-    isLoading: metadataLoading,
-    error: metadataError,
+    isLoading: metadataLoadingHook,
+    error: metadataErrorHook,
   } = useMetadata();
   const [allAvailableToolDirectives, setAllAvailableToolDirectives] = useState<
     string[]
@@ -51,195 +80,308 @@ export default function BuildToolClient() {
   const [generationResult, setGenerationResult] =
     useState<GenerationResult | null>(null);
 
-  const [directLoadPrNumber, setDirectLoadPrNumber] = useState<number | null>(
-    null
-  );
-  const [initialUrlCheckDone, setInitialUrlCheckDone] = useState(false);
+  const [modelsFetched, setModelsFetched] = useState(false);
+  const [metadataContextLoaded, setMetadataContextLoaded] = useState(false);
+  const [
+    componentInitializationStateDone,
+    setComponentInitializationStateDone,
+  ] = useState(false);
+
+  const getDefaultSelectedModel = useCallback(() => {
+    if (availableModels.length === 0) return '';
+    const defaultEnvModelName =
+      process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
+    const defaultModel =
+      availableModels.find((m) => m.name === defaultEnvModelName) ??
+      availableModels.find((m) => m.name.includes('flash')) ??
+      availableModels.find((m) => m.name.includes('pro')) ??
+      availableModels[0];
+    return defaultModel?.name || '';
+  }, [availableModels]);
 
   useEffect(() => {
-    if (initialUrlCheckDone || modelsLoading || metadataLoading) {
-      return;
-    }
+    let isMounted = true;
+    const { mode: initialMode, pr: initialPr } = getInitialModeAndPr();
 
-    const prNumberFromUrl = searchParams.get('prNumber');
-
-    if (prNumberFromUrl) {
+    if (isMounted) {
       console.log(
-        '[BuildToolPage] Detected prNumber in URL, attempting direct load to submission step.'
+        `[BuildToolClient] Initial mode determination: ${initialMode}, PR: ${initialPr}`
       );
-      const prNum = parseInt(prNumberFromUrl, 10);
-      if (!isNaN(prNum)) {
-        setDirectLoadPrNumber(prNum);
-        setCurrentStep('submission');
+      setCurrentMode(initialMode);
 
-        if (!validationResult) {
+      if (initialMode === 'monitoring' && initialPr) {
+        setMonitoredPrNumber(initialPr);
+        setCurrentStep('submission');
+        if (!validationResult)
           setValidationResult({
-            generativeDescription: `Loading PR #${prNum} details...`,
+            generativeDescription: `Details for PR #${initialPr}`,
             generativeRequestedDirectives: [],
           });
-        }
-        if (!generationResult) {
+        if (!generationResult)
           setGenerationResult({
-            message: `Loading PR #${prNum} details...`,
+            message: `Monitoring PR #${initialPr}`,
             generatedFiles: {},
             identifiedDependencies: [],
           });
-        }
-        if (!selectedModel && availableModels.length > 0) {
-          setSelectedModel(availableModels[0].name);
-        } else if (
-          !selectedModel &&
-          availableModels.length === 0 &&
-          !modelsLoading
+      } else {
+        setCurrentMode('building');
+        setCurrentStep('validation');
+        setMonitoredPrNumber(null);
+        if (
+          searchParams.get('prNumber') &&
+          initialMode !== 'monitoring' &&
+          router
         ) {
-          console.warn(
-            '[BuildToolPage] Direct load to submission, but no AI models available to set a default for selectedModel.'
-          );
+          router.replace('/build-tool', { scroll: false });
         }
       }
     }
-    setInitialUrlCheckDone(true);
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    console.log('[BuildToolClient] Attempting to fetch models...');
+    setModelsLoading(true);
+    setModelsError(null);
+    setIsApiUnavailable(false);
+    setApiUnavailableMessage('');
+
+    fetch('/api/list-models')
+      .then(async (res) => {
+        if (!isMounted) return null;
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({
+            error: `HTTP error ${res.statusText} (status: ${res.status})`,
+          }));
+          if (
+            res.status === 503 ||
+            res.status === 502 ||
+            res.status === 504 ||
+            res.status === 404
+          ) {
+            if (isMounted) {
+              setIsApiUnavailable(true);
+              setApiUnavailableMessage(
+                errorData.error ||
+                  'The AI model listing service is temporarily down.'
+              );
+            }
+          } else if (res.status === 429) {
+            if (isMounted)
+              setModelsError(
+                errorData.error ||
+                  'API request limit reached. Please try again later.'
+              );
+          } else {
+            if (isMounted)
+              setModelsError(
+                errorData.error ||
+                  `Failed to retrieve models (status: ${res.status}).`
+              );
+          }
+          return null;
+        }
+        return res.json() as Promise<ApiListModelsResponse>;
+      })
+      .then((data) => {
+        if (!isMounted || data === null) return;
+        if (data.error && !isApiUnavailable) {
+          if (isMounted) {
+            setModelsError(data.error);
+            setAvailableModels([]);
+          }
+          return;
+        }
+        const models: AiModel[] = data.models || [];
+        if (isMounted) setAvailableModels(models);
+        if (models.length === 0 && !data.error) {
+          if (isMounted)
+            setModelsError('No compatible AI models were found from the API.');
+        } else if (models.length > 0) {
+          if (isMounted) setModelsError(null);
+        }
+        if (isMounted && models.length > 0 && !selectedModel) {
+          setSelectedModel(getDefaultSelectedModel());
+        }
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        console.error(
+          '[BuildToolClient] Network or unexpected error fetching AI models:',
+          err
+        );
+        if (isMounted) {
+          setModelsError(
+            err.message || 'A network error occurred while fetching models.'
+          );
+          setAvailableModels([]);
+          setIsApiUnavailable(true);
+          setApiUnavailableMessage(
+            'Failed to connect to the AI model API due to a network issue.'
+          );
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setModelsLoading(false);
+          setModelsFetched(true);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!metadataLoadingHook) {
+      if (toolMetadataMap && Object.keys(toolMetadataMap).length > 0) {
+        setAllAvailableToolDirectives(Object.keys(toolMetadataMap).sort());
+      } else if (metadataErrorHook) {
+        console.error(
+          '[BuildToolClient] Error from MetadataContext:',
+          metadataErrorHook
+        );
+        setAllAvailableToolDirectives([]);
+      }
+      setMetadataContextLoaded(true);
+    }
+  }, [metadataLoadingHook, toolMetadataMap, metadataErrorHook]);
+
+  useEffect(() => {
+    if (modelsFetched && metadataContextLoaded) {
+      setComponentInitializationStateDone(true);
+      if (!selectedModel && availableModels.length > 0) {
+        setSelectedModel(getDefaultSelectedModel());
+      }
+    }
   }, [
-    searchParams,
-    initialUrlCheckDone,
-    modelsLoading,
-    metadataLoading,
-    validationResult,
-    generationResult,
+    modelsFetched,
+    metadataContextLoaded,
     selectedModel,
     availableModels,
+    getDefaultSelectedModel,
   ]);
 
   useEffect(() => {
-    const fetchModels = async () => {
-      setModelsLoading(true);
-      setModelsError(null);
-      setIsApiUnavailable(false);
-      setApiUnavailableMessage('');
-      try {
-        const response = await fetch('/api/list-models');
-        if (!response.ok) {
-          if (
-            response.status === 404 ||
-            response.status === 502 ||
-            response.status === 504
-          ) {
-            setIsApiUnavailable(true);
-            const specificMsg =
-              'The AI model listing API (/api/list-models) is currently unavailable. This build feature requires server functionality.';
-            setApiUnavailableMessage(specificMsg);
-            setModelsError(specificMsg);
-            console.error(specificMsg);
-            return;
-          }
-          const e = await response
-            .json()
-            .catch(() => ({ error: `HTTP error ${response.status}` }));
-          throw new Error(e.error || `HTTP error ${response.status}`);
-        }
-        const data: ApiListModelsResponse = await response.json();
-        const models: AiModel[] = data.models || [];
-        if (models.length === 0) {
-          console.warn('[BuildToolPage] API returned an empty list of models.');
-          setModelsError('No compatible AI models were found from the API.');
-        }
-        setAvailableModels(models);
+    if (!componentInitializationStateDone) return;
 
-        const defaultEnvModelName =
-          process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME;
-        const defaultModel =
-          models.find((m) => m.name === defaultEnvModelName) ??
-          models.find((m) => m.name.includes('flash')) ??
-          models.find((m) => m.name.includes('pro')) ??
-          (models.length > 0 ? models[0] : null);
+    const prNumberFromUrlStr = searchParams.get('prNumber');
+    const prNumInUrl = prNumberFromUrlStr
+      ? parseInt(prNumberFromUrlStr, 10)
+      : null;
 
-        if (defaultModel && !selectedModel) {
-          setSelectedModel(defaultModel.name);
-        } else if (models.length > 0 && !selectedModel) {
-          console.warn(
-            '[BuildToolPage] Default model not found, but other models exist.'
-          );
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
-        console.error('[BuildToolPage] Error fetching AI models:', error);
-        setIsApiUnavailable(true);
-        const specificMsg =
-          'Failed to connect to the AI model API. This build feature may require server functionality.';
-        setApiUnavailableMessage(specificMsg);
-        setModelsError(error.message || specificMsg);
-        setAvailableModels([]);
-      } finally {
-        setModelsLoading(false);
+    if (prNumInUrl && !isNaN(prNumInUrl) && prNumInUrl > 0) {
+      if (currentMode !== 'monitoring' || monitoredPrNumber !== prNumInUrl) {
+        console.log(
+          `[BuildToolClient] URL Nav: Switching to monitor PR #${prNumInUrl}.`
+        );
+        setToolDirective('');
+        setValidationResult(null);
+        setGenerationResult(null);
+        setAdditionalDescription('');
+        setUserSelectedDirectives([]);
+        setCurrentMode('monitoring');
+        setMonitoredPrNumber(prNumInUrl);
+        setCurrentStep('submission');
+        if (!validationResult)
+          setValidationResult({
+            generativeDescription: `Details for PR #${prNumInUrl}`,
+            generativeRequestedDirectives: [],
+          });
+        if (!generationResult)
+          setGenerationResult({
+            message: `Monitoring PR #${prNumInUrl}`,
+            generatedFiles: {},
+            identifiedDependencies: [],
+          });
       }
-    };
-
-    if (!initialUrlCheckDone || (initialUrlCheckDone && !directLoadPrNumber)) {
-      fetchModels();
-    } else if (
-      initialUrlCheckDone &&
-      directLoadPrNumber &&
-      availableModels.length === 0 &&
-      !selectedModel
-    ) {
-      fetchModels();
     } else {
-      setModelsLoading(false);
+      if (currentMode === 'monitoring') {
+        console.log(
+          '[BuildToolClient] URL Nav: prNumber removed. Resetting to build mode.'
+        );
+        handleReset();
+      } else if (prNumberFromUrlStr && router) {
+        router.replace('/build-tool', { scroll: false });
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    initialUrlCheckDone,
-    directLoadPrNumber,
-    selectedModel,
-    availableModels.length,
+    searchParams,
+    componentInitializationStateDone,
+    currentMode,
+    monitoredPrNumber,
+    router,
   ]);
-
-  useEffect(() => {
-    if (!metadataLoading && toolMetadataMap) {
-      const directives = Object.keys(toolMetadataMap).sort((a, b) =>
-        a.localeCompare(b)
-      );
-      setAllAvailableToolDirectives(directives);
-    }
-    if (metadataError && !metadataLoading) {
-      console.error(
-        '[BuildToolPage] Error from MetadataContext:',
-        metadataError
-      );
-      setAllAvailableToolDirectives([]);
-    }
-  }, [metadataLoading, toolMetadataMap, metadataError]);
 
   const handleReset = useCallback(() => {
-    console.log(
-      '[BuildToolPage] handleReset called. Resetting to validation step.'
-    );
+    console.log('[BuildToolClient] handleReset: Triggered.');
+    const currentPrNumber = searchParams.get('prNumber');
+    if (router && currentPrNumber) {
+      router.replace('/build-tool', { scroll: false });
+    }
+
+    setCurrentMode('building');
     setCurrentStep('validation');
     setToolDirective('');
     setValidationResult(null);
     setAdditionalDescription('');
     setUserSelectedDirectives([]);
     setGenerationResult(null);
-    setDirectLoadPrNumber(null);
-    setInitialUrlCheckDone(false);
-    router.replace('/build-tool');
-  }, [router]);
+    setMonitoredPrNumber(null);
+
+    setSelectedModel(getDefaultSelectedModel());
+    setModelsError(null);
+  }, [router, searchParams, getDefaultSelectedModel]);
 
   const handleValidationSuccess = useCallback((result: ValidationResult) => {
     setValidationResult(result);
     setUserSelectedDirectives(result.generativeRequestedDirectives || []);
     setCurrentStep('generation');
+    setCurrentMode('building');
   }, []);
 
   const handleGenerationSuccess = useCallback((result: GenerationResult) => {
     setGenerationResult(result);
     setCurrentStep('submission');
+    setCurrentMode('building');
   }, []);
 
+  const effectiveGenerationResultForMonitoring = useMemo(() => {
+    if (currentMode === 'monitoring') {
+      return (
+        generationResult || {
+          message: `Monitoring PR #${monitoredPrNumber || '...'}`,
+          generatedFiles: {},
+          identifiedDependencies: [],
+        }
+      );
+    }
+    return generationResult;
+  }, [currentMode, generationResult, monitoredPrNumber]);
+
+  const effectiveValidationResultForMonitoring = useMemo(() => {
+    if (currentMode === 'monitoring') {
+      return (
+        validationResult || {
+          generativeDescription: `Details for PR #${monitoredPrNumber || '...'}`,
+          generativeRequestedDirectives: [],
+        }
+      );
+    }
+    return validationResult;
+  }, [currentMode, validationResult, monitoredPrNumber]);
+
   const renderCurrentStep = () => {
-    if (!initialUrlCheckDone && !searchParams.get('prNumber')) {
+    if (!componentInitializationStateDone) {
       return (
         <p className="text-center p-4 italic text-gray-500 animate-pulse">
-          Initializing...
+          Initializing Build Tool...
         </p>
       );
     }
@@ -251,12 +393,8 @@ export default function BuildToolClient() {
             Build Feature Temporarily Unavailable
           </h2>
           <p className="text-orange-700 mb-4">
-            The AI-assisted build tool relies on backend services which appear
-            to be unavailable at the moment.
-          </p>
-          <p className="text-sm text-orange-600 mb-4">
-            Details:{' '}
-            {apiUnavailableMessage || 'Could not connect to required services.'}
+            {apiUnavailableMessage ||
+              'The AI-assisted build tool relies on backend services which appear to be unavailable at the moment.'}
           </p>
           <p className="text-sm text-gray-600">
             To contribute a new tool manually, please see the{' '}
@@ -274,31 +412,99 @@ export default function BuildToolClient() {
       );
     }
 
-    if (
-      (modelsLoading && !directLoadPrNumber) ||
-      (metadataLoading && !directLoadPrNumber)
-    ) {
-      return (
-        <p className="text-center p-4 italic text-gray-500 animate-pulse">
-          Loading build tool prerequisites...
-        </p>
-      );
+    if (currentMode === 'building') {
+      if (modelsLoading && availableModels.length === 0 && !modelsError) {
+        return (
+          <p className="text-center p-4 italic text-gray-500 animate-pulse">
+            Loading AI Models...
+          </p>
+        );
+      }
+      if (modelsError && availableModels.length === 0) {
+        return (
+          <p className="text-center text-red-500 p-4">
+            Error: {modelsError}. Build tool cannot proceed.
+          </p>
+        );
+      }
+      if (metadataLoadingHook && allAvailableToolDirectives.length === 0) {
+        return (
+          <p className="text-center p-4 italic text-gray-500 animate-pulse">
+            Loading Tool Metadata...
+          </p>
+        );
+      }
+      if (metadataErrorHook && allAvailableToolDirectives.length === 0) {
+        return (
+          <p className="text-center text-red-500 p-4">
+            Error loading existing tools list: {metadataErrorHook}
+          </p>
+        );
+      }
+      if (availableModels.length === 0 && !modelsLoading && !modelsError) {
+        return (
+          <p className="text-center text-red-500 p-4">
+            No AI Models available for building. Please check configuration or
+            try again later.
+          </p>
+        );
+      }
     }
 
-    if (modelsError && availableModels.length === 0 && isApiUnavailable) {
-    } else if (modelsError && availableModels.length === 0) {
-      return (
-        <p className="text-center text-red-500 p-4">
-          Error loading AI models: {modelsError}
-        </p>
-      );
-    }
+    if (currentMode === 'monitoring') {
+      if (!monitoredPrNumber) {
+        handleReset();
+        return (
+          <p className="text-center p-4 italic">Resetting to build mode...</p>
+        );
+      }
 
-    if (metadataError && allAvailableToolDirectives.length === 0) {
+      let modelForMonitoring = selectedModel;
+      if (!modelForMonitoring && availableModels.length > 0) {
+        modelForMonitoring =
+          getDefaultSelectedModel() || availableModels[0].name;
+      }
+      if (
+        !modelForMonitoring &&
+        (modelsLoading || modelsError) &&
+        availableModels.length === 0
+      ) {
+        modelForMonitoring = 'models/gemini-1.5-flash-latest';
+      }
+      if (
+        !modelForMonitoring &&
+        !modelsLoading &&
+        !modelsError &&
+        availableModels.length === 0
+      ) {
+        return (
+          <p className="text-center text-red-500 p-4">
+            AI Model list is empty. Cannot properly display monitoring
+            information.
+          </p>
+        );
+      }
+      if (!modelForMonitoring)
+        modelForMonitoring = 'models/gemini-1.5-flash-latest';
+
       return (
-        <p className="text-center text-red-500 p-4">
-          Error loading existing tools list: {metadataError}
-        </p>
+        <CreateAnonymousPr
+          toolDirective={toolDirective || `tool-for-pr-${monitoredPrNumber}`}
+          generationResult={effectiveGenerationResultForMonitoring!}
+          validationResult={effectiveValidationResultForMonitoring!}
+          additionalDescription={''}
+          userSelectedDirectives={[]}
+          selectedModel={modelForMonitoring}
+          onBack={handleReset}
+          initialPrNumber={monitoredPrNumber}
+          currentMode="monitoring"
+          monitoredPrNumberForPolling={monitoredPrNumber}
+          onFlowComplete={() =>
+            console.log(
+              '[BuildToolClient] PR monitoring flow (polling) complete.'
+            )
+          }
+        />
       );
     }
 
@@ -311,7 +517,7 @@ export default function BuildToolClient() {
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
             availableModels={availableModels}
-            modelsLoading={modelsLoading}
+            modelsLoading={modelsLoading && !componentInitializationStateDone}
             modelsError={modelsError}
             onValidationSuccess={handleValidationSuccess}
             onReset={handleReset}
@@ -319,9 +525,6 @@ export default function BuildToolClient() {
         );
       case 'generation':
         if (!validationResult) {
-          console.warn(
-            "[BuildToolPage] In 'generation' step but validationResult is null. Resetting."
-          );
           handleReset();
           return null;
         }
@@ -340,112 +543,77 @@ export default function BuildToolClient() {
           />
         );
       case 'submission':
-        const isDirectLoad = !!directLoadPrNumber;
-        const submissionToolDirective = isDirectLoad
-          ? toolDirective || ''
-          : toolDirective;
-
-        const effectiveGenerationResult =
-          generationResult ||
-          (isDirectLoad
-            ? ({
-                message: `Loading PR #${directLoadPrNumber} details...`,
-                generatedFiles: {},
-                identifiedDependencies: [],
-              } as GenerationResult)
-            : null);
-        const effectiveValidationResult =
-          validationResult ||
-          (isDirectLoad
-            ? ({
-                generativeDescription: `Loading PR #${directLoadPrNumber} details...`,
-                generativeRequestedDirectives: [],
-              } as ValidationResult)
-            : null);
-
-        let currentSelectedModel = selectedModel;
-        if (!currentSelectedModel && availableModels.length > 0) {
-          currentSelectedModel = availableModels[0].name;
-        } else if (!currentSelectedModel && modelsLoading && isDirectLoad) {
-          return (
-            <p className="text-center p-4 italic text-gray-500 animate-pulse">
-              Loading model info for PR monitoring...
-            </p>
-          );
-        }
-
         if (
-          !isDirectLoad &&
-          (!effectiveGenerationResult ||
-            !effectiveValidationResult ||
-            !submissionToolDirective ||
-            !currentSelectedModel)
+          !generationResult ||
+          !validationResult ||
+          !toolDirective ||
+          !selectedModel
         ) {
-          console.warn(
-            "[BuildToolPage] In 'submission' step (new flow) but critical data missing. Resetting."
-          );
-          handleReset();
-          return null;
-        }
-        if (isDirectLoad && !directLoadPrNumber) {
-          console.warn(
-            "[BuildToolPage] In 'submission' (direct load) but no PR number. Resetting."
-          );
           handleReset();
           return null;
         }
 
         return (
           <CreateAnonymousPr
-            toolDirective={submissionToolDirective}
-            generationResult={effectiveGenerationResult!}
-            validationResult={effectiveValidationResult!}
-            additionalDescription={isDirectLoad ? '' : additionalDescription}
-            userSelectedDirectives={isDirectLoad ? [] : userSelectedDirectives}
-            selectedModel={
-              currentSelectedModel || 'models/gemini-1.5-flash-latest'
+            toolDirective={toolDirective}
+            generationResult={generationResult}
+            validationResult={validationResult}
+            additionalDescription={additionalDescription}
+            userSelectedDirectives={userSelectedDirectives}
+            selectedModel={selectedModel}
+            onBack={() => setCurrentStep('generation')}
+            currentMode="building"
+            onFlowComplete={() =>
+              console.log(
+                '[BuildToolClient] Build and PR submission flow complete.'
+              )
             }
-            onBack={() => {
-              if (isDirectLoad) {
-                handleReset();
-              } else {
-                setCurrentStep('generation');
-              }
-            }}
-            initialPrNumber={directLoadPrNumber}
-            initialPrUrl={null}
-            onFlowComplete={() => {
-              console.log('PR flow (polling) is complete in child.');
-            }}
           />
         );
       default:
         const exhaustiveCheck: never = currentStep;
         console.error(
-          `[BuildToolPage] Unhandled build step: ${exhaustiveCheck}`
+          `[BuildToolClient] Unhandled build step: ${exhaustiveCheck}`
         );
+        handleReset();
         return (
           <p className="text-center text-red-500">
-            Error: Invalid build step: {currentStep}
+            Error: Invalid build step: {currentStep}. Resetting...
           </p>
         );
     }
   };
+
+  const showStartOverButton = useMemo(() => {
+    if (isApiUnavailable) return false;
+    if (!componentInitializationStateDone) return false;
+    if (currentMode === 'monitoring') return true;
+    if (currentMode === 'building' && currentStep !== 'validation') return true;
+    return false;
+  }, [
+    currentMode,
+    currentStep,
+    isApiUnavailable,
+    componentInitializationStateDone,
+  ]);
 
   return (
     <div className="max-w-3xl mx-auto p-4 space-y-6">
       <div className="flex justify-between items-center mb-2 pb-2 border-b">
         <h1 className="text-2xl font-bold text-gray-800">
           Build a New Tool (AI Assisted)
+          {currentMode === 'monitoring' &&
+            monitoredPrNumber &&
+            ` - Monitoring PR #${monitoredPrNumber}`}
         </h1>
-        {currentStep !== 'validation' && !isApiUnavailable && (
+        {showStartOverButton && (
           <Button
             variant="neutral-outline"
             size="sm"
             onClick={handleReset}
             className="text-sm"
           >
-            Start Over
+            Start Over / Build New
           </Button>
         )}
       </div>

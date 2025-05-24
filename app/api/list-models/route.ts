@@ -1,11 +1,6 @@
 // FILE: app/api/list-models/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-// Remove fs and path imports if they are no longer needed elsewhere in this file
-// import fs from 'fs/promises';
-// import path from 'path';
 
-// Import the JSON data directly.
-// Make sure your tsconfig.json has "resolveJsonModule": true (it usually does by default in Next.js projects)
 import excludedModelData from './_data/exclude.json';
 
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -18,22 +13,10 @@ if (!API_KEY) {
 
 const MIN_INPUT_TOKEN_LIMIT_FOR_CODE_GEN = 100000;
 
-// The EXCLUDE_FILE_PATH constant is no longer needed for reading the file content
-// const EXCLUDE_FILE_PATH = path.join( /* ... */ );
-
 let excludedModelNamesCache = new Set<string>();
 
-// Simpler function to get excluded models now that we import directly
 function getExcludedModelsSet(): Set<string> {
-  // If you want to retain the caching behavior (e.g., if exclude.json could change *during runtime*
-  // without a redeploy, which is unlikely for a committed file), you can keep it.
-  // Otherwise, for a static import, you can simplify this.
-
-  // Simplest approach: always derive from the imported data.
-  // If exclude.json can change and you want to pick up changes without redeploy (not typical),
-  // you'd need fs.readFile. But for a bundled file, direct import is fine.
   if (excludedModelNamesCache.size === 0 && excludedModelData.length > 0) {
-    // Initialize cache once from imported data
     excludedModelNamesCache = new Set(
       excludedModelData.map((m: { name: string }) => m.name)
     );
@@ -44,28 +27,14 @@ function getExcludedModelsSet(): Set<string> {
     excludedModelData.length === 0 &&
     excludedModelNamesCache.size > 0
   ) {
-    // If the imported file is empty but cache had data (e.g. from a previous hot reload with a different file)
     excludedModelNamesCache = new Set();
     console.log(
       `[API /list-models] Imported exclude.json is empty. Resetting cache.`
     );
   }
-  // If you want to keep the time-based cache refresh (less relevant for static import):
-  // const now = Date.now();
-  // if (now - lastExcludeFileReadTime > EXCLUDE_CACHE_DURATION || excludedModelNamesCache.size === 0) {
-  //   excludedModelNamesCache = new Set(excludedModelData.map((m: { name: string }) => m.name));
-  //   lastExcludeFileReadTime = now;
-  //   console.log(
-  //     `[API /list-models] Refreshed exclude.json cache from direct import. ${excludedModelNamesCache.size} models excluded.`
-  //   );
-  // }
+
   return excludedModelNamesCache;
 }
-
-// Optionally, initialize the cache once when the module loads if you don't need time-based refresh
-// getExcludedModelsSet(); // Call it once to populate the cache initially.
-
-// ... (rest of your ModelInfo interface, parseModelNameDetails function)
 
 interface ModelInfo {
   name: string;
@@ -158,9 +127,6 @@ export async function GET(request: NextRequest) {
 
   let currentExcludedNames = new Set<string>();
   if (shouldFilterExcluded) {
-    // The getExcludedModelsSet now directly uses the imported JSON data.
-    // The caching logic within getExcludedModelsSet can be simplified or removed
-    // if the data is truly static per deployment.
     currentExcludedNames = getExcludedModelsSet();
     console.log(
       `[API /list-models] Applying exclude.json filter: ${currentExcludedNames.size} model(s) currently excluded.`
