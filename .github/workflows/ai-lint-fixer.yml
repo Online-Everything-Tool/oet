@@ -13,14 +13,15 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # For checkout
-      actions: read   # For downloading artifacts
+      contents: write
+      actions: read
     env:
       EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
       PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
 
     steps:
       - name: Get Triggering Workflow Run Info
+        # ... (as before)
         id: get_trigger_info
         run: |
           echo "--- Trigger Info ---"
@@ -31,16 +32,18 @@ jobs:
           echo "----------------------"
 
       - name: Download Lint Failure Artifact
+        # ... (as before, but ensure PAT has Actions:Read if using it here, or use GITHUB_TOKEN)
         id: download_artifact
         uses: actions/download-artifact@v4
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }} # Using default GITHUB_TOKEN is usually fine and preferred here
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
       - name: Check if Artifact Exists and Contains Data
+        # ... (as before)
         id: check_artifact
         if: steps.download_artifact.outcome == 'success'
         run: |
@@ -72,9 +75,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.EXPECTED_ARTIFACT_SHA }}
-          fetch-depth: 0 # Important for getting the correct last commit message
+          fetch-depth: 0
 
       - name: Prepare Data for AI Lint Fix API
+        # ... (as before)
         id: prepare_fix_data
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         run: |
@@ -100,12 +104,12 @@ jobs:
             fi
           done < "$FILES_TO_CHECK_FILE"
           echo ']' >> $PR_FILES_JSON_PATH
-          # Ensure valid JSON array even if only one item (or handle empty array if needed)
           jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > temp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
           echo "Full path to prepared JSON: $PR_FILES_JSON_PATH"
           echo "-------------------------------------------"
 
       - name: Call AI Lint Fix API
+        # ... (as before)
         id: call_fix_api
         if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact.outputs.artifact_valid == 'true'
         env:
@@ -140,18 +144,10 @@ jobs:
           cat "${{ runner.temp }}/fix_response.json"
           echo "--- End AI API Response ---"
 
-          if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
-            echo "::error::AI Lint Fix API call failed with HTTP status $HTTP_RESPONSE_CODE."
-            # Consider logging parts of the response if safe, or just the presence of an error field
-            # cat "${{ runner.temp }}/fix_response.json" 
-            exit 1
+          if [ "$HTTP_RESPONSE_CODE" -ne 200 ] || ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
+             echo "::error::AI Lint Fix API call failed or returned invalid JSON (HTTP Status: $HTTP_RESPONSE_CODE)."
+             exit 1
           fi
-          if ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
-            echo "::error::AI Lint Fix API response is not valid JSON."
-            # cat "${{ runner.temp }}/fix_response.json" 
-            exit 1
-          fi
-
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
           echo "Fix API Reported Success (from JSON): $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
@@ -162,10 +158,11 @@ jobs:
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
         id: apply_fixes_locally
         run: |
+          # ... (Using the robust marker file version from previous message) ...
           echo "--- Starting Apply AI Fixes Locally ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           CHANGES_MADE_MARKER_FILE=$(mktemp)
-          echo "false" > "$CHANGES_MADE_MARKER_FILE" # Initialize marker to false
+          echo "false" > "$CHANGES_MADE_MARKER_FILE" 
 
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
           echo "Last commit message on branch: $LAST_COMMIT_MSG_ON_BRANCH"
@@ -184,7 +181,6 @@ jobs:
 
           if [ "$JQ_EXIT_CODE" -ne 0 ]; then
             echo "::error:: jq command failed to extract file paths from API response. Cannot apply fixes."
-            # cat "$FIX_RESPONSE_FILE" # Be cautious here
             echo "changes_made=false" >> $GITHUB_OUTPUT
             rm "$CHANGES_MADE_MARKER_FILE"
             exit 1
@@ -195,39 +191,14 @@ jobs:
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
             echo "::notice::No files with non-null fixed content found in API response."
           else
-            echo "File paths to process (one per line expected, space separated by default from shell var expansion):"
-            echo "$FILE_PATHS_TO_PROCESS" # This will print paths space-separated if multiple
-            echo "--- Processing each file path ---"
-            
-            # Use a for loop to iterate over words (paths) in FILE_PATHS_TO_PROCESS
-            # This avoids subshell issues with 'while read' when fed by a pipe.
             for filepath_from_jq in $FILE_PATHS_TO_PROCESS; do
-              # xargs is used to trim potential leading/trailing whitespace from each path part
               filepath=$(echo "$filepath_from_jq" | xargs) 
-              if [ -z "$filepath" ]; then
-                echo "::warning::Empty filepath encountered in loop. Skipping."
-                continue
-              fi
-              echo "Processing filepath from loop: '$filepath'"
-
-              fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
-
-              if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
-                echo "::warning::Content for '$filepath' is null or empty in the API response. Skipping."
-                continue
-              fi
-              if [ ! -f "$filepath" ]; then
-                echo "::warning::File '$filepath' from API response not found in local checkout. Skipping."
-                continue
-              fi
+              if [ -z "$filepath" ]; then continue; fi
               
-              # echo "--- Original Content for '$filepath' (first 10 lines) ---" # Optional debug
-              # head -n 10 "$filepath" | sed 's/^/    /'
-              # echo "--- End Original Content Preview ---"
-              # echo "--- AI Fixed Content for '$filepath' (first 10 lines) ---" # Optional debug
-              # echo "$fixedcontent" | head -n 10 | sed 's/^/    /'
-              # echo "--- End AI Fixed Content Preview ---"
-
+              fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
+              if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ] || [ ! -f "$filepath" ]; then
+                continue
+              fi
               ORIGINAL_CONTENT_FOR_COMPARE=$(cat "$filepath")
               NORMALIZED_ORIGINAL_CONTENT=$(echo "$ORIGINAL_CONTENT_FOR_COMPARE" | tr -d '\r')
               NORMALIZED_FIXED_CONTENT=$(echo "$fixedcontent" | tr -d '\r')
@@ -235,7 +206,7 @@ jobs:
               if [ "$NORMALIZED_ORIGINAL_CONTENT" != "$NORMALIZED_FIXED_CONTENT" ]; then
                 echo "CONTENT DIFFERS for '$filepath'. Applying fix locally."
                 echo "$fixedcontent" > "$filepath"
-                echo "true" > "$CHANGES_MADE_MARKER_FILE" # Set marker if ANY file changes
+                echo "true" > "$CHANGES_MADE_MARKER_FILE" 
               else
                 echo "No actual content change (ignoring line endings) for '$filepath'."
               fi
@@ -243,7 +214,7 @@ jobs:
           fi
           
           FINAL_CHANGES_MADE_STATUS=$(cat "$CHANGES_MADE_MARKER_FILE")
-          rm "$CHANGES_MADE_MARKER_FILE" # Clean up marker file
+          rm "$CHANGES_MADE_MARKER_FILE" 
 
           if [ "$FINAL_CHANGES_MADE_STATUS" = "true" ]; then
             echo "Overall: Local file changes WERE made by AI."
@@ -253,21 +224,25 @@ jobs:
             echo "changes_made=false" >> $GITHUB_OUTPUT
           fi
           echo "--- End of Apply AI Fixes Locally ---"
+
       - name: Commit files
-        run: |
-          git config --global user.email "kebin70@gmail.com"
-          git config --global user.name "Kevin McIntyre"        
-          git commit -a -m "Add changes"
-      - name: Push changes using PAT
+        # ---vvv--- ADDED CONDITION AND CORRECT COMMIT MESSAGE ---vvv---
         if: steps.apply_fixes_locally.outputs.changes_made == 'true'
-        uses: ad-m/github-push-action@master
+        run: |
+          echo "Configuring git user..."
+          git config --global user.email "ai-fixer-bot@online-everything-tool.com" # Or your preferred bot email
+          git config --global user.name "OET AI Fixer Bot" # Or your preferred bot name
+          echo "Staging all changes..."
+          git add -A # Stage all changes made by the previous step
+          echo "Committing staged changes..."
+          git commit -m "chore: AI-assisted lint fixes" # Use the specific commit message
+        # ---^^^--- ADDED CONDITION AND CORRECT COMMIT MESSAGE ---^^^---
+
+      - name: Push changes using PAT
+        if: steps.apply_fixes_locally.outputs.changes_made == 'true' # This condition ensures a commit was made (or attempted)
+        uses: ad-m/github-push-action@v0.8.0 # Using a specific version
         with:
           github_token: ${{ secrets.AI_LINT_FIXER_PAT }}
           branch: ${{ env.PR_HEAD_BRANCH_FOR_PUSH }}
-          # commit_message: "chore: AI-assisted lint fixes"
-          # Optional: configure committer and author if you want it different from PAT owner
-          # committer_email: "ai-fixer-bot@online-everything-tool.com"
-          # committer_name: "OET AI Fixer Bot"
-          # author_email: "ai-fixer-bot@online-everything-tool.com" 
-          # author_name: "OET AI Fixer Bot"
+          # No commit_message input needed here; commit is already made
           force: false
