@@ -149,7 +149,7 @@ async function createDummyToolFiles(toolDirective, includeLintError = false) {
       outputConfig: { transferableContent: 'none' },
       tags: ['test', 'ci', 'dummy'],
       includeInSitemap: false,
-      status: includeLintError ? 'development' : 'stable',
+      status: 'stable',
     },
     null,
     2
