@@ -172,6 +172,45 @@ jobs:
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
+          
+# In .github/workflows/ai-lint-fixer.yml
+
+      - name: Check Artifact Data Validity (Post-Manual Download)
+        id: check_artifact_data
+        if: steps.download_and_extract.outputs.manual_extraction_complete == 'true'
+        run: |
+          echo "--- Entered Check Artifact Data Validity step ---"
+          echo "Condition 'steps.download_and_extract.outputs.manual_extraction_complete == true' was met."
+          LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
+          FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
+
+          echo "--- Contents of lint_errors.txt (first 10 lines) ---"
+          head -n 10 "$LINT_ERRORS_FILE" || echo "lint_errors.txt not found or head failed"
+          echo "--- End lint_errors.txt preview ---"
+          echo "--- Contents of files_to_check.txt ---"
+          cat "$FILES_TO_CHECK_FILE" || echo "files_to_check.txt not found or cat failed"
+          echo "--- End files_to_check.txt ---"
+          
+          # Debug file existence and size
+          echo "Checking LINT_ERRORS_FILE ($LINT_ERRORS_FILE):"
+          if [ -f "$LINT_ERRORS_FILE" ]; then echo "Exists."; else echo "DOES NOT EXIST."; fi
+          if [ -s "$LINT_ERRORS_FILE" ]; then echo "Is not empty."; else echo "IS EMPTY or does not exist."; fi
+          
+          echo "Checking FILES_TO_CHECK_FILE ($FILES_TO_CHECK_FILE):"
+          if [ -f "$FILES_TO_CHECK_FILE" ]; then echo "Exists."; else echo "DOES NOT EXIST."; fi
+          if [ -s "$FILES_TO_CHECK_FILE" ]; then echo "Is not empty."; else echo "IS EMPTY or does not exist."; fi
+
+          if [ -s "$LINT_ERRORS_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
+            echo "Manually downloaded artifact files are valid and not empty. Setting artifact_data_valid=true"
+            echo "artifact_data_valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Manually downloaded artifact files (lint_errors.txt or files_to_check.txt) are missing or empty."
+            echo "Setting artifact_data_valid=false"
+            echo "artifact_data_valid=false" >> $GITHUB_OUTPUT
+            exit 1 
+          fi
+          echo "--- Exiting Check Artifact Data Validity step ---"          
+
       - name: Debug Conditions Before Apply and Commit
         if: always() # Always run this debug step
         run: |
