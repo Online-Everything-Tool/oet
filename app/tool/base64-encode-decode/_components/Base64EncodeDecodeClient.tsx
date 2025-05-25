@@ -152,7 +152,7 @@ export default function Base64EncodeDecodeClient({
       if (firstItem) {
         try {
           newText = await firstItem.blob.text();
-          if ('id' in firstItem && 'name' in firstItem) {
+          if ('id' in firstItem && 'filename' in firstItem) {
             loadedFilename = (firstItem as StoredFile).filename;
           }
         } catch (e) {
@@ -205,15 +205,21 @@ export default function Base64EncodeDecodeClient({
     ) {
       itdeTarget.openModalIfSignalsExist();
     }
-  }, [isLoadingToolState, itdeTarget, userDeferredAutoPopup, directiveName]);
+  }, [isLoadingToolState, itdeTarget, userDeferredAutoPopup]);
 
   const handleEncodeDecode = useCallback(
     (textToProcess: string, opToPerform: Operation) => {
       let currentOutput = '';
       let currentError = '';
-      const trimmedTextToProcess = textToProcess.trim();
+      const trimmedTextToProcess = textToProcess;
 
-      if (!trimmedTextToProcess) {
+      if (!trimmedTextToProcess && textToProcess !== '') {
+        setToolState((prev) => ({ ...prev, outputValue: '' }));
+        setCurrentOutputFilename(null);
+        if (uiError) setUiError('');
+        return;
+      }
+      if (textToProcess === '') {
         setToolState((prev) => ({ ...prev, outputValue: '' }));
         setCurrentOutputFilename(null);
         if (uiError) setUiError('');
@@ -222,38 +228,39 @@ export default function Base64EncodeDecodeClient({
 
       if (opToPerform === 'encode') {
         try {
-          currentOutput = btoa(
-            unescape(encodeURIComponent(trimmedTextToProcess))
-          );
+          currentOutput = btoa(unescape(encodeURIComponent(textToProcess)));
         } catch (_err) {
           currentError = 'Failed to encode text. Ensure text is valid UTF-8.';
         }
       } else {
         try {
-          const cleanedTextToDecode = trimmedTextToProcess.replace(/\s/g, '');
+          const cleanedTextToDecode = textToProcess.replace(/\s/g, '');
           if (
             cleanedTextToDecode.length % 4 !== 0 ||
             !/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedTextToDecode)
           ) {
             throw new DOMException(
-              'Input is not valid Base64 (length or padding).',
+              'Input is not valid Base64 (length, characters, or padding).',
               'InvalidCharacterError'
             );
           }
           const decodedBytes = atob(cleanedTextToDecode);
-          currentOutput = decodeURIComponent(
-            Array.from(decodedBytes)
-              .map((byte) => ('0' + byte.charCodeAt(0).toString(16)).slice(-2))
-              .join('%')
-          );
+
+          const byteArray = new Uint8Array(decodedBytes.length);
+          for (let i = 0; i < decodedBytes.length; i++) {
+            byteArray[i] = decodedBytes.charCodeAt(i);
+          }
+
+          currentOutput = new TextDecoder('utf-8').decode(byteArray);
         } catch (err) {
           const errMessage =
             err instanceof Error ? err.message : 'Unknown decode error';
           if (
             err instanceof DOMException &&
-            err.name === 'InvalidCharacterError'
+            (err.name === 'InvalidCharacterError' ||
+              err.message.includes("Failed to execute 'atob'"))
           ) {
-            currentError = `Failed to decode: Input is not a valid Base64 string or contains invalid characters/padding. (${errMessage})`;
+            currentError = `Failed to decode: Input is not a valid Base64 string. (${errMessage})`;
           } else {
             currentError = `An unexpected error occurred during decoding. (${errMessage})`;
           }
@@ -266,7 +273,6 @@ export default function Base64EncodeDecodeClient({
         setCurrentOutputFilename(null);
       } else {
         if (uiError) setUiError('');
-
         setToolState((prev) => ({
           ...prev,
           outputValue: currentOutput,
@@ -355,27 +361,27 @@ export default function Base64EncodeDecodeClient({
     const text = toolState.inputText;
     const currentOperation = toolState.operation;
 
-    if (!text.trim()) {
+    if (text === '') {
       if (toolState.outputValue !== '' || uiError !== '') {
         setToolState((prev) => ({
           ...prev,
-          outputValue: '' /* Keep potential error for empty input if desired */,
+          outputValue: '',
         }));
+        if (uiError) setUiError('');
       }
       if (currentOutputFilename !== null) setCurrentOutputFilename(null);
       debouncedProcess.cancel();
-      if (uiError && text.trim() === '') setUiError('');
       return;
     }
+
     debouncedProcess(text, currentOperation);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     toolState.inputText,
     toolState.operation,
     isLoadingToolState,
-    debouncedProcess,
-    toolState.outputValue,
-    uiError,
-    currentOutputFilename,
+
     setToolState,
   ]);
 
@@ -385,6 +391,7 @@ export default function Base64EncodeDecodeClient({
       inputText: newText,
       lastLoadedFilename: null,
     });
+
     setCopySuccess(false);
     setSaveSuccess(false);
     setDownloadSuccess(false);
@@ -394,6 +401,10 @@ export default function Base64EncodeDecodeClient({
     setToolState({
       operation: newOperation,
     });
+
+    setCopySuccess(false);
+    setSaveSuccess(false);
+    setDownloadSuccess(false);
   };
 
   const handleClear = useCallback(async () => {
@@ -427,11 +438,13 @@ export default function Base64EncodeDecodeClient({
         setToolState({
           inputText: text,
           lastLoadedFilename: file.filename,
+          outputValue: '',
         });
         setUiError('');
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         setUiError(`Error reading file "${file.filename}": ${msg}`);
+
         setToolState({
           inputText: '',
           lastLoadedFilename: null,
@@ -467,7 +480,8 @@ export default function Base64EncodeDecodeClient({
         finalFilename = finalFilename.replace(/\.txt$/i, '') + '.b64.txt';
       } else if (
         toolState.operation === 'decode' &&
-        !/\.txt$/i.test(finalFilename)
+        !/\.txt$/i.test(finalFilename) &&
+        !finalFilename.includes('.')
       ) {
         finalFilename += '.txt';
       }
@@ -507,7 +521,7 @@ export default function Base64EncodeDecodeClient({
         const blob = new Blob([toolState.outputValue], {
           type: 'text/plain;charset=utf-8',
         });
-        addFileToLibrary(blob, finalFilename, 'text/plain', false)
+        addFileToLibrary(blob, finalFilename, 'text/plain', false, toolRoute)
           .then(() => {
             setSaveSuccess(true);
             if (uiError) setUiError('');
@@ -526,12 +540,40 @@ export default function Base64EncodeDecodeClient({
       addFileToLibrary,
       generateOutputFilename,
       uiError,
+      toolRoute,
     ]
   );
 
   const initiateOutputAction = useCallback(
     (action: 'download' | 'save') => {
-      if (!toolState.outputValue.trim()) {
+      if (toolState.outputValue === '' && toolState.inputText !== '') {
+        handleEncodeDecode(toolState.inputText, toolState.operation);
+
+        setTimeout(() => {
+          if (toolState.outputValue.trim() === '' && !uiError) {
+            setUiError('No output to ' + action + ' after processing.');
+            return;
+          }
+          if (uiError && !uiError.toLowerCase().includes('output')) {
+            setUiError(
+              'Cannot ' + action + ' output due to existing input errors.'
+            );
+            return;
+          }
+          setUiError('');
+          setSuggestedFilenameForPrompt(
+            generateOutputFilename(
+              toolState.lastLoadedFilename,
+              toolState.operation
+            )
+          );
+          setFilenameAction(action);
+          setIsFilenameModalOpen(true);
+        }, AUTO_PROCESS_DEBOUNCE_MS + 100);
+        return;
+      }
+
+      if (toolState.outputValue.trim() === '' && !uiError) {
         setUiError('No output to ' + action + '.');
         return;
       }
@@ -544,27 +586,23 @@ export default function Base64EncodeDecodeClient({
       }
       setUiError('');
 
-      const opForFilename = toolState.operation;
-      const lastLoadedForFilename = toolState.lastLoadedFilename;
-
-      if (currentOutputFilename) {
-        handleFilenameConfirm(currentOutputFilename, action);
-      } else {
-        setSuggestedFilenameForPrompt(
-          generateOutputFilename(lastLoadedForFilename, opForFilename)
-        );
-        setFilenameAction(action);
-        setIsFilenameModalOpen(true);
-      }
+      setSuggestedFilenameForPrompt(
+        generateOutputFilename(
+          toolState.lastLoadedFilename,
+          toolState.operation
+        )
+      );
+      setFilenameAction(action);
+      setIsFilenameModalOpen(true);
     },
     [
-      currentOutputFilename,
-      handleFilenameConfirm,
       toolState.outputValue,
+      toolState.inputText,
       toolState.operation,
       toolState.lastLoadedFilename,
       uiError,
       generateOutputFilename,
+      handleEncodeDecode,
     ]
   );
 
@@ -593,13 +631,14 @@ export default function Base64EncodeDecodeClient({
   };
   const handleModalAccept = (sourceDirective: string) => {
     itdeTarget.acceptSignal(sourceDirective);
+
+    if (itdeTarget.pendingSignals.length - 1 === 0)
+      setUserDeferredAutoPopup(false);
   };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
-    const remainingSignalsAfterIgnore = itdeTarget.pendingSignals.filter(
-      (s) => s.sourceDirective !== sourceDirective
-    );
-    if (remainingSignalsAfterIgnore.length === 0)
+
+    if (itdeTarget.pendingSignals.length - 1 === 0)
       setUserDeferredAutoPopup(false);
   };
 
@@ -610,13 +649,14 @@ export default function Base64EncodeDecodeClient({
       </p>
     );
   }
-  const canPerformOutputActions =
-    toolState.outputValue.trim() !== '' && !uiError;
+  const canPerformOutputActions = toolState.outputValue !== '' && !uiError;
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <div>
-        <div className="flex justify-between items-center gap-2">
+        <div className="flex justify-between items-center gap-2 mb-1">
+          {' '}
+          {/* Reduced mb */}
           <label
             htmlFor="base64-input-label"
             className="block text-sm font-medium text-[rgb(var(--color-text-muted))]"
@@ -628,7 +668,9 @@ export default function Base64EncodeDecodeClient({
               </span>
             )}
           </label>
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            {' '}
+            {/* No mb-2 here */}
             <ReceiveItdeDataTrigger
               hasDeferredSignals={
                 itdeTarget.pendingSignals.length > 0 &&
@@ -640,10 +682,11 @@ export default function Base64EncodeDecodeClient({
             />
             <Button
               variant="neutral-outline"
+              size="sm"
               onClick={() => setIsLoadFileModalOpen(true)}
-              iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}
+              iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
             >
-              Load from File
+              Load File
             </Button>
           </div>
         </div>
@@ -654,7 +697,7 @@ export default function Base64EncodeDecodeClient({
           rows={8}
           value={toolState.inputText}
           onChange={handleInputChange}
-          placeholder="Paste text or Base64 string here..."
+          placeholder="Paste text or Base64 string here, or load from file..."
           textareaClassName="text-base font-mono placeholder:text-[rgb(var(--color-input-placeholder))]"
           spellCheck="false"
         />
@@ -670,7 +713,7 @@ export default function Base64EncodeDecodeClient({
           radioClassName="text-sm"
           labelClassName="font-medium"
         />
-        <div className="flex-grow"></div>
+        <div className="flex-grow"></div> {/* Pushes buttons to the right */}
         <OutputActionButtons
           canPerform={canPerformOutputActions}
           isSaveSuccess={saveSuccess}

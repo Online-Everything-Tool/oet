@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Needed for checkout and for the App token to push
-      actions: read   # Needed for downloading artifacts
+      actions: read # Needed for downloading artifacts
 
     steps:
       - name: Get Triggering Workflow Run Info
@@ -35,7 +35,7 @@ jobs:
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
@@ -64,7 +64,7 @@ jobs:
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.EXPECTED_ARTIFACT_SHA }} 
+          ref: ${{ env.EXPECTED_ARTIFACT_SHA }}
           fetch-depth: 0
 
       - name: Prepare Data for AI Lint Fix API
@@ -104,7 +104,6 @@ jobs:
           echo "Full path to prepared JSON: $PR_FILES_JSON_PATH"
           echo "-------------------------------------------"
 
-
       - name: Call AI Lint Fix API
         id: call_fix_api
         if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact.outputs.artifact_valid == 'true'
@@ -131,7 +130,7 @@ jobs:
 
           echo "Calling AI Lint Fix API at $LINT_FIX_API_ENDPOINT ..."
           # echo "API Payload (first 500 chars): $(echo "$API_PAYLOAD" | head -c 500)" 
-          
+
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" \
             -H "Content-Type: application/json" \
             -d "$API_PAYLOAD" \
@@ -152,7 +151,7 @@ jobs:
             cat "${{ runner.temp }}/fix_response.json" # Show malformed JSON
             exit 1
           fi
-          
+
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
           echo "Fix API Reported Success (from JSON): $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
@@ -189,7 +188,7 @@ jobs:
 
           CHANGES_APPLIED_FLAG_FILE=$(mktemp)
           echo "false" > "$CHANGES_APPLIED_FLAG_FILE"
-          
+
           FILE_PATHS_TO_PROCESS=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
 
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
@@ -215,7 +214,7 @@ jobs:
               fi
             done 
           fi 
-          
+
           CHANGES_APPLIED=$(cat "$CHANGES_APPLIED_FLAG_FILE")
           rm "$CHANGES_APPLIED_FLAG_FILE" 
 
