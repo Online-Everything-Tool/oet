@@ -4,7 +4,10 @@ on:
   pull_request:
     types: [opened, synchronize]
     branches:
-      - main # Only run on PRs targeting the main branch
+      - main
+  push: 
+    branches:
+      - 'feat/gen-*'      
 
 jobs:
   initial_checks:
