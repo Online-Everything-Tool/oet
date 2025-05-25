@@ -153,12 +153,15 @@ jobs:
             echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
             echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           fi
+          echo $GITHUB_OUTPUT
 
   initial_checks:
     name: 1. Initial PR Validations
     needs: [prepare_run_context]
     if: >
-      needs.prepare_run_context.outputs.run_validation == 'true'
+      needs.prepare_run_context.outputs.run_validation == 'true' &&
+      startsWith(needs.prepare_run_context.outputs.head_ref, 'feat/gen-') &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
