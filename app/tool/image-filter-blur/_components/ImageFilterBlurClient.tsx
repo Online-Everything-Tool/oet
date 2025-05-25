@@ -1,22 +1,26 @@
 // FILE: app/tool/image-filter-blur/_components/ImageFilterBlurClient.tsx
 'use client';
-import React, { useEffect } from 'react';
+import React from 'react';
 
 export default function ImageFilterBlurClient({ toolRoute }: { toolRoute: string }) {
   // Minimal client component for testing
 
   // --- Start of Intentionally Problematic Code (if includeLintError is true) ---
 
-  let usedAny: any = { message: "I am used and explicitly any." };
+  const usedAny: { message: string } = { message: "I am used and explicitly any." };
   console.log('Logging usedAny to ensure it is used:', usedAny.message);
-  
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unusedAny: any = { value: "I am unused and explicitly any" }; 
   // This 'unusedAny' should trigger @typescript-eslint/no-unused-vars (likely error in Next.js)
   // The 'any' type itself might trigger @typescript-eslint/no-explicit-any (error or warning based on config)
 
-  function problematicFunction(param1: any, param2) { // param2 implicitly any
-    const anotherUnused: number = 123; // Another unused variable
-    let result: any = param1 + (param2 || 0); // Using any again
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function problematicFunction(param1: any, param2: any) { // param2 implicitly any
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = param1 + (param2 || 0); // Using any again
     return result;
   }
   // problematicFunction is defined but not used, which can also be an error/warning.
