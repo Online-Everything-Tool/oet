@@ -172,6 +172,22 @@ jobs:
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
+      - name: Debug Conditions Before Apply and Commit
+        if: always() # Always run this debug step
+        run: |
+          echo "--- Debugging Conditions for Apply and Commit Fixes ---"
+          echo "1. steps.call_fix_api.outputs.api_call_skipped: [${{ steps.call_fix_api.outputs.api_call_skipped }}]"
+          echo "   Condition 'steps.call_fix_api.outputs.api_call_skipped != 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" ]]; then echo "true"; else echo "false"; fi)"
+          
+          echo "2. steps.call_fix_api.outputs.api_response_success: [${{ steps.call_fix_api.outputs.api_response_success }}]"
+          echo "   Condition 'steps.call_fix_api.outputs.api_response_success == 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
+
+          echo "3. steps.check_artifact_data.outputs.artifact_data_valid: [${{ steps.check_artifact_data.outputs.artifact_data_valid }}]"
+          echo "   Condition 'steps.check_artifact_data.outputs.artifact_data_valid == 'true'' evaluates to: $(if [[ "${{ steps.check_artifact_data.outputs.artifact_data_valid }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
+          
+          echo "Overall condition for Apply and Commit Fixes should be: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" && "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" && "${{ steps.check_artifact_data.outputs.artifact_data_valid }}" == "true" ]]; then echo "TRUE"; else echo "FALSE"; fi)"
+          echo "-----------------------------------------------------"
+
       - name: Apply and Commit Fixes
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact_data.outputs.artifact_data_valid == 'true'
         run: |
