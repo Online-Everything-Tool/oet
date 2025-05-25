@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize]
     branches:
       - main
+  issue_comment:
+    types: [created]      
 
 jobs:
   initial_checks:
