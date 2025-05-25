@@ -186,8 +186,7 @@ import React, { useEffect } from 'react';
 export default function ${pascalCaseName}Client({ toolRoute }: { toolRoute: string }) {
   // Minimal client component for testing
 
-  // --- Start of Intentionally Problematic Code (if includeLintError is true) ---
-  // --- End of Intentionally Problematic Code ---
+  // Code Block
 
   return (
     <div>
@@ -204,24 +203,21 @@ export default function ${pascalCaseName}Client({ toolRoute }: { toolRoute: stri
   console.log('Logging usedAny to ensure it is used:', usedAny.message);
   
   const unusedAny: any = { value: "I am unused and explicitly any" }; 
-  // This 'unusedAny' should trigger @typescript-eslint/no-unused-vars (likely error in Next.js)
-  // The 'any' type itself might trigger @typescript-eslint/no-explicit-any (error or warning based on config)
 
-  function problematicFunction(param1: any, param2) { // param2 implicitly any
-    const anotherUnused: number = 123; // Another unused variable
-    let result: any = param1 + (param2 || 0); // Using any again
+  function problematicFunction(param1: any, param2) {
+    const anotherUnused: number = 123;
+    let result: any = param1 + (param2 || 0);
     return result;
   }
-  // problematicFunction is defined but not used, which can also be an error/warning.
 `;
     clientContentJs = clientContentJs.replace(
-      '  // --- End of Intentionally Problematic Code ---',
-      lintErrorBlock + '\n  // --- End of Intentionally Problematic Code ---'
+      '  // Code Block\n',
+      lintErrorBlock
     );
   } else {
     clientContentJs = clientContentJs.replace(
-      '  // --- Start of Intentionally Problematic Code (if includeLintError is true) ---\n  // --- End of Intentionally Problematic Code ---',
-      '  const normallyFineVariable = "This should be fine.";\n  console.log(normallyFineVariable); // Use it to avoid unused var warning if not including other errors'
+      '  // Code Block\n',
+      '  const normallyFineVariable = "This should be fine.";\n  console.log(normallyFineVariable);'
     );
   }
 

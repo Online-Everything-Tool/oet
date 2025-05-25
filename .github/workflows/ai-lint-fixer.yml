@@ -38,7 +38,7 @@ jobs:
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          token: ${{ secrets.GITHUB_TOKEN }} # Using default GITHUB_TOKEN is usually fine and preferred here
+          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} # Using default GITHUB_TOKEN is usually fine and preferred here
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
