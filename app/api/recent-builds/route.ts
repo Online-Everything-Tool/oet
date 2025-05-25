@@ -8,10 +8,9 @@ const GITHUB_REPO_OWNER =
   process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool';
 const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'oet';
 
-// Increase fetch limits to cast a wider net initially
 const MAX_OPEN_PRS_TO_FETCH_CANDIDATES = 50;
 const MAX_MERGED_PRS_TO_FETCH_CANDIDATES = 50;
-const MAX_PRS_TO_RETURN = 10; // Keep the final display limit
+const MAX_PRS_TO_RETURN = 10;
 
 const appId = process.env.GITHUB_APP_ID;
 const privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
@@ -48,6 +47,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
         repo: GITHUB_REPO_NAME,
       });
     installationId = installation.id;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     console.error(
       `[api/recent-builds] Failed to get repo installation. Status: ${e?.status}`
@@ -91,43 +91,44 @@ function extractToolDirectiveFromBranch(branchName: string): string | null {
     return null;
   }
   const tempDirective = branchName.substring('feat/gen-'.length);
-  // Remove trailing timestamp like -1234567890
-  const toolDirective = tempDirective.replace(/-[0-9]+$/, ''); 
+
+  const toolDirective = tempDirective.replace(/-[0-9]+$/, '');
   return toolDirective || null;
 }
 
-function isQualifyingToolPr(pr: { head?: { ref?: string }, title?: string }): boolean {
+function isQualifyingToolPr(pr: {
+  head?: { ref?: string };
+  title?: string;
+}): boolean {
   if (!pr.head?.ref || !pr.title) return false;
   const toolDirective = extractToolDirectiveFromBranch(pr.head.ref);
-  return !!toolDirective && pr.title.startsWith('feat: Add AI Generated Tool -');
+  return (
+    !!toolDirective && pr.title.startsWith('feat: Add AI Generated Tool -')
+  );
 }
 
-
 export async function GET() {
-  console.log(
-    '[api/recent-builds] Received request to list recent build PRs.'
-  );
+  console.log('[api/recent-builds] Received request to list recent build PRs.');
 
   try {
     const octokit = await getAuthenticatedOctokit();
     const allQualifyingPrsMap = new Map<number, RecentBuildPrInfo>();
 
-    // 1. Fetch recent OPEN tool PRs (sorted by creation date)
     console.log('[api/recent-builds] Fetching recent OPEN tool PRs...');
     const { data: openPrs } = await octokit.rest.pulls.list({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
       state: 'open',
-      sort: 'created', // Sort by creation time
+      sort: 'created',
       direction: 'desc',
       per_page: MAX_OPEN_PRS_TO_FETCH_CANDIDATES,
     });
 
     for (const pr of openPrs) {
       if (isQualifyingToolPr(pr)) {
-        const toolDirective = extractToolDirectiveFromBranch(pr.head.ref); // Should not be null due to isQualifyingToolPr
+        const toolDirective = extractToolDirectiveFromBranch(pr.head.ref);
         if (toolDirective && !allQualifyingPrsMap.has(pr.number)) {
-           allQualifyingPrsMap.set(pr.number, {
+          allQualifyingPrsMap.set(pr.number, {
             status: 'open',
             prNumber: pr.number,
             prUrl: pr.html_url,
@@ -139,25 +140,23 @@ export async function GET() {
         }
       }
     }
-    console.log(`[api/recent-builds] Found ${allQualifyingPrsMap.size} initial open qualifying PRs.`);
+    console.log(
+      `[api/recent-builds] Found ${allQualifyingPrsMap.size} initial open qualifying PRs.`
+    );
 
-    // 2. Fetch recent MERGED tool PRs (sorted by updated, which often correlates with merge time for PRs)
-    // GitHub API doesn't directly sort closed PRs by 'merged_at'. 
-    // We sort by 'updated' and then filter for merged ones.
-    // If we still need more, we can fetch more pages of closed PRs.
     if (allQualifyingPrsMap.size < MAX_PRS_TO_RETURN) {
       console.log('[api/recent-builds] Fetching recent MERGED tool PRs...');
       const { data: closedPrs } = await octokit.rest.pulls.list({
         owner: GITHUB_REPO_OWNER,
         repo: GITHUB_REPO_NAME,
-        state: 'closed', // Fetch closed PRs
-        sort: 'updated',   // Sort by last update time
+        state: 'closed',
+        sort: 'updated',
         direction: 'desc',
         per_page: MAX_MERGED_PRS_TO_FETCH_CANDIDATES,
       });
 
       for (const pr of closedPrs) {
-        if (allQualifyingPrsMap.size >= MAX_PRS_TO_RETURN * 2) break; // Fetch a bit more to sort later, but not too many
+        if (allQualifyingPrsMap.size >= MAX_PRS_TO_RETURN * 2) break;
 
         if (pr.merged_at && isQualifyingToolPr(pr)) {
           const toolDirective = extractToolDirectiveFromBranch(pr.head.ref);
@@ -174,20 +173,22 @@ export async function GET() {
           }
         }
       }
-      console.log(`[api/recent-builds] Total qualifying PRs after adding merged: ${allQualifyingPrsMap.size}.`);
+      console.log(
+        `[api/recent-builds] Total qualifying PRs after adding merged: ${allQualifyingPrsMap.size}.`
+      );
     }
-    
-    // 3. Convert map to array and sort combined list
-    // Prioritize open PRs by creation date (newest first), then merged PRs by merged date (newest first)
+
     const sortedPrs = Array.from(allQualifyingPrsMap.values()).sort((a, b) => {
-      if (a.status === 'open' && b.status === 'merged') return -1; // Open PRs first
+      if (a.status === 'open' && b.status === 'merged') return -1;
       if (a.status === 'merged' && b.status === 'open') return 1;
 
       if (a.status === 'open' && b.status === 'open') {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); // Newest open first
+        return (
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       }
       if (a.status === 'merged' && b.status === 'merged') {
-        return new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime(); // Newest merged first
+        return new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime();
       }
       return 0;
     });
@@ -197,8 +198,10 @@ export async function GET() {
     console.log(
       `[api/recent-builds] Final list contains ${finalPrsToReturn.length} PRs (returning up to ${MAX_PRS_TO_RETURN}).`
     );
-    return NextResponse.json({ recentBuilds: finalPrsToReturn }, { status: 200 });
-
+    return NextResponse.json(
+      { recentBuilds: finalPrsToReturn },
+      { status: 200 }
+    );
   } catch (error: unknown) {
     console.error(
       '[api/recent-builds] Error fetching recent build PRs:',

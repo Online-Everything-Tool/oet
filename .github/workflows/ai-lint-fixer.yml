@@ -13,8 +13,8 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write 
-      actions: read   
+      contents: write
+      actions: read
     env:
       EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
       PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
@@ -36,7 +36,7 @@ jobs:
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
@@ -71,7 +71,7 @@ jobs:
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.EXPECTED_ARTIFACT_SHA }} 
+          ref: ${{ env.EXPECTED_ARTIFACT_SHA }}
           fetch-depth: 0
 
       - name: Prepare Data for AI Lint Fix API
@@ -127,14 +127,14 @@ jobs:
             '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
 
           echo "Calling AI Lint Fix API at $LINT_FIX_API_ENDPOINT ..."
-          
+
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" \
             -H "Content-Type: application/json" \
             -d "$API_PAYLOAD" \
             -o "${{ runner.temp }}/fix_response.json")
 
           echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
-          
+
           if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
             echo "::error::AI Lint Fix API call failed with HTTP status $HTTP_RESPONSE_CODE."
             cat "${{ runner.temp }}/fix_response.json" 
@@ -145,7 +145,7 @@ jobs:
             cat "${{ runner.temp }}/fix_response.json" 
             exit 1
           fi
-          
+
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
           echo "Fix API Reported Success (from JSON): $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
@@ -168,7 +168,7 @@ jobs:
           echo "--- Starting Apply and Commit Fixes ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           echo "Applying fixes from $FIX_RESPONSE_FILE..."
-          
+
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
           echo "Last commit message on branch: $LAST_COMMIT_MSG_ON_BRANCH"
 
@@ -179,7 +179,7 @@ jobs:
 
           CHANGES_APPLIED_FLAG_FILE=$(mktemp)
           echo "false" > "$CHANGES_APPLIED_FLAG_FILE"
-          
+
           echo "--- Attempting to extract file paths from API response ---"
           set +e 
           FILE_PATHS_TO_PROCESS_OUTPUT=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
@@ -249,7 +249,7 @@ jobs:
               fi
             done 
           fi 
-          
+
           CHANGES_APPLIED=$(cat "$CHANGES_APPLIED_FLAG_FILE")
           rm "$CHANGES_APPLIED_FLAG_FILE" 
 

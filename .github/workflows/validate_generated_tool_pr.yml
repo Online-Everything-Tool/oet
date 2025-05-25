@@ -5,9 +5,9 @@ on:
     types: [opened, synchronize]
     branches:
       - main
-  push: 
+  push:
     branches:
-      - 'feat/gen-*'      
+      - 'feat/gen-*'
 
 jobs:
   initial_checks:
@@ -260,7 +260,7 @@ jobs:
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
           BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
-          
+
           echo "Running: npm run build (output will be in $BUILD_LOG_FILE_PATH and then echoed)"
           set +e 
           npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
@@ -298,7 +298,7 @@ jobs:
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
           fi
-          
+
           echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
       - name: Capture Lint Output and Changed Files for AI Fixer
