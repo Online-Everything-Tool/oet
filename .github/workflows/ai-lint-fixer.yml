@@ -10,7 +10,8 @@ on:
 jobs:
   attempt_fix:
     name: Attempt AI Lint Fix
-    if: github.event.workflow_run.conclusion == 'failure'
+    if: false 
+    #if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
       contents: write
