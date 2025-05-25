@@ -187,9 +187,8 @@ jobs:
             exit 0 
           fi
 
-          CHANGES_APPLIED=false
-          FILE_PATHS_TO_PROCESS=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
-
+          CHANGES_APPLIED=false # Initialize
+          echo "--- Starting Apply and Commit Fixes ---"
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
             echo "::notice::No files with non-null fixed content found in API response (based on keys)."
           else
@@ -197,7 +196,8 @@ jobs:
             echo "$FILE_PATHS_TO_PROCESS"
             echo "---"
 
-            echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
+            # Use process substitution for the loop
+            while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
                 echo "::warning::Empty filepath encountered. Skipping."
                 continue
@@ -216,6 +216,7 @@ jobs:
                 continue
               fi
               
+              # ... (content preview echos as before) ...
               echo "--- Original Content for '$filepath' (first 10 lines) ---"
               head -n 10 "$filepath" | sed 's/^/    /' 
               echo "--- End Original Content Preview ---"
@@ -238,11 +239,13 @@ jobs:
               echo "$fixedcontent" > "$filepath" 
               git add "$filepath"
               echo "'$filepath' added to git staging area."
-              CHANGES_APPLIED=true
-            done
+              CHANGES_APPLIED=true # This will now affect the CHANGES_APPLIED in the parent shell
+            done < <(echo "$FILE_PATHS_TO_PROCESS") # Process substitution here
           fi 
-          
-          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED"
+
+          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED" # This should now be true if changes were made
+
+          # ... (rest of the script: if [ "$CHANGES_APPLIED" = "true" ]; then ... commit and push ...)          
 
           if [ "$CHANGES_APPLIED" = "true" ]; then
             echo "Changes were applied. Checking staged diff..."
