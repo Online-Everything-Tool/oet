@@ -15,20 +15,23 @@ jobs:
     permissions:
       contents: write
       actions: read
-    # No need to explicitly pass GITHUB_TOKEN to env for this specific change,
-    # as we'll pass it directly to the action.
+    # GITHUB_TOKEN is implicitly available to actions/checkout and actions/github-script
+    # and for the 'git push' if the runner's identity is used.
+    # Explicitly passing to actions/download-artifact is a good practice for cross-run scenarios.
 
     steps:
       - name: Get Triggering Workflow Run Info
-        id: get_trigger_info # Simplified this step's purpose for now
+        id: get_trigger_info
         run: |
+          echo "--- Trigger Info ---"
           echo "Triggering Workflow Run ID: ${{ github.event.workflow_run.id }}"
           echo "Expected Artifact Name: lint-failure-data-${{ github.event.workflow_run.head_sha }}"
           echo "PR Head Branch for push: ${{ github.event.workflow_run.head_branch }}"
           echo "Commit SHA for checkout: ${{ github.event.workflow_run.head_sha }}"
-
-      # Removed the github-script step that lists artifacts for now to simplify
-      # We'll rely on download-artifact with the token
+          echo "----------------------"
+          # Set ENV VARS for later steps to use the correct SHA and branch
+          echo "EXPECTED_ARTIFACT_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+          echo "PR_HEAD_BRANCH_FOR_PUSH=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_ENV
 
       - name: Download Lint Failure Artifact
         id: download_artifact
@@ -36,79 +39,89 @@ jobs:
         with:
           name: lint-failure-data-${{ github.event.workflow_run.head_sha }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }} # Explicitly provide the token
-          # We don't need 'repository' or 'run-id' if it's from the triggering workflow_run in the same repo
-          # The action should infer this if 'run-id' is not provided for the current repo.
-          # However, to be very explicit for cross-run access:
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
       - name: Check if Artifact Exists and Contains Data
         id: check_artifact
-        # This condition now directly checks the outcome of the download_artifact step
         if: steps.download_artifact.outcome == 'success'
         run: |
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
 
+          echo "--- Artifact Download and Content Check ---"
           echo "Download artifact step outcome: ${{ steps.download_artifact.outcome }}"
           echo "Checking for file: $LINT_ERRORS_FILE"
-          ls -la "${{ runner.temp }}/lint-data/" # List contents for debugging
+          echo "Checking for file: $FILES_TO_CHECK_FILE"
+          echo "Listing contents of download path (${{ runner.temp }}/lint-data/):"
+          ls -la "${{ runner.temp }}/lint-data/" 
 
           if [ -f "$LINT_ERRORS_FILE" ] && [ -s "$LINT_ERRORS_FILE" ] && \
              [ -f "$FILES_TO_CHECK_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
             echo "Lint failure artifacts found and are not empty."
             echo "artifact_valid=true" >> $GITHUB_OUTPUT
+            echo "--- Contents of lint_errors.txt (first 10 lines) ---"
+            head -n 10 "$LINT_ERRORS_FILE"
+            echo "--- End lint_errors.txt preview ---"
+            echo "--- Contents of files_to_check.txt ---"
+            cat "$FILES_TO_CHECK_FILE"
+            echo "--- End files_to_check.txt ---"
           else
             echo "::error::Lint failure artifact files (lint_errors.txt or files_to_check.txt) not found or empty after download attempt."
             echo "artifact_valid=false" >> $GITHUB_OUTPUT
-            # Consider failing the job here if files are critical and download claimed success but files are missing
-            # exit 1 
+            exit 1 # Fail the job if critical artifact data is missing
           fi
+          echo "-------------------------------------------"
 
       - name: Checkout PR Code
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ env.EXPECTED_ARTIFACT_SHA }} # Use SHA from env var set in get_trigger_info
           fetch-depth: 0
-
-      # ... (Rest of the steps: Prepare Data, Call API, Apply Fixes remain the same)
-      # Ensure their `if` conditions correctly key off `steps.check_artifact.outputs.artifact_valid == 'true'`
 
       - name: Prepare Data for AI Lint Fix API
         id: prepare_fix_data
         if: steps.check_artifact.outputs.artifact_valid == 'true'
-        # ... (script as before) ...
         run: |
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           PR_FILES_JSON_PATH="${{ runner.temp }}/pr_files_for_lint_fix.json"
 
+          echo "--- Preparing pr_files_for_lint_fix.json ---"
           echo '[' > $PR_FILES_JSON_PATH
           FIRST_FILE=true
           while IFS= read -r filepath; do
+            if [ -z "$filepath" ]; then echo "Skipping empty filepath in files_to_check.txt"; continue; fi
+            echo "Processing filepath from artifact: '$filepath'"
             if [ -f "$filepath" ]; then
               if [ "$FIRST_FILE" = "false" ]; then
                 echo ',' >> $PR_FILES_JSON_PATH
               fi
               FILE_CONTENT_RAW=$(cat "$filepath")
+              echo "First 5 lines of content for '$filepath':"
+              echo "$FILE_CONTENT_RAW" | head -n 5 | sed 's/^/    /' # Indent for readability
               jq -n --arg path "$filepath" --arg content "$FILE_CONTENT_RAW" \
                 '{path: $path, currentContent: $content}' >> $PR_FILES_JSON_PATH
               FIRST_FILE=false
             else
-              echo "::warning::File path from artifact not found in checkout: $filepath"
+              echo "::warning::File path '$filepath' from artifact not found in checkout. Skipping."
             fi
           done < "$FILES_TO_CHECK_FILE"
           echo ']' >> $PR_FILES_JSON_PATH
-
+          
           jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > temp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
-          echo "Prepared files JSON for API: $PR_FILES_JSON_PATH"
+          
+          echo "--- Content of prepared pr_files_for_lint_fix.json (first 20 lines) ---"
+          head -n 20 $PR_FILES_JSON_PATH
+          echo "--- End pr_files_for_lint_fix.json preview ---"
+          echo "Full path to prepared JSON: $PR_FILES_JSON_PATH"
+          echo "-------------------------------------------"
 
       - name: Call AI Lint Fix API
         id: call_fix_api
         if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact.outputs.artifact_valid == 'true'
-        # ... (script as before) ...
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
@@ -117,7 +130,9 @@ jobs:
           FILES_TO_FIX_JSON_CONTENT=$(cat "${{ runner.temp }}/pr_files_for_lint_fix.json")
 
           if ! echo "$FILES_TO_FIX_JSON_CONTENT" | jq -e 'type == "array" and length > 0' > /dev/null; then
-            echo "::warning::No valid files to fix after preparation. Skipping API call."
+            echo "::warning::No valid files to fix after preparation (FILES_TO_FIX_JSON_CONTENT is not a non-empty array). Skipping API call."
+            echo "Content of pr_files_for_lint_fix.json that caused skip:"
+            cat "${{ runner.temp }}/pr_files_for_lint_fix.json" 
             echo "api_call_skipped=true" >> $GITHUB_OUTPUT
             exit 0 
           fi
@@ -128,38 +143,44 @@ jobs:
             --arg modelName "models/gemini-1.5-pro-latest" \
             '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
 
-          echo "Calling AI Lint Fix API..."
+          echo "Calling AI Lint Fix API at $LINT_FIX_API_ENDPOINT ..."
+          echo "API Payload (first 500 chars): $(echo "$API_PAYLOAD" | head -c 500)" 
+          
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" \
             -H "Content-Type: application/json" \
             -d "$API_PAYLOAD" \
             -o "${{ runner.temp }}/fix_response.json")
 
+          echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
+          echo "--- AI API Response (fix_response.json) ---"
+          cat "${{ runner.temp }}/fix_response.json"
+          echo "--- End AI API Response ---"
+
           if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
             echo "::error::AI Lint Fix API call failed with HTTP status $HTTP_RESPONSE_CODE."
-            cat "${{ runner.temp }}/fix_response.json" 
             exit 1
           fi
 
           if ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
             echo "::error::AI Lint Fix API response is not valid JSON."
-            cat "${{ runner.temp }}/fix_response.json"
             exit 1
           fi
-
+          
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
-          echo "Fix API Reported Success: $FIX_API_SUCCESS"
+          echo "Fix API Reported Success (from JSON): $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
       - name: Apply and Commit Fixes
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
-        # ... (script as before, ensure GITHUB_TOKEN is available for push if needed by app, though direct push uses runner's implicit token)
         run: |
+          echo "--- Starting Apply and Commit Fixes ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
-          echo "AI Lint Fix API call reported success. Applying fixes from $FIX_RESPONSE_FILE..."
-
+          echo "Applying fixes from $FIX_RESPONSE_FILE..."
+          
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
+          echo "Last commit message on branch: $LAST_COMMIT_MSG_ON_BRANCH"
 
           if [[ "$LAST_COMMIT_MSG_ON_BRANCH" == "chore: AI-assisted lint fixes" ]]; then
             echo "::warning::The latest commit on the branch is already an AI lint fix. Skipping new commit to prevent loop."
@@ -167,24 +188,24 @@ jobs:
           fi
 
           CHANGES_APPLIED=false
-
-          # Get all file paths (keys) from the fixedFiles object that have non-null content
           FILE_PATHS_TO_PROCESS=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
 
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
-            echo "::notice::No files with non-null fixed content found in API response."
+            echo "::notice::No files with non-null fixed content found in API response (based on keys)."
           else
+            echo "Found file paths to process from API response:"
+            echo "$FILE_PATHS_TO_PROCESS"
+            echo "---"
+
             echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
                 echo "::warning::Empty filepath encountered. Skipping."
                 continue
               fi
+              echo "Processing filepath: '$filepath'"
 
-              # Get the specific fixed content for this filepath from the JSON response
-              # Use jq to extract the value, ensuring it handles newlines correctly as a JSON string then raw output
               fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
 
-              # Double check if fixedcontent is literally the string "null" or empty after extraction
               if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
                 echo "::warning::Content for '$filepath' is null or empty in the API response. Skipping."
                 continue
@@ -195,35 +216,48 @@ jobs:
                 continue
               fi
               
+              echo "--- Original Content for '$filepath' (first 10 lines) ---"
+              head -n 10 "$filepath" | sed 's/^/    /' 
+              echo "--- End Original Content Preview ---"
+              echo "--- AI Fixed Content for '$filepath' (first 10 lines) ---"
+              echo "$fixedcontent" | head -n 10 | sed 's/^/    /' 
+              echo "--- End AI Fixed Content Preview ---"
+
               ORIGINAL_CONTENT_FOR_COMPARE=$(cat "$filepath")
-              # Normalize line endings for comparison
               NORMALIZED_ORIGINAL_CONTENT=$(echo "$ORIGINAL_CONTENT_FOR_COMPARE" | tr -d '\r')
               NORMALIZED_FIXED_CONTENT=$(echo "$fixedcontent" | tr -d '\r')
 
               if [ "$NORMALIZED_ORIGINAL_CONTENT" = "$NORMALIZED_FIXED_CONTENT" ]; then
                 echo "No actual content change (ignoring line endings) for '$filepath'. Skipping add."
                 continue
+              else
+                echo "CONTENT DIFFERS for '$filepath'. Applying fix."
               fi
 
-              echo "Applying fix to '$filepath'"
-              # Ensure the directory exists before writing (should already exist for modifications)
-              # mkdir -p "$(dirname "$filepath")" # Generally not needed if files are just being modified
-              echo "$fixedcontent" > "$filepath" # Overwrite file with fixed content
+              echo "Overwriting '$filepath' with AI content."
+              echo "$fixedcontent" > "$filepath" 
               git add "$filepath"
+              echo "'$filepath' added to git staging area."
               CHANGES_APPLIED=true
             done
-          fi
+          fi 
+          
+          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED"
 
           if [ "$CHANGES_APPLIED" = "true" ]; then
+            echo "Changes were applied. Checking staged diff..."
             if ! git diff --staged --quiet; then
+              echo "Staged changes found. Proceeding with commit and push."
               git config user.name "OET Bot" 
               git config user.email "bot@online-everything-tool.com" 
               git commit -m "chore: AI-assisted lint fixes"
-              git push origin HEAD:${{ github.event.workflow_run.head_branch }} # Use head_branch from workflow_run
+              # Use the PR_HEAD_BRANCH_FOR_PUSH env var set earlier
+              git push origin HEAD:${{ env.PR_HEAD_BRANCH_FOR_PUSH }} 
               echo "::notice::AI lint fixes committed and pushed. Workflow on PR branch will re-run."
             else
-              echo "::notice::AI proposed no effective changes to be staged."
+              echo "::notice::AI proposed changes, but 'git diff --staged --quiet' found no differences after 'git add'. This might be due to only whitespace/line-ending changes not caught by normalization, or an issue with git add."
             fi
           else
-            echo "::notice::AI returned no fixable content or all fixes resulted in null or no changes."
+            echo "::notice::No changes were applied by the AI, or all changes resulted in identical content (after normalization)."
           fi
+          echo "--- End of Apply and Commit Fixes ---"
