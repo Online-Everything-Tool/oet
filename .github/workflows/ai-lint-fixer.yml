@@ -13,9 +13,9 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write 
-      actions: read 
-    # No need to explicitly pass GITHUB_TOKEN to env for this specific change, 
+      contents: write
+      actions: read
+    # No need to explicitly pass GITHUB_TOKEN to env for this specific change,
     # as we'll pass it directly to the action.
 
     steps:
@@ -40,13 +40,13 @@ jobs:
           # We don't need 'repository' or 'run-id' if it's from the triggering workflow_run in the same repo
           # The action should infer this if 'run-id' is not provided for the current repo.
           # However, to be very explicit for cross-run access:
-          run-id: ${{ github.event.workflow_run.id }} 
+          run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
       - name: Check if Artifact Exists and Contains Data
         id: check_artifact
         # This condition now directly checks the outcome of the download_artifact step
-        if: steps.download_artifact.outcome == 'success' 
+        if: steps.download_artifact.outcome == 'success'
         run: |
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
@@ -65,13 +65,13 @@ jobs:
             # Consider failing the job here if files are critical and download claimed success but files are missing
             # exit 1 
           fi
-          
+
       - name: Checkout PR Code
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }} 
-          fetch-depth: 0 
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
 
       # ... (Rest of the steps: Prepare Data, Call API, Apply Fixes remain the same)
       # Ensure their `if` conditions correctly key off `steps.check_artifact.outputs.artifact_valid == 'true'`
@@ -101,7 +101,7 @@ jobs:
             fi
           done < "$FILES_TO_CHECK_FILE"
           echo ']' >> $PR_FILES_JSON_PATH
-          
+
           jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > temp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
           echo "Prepared files JSON for API: $PR_FILES_JSON_PATH"
 
@@ -145,7 +145,7 @@ jobs:
             cat "${{ runner.temp }}/fix_response.json"
             exit 1
           fi
-          
+
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
           echo "Fix API Reported Success: $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
@@ -158,7 +158,7 @@ jobs:
         run: |
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           echo "AI Lint Fix API call reported success. Applying fixes from $FIX_RESPONSE_FILE..."
-          
+
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
 
           if [[ "$LAST_COMMIT_MSG_ON_BRANCH" == "chore: AI-assisted lint fixes" ]]; then
@@ -213,7 +213,7 @@ jobs:
               CHANGES_APPLIED=true
             done
           fi
-          
+
           if [ "$CHANGES_APPLIED" = "true" ]; then
             if ! git diff --staged --quiet; then
               git config user.name "OET Bot" 

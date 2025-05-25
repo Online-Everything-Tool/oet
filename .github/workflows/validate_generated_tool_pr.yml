@@ -257,7 +257,7 @@ jobs:
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
           BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
-          
+
           # Run npm build, redirect output, and allow it to "fail" without exiting the script step immediately
           npm run build > "$BUILD_LOG_FILE_PATH" 2>&1 || true 
           BUILD_EXIT_CODE=$? # Capture the actual exit code of 'npm run build'
@@ -317,7 +317,7 @@ jobs:
           mkdir -p "$LINT_DATA_DIR"
           LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
           FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt"
-          
+
           # Initialize to false
           LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="false" 
 
@@ -348,7 +348,7 @@ jobs:
             echo "::warning::Build output log ($BUILD_LOG_FILE) not found. Cannot extract lint errors."
             # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
           fi
-          
+
           echo "Final LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG value before setting output: $LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG"
           echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
           echo "--- End of capture_for_ai_fix step ---"
@@ -359,12 +359,12 @@ jobs:
         with:
           name: lint-failure-data-${{ github.event.pull_request.head.sha }} # <<< CORRECTED LINE
           path: ${{ runner.temp }}/lint-data-for-artifact/
-          if-no-files-found: warn           
+          if-no-files-found: warn
 
       - name: Serve Static Output Locally
         # ... (This step remains unchanged from your last full paste) ...
         id: serve_static
-        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'        
+        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'
         run: |
           echo "Starting static server for 'out' directory on port 3001..."
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
