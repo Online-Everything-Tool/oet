@@ -45,10 +45,52 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set PR Info and Validate Trigger
+        id: set_pr_info
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=""
+          HEAD_REF=""
+          PR_SHA=""
+          SHOULD_RUN="false"
+
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Event: pull_request"
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+            HEAD_REF="${{ github.head_ref }}" # <<< AVAILABLE HERE
+            PR_SHA="${{ github.event.pull_request.head.sha }}"
+            # ...
+          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+            echo "Event: issue_comment"
+            if [[ "${{ github.event.comment.body }}" == /revalidate-ai-fixes* ]]; then
+              PR_NUMBER="${{ github.event.issue.number }}"
+              echo "Fetching PR #$PR_NUMBER details for comment trigger..."
+              # Make sure you have 'jq' installed on the runner (ubuntu-latest has it)
+              PR_DATA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                           -H "Accept: application/vnd.github.v3+json" \
+                           "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+
+              HEAD_REF=$(echo "$PR_DATA" | jq -r .head.ref) # <<< FETCHED HERE
+              PR_SHA=$(echo "$PR_DATA" | jq -r .head.sha)   # <<< FETCHED HERE
+
+              if [ -z "$HEAD_REF" ] || [ "$HEAD_REF" == "null" ]; then
+                echo "::error::Could not fetch head_ref for PR #$PR_NUMBER from comment trigger. API Response: $PR_DATA"
+                exit 1
+              fi
+              # ...
+            fi
+          fi
+          # ...
+          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT # <<< CRITICAL OUTPUT
+          echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT   # <<< CRITICAL OUTPUT
+          # ...          
+
       - name: Extract Tool Directive
+        if: steps.set_pr_info.outputs.should_run == 'true'
         id: extract_directive
         run: |
-          BRANCH_NAME="${{ github.head_ref }}"
+          BRANCH_NAME="${{ steps.set_pr_info.outputs.head_ref }}"
           TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
           TOOL_DIRECTIVE=$(echo "$TEMP_DIRECTIVE" | sed 's/-[0-9]*$//')
           if [ -z "$TOOL_DIRECTIVE" ]; then 
