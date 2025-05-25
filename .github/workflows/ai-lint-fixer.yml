@@ -172,9 +172,6 @@ jobs:
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
-# In .github/workflows/ai-lint-fixer.yml
-# Apply and Commit Fixes step
-
       - name: Apply and Commit Fixes
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact_data.outputs.artifact_data_valid == 'true'
         run: |
@@ -190,11 +187,12 @@ jobs:
             exit 0 
           fi
 
-          CHANGES_APPLIED=false
+          # Use a temporary file for the CHANGES_APPLIED flag
+          CHANGES_APPLIED_FLAG_FILE=$(mktemp)
+          echo "false" > "$CHANGES_APPLIED_FLAG_FILE"
           
           echo "--- Attempting to extract file paths from API response ---"
-          # Capture the output of jq and its exit code
-          set +e # Allow jq to fail without exiting the script
+          set +e 
           FILE_PATHS_TO_PROCESS_OUTPUT=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
           JQ_EXIT_CODE=$?
           set -e
@@ -204,33 +202,30 @@ jobs:
           echo "$FILE_PATHS_TO_PROCESS_OUTPUT"
           echo "--- End Raw JQ Output ---"
 
-          FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT" # Assign after logging
+          FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT" 
 
           if [ "$JQ_EXIT_CODE" -ne 0 ]; then
             echo "::error:: jq command failed to extract file paths. Cannot apply fixes."
-            # Optionally, cat the response file if jq failed, to see if it was malformed
             echo "Contents of $FIX_RESPONSE_FILE that caused jq error:"
             cat "$FIX_RESPONSE_FILE"
-            exit 1 # Or handle more gracefully if appropriate
+            exit 1 
           fi
 
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
             echo "::notice::No files with non-null fixed content found in API response (FILE_PATHS_TO_PROCESS is empty)."
-            # This is where it currently exits the 'if' block
           else
             echo "File paths to process (after assignment, one per line expected):"
             echo "$FILE_PATHS_TO_PROCESS"
             echo "--- Processing each file path ---"
 
-            # Use process substitution for the loop
-            while IFS= read -r filepath; do
+            # Loop over the file paths
+            echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
                 echo "::warning::Empty filepath encountered in loop. Skipping."
                 continue
               fi
               echo "Processing filepath from loop: '$filepath'"
 
-              # Get the specific fixed content for this filepath
               fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
 
               if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
@@ -262,12 +257,16 @@ jobs:
                 echo "$fixedcontent" > "$filepath" 
                 git add "$filepath"
                 echo "'$filepath' added to git staging area."
-                CHANGES_APPLIED=true 
+                echo "true" > "$CHANGES_APPLIED_FLAG_FILE" # Set flag in file
               fi
-            done < <(echo "$FILE_PATHS_TO_PROCESS") # Process substitution
+            done # Original pipe to while loop is fine if flag is external
           fi 
           
-          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED"
+          # Read the flag from the temporary file
+          CHANGES_APPLIED=$(cat "$CHANGES_APPLIED_FLAG_FILE")
+          rm "$CHANGES_APPLIED_FLAG_FILE" # Clean up temp file
+
+          echo "CHANGES_APPLIED flag (read from file) is: $CHANGES_APPLIED"
 
           if [ "$CHANGES_APPLIED" = "true" ]; then
             echo "Changes were applied. Checking staged diff..."
