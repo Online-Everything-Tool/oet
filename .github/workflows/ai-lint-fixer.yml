@@ -172,8 +172,11 @@ jobs:
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
+# In .github/workflows/ai-lint-fixer.yml
+# Apply and Commit Fixes step
+
       - name: Apply and Commit Fixes
-        if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
+        if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact_data.outputs.artifact_data_valid == 'true'
         run: |
           echo "--- Starting Apply and Commit Fixes ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
@@ -183,31 +186,55 @@ jobs:
           echo "Last commit message on branch: $LAST_COMMIT_MSG_ON_BRANCH"
 
           if [[ "$LAST_COMMIT_MSG_ON_BRANCH" == "chore: AI-assisted lint fixes" ]]; then
-            echo "::warning::The latest commit on the branch is already an AI lint fix. Skipping new commit to prevent loop."
+            echo "::warning::The latest commit on the branch is already an AI lint fix. Skipping."
             exit 0 
           fi
 
-          CHANGES_APPLIED=false # Initialize
-          echo "--- Starting Apply and Commit Fixes ---"
+          CHANGES_APPLIED=false
+          
+          echo "--- Attempting to extract file paths from API response ---"
+          # Capture the output of jq and its exit code
+          set +e # Allow jq to fail without exiting the script
+          FILE_PATHS_TO_PROCESS_OUTPUT=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
+          JQ_EXIT_CODE=$?
+          set -e
+
+          echo "JQ exit code for extracting paths: $JQ_EXIT_CODE"
+          echo "Raw output from JQ for FILE_PATHS_TO_PROCESS_OUTPUT (before assigning to var):"
+          echo "$FILE_PATHS_TO_PROCESS_OUTPUT"
+          echo "--- End Raw JQ Output ---"
+
+          FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT" # Assign after logging
+
+          if [ "$JQ_EXIT_CODE" -ne 0 ]; then
+            echo "::error:: jq command failed to extract file paths. Cannot apply fixes."
+            # Optionally, cat the response file if jq failed, to see if it was malformed
+            echo "Contents of $FIX_RESPONSE_FILE that caused jq error:"
+            cat "$FIX_RESPONSE_FILE"
+            exit 1 # Or handle more gracefully if appropriate
+          fi
+
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
-            echo "::notice::No files with non-null fixed content found in API response (based on keys)."
+            echo "::notice::No files with non-null fixed content found in API response (FILE_PATHS_TO_PROCESS is empty)."
+            # This is where it currently exits the 'if' block
           else
-            echo "Found file paths to process from API response:"
+            echo "File paths to process (after assignment, one per line expected):"
             echo "$FILE_PATHS_TO_PROCESS"
-            echo "---"
+            echo "--- Processing each file path ---"
 
             # Use process substitution for the loop
             while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
-                echo "::warning::Empty filepath encountered. Skipping."
+                echo "::warning::Empty filepath encountered in loop. Skipping."
                 continue
               fi
-              echo "Processing filepath: '$filepath'"
+              echo "Processing filepath from loop: '$filepath'"
 
+              # Get the specific fixed content for this filepath
               fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
 
               if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
-                echo "::warning::Content for '$filepath' is null or empty in the API response. Skipping."
+                echo "::warning::Content for '$filepath' is null or empty in the API response (second check). Skipping."
                 continue
               fi
 
@@ -216,7 +243,6 @@ jobs:
                 continue
               fi
               
-              # ... (content preview echos as before) ...
               echo "--- Original Content for '$filepath' (first 10 lines) ---"
               head -n 10 "$filepath" | sed 's/^/    /' 
               echo "--- End Original Content Preview ---"
@@ -230,22 +256,18 @@ jobs:
 
               if [ "$NORMALIZED_ORIGINAL_CONTENT" = "$NORMALIZED_FIXED_CONTENT" ]; then
                 echo "No actual content change (ignoring line endings) for '$filepath'. Skipping add."
-                continue
               else
                 echo "CONTENT DIFFERS for '$filepath'. Applying fix."
+                echo "Overwriting '$filepath' with AI content."
+                echo "$fixedcontent" > "$filepath" 
+                git add "$filepath"
+                echo "'$filepath' added to git staging area."
+                CHANGES_APPLIED=true 
               fi
-
-              echo "Overwriting '$filepath' with AI content."
-              echo "$fixedcontent" > "$filepath" 
-              git add "$filepath"
-              echo "'$filepath' added to git staging area."
-              CHANGES_APPLIED=true # This will now affect the CHANGES_APPLIED in the parent shell
-            done < <(echo "$FILE_PATHS_TO_PROCESS") # Process substitution here
+            done < <(echo "$FILE_PATHS_TO_PROCESS") # Process substitution
           fi 
-
-          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED" # This should now be true if changes were made
-
-          # ... (rest of the script: if [ "$CHANGES_APPLIED" = "true" ]; then ... commit and push ...)          
+          
+          echo "CHANGES_APPLIED flag is: $CHANGES_APPLIED"
 
           if [ "$CHANGES_APPLIED" = "true" ]; then
             echo "Changes were applied. Checking staged diff..."
@@ -254,11 +276,10 @@ jobs:
               git config user.name "OET Bot" 
               git config user.email "bot@online-everything-tool.com" 
               git commit -m "chore: AI-assisted lint fixes"
-              # Use the PR_HEAD_BRANCH_FOR_PUSH env var set earlier
               git push origin HEAD:${{ env.PR_HEAD_BRANCH_FOR_PUSH }} 
               echo "::notice::AI lint fixes committed and pushed. Workflow on PR branch will re-run."
             else
-              echo "::notice::AI proposed changes, but 'git diff --staged --quiet' found no differences after 'git add'. This might be due to only whitespace/line-ending changes not caught by normalization, or an issue with git add."
+              echo "::notice::AI proposed changes, but 'git diff --staged --quiet' found no differences after 'git add'."
             fi
           else
             echo "::notice::No changes were applied by the AI, or all changes resulted in identical content (after normalization)."
