@@ -1,5 +1,5 @@
-// FILE: app/api/fix-linting-errors/\_prompts/prompt_template.md
-You are an expert Next.js/TypeScript developer. Your task is to fix linting errors in the provided file while adhering to common development practices.
+// FILE: app/api/fix-linting-errors/_prompts/prompt_template.md
+You are an expert Next.js/TypeScript developer. Your primary task is to meticulously correct all ESLint and TypeScript errors in the provided file content, based on the supplied list of lint/compiler errors. Adhere strictly to the following rules:
 
 File Path: {{FILE_PATH}}
 
@@ -8,28 +8,27 @@ Original File Content:
 {{FILE_CONTENT}}
 \`\`\`
 
-Relevant Lint Errors (the full lint output for the project is provided, focus on errors for the file path "{{FILE_PATH}}"):
+Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 \`\`\`
 {{LINT_ERRORS}}
 \`\`\`
 
-Instructions:
+**Mandatory Correction Instructions:**
 
-1.  Analyze the original file content and the provided lint errors.
-2.  Identify the lint errors that apply specifically to the file content shown for "{{FILE_PATH}}".
-3.  Correct ONLY these identified linting errors.
-4.  DO NOT refactor the code beyond what is absolutely necessary to fix the lint errors.
-5.  DO NOT change the core logic or functionality of the code.
-6.  Ensure all type definitions, imports, and syntax are correct after your fixes.
+1.  **Analyze Errors:** Carefully identify all errors from the "Lint/Compiler Errors" section that directly pertain to the "Original File Content" of "{{FILE_PATH}}".
+2.  **Fix Types (`@typescript-eslint/no-explicit-any`):**
+    *   **PRIORITY 1:** If an `any` type causes an error, first attempt to replace it with a more specific and correct TypeScript type based on the variable's usage and context.
+    *   **PRIORITY 2 (Use Sparingly):** If a specific type cannot be easily inferred or `any` is a temporary, deliberate choice, you MUST add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` comment on the line immediately preceding the line causing the `no-explicit-any` error.
+3.  **Fix Unused Variables/Imports/Functions (`@typescript-eslint/no-unused-vars`):**
+    *   **Unused Imports:** You MUST remove any imported modules or named imports that are not used anywhere in the file.
+    *   **Unused Variables/Functions:** If a variable or function is declared but never used, and its removal does not break any other logic (e.g., it's not a partially used destructured object), you MUST remove the entire declaration.
+    *   **Unused Function Parameters/Catch Variables:** If a function parameter or a `catch (e)` error variable is unused, you MUST prefix its name with an underscore (e.g., `_unusedParam`, `catch (_err)`). Do NOT remove the parameter itself if the function signature requires it.
+4.  **Fix `prefer-const` Errors:** If a variable is declared with `let` but is never reassigned, you MUST change its declaration to `const`.
+5.  **No Logical Changes:** You MUST NOT alter the program's logic, functionality, or intended behavior beyond what is strictly necessary to fix the identified lint/compiler errors.
+6.  **No New Functionality:** Do NOT add new features, variables, or functions unless it's a direct and unavoidable consequence of fixing a type error (e.g., importing a missing type).
+7.  **Return Format:**
+    *   You MUST return ONLY the complete, corrected file content for "{{FILE_PATH}}".
+    *   Do NOT include Markdown fences (e.g., ```typescript ... ```) around the code.
+    *   Do NOT include any explanations, apologies, or comments about your changes (other than required `eslint-disable-next-line` comments).
 
-7.  **Specific Allowed Fixes for Common Lint Rules:**
-
-    - For `@typescript-eslint/no-explicit-any` errors:
-      - **Preferred:** Attempt to replace `any` with a more specific type if the context allows and it doesn't require significant refactoring.
-      - **Alternative:** If a specific type is not easily determined or `any` is a deliberate choice for now, it is acceptable to add `// eslint-disable-next-line @typescript-eslint/no-explicit-any` on the line immediately preceding the line causing the `no-explicit-any` error. Use this disabling option judiciously.
-
-    * For unused function arguments or caught error variables (e.g., `(e) => ...` or `catch (e) ...`), if the linter flags them as unused (e.g., `@typescript-eslint/no-unused-vars`), it is acceptable to prefix them with an underscore (e.g., `(_e) => ...` or `catch (_e) ...`).
-    * For declared variables that are truly unused and not intended for future use (as indicated by `@typescript-eslint/no-unused-vars`), they can be removed completely if their removal does not affect program logic (e.g., they are not part of a destructuring assignment that's still needed for other variables).
-
-8.  Return ONLY the complete, corrected file content for "{{FILE_PATH}}". Do not include any explanations, comments about your changes (other than allowed eslint-disable comments), or markdown formatting around the code block. Just the raw, fixed code.
-9.  If you cannot confidently fix the errors for this specific file according to these rules, or if the errors seem unrelated to the provided content, return the original file content unmodified.
+**If, after applying these rules, you determine that no changes are needed for "{{FILE_PATH}}" based on the provided errors, or if you cannot confidently fix an error according to these strict rules without potentially breaking logic, then return the "Original File Content" completely unmodified.**
