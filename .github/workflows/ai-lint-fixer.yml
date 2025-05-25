@@ -26,7 +26,7 @@ jobs:
         id: download_artifact
         uses: actions/download-artifact@v4
         with:
-          name: lint-failure-data-${{ github.event.workflow_run.head_sha }} # Match artifact name from main workflow
+          name: lint-failure-data-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/lint-data
         continue-on-error: true # Allow workflow to proceed even if artifact not found, to check outcome
 

@@ -364,7 +364,7 @@ jobs:
       - name: Serve Static Output Locally
         # ... (This step remains unchanged from your last full paste) ...
         id: serve_static
-        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'
+        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'        
         run: |
           echo "Starting static server for 'out' directory on port 3001..."
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
