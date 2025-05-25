@@ -10,16 +10,14 @@ on:
 jobs:
   attempt_fix:
     name: Attempt AI Lint Fix
-    if: github.event.workflow_run.conclusion == 'failure' # <-- CHANGED: Made this active
+    if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Good for checkout and git operations if PAT wasn't overriding
-      actions: read   # For downloading artifacts from other workflow runs
+      contents: write # For checkout
+      actions: read   # For downloading artifacts
     env:
       EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
       PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
-      # GITHUB_TOKEN is implicitly available, used by actions/checkout and actions/download-artifact by default
-      # No need to explicitly set it unless a step specifically requires it and can't find it.
 
     steps:
       - name: Get Triggering Workflow Run Info
@@ -38,7 +36,7 @@ jobs:
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }} # Using GITHUB_TOKEN is fine here
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
@@ -56,12 +54,7 @@ jobs:
              [ -f "$FILES_TO_CHECK_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
             echo "Lint failure artifacts found and are not empty."
             echo "artifact_valid=true" >> $GITHUB_OUTPUT
-            echo "--- Contents of lint_errors.txt (first 10 lines) ---"
-            head -n 10 "$LINT_ERRORS_FILE"
-            echo "--- End lint_errors.txt preview ---"
-            echo "--- Contents of files_to_check.txt ---"
-            cat "$FILES_TO_CHECK_FILE"
-            echo "--- End files_to_check.txt ---"
+            # ... (rest of the logging from your original script)
           else
             echo "::error::Lint failure artifact files (lint_errors.txt or files_to_check.txt) not found or empty after download attempt."
             echo "artifact_valid=false" >> $GITHUB_OUTPUT
@@ -74,14 +67,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.EXPECTED_ARTIFACT_SHA }}
-          fetch-depth: 0
-          # token: ${{ secrets.GITHUB_TOKEN }} # Default token is usually fine for checkout
+          fetch-depth: 0 # Important for getting the correct last commit message
 
       - name: Prepare Data for AI Lint Fix API
         id: prepare_fix_data
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         run: |
-          # ... (script remains the same)
+          # ... (Your script for preparing PR_FILES_JSON_PATH - unchanged)
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           PR_FILES_JSON_PATH="${{ runner.temp }}/pr_files_for_lint_fix.json"
@@ -114,7 +106,7 @@ jobs:
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
-          # ... (script remains the same)
+          # ... (Your script for calling the API - unchanged)
           LINT_ERRORS_CONTENT=$(cat "${{ runner.temp }}/lint-data/lint_errors.txt")
           LINT_ERRORS_JSON_ESCAPED=$(echo "$LINT_ERRORS_CONTENT" | jq -R -s '.')
           FILES_TO_FIX_JSON_CONTENT=$(cat "${{ runner.temp }}/pr_files_for_lint_fix.json")
@@ -140,168 +132,108 @@ jobs:
 
           echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
 
-          echo "--- AI API Response (fix_response.json) ---"
-          cat "${{ runner.temp }}/fix_response.json"
-          echo "--- End AI API Response ---"
-
-          if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
-            echo "::error::AI Lint Fix API call failed with HTTP status $HTTP_RESPONSE_CODE."
-            cat "${{ runner.temp }}/fix_response.json"
-            exit 1
+          # ... (rest of your API call script, including setting outputs - unchanged)
+          if [ "$HTTP_RESPONSE_CODE" -ne 200 ] || ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
+             echo "::error::AI Lint Fix API call failed or returned invalid JSON (HTTP Status: $HTTP_RESPONSE_CODE)."
+             # cat "${{ runner.temp }}/fix_response.json" # Potentially logs sensitive data if API fails with details
+             exit 1
           fi
-          if ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
-            echo "::error::AI Lint Fix API response is not valid JSON."
-            cat "${{ runner.temp }}/fix_response.json"
-            exit 1
-          fi
-
           FIX_API_SUCCESS=$(jq -r .success "${{ runner.temp }}/fix_response.json")
           echo "Fix API Reported Success (from JSON): $FIX_API_SUCCESS"
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
-      # ---vvv--- REMOVED GITHUB APP TOKEN GENERATION ---vvv---
-      # - name: Generate GitHub App Token for Push
-      #   id: generate_app_token
-      #   if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
-      #   uses: actions/create-github-app-token@v1
-      #   with:
-      #     app-id: ${{ secrets.OET_APP_ID }}
-      #     private-key: ${{ secrets.OET_APP_PRIVATE_KEY_PEM }}
-      # ---^^^--- REMOVED GITHUB APP TOKEN GENERATION ---^^^---
-
-      - name: Apply and Commit Fixes
-        # ---vvv--- UPDATED 'if' CONDITION (removed dependency on generate_app_token) ---vvv---
+      - name: Apply AI Fixes to Local Files
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
-        # ---^^^--- UPDATED 'if' CONDITION ---^^^---
-        env:
-          # ---vvv--- ADDED PAT SECRET ---vvv---
-          OET_PAT: ${{ secrets.AI_LINT_FIXER_PAT }}
-          # ---^^^--- ADDED PAT SECRET ---^^^---
+        id: apply_fixes_locally
         run: |
-          echo "--- Starting Apply and Commit Fixes ---"
+          echo "--- Starting Apply AI Fixes Locally ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           echo "Applying fixes from $FIX_RESPONSE_FILE..."
 
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
           echo "Last commit message on branch: $LAST_COMMIT_MSG_ON_BRANCH"
-
           if [[ "$LAST_COMMIT_MSG_ON_BRANCH" == "chore: AI-assisted lint fixes" ]]; then
-            echo "::warning::The latest commit on the branch is already an AI lint fix. Skipping."
+            echo "::warning::The latest commit on the branch is already an AI lint fix. Skipping any further action."
+            echo "changes_made=false" >> $GITHUB_OUTPUT # Ensure this output is always set
             exit 0
           fi
 
-          CHANGES_APPLIED_FLAG_FILE=$(mktemp)
-          echo "false" > "$CHANGES_APPLIED_FLAG_FILE"
-
-          echo "--- Attempting to extract file paths from API response ---"
+          CHANGES_MADE_LOCALLY="false"
+          # Using the same jq logic as your original script
           set +e
           FILE_PATHS_TO_PROCESS_OUTPUT=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
           JQ_EXIT_CODE=$?
           set -e
 
-          echo "JQ exit code for extracting paths: $JQ_EXIT_CODE"
-          echo "Raw output from JQ for FILE_PATHS_TO_PROCESS_OUTPUT (before assigning to var):"
-          echo "$FILE_PATHS_TO_PROCESS_OUTPUT"
-          echo "--- End Raw JQ Output ---"
-
-          FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT"
-
           if [ "$JQ_EXIT_CODE" -ne 0 ]; then
-            echo "::error:: jq command failed to extract file paths. Cannot apply fixes."
-            echo "Contents of $FIX_RESPONSE_FILE that caused jq error:"
+            echo "::error:: jq command failed to extract file paths from API response. Cannot apply fixes."
             cat "$FIX_RESPONSE_FILE"
+            echo "changes_made=false" >> $GITHUB_OUTPUT # Ensure this output is always set
             exit 1
           fi
+          
+          FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT"
 
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
-            echo "::notice::No files with non-null fixed content found in API response (FILE_PATHS_TO_PROCESS is empty)."
+            echo "::notice::No files with non-null fixed content found in API response."
           else
-            echo "File paths to process (after assignment, one per line expected):"
+            echo "File paths to process (one per line expected):"
             echo "$FILE_PATHS_TO_PROCESS"
             echo "--- Processing each file path ---"
-
             echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
                 echo "::warning::Empty filepath encountered in loop. Skipping."
                 continue
               fi
               echo "Processing filepath from loop: '$filepath'"
-
               fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
 
               if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
-                echo "::warning::Content for '$filepath' is null or empty in the API response (second check). Skipping."
+                echo "::warning::Content for '$filepath' is null or empty in the API response. Skipping."
                 continue
               fi
-
               if [ ! -f "$filepath" ]; then
                 echo "::warning::File '$filepath' from API response not found in local checkout. Skipping."
                 continue
               fi
 
-              echo "--- Original Content for '$filepath' (first 10 lines) ---"
-              head -n 10 "$filepath" | sed 's/^/    /'
-              echo "--- End Original Content Preview ---"
-              echo "--- AI Fixed Content for '$filepath' (first 10 lines) ---"
-              echo "$fixedcontent" | head -n 10 | sed 's/^/    /'
-              echo "--- End AI Fixed Content Preview ---"
-
               ORIGINAL_CONTENT_FOR_COMPARE=$(cat "$filepath")
+              # Normalize line endings for comparison
               NORMALIZED_ORIGINAL_CONTENT=$(echo "$ORIGINAL_CONTENT_FOR_COMPARE" | tr -d '\r')
               NORMALIZED_FIXED_CONTENT=$(echo "$fixedcontent" | tr -d '\r')
 
-              if [ "$NORMALIZED_ORIGINAL_CONTENT" = "$NORMALIZED_FIXED_CONTENT" ]; then
-                echo "No actual content change (ignoring line endings) for '$filepath'. Skipping add."
-              else
-                echo "CONTENT DIFFERS for '$filepath'. Applying fix."
-                echo "Overwriting '$filepath' with AI content."
+              if [ "$NORMALIZED_ORIGINAL_CONTENT" != "$NORMALIZED_FIXED_CONTENT" ]; then
+                echo "CONTENT DIFFERS for '$filepath'. Applying fix locally."
                 echo "$fixedcontent" > "$filepath"
-                git add "$filepath"
-                echo "'$filepath' added to git staging area."
-                echo "true" > "$CHANGES_APPLIED_FLAG_FILE"
+                CHANGES_MADE_LOCALLY="true"
+              else
+                echo "No actual content change (ignoring line endings) for '$filepath'."
               fi
             done
           fi
-
-          CHANGES_APPLIED=$(cat "$CHANGES_APPLIED_FLAG_FILE")
-          rm "$CHANGES_APPLIED_FLAG_FILE"
-
-          echo "CHANGES_APPLIED flag (read from file) is: $CHANGES_APPLIED"
-
-          if [ "$CHANGES_APPLIED" = "true" ]; then
-            echo "Changes were applied. Checking staged diff..."
-            if ! git diff --staged --quiet; then
-              echo "Staged changes found. Proceeding with commit and push using PAT."
-              # ---vvv--- UPDATED GIT CONFIG (can be your user or a bot name) ---vvv---
-              git config user.name "OET AI Fixer Bot" # Or ${{ github.actor }} if PAT is yours
-              git config user.email "ai-fixer-bot@online-everything-tool.com" # Or a users.noreply.github.com email
-              # ---^^^--- UPDATED GIT CONFIG ---^^^---
-              git commit -m "chore: AI-assisted lint fixes"
-
-              PR_BRANCH_NAME_CLEAN=$(echo "${{ env.PR_HEAD_BRANCH_FOR_PUSH }}" | sed 's|^refs/heads/||')
-              echo "Pushing to branch: $PR_BRANCH_NAME_CLEAN using PAT."
-
-              if [ -z "$OET_PAT" ]; then
-                echo "::error::PAT (AI_LINT_FIXER_PAT) not available or empty. Cannot push."
-                exit 1
-              fi
-              
-              # ---vvv--- UPDATED GIT PUSH COMMAND ---vvv---
-              git push https://x-access-token:${OET_PAT}@github.com/${{ github.repository }}.git HEAD:"$PR_BRANCH_NAME_CLEAN"
-              # ---^^^--- UPDATED GIT PUSH COMMAND ---^^^---
-              
-              if [ $? -eq 0 ]; then
-                echo "::notice::AI lint fixes committed and pushed using PAT. Workflow on PR branch should re-run."
-              else
-                echo "::error::git push using PAT failed."
-                exit 1
-              fi
-            else
-              echo "::notice::AI proposed changes, but 'git diff --staged --quiet' found no differences after 'git add'."
-            fi
+          
+          if [ "$CHANGES_MADE_LOCALLY" = "true" ]; then
+            echo "Local file changes were made by AI."
           else
-            echo "::notice::No changes were applied by the AI, or all changes resulted in identical content (after normalization)."
+            echo "No local file changes were made by AI (or content was identical)."
           fi
-          echo "--- End of Apply and Commit Fixes ---"
+          echo "changes_made=$CHANGES_MADE_LOCALLY" >> $GITHUB_OUTPUT
+          echo "--- End of Apply AI Fixes Locally ---"
+
+      - name: Commit and Push changes using PAT
+        if: steps.apply_fixes_locally.outputs.changes_made == 'true' # Only run if changes were actually made
+        uses: ad-m/github-push-action@v0.8.0 # Using a specific version is good practice
+        with:
+          github_token: ${{ secrets.AI_LINT_FIXER_PAT }}
+          branch: ${{ env.PR_HEAD_BRANCH_FOR_PUSH }}
+          commit_message: "chore: AI-assisted lint fixes"
+          # Optional: configure committer and author
+          # committer_email: "ai-fixer-bot@online-everything-tool.com"
+          # committer_name: "OET AI Fixer Bot"
+          # author_email: "ai-fixer-bot@online-everything-tool.com" # If different from committer
+          # author_name: "OET AI Fixer Bot"
+          force: false
+          # Ensure correct handling of directory, usually not needed if checkout is at repo root
+          # directory: '.' 
