@@ -353,6 +353,12 @@ jobs:
           echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
           echo "--- End of capture_for_ai_fix step ---"
 
+      - name: Debug Output Value Before Upload
+        if: always() # Ensure it always runs
+        run: |
+          echo "Value of steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai is [${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}]"
+          echo "Type of value: $(if [[ -z "${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}" ]]; then echo "empty"; elif [[ "${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}" == "true" ]]; then echo "string_true"; else echo "other_string_or_bool"; fi)"
+
       - name: Upload Lint Failure Artifact
         if: steps.capture_for_ai_fix.outputs.lint_errors_captured == 'true'
         uses: actions/upload-artifact@v4
