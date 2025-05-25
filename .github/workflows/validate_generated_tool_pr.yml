@@ -9,8 +9,7 @@ on:
 jobs:
   initial_checks:
     name: 1. Initial PR Validations
-    if: false # <--- ADD THIS TO DISABLE THIS JOB
-    #if: startsWith(github.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
+    if: startsWith(github.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
