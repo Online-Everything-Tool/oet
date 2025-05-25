@@ -2,16 +2,16 @@
 name: Validate Generated Tool PR
 
 on:
-  pull_request: # Original trigger for PR open/sync
+  pull_request:
     types: [opened, synchronize]
     branches:
       - main
-  issue_comment: # New trigger for comment commands
+  issue_comment:
     types: [created]
 
 jobs:
   trigger_gatekeeper:
-    name: 0. Check Comment Trigger
+    name: 0.A Check Comment Trigger (for issue_comment event)
     # Only run for issue_comment events that are on a pull request
     if: github.event_name == 'issue_comment' && github.event.issue.pull_request != null
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
               PR_NUMBER="${{ github.event.issue.number }}"
 
               if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" == "null" ] || [ -z "$PR_HEAD_REF" ] || [ "$PR_HEAD_REF" == "null" ] || [ -z "$PR_NUMBER" ]; then
-                echo "::error::Could not extract required PR details (SHA, Ref, or Number)."
+                echo "::error::Could not extract required PR details (SHA, Ref, or Number) from API response."
                 echo "SHA: $PR_HEAD_SHA, Ref: $PR_HEAD_REF, Number: $PR_NUMBER"
                 echo "Full Details: $PR_DETAILS"
                 # SHOULD_RUN remains "false"
@@ -90,69 +90,71 @@ jobs:
           echo "should_run_validation=${SHOULD_RUN}" >> $GITHUB_OUTPUT
 
   prepare_run_context:
-    name: 0. Prepare Run Context
+    name: 0.B Prepare Run Context
     runs-on: ubuntu-latest
-    needs: [trigger_gatekeeper] # This is fine. If trigger_gatekeeper is skipped, its result is 'skipped'.
-    # The 'if' condition must explicitly allow running even if trigger_gatekeeper was skipped (for PR events).
-    if: always() # Let this job always attempt to run if its 'needs' are met (even if skipped)
-                 # The logic to proceed will be in its steps or subsequent jobs.
+    needs: [trigger_gatekeeper] # Waits for gatekeeper; gatekeeper is skipped for PR events.
+    if: always() # This job itself always tries to run after trigger_gatekeeper (or its skip)
     outputs:
-      run_validation: ${{ steps.set_run_flag.outputs.run_validation }}
+      run_validation: ${{ steps.gather_info.outputs.run_validation }}
       head_sha: ${{ steps.gather_info.outputs.head_sha }}
       head_ref: ${{ steps.gather_info.outputs.head_ref }}
       pr_number: ${{ steps.gather_info.outputs.pr_number }}
     steps:
-      - name: Determine if validation should run and gather PR Info
-        id: gather_info # Combined steps for clarity
+      - name: Gather PR Information and Decide to Run
+        id: gather_info
         run: |
           RUN_VALIDATION="false" # Default
           HEAD_SHA=""
           HEAD_REF=""
           PR_NUMBER=""
 
+          echo "Event name: ${{ github.event_name }}"
+          echo "Trigger Gatekeeper result: ${{ needs.trigger_gatekeeper.result }}"
+          echo "Trigger Gatekeeper should_run_validation output: ${{ needs.trigger_gatekeeper.outputs.should_run_validation }}"
+
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Event: pull_request - setting run_validation to true"
+            echo "Event is pull_request. Setting run_validation to true."
             RUN_VALIDATION="true"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-            HEAD_REF="${{ github.head_ref }}"
-            PR_NUMBER="${{ github.event.number }}"
+            HEAD_REF="${{ github.head_ref }}" # For PRs, github.head_ref is the source branch name
+            PR_NUMBER="${{ github.event.number }}" # For PRs, github.event.number is the PR number
           elif [ "${{ github.event_name }}" == "issue_comment" ]; then
-            # Only consider running if trigger_gatekeeper succeeded and said so
+            # Only proceed if trigger_gatekeeper ran successfully and approved
             if [ "${{ needs.trigger_gatekeeper.result }}" == "success" ] && \
                [ "${{ needs.trigger_gatekeeper.outputs.should_run_validation }}" == "true" ]; then
-              echo "Event: issue_comment with trigger_gatekeeper approval - setting run_validation to true"
+              echo "Event is issue_comment and trigger_gatekeeper approved. Setting run_validation to true."
               RUN_VALIDATION="true"
               HEAD_SHA="${{ needs.trigger_gatekeeper.outputs.pr_head_sha }}"
               HEAD_REF="${{ needs.trigger_gatekeeper.outputs.pr_head_ref }}"
               PR_NUMBER="${{ needs.trigger_gatekeeper.outputs.pr_number }}"
             else
-              echo "Event: issue_comment, but trigger_gatekeeper did not approve or was skipped/failed. Validation will not run."
-              # RUN_VALIDATION remains "false"
+              echo "Event is issue_comment, but trigger_gatekeeper did not approve or was skipped/failed. Validation will not run."
             fi
           else
-            echo "::error::Unknown event type: ${{ github.event_name }}. Validation will not run."
-            # RUN_VALIDATION remains "false"
+            echo "::warning::Unknown event type: ${{ github.event_name }}. Validation will not run based on event type."
           fi
           
-          echo "run_validation=${RUN_VALIDATION}" >> $GITHUB_OUTPUT
+          # Final check for critical info if validation is supposed to run
           if [ "$RUN_VALIDATION" == "true" ]; then
             if [ -z "$HEAD_SHA" ] || [ "$HEAD_SHA" == "null" ] || \
                [ -z "$HEAD_REF" ] || [ "$HEAD_REF" == "null" ] || \
                [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" == "null" ]; then
-              echo "::error::RUN_VALIDATION is true, but required PR info (SHA, Ref, Number) is missing."
-              echo "SHA: $HEAD_SHA, Ref: $HEAD_REF, Number: $PR_NUMBER"
-              # Potentially set RUN_VALIDATION to false here if info is bad, or let downstream jobs fail
-              echo "run_validation=false" >> $GITHUB_OUTPUT # Override to false if info is bad
-              exit 1 # Fail this step if info is critical and missing
-            else
-              echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
-              echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
-              echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+              echo "::error::RUN_VALIDATION is true, but required PR info (SHA, Ref, or Number) is missing or null."
+              echo "SHA: '$HEAD_SHA', Ref: '$HEAD_REF', Number: '$PR_NUMBER'"
+              RUN_VALIDATION="false" # Prevent further jobs from running if info is bad
             fi
           fi
-      # Removed the separate 'set_run_flag' step as it's incorporated above
           
-initial_checks:
+          echo "Final decision: run_validation=${RUN_VALIDATION}"
+          echo "run_validation=${RUN_VALIDATION}" >> $GITHUB_OUTPUT
+          # Only output other vars if we are actually running validation
+          if [ "$RUN_VALIDATION" == "true" ]; then
+            echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
+            echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+            echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          fi
+
+  initial_checks:
     name: 1. Initial PR Validations
     needs: [prepare_run_context]
     if: >
@@ -178,7 +180,7 @@ initial_checks:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.prepare_run_context.outputs.head_sha }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }} # Using default GITHUB_TOKEN
           fetch-depth: 0
 
       - name: Extract Tool Directive
@@ -189,7 +191,7 @@ initial_checks:
           BRANCH_NAME="$BRANCH_NAME_FROM_CONTEXT"
           echo "Attempting to extract directive from branch name: $BRANCH_NAME"
           if [ -z "$BRANCH_NAME" ]; then
-            echo "::error::BRANCH_NAME_FROM_CONTEXT is empty. Cannot extract directive."
+            echo "::error::BRANCH_NAME_FROM_CONTEXT is empty (likely from prepare_run_context). Cannot extract directive."
             exit 1
           fi
           TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
@@ -346,7 +348,7 @@ initial_checks:
 
   build_and_run_douglas_checker:
     name: 2. Build Tool & Run Douglas Ethos Check
-    needs: [prepare_run_context, initial_checks] # Depends on both
+    needs: [prepare_run_context, initial_checks]
     if: needs.initial_checks.result == 'success' && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
@@ -354,6 +356,7 @@ initial_checks:
     outputs:
       douglas_check_step_outcome: ${{ steps.douglas_checker_run.outcome }}
       imgur_screenshot_url: ${{ steps.upload_to_imgur.outputs.image_url || '' }}
+      lint_errors_captured_for_ai: ${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai || 'false' }} # Ensure this output is passed up
     steps:
       - name: Checkout OET Code (PR branch)
         uses: actions/checkout@v4
@@ -553,13 +556,12 @@ initial_checks:
         run: |
           SCREENSHOT_FILE="$RUNNER_TEMP/douglas_screenshot.png"
           IMAGE_URL=""
+          PR_NUM_FOR_TITLE="${{ needs.prepare_run_context.outputs.pr_number }}"
           if [ -f "$SCREENSHOT_FILE" ]; then
             if [ -z "$IMGUR_CLIENT_ID" ]; then
               echo "::warning::IMGUR_CLIENT_ID secret not set. Cannot upload screenshot to Imgur."
             else
               echo "Uploading $SCREENSHOT_FILE to Imgur..."
-              # Use PR number from the context prepare job
-              PR_NUM_FOR_TITLE="${{ needs.prepare_run_context.outputs.pr_number }}"
               RESPONSE=$(curl -s -X POST \
                 -H "Authorization: Client-ID $IMGUR_CLIENT_ID" \
                 -F "image=@$SCREENSHOT_FILE" \
@@ -584,7 +586,7 @@ initial_checks:
         continue-on-error: true
 
       - name: Upload Douglas Summary Artifact
-        if: always() && steps.serve_static.outcome == 'success'
+        if: always() && steps.serve_static.outcome == 'success' && steps.douglas_checker_run.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: douglas-summary-${{ github.run_id }}
@@ -592,7 +594,7 @@ initial_checks:
           if-no-files-found: warn
 
       - name: Upload Douglas Screenshot Artifact (as fallback)
-        if: always() && steps.serve_static.outcome == 'success'
+        if: always() && steps.serve_static.outcome == 'success' && steps.douglas_checker_run.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: douglas-screenshot-${{ github.run_id }}
@@ -614,10 +616,11 @@ initial_checks:
   report_pr_status:
     name: 3. Report PR Validation Status
     needs:
-      - prepare_run_context # Depends on this for PR info
+      - prepare_run_context
       - initial_checks
       - build_and_run_douglas_checker
-    if: always() && github.actor != 'dependabot[bot]' # This job always runs if not dependabot
+    # This job always runs if not dependabot, to report status or skips
+    if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write 
@@ -625,8 +628,7 @@ initial_checks:
     steps:
       - name: Download Douglas Summary Artifact
         id: download_summary
-        # Only try to download if build_and_run_douglas_checker was successful or at least ran
-        if: needs.build_and_run_douglas_checker.result != 'skipped' 
+        if: needs.build_and_run_douglas_checker.result != 'skipped' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'skipped'
         uses: actions/download-artifact@v4
         with:
           name: douglas-summary-${{ github.run_id }}
@@ -635,9 +637,14 @@ initial_checks:
 
       - name: Read Douglas Summary Content
         id: read_summary
-        if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
+        if: steps.download_summary.outcome == 'success' # Only if download was attempted and succeeded
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
+          if [ ! -f "$SUMMARY_FILE" ]; then
+            echo "Douglas summary file not found at $SUMMARY_FILE after download. Setting empty summary."
+            echo "summary_markdown=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
           SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
           SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" 
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
@@ -648,13 +655,12 @@ initial_checks:
 
       - name: Construct and Post PR Comment
         id: post_comment
-        # This step should only run if prepare_run_context actually decided we should run validation
-        # or if it's a direct PR event.
+        # Only post if the main validation logic was intended to run
         if: needs.prepare_run_context.outputs.run_validation == 'true' || github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
           PR_NUMBER_FROM_CONTEXT: ${{ needs.prepare_run_context.outputs.pr_number }}
-          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }} # Will be empty if initial_checks skipped
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
           PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
           INVALID_FILES_LIST: ${{ needs.initial_checks.outputs.invalid_files_list }}
@@ -664,36 +670,39 @@ initial_checks:
           AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
           AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
           BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
-          # Check if the artifact upload step in build_and_run_douglas_checker was successful or skipped
-          # This indicates if AI Lint Fixer would be triggered by *this current run*.
           LINT_ERRORS_CAPTURED_FOR_AI: ${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false' }}
           DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
           IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
-          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found/unreadable, or Douglas check was skipped.' }}
+          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary not available or check was skipped.' }}
           ACTION_RUN_URL: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
           IS_COMMENT_TRIGGERED_RUN: ${{ github.event_name == 'issue_comment' && needs.trigger_gatekeeper.outputs.should_run_validation == 'true' }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const prNumberFromEnv = process.env.PR_NUMBER_FROM_CONTEXT;
-            // If prepare_run_context was skipped (e.g. direct PR event that didn't match initial_checks's branch filter),
-            // but report_pr_status still runs, we might not have prNumberFromEnv.
-            // Fallback to github.event.number for direct PR events.
-            const issue_number_str = prNumberFromEnv || (context.eventName === 'pull_request' ? context.payload.pull_request.number : null);
+            const prNumberFromContext = process.env.PR_NUMBER_FROM_CONTEXT;
+            const eventName = context.eventName;
+            let issue_number_str = "";
+
+            if (eventName === 'pull_request') {
+              issue_number_str = context.payload.pull_request.number.toString();
+            } else if (eventName === 'issue_comment' && prNumberFromContext) {
+              issue_number_str = prNumberFromContext;
+            }
 
             if (!issue_number_str) {
-              core.info("PR Number not available. Skipping comment.");
+              core.info("PR Number not determinable for this event. Skipping comment.");
               return;
             }
             const issue_number = parseInt(issue_number_str, 10);
             if (isNaN(issue_number)) {
-              core.setFailed("Parsed PR Number is NaN.");
+              core.setFailed(`Parsed PR Number is NaN from string: '${issue_number_str}'.`);
               return;
             }
 
             const isCommentTriggeredRun = process.env.IS_COMMENT_TRIGGERED_RUN === 'true';
             const initialChecksResult = process.env.INITIAL_CHECKS_JOB_RESULT;
-            const toolDirective = process.env.TOOL_DIRECTIVE || "UnknownTool";
+            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT;
+            const toolDirective = process.env.TOOL_DIRECTIVE || "UnknownTool"; // Default if initial_checks skipped
             const actionRunUrl = `${process.env.ACTION_RUN_URL}?pr=${issue_number}`;
             let commentBody = ``;
 
@@ -705,14 +714,20 @@ initial_checks:
 
             // Section 1: Initial PR Validations
             commentBody += `### 1. Initial PR Validations\n`;
-            if (initialChecksResult === 'skipped') {
-                 commentBody += `🟡 Initial validations were skipped. This might be due to branch name patterns or other conditions not being met. See [Action logs](${actionRunUrl}) for details.\n`;
+            // Check if initial_checks job was even supposed to run based on its own 'if' condition
+            const initialChecksShouldHaveRun = (eventName === 'pull_request' && process.env.TOOL_DIRECTIVE !== "UnknownTool") || isCommentTriggeredRun;
+
+            if (!initialChecksShouldHaveRun && initialChecksResult === 'skipped') {
+                 commentBody += `🟡 Initial validations were skipped (e.g., branch name pattern not matched for PR, or comment trigger not approved). See [Action logs](${actionRunUrl}) for details.\n`;
             } else if (initialChecksResult === 'success') {
               commentBody += `✅ **Initial Validations Passed!**\n`;
               if (process.env.PATH_VALIDATION_PASSED === 'true') {
                 commentBody += `  - All changed files are within the allowed directory for \`${toolDirective}\`.\n`;
+              } else if (process.env.PATH_VALIDATION_PASSED === 'false') {
+                // This case should ideally be covered by initialChecksResult === 'failure'
+                const invalidFiles = (process.env.INVALID_FILES_LIST || "List unavailable.").replace(/%0A/g, '\n    - ').replace(/%0D/g, '');
+                commentBody += `  - **Path Validation Failed:** Files changed outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
               }
-              // AI Analysis part
               commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
               if (process.env.AI_ANALYSIS_SUCCEEDED === 'true') {
                 commentBody += `    - Score: **${process.env.AI_SCORE}**\n`;
@@ -730,45 +745,46 @@ initial_checks:
               }
             } else if (initialChecksResult === 'failure') {
               commentBody += `🚨 **Initial Validations FAILED!**\n`;
-              if (process.env.PATH_VALIDATION_PASSED === 'false') {
+              if (process.env.PATH_VALIDATION_PASSED === 'false') { // Check if path validation was the cause
                 const invalidFiles = (process.env.INVALID_FILES_LIST || "List unavailable.").replace(/%0A/g, '\n    - ').replace(/%0D/g, '');
                 commentBody += `  - **Path Validation Failed:** Files changed outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
-              } else {
-                commentBody += `  - One or more initial checks failed. See logs.\n`;
+              } else { // Other failure in initial_checks
+                commentBody += `  - One or more initial checks failed. See logs for details (e.g., directive pattern).\n`;
               }
-            } else {
+            } else { // Handles 'cancelled' or other unexpected results like 'skipped' when it should have run
                commentBody += `🟡 Initial validations status: ${initialChecksResult}. See [Action logs](${actionRunUrl}).\n`;
             }
             commentBody += "\n---\n";
 
             // Section 2: Local Build & Douglas Ethos Check
             commentBody += `### 2. Local Build & Douglas Ethos Check\n`;
-            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT;
             const lintErrorsCapturedForAI = process.env.LINT_ERRORS_CAPTURED_FOR_AI === 'true';
             const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME;
 
             if (initialChecksResult !== 'success') {
                 commentBody += `🟡 Build & Douglas checks skipped due to initial validation status: ${initialChecksResult}.\n`;
-            } else if (lintErrorsCapturedForAI && !isCommentTriggeredRun) { // Only show this if it's the run *before* AI fixer
-              commentBody += `🟡 **Build/Lint Failed.** An AI Lint Fixer workflow should be triggered to attempt corrections.\n`;
-              commentBody += `   Please monitor for the AI Lint Fixer workflow and its subsequent re-validation comment.\n`;
+            } else if (lintErrorsCapturedForAI && !isCommentTriggeredRun) {
+              commentBody += `🟡 **Build/Lint Failed.** An AI Lint Fixer workflow should be triggered. It will post a \`/revalidate-ai-fixes\` comment to re-run these checks if it makes changes.\n`;
               commentBody += `   Douglas Ethos Check was skipped in this run due to the build failure.\n`;
             } else if (buildDouglasJobResult === 'skipped') {
-              commentBody += `🟡 Local build and Douglas Ethos Check job were skipped.\n`;
+              commentBody += `🟡 Local build and Douglas Ethos Check job were skipped (likely due to its own 'if' condition not met).\n`;
             } else if (buildDouglasJobResult === 'failure') {
-              commentBody += `🚨 **Local Static Build FAILED!** (AI lint fix was not attempted for this failure or this is a re-run after AI fix).\n`;
+              commentBody += `🚨 **Local Static Build FAILED!**\n`;
+              if (isCommentTriggeredRun) {
+                commentBody += `   This was a re-validation run after AI fixes, but the build still failed.\n`;
+              }
               commentBody += `   Review [Action logs for Build & Douglas Job](${actionRunUrl}) for build failure details.\n`;
             } else if (buildDouglasJobResult === 'success') {
               commentBody += `✅ **Local Static Build Successful.**\n`;
               if (douglasCheckStepOutcome === 'success') {
                 commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
               } else if (douglasCheckStepOutcome === 'skipped') {
-                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., static server did not start).\n`;
+                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., static server did not start, or its 'if' condition not met).\n`;
               } else { 
                 commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome})\n`;
               }
-              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD || "Douglas summary not available.").replace(/%0A/g, '\n').replace(/%0D/g, '');
-              if (douglasSummary.trim() !== "Douglas summary not available." && douglasSummary.trim() !== "") {
+              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD || "").replace(/%0A/g, '\n').replace(/%0D/g, '');
+              if (douglasSummary.trim() !== "" && douglasSummary.trim() !== "Douglas summary not available or check was skipped.") {
                   commentBody += `\n${douglasSummary}\n`; 
               }
               const imgurUrl = process.env.IMGUR_SCREENSHOT_URL;
@@ -777,27 +793,33 @@ initial_checks:
               } else if (douglasCheckStepOutcome && douglasCheckStepOutcome !== 'skipped') {
                 commentBody += `   (Screenshot not uploaded to Imgur or not found. View artifact [on Action run page](${actionRunUrl}))\n`;
               }
+            } else { // Other buildDouglasJobResult like 'cancelled'
+                commentBody += `🟡 Build & Douglas checks status: ${buildDouglasJobResult}. See [Action logs](${actionRunUrl}).\n`;
             }
             commentBody += "\n---\n";
 
             // Section 3: Next Steps
             commentBody += `### 3. Next Steps\n`;
-            const thisRunCriticalChecksPassed = initialChecksResult === 'success' && 
+            const currentRunPassedAllCritical = initialChecksResult === 'success' && 
                                              buildDouglasJobResult === 'success' && 
                                              douglasCheckStepOutcome === 'success';
 
             if (lintErrorsCapturedForAI && !isCommentTriggeredRun) {
-              commentBody += `⏳ An AI Lint Fixer workflow is being triggered. If it makes changes, it will post a \`/revalidate-ai-fixes\` comment to re-run these checks.\n`;
-            } else if (thisRunCriticalChecksPassed) {
+              commentBody += `⏳ An AI Lint Fixer workflow is being triggered. Wait for its \`/revalidate-ai-fixes\` comment.\n`;
+            } else if (currentRunPassedAllCritical) {
               commentBody += `✅ All checks passed for this run!\n`;
               if (isCommentTriggeredRun) {
-                commentBody += `   The AI fixes appear to have resolved the issues.\n`;
+                commentBody += `   The AI fixes appear to have resolved the prior issues.\n`;
               }
               commentBody += `⏳ A Netlify Deploy Preview should be building/updating. Its status will appear as a separate check on this PR.\n`;
               commentBody += `👍 Once ready, please test your tool thoroughly using the Deploy Preview link!\n`;
             } else {
-              commentBody += `‼️ **Action Required:** One or more checks failed in this run. Review details above and in [Action run logs](${actionRunUrl}).\n`;
-              if (isCommentTriggeredRun) {
+              commentBody += `‼️ **Action Required:** One or more critical checks failed in this run. Review details above and in [Action run logs](${actionRunUrl}).\n`;
+              if (isCommentTriggeredRun && initialChecksResult === 'success' && buildDouglasJobResult === 'failure') {
+                commentBody += `   The AI fixes were applied, but the build still failed. Manual intervention might be needed.\n`;
+              } else if (isCommentTriggeredRun && initialChecksResult === 'success' && buildDouglasJobResult === 'success' && douglasCheckStepOutcome !== 'success') {
+                commentBody += `   The AI fixes were applied and build succeeded, but Douglas Ethos check found issues. Manual intervention might be needed.\n`;
+              } else if (isCommentTriggeredRun) {
                 commentBody += `   The AI fixes may not have been sufficient. Manual intervention might be needed.\n`;
               }
             }
@@ -812,17 +834,20 @@ initial_checks:
       - name: Fail workflow if critical checks failed (and no AI Fix Attempted by THIS run)
         if: >
           (
-            needs.initial_checks.result == 'failure' ||
+            needs.prepare_run_context.outputs.run_validation == 'true' &&
             (
-              needs.build_and_run_douglas_checker.result == 'failure' &&
-              (needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false') != 'true' 
-            ) ||
-            (
-              needs.build_and_run_douglas_checker.result == 'success' &&
-              (needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped') != 'success' &&
-              (needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false') != 'true'
+              needs.initial_checks.result == 'failure' ||
+              (
+                needs.build_and_run_douglas_checker.result == 'failure' &&
+                (needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false') != 'true' 
+              ) ||
+              (
+                needs.build_and_run_douglas_checker.result == 'success' &&
+                (needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped') != 'success' &&
+                (needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false') != 'true'
+              )
             )
-          ) && (github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && needs.trigger_gatekeeper.outputs.should_run_validation == 'true'))
+          )
         run: |
           echo "::error::One or more critical checks failed, and no AI Lint Fix was initiated by *this specific workflow run* to address them. Marking this workflow run as failed."
           exit 1
