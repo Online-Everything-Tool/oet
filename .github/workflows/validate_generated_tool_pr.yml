@@ -86,6 +86,7 @@ jobs:
           echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT # <<< CRITICAL OUTPUT
           echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT   # <<< CRITICAL OUTPUT
           # ...          
+          cat $GITHUB_OUTPUT
 
       - name: Extract Tool Directive
         if: steps.set_pr_info.outputs.should_run == 'true'
