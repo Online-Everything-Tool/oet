@@ -89,47 +89,76 @@ jobs:
           fi
           echo "should_run_validation=${SHOULD_RUN}" >> $GITHUB_OUTPUT
 
-  prepare_run_context: # New job to consolidate PR info
+  prepare_run_context:
     name: 0. Prepare Run Context
     runs-on: ubuntu-latest
-    # This job runs for both pull_request and valid issue_comment triggers
-    needs: [trigger_gatekeeper] # Always wait for gatekeeper (it will be skipped for PR events)
-    if: >
-      github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && needs.trigger_gatekeeper.result == 'success' && needs.trigger_gatekeeper.outputs.should_run_validation == 'true')
+    needs: [trigger_gatekeeper] # This is fine. If trigger_gatekeeper is skipped, its result is 'skipped'.
+    # The 'if' condition must explicitly allow running even if trigger_gatekeeper was skipped (for PR events).
+    if: always() # Let this job always attempt to run if its 'needs' are met (even if skipped)
+                 # The logic to proceed will be in its steps or subsequent jobs.
     outputs:
       run_validation: ${{ steps.set_run_flag.outputs.run_validation }}
       head_sha: ${{ steps.gather_info.outputs.head_sha }}
       head_ref: ${{ steps.gather_info.outputs.head_ref }}
       pr_number: ${{ steps.gather_info.outputs.pr_number }}
     steps:
-      - name: Set run validation flag
-        id: set_run_flag
-        run: echo "run_validation=true" >> $GITHUB_OUTPUT # If this job runs, validation should proceed
-
-      - name: Gather PR Information
-        id: gather_info
+      - name: Determine if validation should run and gather PR Info
+        id: gather_info # Combined steps for clarity
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Event: pull_request"
-            echo "head_sha=${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
-            echo "head_ref=${{ github.head_ref }}" >> $GITHUB_OUTPUT
-            echo "pr_number=${{ github.event.number }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
-            # This elif block assumes trigger_gatekeeper has succeeded and provided these outputs
-            echo "Event: issue_comment (via trigger_gatekeeper)"
-            echo "head_sha=${{ needs.trigger_gatekeeper.outputs.pr_head_sha }}" >> $GITHUB_OUTPUT
-            echo "head_ref=${{ needs.trigger_gatekeeper.outputs.pr_head_ref }}" >> $GITHUB_OUTPUT
-            echo "pr_number=${{ needs.trigger_gatekeeper.outputs.pr_number }}" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Unknown event type or condition not met for gathering PR info."
-            exit 1
-          fi
+          RUN_VALIDATION="false" # Default
+          HEAD_SHA=""
+          HEAD_REF=""
+          PR_NUMBER=""
 
-  initial_checks:
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "Event: pull_request - setting run_validation to true"
+            RUN_VALIDATION="true"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            HEAD_REF="${{ github.head_ref }}"
+            PR_NUMBER="${{ github.event.number }}"
+          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
+            # Only consider running if trigger_gatekeeper succeeded and said so
+            if [ "${{ needs.trigger_gatekeeper.result }}" == "success" ] && \
+               [ "${{ needs.trigger_gatekeeper.outputs.should_run_validation }}" == "true" ]; then
+              echo "Event: issue_comment with trigger_gatekeeper approval - setting run_validation to true"
+              RUN_VALIDATION="true"
+              HEAD_SHA="${{ needs.trigger_gatekeeper.outputs.pr_head_sha }}"
+              HEAD_REF="${{ needs.trigger_gatekeeper.outputs.pr_head_ref }}"
+              PR_NUMBER="${{ needs.trigger_gatekeeper.outputs.pr_number }}"
+            else
+              echo "Event: issue_comment, but trigger_gatekeeper did not approve or was skipped/failed. Validation will not run."
+              # RUN_VALIDATION remains "false"
+            fi
+          else
+            echo "::error::Unknown event type: ${{ github.event_name }}. Validation will not run."
+            # RUN_VALIDATION remains "false"
+          fi
+          
+          echo "run_validation=${RUN_VALIDATION}" >> $GITHUB_OUTPUT
+          if [ "$RUN_VALIDATION" == "true" ]; then
+            if [ -z "$HEAD_SHA" ] || [ "$HEAD_SHA" == "null" ] || \
+               [ -z "$HEAD_REF" ] || [ "$HEAD_REF" == "null" ] || \
+               [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" == "null" ]; then
+              echo "::error::RUN_VALIDATION is true, but required PR info (SHA, Ref, Number) is missing."
+              echo "SHA: $HEAD_SHA, Ref: $HEAD_REF, Number: $PR_NUMBER"
+              # Potentially set RUN_VALIDATION to false here if info is bad, or let downstream jobs fail
+              echo "run_validation=false" >> $GITHUB_OUTPUT # Override to false if info is bad
+              exit 1 # Fail this step if info is critical and missing
+            else
+              echo "head_sha=${HEAD_SHA}" >> $GITHUB_OUTPUT
+              echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+              echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+            fi
+          fi
+      # Removed the separate 'set_run_flag' step as it's incorporated above
+          
+initial_checks:
     name: 1. Initial PR Validations
-    needs: [prepare_run_context] # Depends on the new context job
-    if: needs.prepare_run_context.outputs.run_validation == 'true' && startsWith(needs.prepare_run_context.outputs.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
+    needs: [prepare_run_context]
+    if: >
+      needs.prepare_run_context.outputs.run_validation == 'true' &&
+      startsWith(needs.prepare_run_context.outputs.head_ref, 'feat/gen-') &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
