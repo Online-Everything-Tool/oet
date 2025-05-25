@@ -41,11 +41,6 @@ jobs:
       critical_initial_checks_passed: ${{ (steps.check_patterns.outputs.check_passed == 'true' && steps.validate_paths.outputs.validation_passed == 'true') }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Set PR Info and Validate Trigger
         id: set_pr_info
         env:
@@ -140,6 +135,12 @@ jobs:
           echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT
           echo "should_run=${SHOULD_RUN}" >> $GITHUB_OUTPUT
           echo "::endgroup::"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.set_pr_info.outputs.pr_sha }}
+          fetch-depth: 0
 
       - name: Extract Tool Directive
         if: steps.set_pr_info.outputs.should_run == 'true'
@@ -327,6 +328,7 @@ jobs:
     steps:
       - name: Checkout OET Code (PR branch)
         uses: actions/checkout@v4
+        
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
