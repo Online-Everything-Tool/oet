@@ -22,6 +22,36 @@ jobs:
         id: get_trigger_run_id
         run: echo "TRIGGERING_WORKFLOW_RUN_ID=${{ github.event.workflow_run.id }}" >> $GITHUB_ENV
 
+      - name: Wait for artifact propagation
+        run: sleep 15 # Wait for 15 seconds
+        
+      # In ai-lint-fixer.yml, before download_artifact
+      - name: List Artifacts for Triggering Run (Debug)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run_id = ${{ github.event.workflow_run.id }};
+            console.log(`Listing artifacts for workflow run ID: ${run_id}`);
+            try {
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run_id,
+              });
+              console.log(`Found ${artifacts.data.artifacts.length} artifacts:`);
+              for (const artifact of artifacts.data.artifacts) {
+                console.log(`- Name: ${artifact.name}, ID: ${artifact.id}, Size: ${artifact.size_in_bytes}, Created: ${artifact.created_at}, Updated: ${artifact.updated_at}, Expired: ${artifact.expired}`);
+                if (artifact.name === "lint-failure-data-${{ github.event.workflow_run.head_sha }}") {
+                  console.log("MATCH FOUND for expected artifact name!");
+                }
+              }
+              if (artifacts.data.artifacts.length === 0) {
+                console.log("No artifacts found for this run ID via API.");
+              }
+            } catch (error) {
+              console.error("Error listing artifacts:", error);
+            }        
+
       - name: Download Lint Failure Artifact
         id: download_artifact
         uses: actions/download-artifact@v4
