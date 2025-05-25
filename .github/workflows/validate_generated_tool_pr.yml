@@ -351,9 +351,9 @@ jobs:
           rm -rf app/api || echo "No app/api directory to remove or removal failed (continuing)."
           if [ -d "app/tool" ]; then
             echo "Removing other tool directories from app/tool/ ..."
+            cd app/tool
             ls -l
             echo 'all tools'
-            cd app/tool
             ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
             ls -l
             cd ../.. 
