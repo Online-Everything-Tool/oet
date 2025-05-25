@@ -1,6 +1,6 @@
 # TODO List - OET Project
 
-**Current Major Focus:** Complete and stabilize the EC2 + SQS setup for the AI tool generation backend. Thoroughly test the AI Build Tool end-to-end with the new hybrid architecture. Finalize ITDE hardening.
+**Current Major Focus:** Complete and stabilize the EC2 + SQS setup for the AI tool generation backend. Thoroughly test the AI Build Tool end-to-end with the new hybrid architecture, _including the quality and functionality of generated tools_. Finalize ITDE hardening.
 
 **Guiding Principles for ITDE (Recap):**
 
@@ -65,27 +65,27 @@
   - [x] **SQS & GitHub Actions for Automated Updates to EC2:**
     - [x] SQS Queue created.
     - [x] IAM Roles/Users configured (for GitHub Actions to send to SQS, for EC2 to read from SQS).
-    - [x] Finalize and test GitHub Action workflow (`notify_ec2_on_push.yml`) to send SQS message on `main` branch push.
+    - [x] Finalize and test GitHub Action workflow (`main.yml` - _renamed from `notify_ec2_on_push.yml` or implies this functionality is now in `main.yml`_) to send SQS message on `main` branch push.
     - [x] Implement and test SQS polling script (`check_sqs_and_delete.sh` via cron) on EC2.
     - [x] Implement and test update script (`incoming_sqs_update.sh` in repo) called by poller to handle `git pull`, `npm ci`, `npm run build` (for contexts), and `pm2 restart`.
   - [x] **Client-Side Configuration:**
     - [x] `NEXT_PUBLIC_GENERATE_API_ENDPOINT_URL` environment variable configured for Netlify frontend and local `.env`.
     - [x] `GenerateToolResources.tsx` uses this environment variable (with fallback for local dev).
     - [x] Loading modal implemented in `GenerateToolResources.tsx`.
-  - [ ] **Thoroughly Test Full Build Tool Flow on Production Environment (Netlify Client -> EC2 API).**
+  - [ ] **Thoroughly Test Full Build Tool Flow on Production Environment (Netlify Client -> EC2 API), _including validation of generated tool quality and functionality._**
 - **Netlify Configuration (Main Site):**
   - [x] `next.config.js` updated: `trailingSlash: false`, `serverExternalPackages` (for remaining Netlify functions if any, e.g., PR creation).
   - [x] Removed `netlify.toml` SPA redirect (as Next.js plugin handles routing).
   - [x] `/api/generate-tool-resources` path on Netlify should no longer resolve to a Netlify function (client calls EC2 directly).
 
-## IV. UI/UX Enhancements & Polish - MEDIUM PRIORITY
+## IV. UI/UX Enhancements, Polish & Tool Generation Quality - MEDIUM PRIORITY
 
 - [ ] Flicker (Scrollbar) (Low priority).
 - [ ] `linkedin-post-formatter` Paste Handling.
+- [ ] **(Build Tool Prompt Refinement)** Emphasize need for `use-debounce` (or equivalent) for sliders in generated tools to improve performance/UX.
 
 ## VI. Future Tool Development & Strategic Refactors - HIGH PRIORITY
 
-- [ ] (Build Tool Future) Expand on the generate-tool-resource modal
 - [x] (Build Tool Future) Explore getting netlify Deploy Preview back to the user (Core functionality: URL is fetched and displayed. URL can be updated with preview link for shareability).
 
 ## VII. Deployment & Operations (New Section)
@@ -94,3 +94,17 @@
 - [x] **Review Netlify Build Logs & Function Logs Post-Launch:** Monitor errors, performance (for remaining Netlify functions like PR creation, list-models, validate-directive).
 - [x] **Set up Basic Monitoring/Alerting for EC2 Instance:** CloudWatch alarms (CPU, Status Checks).
 - [x] **Update Project Documentation (`README.md` or new `DEPLOYMENT.md`):** Detail hybrid Netlify + EC2 architecture and update process.
+- [x] **GitHub Actions CI/CD Implemented:** `main.yml` (for SQS notification), `validate_generated_tool_pr.yml` (PR checks), `ai-lint-fixer.yml` (auto lint fixing), `auto-delete-branch.yml` (branch cleanup).
+
+## VIII. Build Tool - User Experience & Workflow Enhancements (High Priority)
+
+- [ ] **Validate Directive Modal - Non-Technical User Focus:** Refine the validate-directive step/modal. Assume the user is non-technical. Provide clear, simple explanations, potentially visual cues or examples, and avoid jargon. Focus on guiding them to a good directive name without overwhelming them.
+- [ ] **Generate Tool Resources Modal - Enhance Waiting Experience:** Make the ~3-minute wait for Gemini more engaging than a simple spinner. Consider:
+  - Progress indicators (even if simulated stages like "Analyzing request...", "Drafting tool structure...", "Generating code components...", "Finalizing files...").
+  - Displaying interesting facts, coding tips, or OET project highlights.
+  - A mini-game or interactive element (if feasible without overcomplicating).
+  - Clearer messaging about what's happening behind the scenes.
+- [ ] **Create Anonymous PR Modal/Feedback - Handle Post-Creation Scenarios:** Improve the feedback provided after a PR is created. Specifically:
+  - Acknowledge the possibility of the "AI Lint Fixer" workflow running if build/lint issues are detected by CI. Inform the user that the PR might be updated automatically and checks will re-run.
+  - If Netlify Deploy Previews are known to be disabled (or if fetching the preview URL fails), provide alternative guidance (e.g., "Your tool is being processed. You'll receive further updates via GitHub PR checks. Manual testing will be possible once all checks pass and the tool is merged.")
+  - Ensure the PR link is always clearly provided.
