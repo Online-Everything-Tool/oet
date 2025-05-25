@@ -29,6 +29,7 @@ jobs:
 
     outputs:
       pr_number: ${{ steps.set_pr_info.outputs.pr_number }}
+      pr_sha: ${{ steps.set_pr_info.outputs.pr_sha }}
       tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
       pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
       path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
@@ -328,7 +329,9 @@ jobs:
     steps:
       - name: Checkout OET Code (PR branch)
         uses: actions/checkout@v4
-        
+        with:
+          ref: ${{ needs.initial_checks.outputs.pr_sha }}
+          fetch-depth: 0        
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
