@@ -48,46 +48,98 @@ jobs:
       - name: Set PR Info and Validate Trigger
         id: set_pr_info
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Or your PAT if needed for API rate limits/permissions
         run: |
+          echo "::group::Set PR Info and Validate Trigger Details"
           PR_NUMBER=""
           HEAD_REF=""
           PR_SHA=""
-          SHOULD_RUN="false"
+          SHOULD_RUN="false" # Default: do not run subsequent steps
+
+          echo "Workflow triggered by event: ${{ github.event_name }}"
+          if [ -n "${{ github.event.comment.body }}" ]; then
+            echo "Comment body: ${{ github.event.comment.body }}"
+          fi
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "Event: pull_request"
+            echo "Handling 'pull_request' event..."
             PR_NUMBER="${{ github.event.pull_request.number }}"
-            HEAD_REF="${{ github.head_ref }}" # <<< AVAILABLE HERE
+            HEAD_REF="${{ github.head_ref }}"
             PR_SHA="${{ github.event.pull_request.head.sha }}"
-            # ...
+
+            echo "PR Number: $PR_NUMBER"
+            echo "Head Ref (Branch): $HEAD_REF"
+            echo "PR SHA: $PR_SHA"
+
+            if [[ "$HEAD_REF" == feat/gen-* ]]; then
+              echo "Branch '$HEAD_REF' matches 'feat/gen-*' pattern."
+              SHOULD_RUN="true"
+            else
+              echo "::warning::Branch '$HEAD_REF' does NOT match 'feat/gen-*' pattern. Subsequent steps will be skipped."
+            fi
+
           elif [ "${{ github.event_name }}" == "issue_comment" ]; then
-            echo "Event: issue_comment"
-            if [[ "${{ github.event.comment.body }}" == /revalidate-ai-fixes* ]]; then
-              PR_NUMBER="${{ github.event.issue.number }}"
-              echo "Fetching PR #$PR_NUMBER details for comment trigger..."
-              # Make sure you have 'jq' installed on the runner (ubuntu-latest has it)
-              PR_DATA=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            echo "Handling 'issue_comment' event..."
+            # The job-level 'if' condition already ensures:
+            # 1. It's a comment on a PR (github.event.issue.pull_request is true)
+            # 2. The comment starts with '/revalidate-ai-fixes'
+            # So, we can proceed to fetch PR details.
+
+            PR_NUMBER="${{ github.event.issue.number }}"
+            echo "PR Number from comment event: $PR_NUMBER"
+            echo "Fetching PR details from API for PR #$PR_NUMBER..."
+
+            # Using -L to follow redirects, --fail to exit with error on HTTP > 400
+            PR_DATA=$(curl -s -L --fail \
+                           -H "Authorization: token $GITHUB_TOKEN" \
                            -H "Accept: application/vnd.github.v3+json" \
                            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
+            CURL_EXIT_CODE=$?
 
-              HEAD_REF=$(echo "$PR_DATA" | jq -r .head.ref) # <<< FETCHED HERE
-              PR_SHA=$(echo "$PR_DATA" | jq -r .head.sha)   # <<< FETCHED HERE
+            if [ "$CURL_EXIT_CODE" -ne 0 ]; then
+                echo "::error::Failed to fetch PR data using curl. HTTP request failed with exit code $CURL_EXIT_CODE."
+                echo "API URL was: https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER"
+                # SHOULD_RUN remains false
+            else
+                echo "Successfully fetched PR data from API."
+                # echo "Raw PR Data: $PR_DATA" # Uncomment for deep debugging if needed
 
-              if [ -z "$HEAD_REF" ] || [ "$HEAD_REF" == "null" ]; then
-                echo "::error::Could not fetch head_ref for PR #$PR_NUMBER from comment trigger. API Response: $PR_DATA"
-                exit 1
-              fi
-              # ...
+                HEAD_REF=$(echo "$PR_DATA" | jq -r .head.ref)
+                PR_SHA=$(echo "$PR_DATA" | jq -r .head.sha)
+
+                echo "Fetched Head Ref (Branch) from API: $HEAD_REF"
+                echo "Fetched PR SHA from API: $PR_SHA"
+
+                if [ -z "$HEAD_REF" ] || [ "$HEAD_REF" == "null" ]; then
+                  echo "::error::Could not extract 'head.ref' from API response for PR #$PR_NUMBER."
+                  echo "Parsed head.ref: '$HEAD_REF'"
+                  # SHOULD_RUN remains false
+                elif [[ "$HEAD_REF" == feat/gen-* ]]; then
+                  echo "Fetched branch '$HEAD_REF' matches 'feat/gen-*' pattern."
+                  SHOULD_RUN="true"
+                else
+                  echo "::warning::Fetched branch '$HEAD_REF' does NOT match 'feat/gen-*' pattern. Subsequent steps will be skipped."
+                  # SHOULD_RUN remains false
+                fi
             fi
+          else
+            echo "::error::Unhandled event type: ${{ github.event_name }}. Subsequent steps will be skipped."
+            # SHOULD_RUN remains false
           fi
-          # ...
-          echo "should_run=${SHOULD_RUN}" >> $GITHUB_OUTPUT
-          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT # <<< CRITICAL OUTPUT
-          echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT   # <<< CRITICAL OUTPUT
-          # ...          
-          cat $GITHUB_OUTPUT
 
+          echo "---"
+          echo "Final determination for SHOULD_RUN: $SHOULD_RUN"
+          echo "Final PR_NUMBER: $PR_NUMBER"
+          echo "Final HEAD_REF: $HEAD_REF"
+          echo "Final PR_SHA: $PR_SHA"
+          echo "---"
+
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT
+          echo "should_run=${SHOULD_RUN}" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+          
       - name: Extract Tool Directive
         if: steps.set_pr_info.outputs.should_run == 'true'
         id: extract_directive
