@@ -253,14 +253,16 @@ jobs:
             echo "changes_made=false" >> $GITHUB_OUTPUT
           fi
           echo "--- End of Apply AI Fixes Locally ---"
-
-      - name: Commit and Push changes using PAT
+      - name: Commit files
+        run: |
+          git commit -a -m "Add changes"
+      - name: Push changes using PAT
         if: steps.apply_fixes_locally.outputs.changes_made == 'true'
-        uses: ad-m/github-push-action@v0.8.0 # Using a specific stable version
+        uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.AI_LINT_FIXER_PAT }}
           branch: ${{ env.PR_HEAD_BRANCH_FOR_PUSH }}
-          commit_message: "chore: AI-assisted lint fixes"
+          # commit_message: "chore: AI-assisted lint fixes"
           # Optional: configure committer and author if you want it different from PAT owner
           # committer_email: "ai-fixer-bot@online-everything-tool.com"
           # committer_name: "OET AI Fixer Bot"
