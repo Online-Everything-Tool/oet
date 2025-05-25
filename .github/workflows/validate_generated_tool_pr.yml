@@ -260,20 +260,22 @@ jobs:
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
           BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
-
-          # Run npm build, redirect output, and allow it to "fail" without exiting the script step immediately
-          npm run build > "$BUILD_LOG_FILE_PATH" 2>&1 || true 
-          BUILD_EXIT_CODE=$? # Capture the actual exit code of 'npm run build'
-                            # If `npm run build` succeeded, $? from `|| true` would be 0 from `true`.
-                            # We need to be more careful here.
-
-          # Let's refine exit code capture:
-          set +e # Temporarily disable exit on error
+          
+          echo "Running: npm run build (output will be in $BUILD_LOG_FILE_PATH and then echoed)"
+          set +e 
           npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
-          BUILD_EXIT_CODE=$? # This now reliably gets the exit code of npm run build
-          set -e # Re-enable exit on error (if it was set by default)
+          BUILD_EXIT_CODE=$? 
+          set -e 
 
           echo "npm run build exited with code: $BUILD_EXIT_CODE" 
+
+          echo "--- Start of Build Output (from $BUILD_LOG_FILE_PATH) ---"
+          if [ -f "$BUILD_LOG_FILE_PATH" ]; then
+            cat "$BUILD_LOG_FILE_PATH"
+          else
+            echo "ERROR: Build log file $BUILD_LOG_FILE_PATH not found!"
+          fi
+          echo "--- End of Build Output ---"
 
           # Set build_command_failed output
           if [ "$BUILD_EXIT_CODE" -ne 0 ]; then
@@ -291,15 +293,12 @@ jobs:
           else
             echo "::error::Build output directory 'out' not found."
             echo "build_succeeded_structurally=false" >> $GITHUB_OUTPUT
-            # This part is good:
             if [ "$BUILD_EXIT_CODE" -eq 0 ]; then 
-                # This means npm run build claimed success (exit 0) but 'out' is missing.
-                # This is a definite structural failure.
-                # We also need to ensure build_command_failed is true in this case.
-                echo "build_command_failed=true" >> $GITHUB_OUTPUT # Overwrite if it was false
+                echo "build_command_failed=true" >> $GITHUB_OUTPUT 
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
-          fi          
+          fi
+          
           echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
       - name: Capture Lint Output and Changed Files for AI Fixer
