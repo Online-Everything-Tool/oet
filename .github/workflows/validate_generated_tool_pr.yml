@@ -353,6 +353,7 @@ jobs:
             echo "Removing other tool directories from app/tool/ ..."
             cd app/tool
             ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
+            ls -l
             cd ../.. 
           else
             echo "app/tool directory not found, skipping tool pruning."
