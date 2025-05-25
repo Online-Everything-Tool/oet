@@ -14,161 +14,65 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read 
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+      actions: read
+    env: # Set GITHUB_ENV variables at the job level if they are used across many steps
+      EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
+      PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
 
     steps:
-      - name: Get Triggering Workflow Run Info & Expected Artifact Details
-        id: get_trigger_info
+      - name: Get Triggering Workflow Run Info
+        id: get_trigger_info # This step is mostly for logging now
         run: |
           echo "--- Trigger Info ---"
           echo "Triggering Workflow Run ID: ${{ github.event.workflow_run.id }}"
-          echo "Expected Artifact SHA (from workflow_run.head_sha): ${{ github.event.workflow_run.head_sha }}"
-          echo "Expected Artifact Name: lint-failure-data-${{ github.event.workflow_run.head_sha }}"
-          echo "PR Head Branch for push: ${{ github.event.workflow_run.head_branch }}"
-          echo "Commit SHA for checkout: ${{ github.event.workflow_run.head_sha }}"
+          echo "Expected Artifact Name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}" # Use env var
+          echo "PR Head Branch for push: ${{ env.PR_HEAD_BRANCH_FOR_PUSH }}" # Use env var
+          echo "Commit SHA for checkout: ${{ env.EXPECTED_ARTIFACT_SHA }}" # Use env var
           echo "----------------------"
-          echo "EXPECTED_ARTIFACT_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
-          echo "PR_HEAD_BRANCH_FOR_PUSH=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_ENV
 
-      - name: Retrieve Artifact Download URL via API
-        id: get_artifact_url
-        uses: actions/github-script@v7
+      - name: Download Lint Failure Artifact
+        id: download_artifact # This step ID is 'download_artifact'
+        uses: actions/download-artifact@v4
         with:
-          script: |
-            const run_id = ${{ github.event.workflow_run.id }};
-            const expected_artifact_name = "lint-failure-data-${{ github.event.workflow_run.head_sha }}";
-            core.info(`Looking for artifact: "${expected_artifact_name}" in workflow run ID: ${run_id}`);
-            
-            const artifacts_response = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: run_id,
-            });
+          name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }} # Use env var
+          path: ${{ runner.temp }}/lint-data
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          run-id: ${{ github.event.workflow_run.id }}
+        continue-on-error: true
 
-            if (artifacts_response.data.artifacts.length === 0) {
-              core.setFailed(`No artifacts found for workflow run ID: ${run_id}`);
-              return;
-            }
-            core.info(`Found ${artifacts_response.data.artifacts.length} artifacts:`);
-            let found_artifact_details = null;
-            for (const artifact of artifacts_response.data.artifacts) {
-              core.info(`- Name: ${artifact.name}, ID: ${artifact.id}, Size: ${artifact.size_in_bytes}`);
-              if (artifact.name === expected_artifact_name) {
-                found_artifact_details = artifact;
-                break;
-              }
-            }
-
-            if (found_artifact_details) {
-              core.info(`MATCH FOUND: Artifact ID: ${found_artifact_details.id}, Download URL available.`);
-              core.setOutput('artifact_id', found_artifact_details.id.toString());
-              core.setOutput('artifact_download_url', found_artifact_details.archive_download_url);
-              core.setOutput('artifact_found_api', 'true');
-            } else {
-              core.setFailed(`Expected artifact "${expected_artifact_name}" not found among the ${artifacts_response.data.artifacts.length} listed artifacts via API.`);
-              core.setOutput('artifact_found_api', 'false');
-            }
-      
-      - name: Download and Extract Artifact Manually
-        id: download_and_extract # This step sets 'manual_extraction_complete'
-        if: steps.get_artifact_url.outputs.artifact_found_api == 'true'
+      - name: Check if Artifact Exists and Contains Data
+        id: check_artifact # This step ID is 'check_artifact'
+        # Its condition correctly uses steps.download_artifact.outcome
+        if: steps.download_artifact.outcome == 'success' 
         run: |
-          ARTIFACT_DOWNLOAD_URL="${{ steps.get_artifact_url.outputs.artifact_download_url }}"
-          ARTIFACT_DEST_PATH="${{ runner.temp }}/lint-data" 
-          ARTIFACT_ZIP_FILE="${{ runner.temp }}/downloaded_artifact.zip"
-
-          echo "Manually downloading artifact using URL: $ARTIFACT_DOWNLOAD_URL"
-          mkdir -p "$ARTIFACT_DEST_PATH"
-          
-          curl --retry 3 --retry-delay 5 -L -o "$ARTIFACT_ZIP_FILE" "$ARTIFACT_DOWNLOAD_URL"
-          
-          if [ ! -f "$ARTIFACT_ZIP_FILE" ] || [ ! -s "$ARTIFACT_ZIP_FILE" ]; then
-            echo "::error::Failed to download artifact zip or zip is empty."
-            echo "manual_extraction_complete=false" >> $GITHUB_OUTPUT # Set output on failure
-            exit 1
-          fi
-          
-          echo "Artifact zip downloaded. Extracting to $ARTIFACT_DEST_PATH..."
-          unzip -q "$ARTIFACT_ZIP_FILE" -d "$ARTIFACT_DEST_PATH"
-          
-          if [ $? -ne 0 ]; then
-            echo "::error::Failed to unzip artifact."
-            ls -la ${{ runner.temp }} 
-            echo "manual_extraction_complete=false" >> $GITHUB_OUTPUT # Set output on failure
-            exit 1
-          fi
-          
-          echo "Artifact extracted. Verifying contents..."
-          if [ -f "$ARTIFACT_DEST_PATH/lint_errors.txt" ] && [ -f "$ARTIFACT_DEST_PATH/files_to_check.txt" ]; then
-            echo "Required files (lint_errors.txt, files_to_check.txt) found in extracted artifact."
-            echo "manual_extraction_complete=true" >> $GITHUB_OUTPUT
-          else
-            echo "::error::Required files not found after extracting artifact."
-            echo "Contents of $ARTIFACT_DEST_PATH:"
-            ls -la "$ARTIFACT_DEST_PATH" 
-            echo "manual_extraction_complete=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-      # This step was named 'check_artifact' in your file, I renamed it to 'check_artifact_data_validity' for clarity
-      # and its 'if' condition is now correct.
-      - name: Check Artifact Data Validity
-        id: check_artifact_data_validity 
-        if: steps.download_and_extract.outputs.manual_extraction_complete == 'true' # Depends on the manual download step
-        run: |
-          echo "--- Entered Check Artifact Data Validity step ---"
-          echo "Condition 'steps.download_and_extract.outputs.manual_extraction_complete == true' was met."
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
 
-          echo "--- Contents of lint_errors.txt (first 10 lines) ---"
-          head -n 10 "$LINT_ERRORS_FILE" || echo "lint_errors.txt not found or head failed"
-          echo "--- End lint_errors.txt preview ---"
-          echo "--- Contents of files_to_check.txt ---"
-          cat "$FILES_TO_CHECK_FILE" || echo "files_to_check.txt not found or cat failed"
-          echo "--- End files_to_check.txt ---"
-          
-          echo "Checking LINT_ERRORS_FILE ($LINT_ERRORS_FILE):"
-          if [ -f "$LINT_ERRORS_FILE" ]; then echo "Exists."; else echo "DOES NOT EXIST."; fi
-          if [ -s "$LINT_ERRORS_FILE" ]; then echo "Is not empty."; else echo "IS EMPTY or does not exist."; fi
-          
-          echo "Checking FILES_TO_CHECK_FILE ($FILES_TO_CHECK_FILE):"
-          if [ -f "$FILES_TO_CHECK_FILE" ]; then echo "Exists."; else echo "DOES NOT EXIST."; fi
-          if [ -s "$FILES_TO_CHECK_FILE" ]; then echo "Is not empty."; else echo "IS EMPTY or does not exist."; fi
+          echo "--- Artifact Download and Content Check ---"
+          echo "Download artifact step outcome: ${{ steps.download_artifact.outcome }}"
+          echo "Checking for file: $LINT_ERRORS_FILE"
+          ls -la "${{ runner.temp }}/lint-data/" 
 
-          if [ -s "$LINT_ERRORS_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
-            echo "Manually downloaded artifact files are valid and not empty. Setting artifact_data_valid=true"
-            echo "artifact_data_valid=true" >> $GITHUB_OUTPUT
+          if [ -f "$LINT_ERRORS_FILE" ] && [ -s "$LINT_ERRORS_FILE" ] && \
+             [ -f "$FILES_TO_CHECK_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
+            echo "Lint failure artifacts found and are not empty."
+            echo "artifact_valid=true" >> $GITHUB_OUTPUT # Output is 'artifact_valid'
+            echo "--- Contents of lint_errors.txt (first 10 lines) ---"
+            head -n 10 "$LINT_ERRORS_FILE"
+            echo "--- End lint_errors.txt preview ---"
+            echo "--- Contents of files_to_check.txt ---"
+            cat "$FILES_TO_CHECK_FILE"
+            echo "--- End files_to_check.txt ---"
           else
-            echo "::error::Manually downloaded artifact files (lint_errors.txt or files_to_check.txt) are missing or empty."
-            echo "Setting artifact_data_valid=false"
-            echo "artifact_data_valid=false" >> $GITHUB_OUTPUT
+            echo "::error::Lint failure artifact files (lint_errors.txt or files_to_check.txt) not found or empty after download attempt."
+            echo "artifact_valid=false" >> $GITHUB_OUTPUT
             exit 1 
           fi
-          echo "--- Exiting Check Artifact Data Validity step ---"          
-
-      - name: Debug Conditions Before Apply and Commit
-        if: always() 
-        run: |
-          echo "--- Debugging Conditions for Apply and Commit Fixes ---"
-          echo "1. steps.call_fix_api.outputs.api_call_skipped: [${{ steps.call_fix_api.outputs.api_call_skipped }}]"
-          echo "   Condition 'steps.call_fix_api.outputs.api_call_skipped != 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" ]]; then echo "true"; else echo "false"; fi)"
-          
-          echo "2. steps.call_fix_api.outputs.api_response_success: [${{ steps.call_fix_api.outputs.api_response_success }}]"
-          echo "   Condition 'steps.call_fix_api.outputs.api_response_success == 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
-
-          # Corrected to use the new step ID 'check_artifact_data_validity'
-          echo "3. steps.check_artifact_data_validity.outputs.artifact_data_valid: [${{ steps.check_artifact_data_validity.outputs.artifact_data_valid }}]"
-          echo "   Condition 'steps.check_artifact_data_validity.outputs.artifact_data_valid == 'true'' evaluates to: $(if [[ "${{ steps.check_artifact_data_validity.outputs.artifact_data_valid }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
-          
-          echo "Overall condition for Apply and Commit Fixes should be: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" && "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" && "${{ steps.check_artifact_data_validity.outputs.artifact_data_valid }}" == "true" ]]; then echo "TRUE"; else echo "FALSE"; fi)"
-          echo "-----------------------------------------------------"
+          echo "-------------------------------------------"
 
       - name: Checkout PR Code
-        # Corrected to use the new step ID 'check_artifact_data_validity'
-        if: steps.check_artifact_data_validity.outputs.artifact_data_valid == 'true'
+        # Condition correctly uses steps.check_artifact.outputs.artifact_valid
+        if: steps.check_artifact.outputs.artifact_valid == 'true'
         uses: actions/checkout@v4
         with:
           ref: ${{ env.EXPECTED_ARTIFACT_SHA }} 
@@ -176,8 +80,8 @@ jobs:
 
       - name: Prepare Data for AI Lint Fix API
         id: prepare_fix_data
-        # Corrected to use the new step ID 'check_artifact_data_validity'
-        if: steps.check_artifact_data_validity.outputs.artifact_data_valid == 'true'
+        # Condition correctly uses steps.check_artifact.outputs.artifact_valid
+        if: steps.check_artifact.outputs.artifact_valid == 'true'
         run: |
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
@@ -215,8 +119,8 @@ jobs:
 
       - name: Call AI Lint Fix API
         id: call_fix_api
-        # Corrected to use the new step ID 'check_artifact_data_validity'
-        if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact_data_validity.outputs.artifact_data_valid == 'true'
+        # Condition correctly uses steps.check_artifact.outputs.artifact_valid
+        if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact.outputs.artifact_valid == 'true'
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
@@ -266,10 +170,27 @@ jobs:
           echo "api_response_success=$FIX_API_SUCCESS" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
           echo "api_call_skipped=false" >> $GITHUB_OUTPUT
+      
+      - name: Debug Conditions Before Apply and Commit
+        if: always() 
+        run: |
+          echo "--- Debugging Conditions for Apply and Commit Fixes ---"
+          echo "1. steps.call_fix_api.outputs.api_call_skipped: [${{ steps.call_fix_api.outputs.api_call_skipped }}]"
+          echo "   Condition 'steps.call_fix_api.outputs.api_call_skipped != 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" ]]; then echo "true"; else echo "false"; fi)"
           
+          echo "2. steps.call_fix_api.outputs.api_response_success: [${{ steps.call_fix_api.outputs.api_response_success }}]"
+          echo "   Condition 'steps.call_fix_api.outputs.api_response_success == 'true'' evaluates to: $(if [[ "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
+
+          # CRITICAL: Use the correct step ID 'check_artifact' and its output 'artifact_valid'
+          echo "3. steps.check_artifact.outputs.artifact_valid: [${{ steps.check_artifact.outputs.artifact_valid }}]"
+          echo "   Condition 'steps.check_artifact.outputs.artifact_valid == 'true'' evaluates to: $(if [[ "${{ steps.check_artifact.outputs.artifact_valid }}" == "true" ]]; then echo "true"; else echo "false"; fi)"
+          
+          echo "Overall condition for Apply and Commit Fixes should be: $(if [[ "${{ steps.call_fix_api.outputs.api_call_skipped }}" != "true" && "${{ steps.call_fix_api.outputs.api_response_success }}" == "true" && "${{ steps.check_artifact.outputs.artifact_valid }}" == "true" ]]; then echo "TRUE"; else echo "FALSE"; fi)"
+          echo "-----------------------------------------------------"
+
       - name: Apply and Commit Fixes
-        # Corrected to use the new step ID 'check_artifact_data_validity'
-        if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact_data_validity.outputs.artifact_data_valid == 'true'
+        # CRITICAL: Use the correct step ID 'check_artifact' and its output 'artifact_valid'
+        if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
         run: |
           echo "--- Starting Apply and Commit Fixes ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
@@ -313,7 +234,7 @@ jobs:
             echo "$FILE_PATHS_TO_PROCESS"
             echo "--- Processing each file path ---"
 
-            echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do # Changed to pipe for the loop
+            echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
               if [ -z "$filepath" ]; then
                 echo "::warning::Empty filepath encountered in loop. Skipping."
                 continue
