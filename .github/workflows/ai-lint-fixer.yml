@@ -167,24 +167,52 @@ jobs:
           fi
 
           CHANGES_APPLIED=false
-          jq -r '.fixedFiles | to_entries[] | select(.value != null) | "\(.key)\u0000\(.value)"' "$FIX_RESPONSE_FILE" | \
-          while IFS=$'\0' read -r filepath fixedcontent; do
-            if [ -z "$filepath" ]; then continue; fi
-            if [ ! -f "$filepath" ]; then 
-              echo "::warning::File $filepath from API response not found in checkout. Skipping."
-              continue
-            fi
-            ORIGINAL_CONTENT_FOR_COMPARE=$(cat "$filepath")
-            if [ "$ORIGINAL_CONTENT_FOR_COMPARE" = "$fixedcontent" ]; then
-              echo "No actual change for $filepath. Skipping add."
-              continue
-            fi
 
-            echo "Applying fix to $filepath"
-            echo "$fixedcontent" > "$filepath"
-            git add "$filepath"
-            CHANGES_APPLIED=true
-          done
+          # Get all file paths (keys) from the fixedFiles object that have non-null content
+          FILE_PATHS_TO_PROCESS=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
+
+          if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
+            echo "::notice::No files with non-null fixed content found in API response."
+          else
+            echo "$FILE_PATHS_TO_PROCESS" | while IFS= read -r filepath; do
+              if [ -z "$filepath" ]; then
+                echo "::warning::Empty filepath encountered. Skipping."
+                continue
+              fi
+
+              # Get the specific fixed content for this filepath from the JSON response
+              # Use jq to extract the value, ensuring it handles newlines correctly as a JSON string then raw output
+              fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
+
+              # Double check if fixedcontent is literally the string "null" or empty after extraction
+              if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ]; then
+                echo "::warning::Content for '$filepath' is null or empty in the API response. Skipping."
+                continue
+              fi
+
+              if [ ! -f "$filepath" ]; then 
+                echo "::warning::File '$filepath' from API response not found in local checkout. Skipping."
+                continue
+              fi
+              
+              ORIGINAL_CONTENT_FOR_COMPARE=$(cat "$filepath")
+              # Normalize line endings for comparison
+              NORMALIZED_ORIGINAL_CONTENT=$(echo "$ORIGINAL_CONTENT_FOR_COMPARE" | tr -d '\r')
+              NORMALIZED_FIXED_CONTENT=$(echo "$fixedcontent" | tr -d '\r')
+
+              if [ "$NORMALIZED_ORIGINAL_CONTENT" = "$NORMALIZED_FIXED_CONTENT" ]; then
+                echo "No actual content change (ignoring line endings) for '$filepath'. Skipping add."
+                continue
+              fi
+
+              echo "Applying fix to '$filepath'"
+              # Ensure the directory exists before writing (should already exist for modifications)
+              # mkdir -p "$(dirname "$filepath")" # Generally not needed if files are just being modified
+              echo "$fixedcontent" > "$filepath" # Overwrite file with fixed content
+              git add "$filepath"
+              CHANGES_APPLIED=true
+            done
+          fi
           
           if [ "$CHANGES_APPLIED" = "true" ]; then
             if ! git diff --staged --quiet; then
