@@ -82,6 +82,7 @@ jobs:
             fi
           fi
           # ...
+          echo "should_run=${SHOULD_RUN}" >> $GITHUB_OUTPUT
           echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT # <<< CRITICAL OUTPUT
           echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT   # <<< CRITICAL OUTPUT
           # ...          
