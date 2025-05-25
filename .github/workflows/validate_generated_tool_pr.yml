@@ -288,50 +288,70 @@ jobs:
           else
             echo "::error::Build output directory 'out' not found."
             echo "build_succeeded_structurally=false" >> $GITHUB_OUTPUT
+            # This part is good:
             if [ "$BUILD_EXIT_CODE" -eq 0 ]; then 
-                echo "build_command_failed=true" >> $GITHUB_OUTPUT 
+                # This means npm run build claimed success (exit 0) but 'out' is missing.
+                # This is a definite structural failure.
+                # We also need to ensure build_command_failed is true in this case.
+                echo "build_command_failed=true" >> $GITHUB_OUTPUT # Overwrite if it was false
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
-          fi
-          
+          fi          
           echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
       - name: Capture Lint Output and Changed Files for AI Fixer
         id: capture_for_ai_fix
+        # if: steps.build_oet.outputs.build_command_failed == 'true' # This condition seems correct
+        # For debugging, let's make it always run if build_oet ran, and check build_command_failed inside
+        # This helps see its logic even if build_command_failed was unexpectedly false.
+        # No, keep the original if: steps.build_oet.outputs.build_command_failed == 'true'
+        # The issue is likely *within* this step or how its output is read.
         if: steps.build_oet.outputs.build_command_failed == 'true'
         env:
           TOOL_DIRECTIVE_PATH: app/tool/${{ needs.initial_checks.outputs.tool_directive }}
         run: |
+          echo "--- Start of capture_for_ai_fix step ---"
+          echo "Condition for this step (build_command_failed == 'true') was met."
           BUILD_LOG_FILE="${{ steps.build_oet.outputs.build_log_path }}"
           LINT_DATA_DIR="${{ runner.temp }}/lint-data-for-artifact"
           mkdir -p "$LINT_DATA_DIR"
           LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
-          FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt" # This will list the paths of new .ts/.tsx files
-
+          FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt"
+          
+          # Initialize to false
           LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="false" 
 
           if [ -f "$BUILD_LOG_FILE" ]; then
+            echo "Build log file found: $BUILD_LOG_FILE"
             if grep -q -E "Failed to compile.|requires a value, but a value was not provided" "$BUILD_LOG_FILE"; then
-              echo "Build failed with compilation/lint errors. Capturing log."
-              cp "$BUILD_LOG_FILE" "$LINT_ERRORS_FILE"               
-              echo "Identifying newly added .ts/.tsx files in '$TOOL_DIRECTIVE_PATH' for potential AI fix..."            
+              echo "MATCHED: 'Failed to compile.' or similar found in build log."
+              cp "$BUILD_LOG_FILE" "$LINT_ERRORS_FILE"
+              echo "Copied build log to $LINT_ERRORS_FILE"
+              
+              echo "Identifying newly added .ts/.tsx files in '$TOOL_DIRECTIVE_PATH' for potential AI fix..."
               find "$TOOL_DIRECTIVE_PATH" \( -name "*.ts" -o -name "*.tsx" \) -type f > "$FILES_TO_CHECK_FILE"
+              echo "Result of find command (content of $FILES_TO_CHECK_FILE):"
+              cat "$FILES_TO_CHECK_FILE" # Log the found files
+
               if [ -s "$FILES_TO_CHECK_FILE" ]; then
-                echo "Found .ts/.tsx files in the tool directory. Preparing for AI lint fix attempt."
-                echo "Files to be checked by AI fixer:"
-                cat "$FILES_TO_CHECK_FILE"
+                echo "Found .ts/.tsx files in the tool directory. Setting LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG to true."
                 LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="true"
               else
-                echo "::warning::Build failed with lint-like errors, but NO .ts/.tsx files were found in the tool's directory ('$TOOL_DIRECTIVE_PATH'). AI fix will NOT be attempted for this run. This might indicate an issue with file generation or unexpected lint errors."
+                echo "::warning::Build failed with lint-like errors, but NO relevant .ts/.tsx files were found in '$TOOL_DIRECTIVE_PATH'. AI fix will NOT be attempted for this run."
+                # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
               fi
             else
-              echo "Build command failed, but no clear lint/compile error markers for .ts/.tsx files found in build log. Not treating as lint failure for AI fix."
+              echo "NO MATCH: 'Failed to compile.' or similar NOT found in build log. Not treating as lint failure for AI fix."
+              # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
             fi
           else
             echo "::warning::Build output log ($BUILD_LOG_FILE) not found. Cannot extract lint errors."
+            # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
           fi
-
+          
+          echo "Final LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG value before setting output: $LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG"
           echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
+          echo "--- End of capture_for_ai_fix step ---"
 
       - name: Upload Lint Failure Artifact
         if: steps.capture_for_ai_fix.outputs.lint_errors_captured == 'true'
