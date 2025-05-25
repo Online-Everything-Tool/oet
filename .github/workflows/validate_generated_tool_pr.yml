@@ -153,7 +153,7 @@ jobs:
             echo "head_ref=${HEAD_REF}" >> $GITHUB_OUTPUT
             echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           fi
-          echo $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
 
   initial_checks:
     name: 1. Initial PR Validations
