@@ -18,7 +18,7 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 1.  **Analyze Errors:** Carefully identify all errors from the "Lint/Compiler Errors" section that directly pertain to the "Original File Content" of "{{FILE_PATH}}".
 2.  **Fix Types (`@typescript-eslint/no-explicit-any`):**
     - **PRIORITY 1:** If an `any` type causes an error, first attempt to replace it with a more specific and correct TypeScript type based on the variable's usage and context.
-    - **PRIORITY 2 (Use Sparingly):** If a specific type cannot be easily inferred or `any` is a temporary, deliberate choice, you MUST add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` comment on the line immediately preceding the line causing the `no-explicit-any` error.
+    - **PRIORITY 2 (Use Sparingly):** If a specific type cannot be easily inferred or `any` is a temporary, deliberate choice, you MUST add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` single line comment on the line immediately preceding the line causing the `no-explicit-any` error.
 3.  **Fix Unused Variables/Imports/Functions (`@typescript-eslint/no-unused-vars`):**
     - **Unused Imports:** You MUST remove any imported modules or named imports that are not used anywhere in the file.
     - **Unused Variables/Functions:** If a variable or function is declared but never used, and its removal does not break any other logic (e.g., it's not a partially used destructured object), you MUST remove the entire declaration.
