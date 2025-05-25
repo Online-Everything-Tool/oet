@@ -13,9 +13,9 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # For checkout by GITHUB_TOKEN, and for ad-m/github-push-action to commit/push using PAT
-      actions: read         # For downloading artifacts using GITHUB_TOKEN
-      pull-requests: write  # For posting the comment using GITHUB_TOKEN
+      contents: write # For checkout by GITHUB_TOKEN, and for ad-m/github-push-action to commit/push using PAT
+      actions: read # For downloading artifacts using GITHUB_TOKEN
+      pull-requests: write # For posting the comment using GITHUB_TOKEN
     env:
       EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
       PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
@@ -167,7 +167,7 @@ jobs:
             rm "$CHANGES_MADE_MARKER_FILE"
             exit 0
           fi
-          
+
           echo "Applying fixes from $FIX_RESPONSE_FILE..."
           set +e
           FILE_PATHS_TO_PROCESS_OUTPUT=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE")
@@ -180,7 +180,7 @@ jobs:
             rm "$CHANGES_MADE_MARKER_FILE"
             exit 1
           fi
-          
+
           FILE_PATHS_TO_PROCESS="$FILE_PATHS_TO_PROCESS_OUTPUT"
 
           if [ -z "$FILE_PATHS_TO_PROCESS" ]; then
@@ -207,7 +207,7 @@ jobs:
               fi
             done
           fi
-          
+
           FINAL_CHANGES_MADE_STATUS=$(cat "$CHANGES_MADE_MARKER_FILE")
           rm "$CHANGES_MADE_MARKER_FILE" 
 

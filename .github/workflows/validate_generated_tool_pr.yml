@@ -6,7 +6,7 @@ on:
     branches:
       - main
   issue_comment:
-    types: [created]      
+    types: [created]
 
 jobs:
   initial_checks:
@@ -21,7 +21,7 @@ jobs:
         github.event.issue.pull_request &&
         startsWith(github.event.comment.body, '/revalidate-ai-fixes') &&
         github.actor != 'dependabot[bot]'
-      )    
+      )
     #if: startsWith(github.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
