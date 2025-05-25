@@ -145,7 +145,6 @@ jobs:
 
       - name: Validate Changed File Paths
         id: validate_paths
-        # ... (This step remains unchanged from your last full paste, it's good) ...
         if: steps.check_patterns.outputs.check_passed == 'true'
         env:
           TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
@@ -421,7 +420,7 @@ jobs:
           node ./dist/check-tool.js "${COMMAND_ARGS[@]}"
         continue-on-error: true
 
-      - name: Upload Screenshot to Imgur # ADDED IMGUR UPLOAD STEP
+      - name: Upload Screenshot to Imgur
         id: upload_to_imgur
         if: always() && steps.douglas_checker_run.outcome != 'skipped' && steps.serve_static.outcome == 'success'
         env:
@@ -491,26 +490,22 @@ jobs:
     needs:
       - initial_checks
       - build_and_run_douglas_checker
-    # This job runs regardless of the success/failure of needed jobs,
-    # as long as they weren't cancelled and it's not a dependabot PR.
     if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # To post comments
-      actions: read # To download artifacts
-
+      pull-requests: write
+      actions: read
     steps:
       - name: Download Douglas Summary Artifact
         id: download_summary
         uses: actions/download-artifact@v4
         with:
-          name: douglas-summary-${{ github.run_id }} # Matches upload name
+          name: douglas-summary-${{ github.run_id }}
           path: ${{ runner.temp }}/douglas-artifacts/summary
-        continue-on-error: true # Allow to continue if artifact not found (e.g., Douglas skipped)
+        continue-on-error: true
 
       - name: Read Douglas Summary Content
         id: read_summary
-        # Only run if download was successful and the file actually exists
         if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
@@ -520,7 +515,7 @@ jobs:
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\r'/'%0D'}"
           echo "summary_markdown=${SUMMARY_CONTENT}" >> $GITHUB_OUTPUT
-        shell: bash # Ensure bash for complex string manipulation if any
+        shell: bash
         continue-on-error: true
 
       - name: Construct and Post PR Comment
@@ -529,10 +524,7 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
-
-          # Initial Checks Job Outputs
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
-          # PATTERN_CHECK_PASSED: ${{ needs.initial_checks.outputs.pattern_check_passed }} # Removed this pattern check earlier
           PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
           INVALID_FILES_LIST: ${{ needs.initial_checks.outputs.invalid_files_list }}
           AI_ANALYSIS_SUCCEEDED: ${{ needs.initial_checks.outputs.analysis_succeeded }}
@@ -541,13 +533,11 @@ jobs:
           AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
           AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
 
-          # Build & Douglas Job Outputs
           BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
           LINT_FIX_ATTEMPTED: ${{ needs.build_and_run_douglas_checker.outputs.lint_fix_attempted }} # Key new output
           DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
           IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
 
-          # Processed Outputs for Comment
           DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or Douglas checks were skipped.' }}
           ACTION_RUN_URL: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
         with:
