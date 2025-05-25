@@ -12,7 +12,7 @@ import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
+  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-2.5-pro-preview-05-06';
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
