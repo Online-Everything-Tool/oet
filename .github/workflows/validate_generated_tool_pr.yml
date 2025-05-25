@@ -1,0 +1,744 @@
+name: Validate Generated Tool PR
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+  push:
+    branches:
+      - 'feat/gen-*'
+
+jobs:
+  initial_checks:
+    name: 1. Initial PR Validations
+    if: false # <--- ADD THIS TO DISABLE THIS JOB
+    #if: startsWith(github.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
+      pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
+      path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
+      invalid_files_list: ${{ steps.validate_paths.outputs.invalid_files_list }}
+      analysis_succeeded: ${{ steps.analyze_name.outputs.analysis_succeeded }}
+      ai_analysis_score: ${{ steps.analyze_name.outputs.score }}
+      ai_analysis_is_typo: ${{ steps.analyze_name.outputs.is_typo }}
+      ai_analysis_suggestions_json: ${{ steps.analyze_name.outputs.suggestions }}
+      ai_analysis_reasoning: ${{ steps.analyze_name.outputs.reasoning }}
+      critical_initial_checks_passed: ${{ (steps.check_patterns.outputs.check_passed == 'true' && steps.validate_paths.outputs.validation_passed == 'true') }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Tool Directive
+        id: extract_directive
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
+          TOOL_DIRECTIVE=$(echo "$TEMP_DIRECTIVE" | sed 's/-[0-9]*$//')
+          if [ -z "$TOOL_DIRECTIVE" ]; then 
+            echo "::error::Could not extract tool directive from branch name '$BRANCH_NAME'."
+            exit 1
+          fi
+          echo "Extracted Tool Directive: $TOOL_DIRECTIVE"
+          echo "tool_directive=${TOOL_DIRECTIVE}" >> $GITHUB_OUTPUT
+
+      - name: Check Directive Pattern
+        id: check_patterns
+        run: |
+          TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
+          JSON_PATTERN_FILE="app/api/validate-directive/_data/tool-directive-patterns.json"
+
+          echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
+          if [ -z "$TOOL_DIRECTIVE" ]; then
+            echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
+            echo "check_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          if [ ! -f "$JSON_PATTERN_FILE" ]; then 
+            echo "::error::JSON Pattern file '$JSON_PATTERN_FILE' not found."
+            echo "check_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "DEBUG: Content of $JSON_PATTERN_FILE (raw):"
+          cat "$JSON_PATTERN_FILE"
+          echo "--- End of raw JSON pattern file content ---"
+
+          TEMP_CLEANED_PATTERNS_FILE=$(mktemp)
+          jq -r '.prefixPatterns[], .suffixPatterns[], .complexPatterns[] // empty' "$JSON_PATTERN_FILE" | \
+          awk '!/^#/ && NF {gsub(/\r$/,""); print}' > "$TEMP_CLEANED_PATTERNS_FILE"
+
+          if [ ! -s "$TEMP_CLEANED_PATTERNS_FILE" ]; then
+            echo "::warning::No active patterns found in '$JSON_PATTERN_FILE' after cleaning and jq extraction. Assuming pass."
+            echo "check_passed=true" >> $GITHUB_OUTPUT
+            rm "$TEMP_CLEANED_PATTERNS_FILE"
+            exit 0
+          fi
+
+          echo "DEBUG: Using cleaned patterns from $TEMP_CLEANED_PATTERNS_FILE for grep:"
+          cat "$TEMP_CLEANED_PATTERNS_FILE"
+          echo "--- End of Cleaned Patterns for grep ---"
+
+          if echo "$TOOL_DIRECTIVE" | grep -q -E -f "$TEMP_CLEANED_PATTERNS_FILE"; then
+            echo "Directive '$TOOL_DIRECTIVE' matches an allowed pattern."
+            echo "check_passed=true" >> $GITHUB_OUTPUT
+          else 
+            echo "::error::Directive '$TOOL_DIRECTIVE' does not match any allowed patterns in '$JSON_PATTERN_FILE'."
+            echo "check_passed=false" >> $GITHUB_OUTPUT
+            exit 1 
+          fi
+          rm "$TEMP_CLEANED_PATTERNS_FILE"
+
+      - name: Analyze Directive Name (AI Check)
+        id: analyze_name
+        if: steps.check_patterns.outputs.check_passed == 'true'
+        continue-on-error: true
+        env:
+          APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
+        run: |
+          TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
+          # Ensure APP_URL is clean (no trailing slash) for constructing API_ENDPOINT
+          CLEANED_APP_URL=$(echo "${APP_URL}" | sed 's:/*$::')
+          API_ENDPOINT="${CLEANED_APP_URL}/api/analyze-directive-name" # No trailing slash
+
+          EXISTING_DIRECTIVES_JSON='[]' 
+          GENERATIVE_DESC_TEXT="Function related to ${TOOL_DIRECTIVE//-/ }"
+
+          echo "Attempting AI Analysis API call to: $API_ENDPOINT for directive: $TOOL_DIRECTIVE"
+          # Added -L to follow redirects for curl
+          HTTP_STATUS=$(curl -L --max-redirs 3 -s -w "%{http_code}" -X POST "$API_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -d "{
+                  \"proposedDirective\": \"$TOOL_DIRECTIVE\",
+                  \"existingDirectives\": $EXISTING_DIRECTIVES_JSON,
+                  \"generativeDescription\": \"$GENERATIVE_DESC_TEXT\"
+                }" \
+            -o response.json)
+
+          echo "AI Analysis API HTTP Status (after potential redirects): $HTTP_STATUS"
+          ANALYSIS_SUCCEEDED_FLAG="false"; SCORE_VAL="N/A"; IS_TYPO_VAL="N/A"; SUGGESTIONS_JSON_STR="[]"; REASONING_TEXT="Analysis could not be performed."
+
+          if [[ "$HTTP_STATUS" -ge 200 && "$HTTP_STATUS" -lt 300 ]] && jq -e . response.json > /dev/null 2>&1; then
+             echo "AI Analysis API call successful and response is valid JSON."
+             SCORE_VAL=$(jq -r '.score // 0.5' response.json)
+             IS_TYPO_VAL=$(jq -r '.is_likely_typo // false' response.json)
+             SUGGESTIONS_JSON_STR=$(jq -c '.suggestions // []' response.json) 
+             REASONING_TEXT=$(jq -r '.reasoning // "Analysis incomplete."' response.json)
+             ANALYSIS_SUCCEEDED_FLAG="true"
+          else
+             echo "::warning::AI Analysis API call failed or returned invalid JSON (HTTP Status: $HTTP_STATUS). Analysis results will be marked as N/A."
+          fi
+
+          echo "analysis_succeeded=$ANALYSIS_SUCCEEDED_FLAG" >> $GITHUB_OUTPUT
+          echo "score=$SCORE_VAL" >> $GITHUB_OUTPUT
+          echo "is_typo=$IS_TYPO_VAL" >> $GITHUB_OUTPUT
+          echo "suggestions=$SUGGESTIONS_JSON_STR" >> $GITHUB_OUTPUT
+          {
+            echo "reasoning<<EOF_REASONING"
+            echo "$REASONING_TEXT"
+            echo "EOF_REASONING"
+          } >> $GITHUB_OUTPUT
+
+      - name: Validate Changed File Paths
+        id: validate_paths
+        # ... (This step remains unchanged from your last full paste, it's good) ...
+        if: steps.check_patterns.outputs.check_passed == 'true'
+        env:
+          TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
+        run: |
+          if [ -z "$TOOL_DIRECTIVE" ]; then 
+            echo "::error::TOOL_DIRECTIVE not set for path validation."
+            echo "validation_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          git fetch origin main --depth=1 
+          BASE_SHA=$(git merge-base HEAD origin/main)
+          if [ -z "$BASE_SHA" ]; then 
+            echo "::error::Could not determine merge base with main branch."
+            echo "validation_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          CHANGED_FILES_WITH_STATUS=$(git diff --name-status $BASE_SHA HEAD)
+          if [ -z "$CHANGED_FILES_WITH_STATUS" ]; then 
+            echo "No files changed compared to main. Assuming pass for path validation."
+            echo "validation_passed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          ALLOWED_FOLDER_PATTERN="^app/tool/${TOOL_DIRECTIVE}/"
+          INVALID_FILES_FOUND=""
+          ALL_PATHS_VALID=true
+          echo "Validating changed file paths against pattern: $ALLOWED_FOLDER_PATTERN"
+          echo "Changed files (Status Path):"
+          echo "$CHANGED_FILES_WITH_STATUS"
+          echo "$CHANGED_FILES_WITH_STATUS" | while IFS=$'\t' read -r status filepath; do
+            if [ -z "$filepath" ]; then continue; fi
+            if [[ "$status" == "A" || "$status" == "M" || "$status" == "C" || "$status" == "R" ]]; then 
+              actual_path_to_check=$filepath
+              if [[ "$status" == "R"* ]]; then 
+                  echo "Rename detected, checking path: $filepath"
+              fi
+              if [[ ! "$actual_path_to_check" =~ $ALLOWED_FOLDER_PATTERN ]]; then
+                echo "::error file=$actual_path_to_check::Invalid path. File status: $status. Must be within '$ALLOWED_FOLDER_PATTERN'."
+                INVALID_FILES_FOUND="${INVALID_FILES_FOUND}${actual_path_to_check} (Status: ${status})\n"
+                ALL_PATHS_VALID=false
+              else
+                echo "Valid path: $actual_path_to_check (Status: $status)"
+              fi
+            else
+              echo "Skipping strict path validation for file with status '$status': $filepath"
+            fi
+          done
+          if $ALL_PATHS_VALID; then
+            echo "validation_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "validation_passed=false" >> $GITHUB_OUTPUT
+            INVALID_FILES_ESCAPED="${INVALID_FILES_FOUND//'%'/'%25'}"
+            INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\n'/'%0A'}"
+            INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\r'/'%0D'}"
+            echo "invalid_files_list=${INVALID_FILES_ESCAPED}" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  build_and_run_douglas_checker:
+    name: 2. Build Tool & Run Douglas Ethos Check
+    needs: initial_checks
+    if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    outputs:
+      douglas_check_step_outcome: ${{ steps.douglas_checker_run.outcome }}
+      imgur_screenshot_url: ${{ steps.upload_to_imgur.outputs.image_url || '' }} # ADDED IMGUR URL OUTPUT
+
+    steps:
+      - name: Checkout OET Code (PR branch)
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install OET Dependencies
+        run: npm ci
+
+      - name: Prepare for Static Build (Isolate New Tool)
+        env:
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+        run: |
+          echo "Isolating tool: $TOOL_DIRECTIVE for static check"
+          if [ -z "$TOOL_DIRECTIVE" ]; then
+            echo "::error::Tool directive not received from initial_checks job. Cannot prune."
+            exit 1
+          fi
+          echo "Removing app/api..."
+          rm -rf app/api || echo "No app/api directory to remove or removal failed (continuing)."
+          if [ -d "app/tool" ]; then
+            echo "Removing other tool directories from app/tool/ ..."
+            cd app/tool
+            ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
+            cd ../.. 
+          else
+            echo "app/tool directory not found, skipping tool pruning."
+          fi
+          echo "Project structure pruned for static check."
+
+      - name: Build OET for Static Export (and check for lint issues)
+        id: build_oet
+        env:
+          NEXT_OUTPUT_MODE: export
+        run: |
+          echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
+          BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
+
+          echo "Running: npm run build (output will be in $BUILD_LOG_FILE_PATH and then echoed)"
+          set +e 
+          npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
+          BUILD_EXIT_CODE=$? 
+          set -e 
+
+          echo "npm run build exited with code: $BUILD_EXIT_CODE" 
+
+          echo "--- Start of Build Output (from $BUILD_LOG_FILE_PATH) ---"
+          if [ -f "$BUILD_LOG_FILE_PATH" ]; then
+            cat "$BUILD_LOG_FILE_PATH"
+          else
+            echo "ERROR: Build log file $BUILD_LOG_FILE_PATH not found!"
+          fi
+          echo "--- End of Build Output ---"
+
+          # Set build_command_failed output
+          if [ "$BUILD_EXIT_CODE" -ne 0 ]; then
+            echo "build_command_failed=true" >> $GITHUB_OUTPUT
+            echo "::warning::'npm run build' command failed with exit code $BUILD_EXIT_CODE."
+          else
+            echo "build_command_failed=false" >> $GITHUB_OUTPUT
+            echo "'npm run build' command succeeded."
+          fi
+
+          # Set build_succeeded_structurally output
+          if [ -d "out" ]; then
+            echo "Build output directory 'out' found."
+            echo "build_succeeded_structurally=true" >> $GITHUB_OUTPUT
+          else
+            echo "::error::Build output directory 'out' not found."
+            echo "build_succeeded_structurally=false" >> $GITHUB_OUTPUT
+            if [ "$BUILD_EXIT_CODE" -eq 0 ]; then 
+                echo "build_command_failed=true" >> $GITHUB_OUTPUT 
+                echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
+            fi
+          fi
+
+          echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Capture Lint Output and Changed Files for AI Fixer
+        id: capture_for_ai_fix
+        # if: steps.build_oet.outputs.build_command_failed == 'true' # This condition seems correct
+        # For debugging, let's make it always run if build_oet ran, and check build_command_failed inside
+        # This helps see its logic even if build_command_failed was unexpectedly false.
+        # No, keep the original if: steps.build_oet.outputs.build_command_failed == 'true'
+        # The issue is likely *within* this step or how its output is read.
+        if: steps.build_oet.outputs.build_command_failed == 'true'
+        env:
+          TOOL_DIRECTIVE_PATH: app/tool/${{ needs.initial_checks.outputs.tool_directive }}
+        run: |
+          echo "--- Start of capture_for_ai_fix step ---"
+          echo "Condition for this step (build_command_failed == 'true') was met."
+          BUILD_LOG_FILE="${{ steps.build_oet.outputs.build_log_path }}"
+          LINT_DATA_DIR="${{ runner.temp }}/lint-data-for-artifact"
+          mkdir -p "$LINT_DATA_DIR"
+          LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
+          FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt"
+
+          # Initialize to false
+          LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="false" 
+
+          if [ -f "$BUILD_LOG_FILE" ]; then
+            echo "Build log file found: $BUILD_LOG_FILE"
+            if grep -q -E "Failed to compile.|requires a value, but a value was not provided" "$BUILD_LOG_FILE"; then
+              echo "MATCHED: 'Failed to compile.' or similar found in build log."
+              cp "$BUILD_LOG_FILE" "$LINT_ERRORS_FILE"
+              echo "Copied build log to $LINT_ERRORS_FILE"
+              
+              echo "Identifying newly added .ts/.tsx files in '$TOOL_DIRECTIVE_PATH' for potential AI fix..."
+              find "$TOOL_DIRECTIVE_PATH" \( -name "*.ts" -o -name "*.tsx" \) -type f > "$FILES_TO_CHECK_FILE"
+              echo "Result of find command (content of $FILES_TO_CHECK_FILE):"
+              cat "$FILES_TO_CHECK_FILE" # Log the found files
+
+              if [ -s "$FILES_TO_CHECK_FILE" ]; then
+                echo "Found .ts/.tsx files in the tool directory. Setting LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG to true."
+                LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="true"
+              else
+                echo "::warning::Build failed with lint-like errors, but NO relevant .ts/.tsx files were found in '$TOOL_DIRECTIVE_PATH'. AI fix will NOT be attempted for this run."
+                # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
+              fi
+            else
+              echo "NO MATCH: 'Failed to compile.' or similar NOT found in build log. Not treating as lint failure for AI fix."
+              # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
+            fi
+          else
+            echo "::warning::Build output log ($BUILD_LOG_FILE) not found. Cannot extract lint errors."
+            # LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG remains false
+          fi
+
+          echo "Final LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG value before setting output: $LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG"
+          echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
+          echo "--- End of capture_for_ai_fix step ---"
+
+      - name: Upload Lint Failure Artifact for AI Fixer # Renamed for clarity in my head
+        if: steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-failure-data-${{ github.event.pull_request.head.sha }} # <<< CORRECTED LINE
+          path: ${{ runner.temp }}/lint-data-for-artifact/
+          if-no-files-found: warn
+
+      - name: Serve Static Output Locally
+        # ... (This step remains unchanged from your last full paste) ...
+        id: serve_static
+        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'
+        run: |
+          echo "Starting static server for 'out' directory on port 3001..."
+          if sudo fuser 3001/tcp > /dev/null 2>&1; then
+            echo "Port 3001 is in use. Attempting to kill process..."
+            sudo fuser -k 3001/tcp || echo "Failed to kill process on port 3001, or it was already free."
+            sleep 2 
+          fi
+          npx serve out -l 3001 & 
+          SERVER_PID=$!
+          echo "Server PID: $SERVER_PID"
+          echo "server_pid=$SERVER_PID" >> $GITHUB_OUTPUT
+          echo "Local server URL: http://localhost:3001"
+          echo "Waiting for server on port 3001..."
+          timeout 30s bash -c 'until curl -sSf http://localhost:3001 > /dev/null; do echo -n "."; sleep 1; done' \
+          || (echo "::error::Local server (npx serve) did not start on port 3001 in time." && (sudo kill -9 $SERVER_PID || true) && exit 1)
+          echo "Server is up!"
+        continue-on-error: true
+
+      - name: Clone Douglas Checker
+        # ... (This step remains unchanged from your last full paste) ...
+        if: steps.serve_static.outcome == 'success'
+        run: |
+          echo "Cloning Douglas checker..."
+          git clone https://github.com/Online-Everything-Tool/douglas.git ./douglas-checker
+          if [ ! -d "./douglas-checker" ]; then
+            echo "::error::Failed to clone Douglas checker repository."
+            exit 1
+          fi
+
+      - name: Install Douglas Checker Dependencies
+        # ... (This step remains unchanged from your last full paste) ...
+        if: steps.serve_static.outcome == 'success'
+        working-directory: ./douglas-checker
+        run: |
+          echo "Installing Douglas dependencies..."
+          if [ -f "package-lock.json" ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run Douglas Ethos Check
+        # ... (This step remains unchanged from your last full paste) ...
+        id: douglas_checker_run
+        if: steps.serve_static.outcome == 'success'
+        working-directory: ./douglas-checker
+        env:
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+        run: |
+          echo "Running Douglas check for tool: $TOOL_DIRECTIVE"
+          TARGET_URL="http://localhost:3001/tool/$TOOL_DIRECTIVE/"
+          SUMMARY_FILE_PATH="$RUNNER_TEMP/douglas_summary.md"
+          SCREENSHOT_FILE_PATH="$RUNNER_TEMP/douglas_screenshot.png"
+          if [ ! -f "./dist/check-tool.js" ]; then
+            echo "Douglas checker not compiled. Attempting to compile..."
+            npx tsc || (echo "::error::Failed to compile Douglas checker." && exit 1)
+            if [ ! -f "./dist/check-tool.js" ]; then
+              echo "::error::Douglas checker (dist/check-tool.js) still not found after compile attempt." && exit 1
+            fi
+          fi
+          COMMAND_ARGS=("$TARGET_URL" --outputSummaryFile "$SUMMARY_FILE_PATH" --screenshotPath "$SCREENSHOT_FILE_PATH")
+          echo "Executing: node ./dist/check-tool.js ${COMMAND_ARGS[@]}"
+          node ./dist/check-tool.js "${COMMAND_ARGS[@]}"
+        continue-on-error: true
+
+      - name: Upload Screenshot to Imgur # ADDED IMGUR UPLOAD STEP
+        id: upload_to_imgur
+        if: always() && steps.douglas_checker_run.outcome != 'skipped' && steps.serve_static.outcome == 'success'
+        env:
+          IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
+        run: |
+          SCREENSHOT_FILE="$RUNNER_TEMP/douglas_screenshot.png"
+          IMAGE_URL=""
+          if [ -f "$SCREENSHOT_FILE" ]; then
+            if [ -z "$IMGUR_CLIENT_ID" ]; then
+              echo "::warning::IMGUR_CLIENT_ID secret not set. Cannot upload screenshot to Imgur."
+            else
+              echo "Uploading $SCREENSHOT_FILE to Imgur..."
+              RESPONSE=$(curl -s -X POST \
+                -H "Authorization: Client-ID $IMGUR_CLIENT_ID" \
+                -F "image=@$SCREENSHOT_FILE" \
+                -F "type=file" \
+                -F "title=Douglas Check for PR ${{ github.event.pull_request.number }} - ${{ needs.initial_checks.outputs.tool_directive }}" \
+                -F "description=Automated ethos check by Douglas for OET PR ${{ github.event.pull_request.number }} on tool ${{ needs.initial_checks.outputs.tool_directive }}. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+                https://api.imgur.com/3/image)
+              
+              echo "Imgur API Response: $RESPONSE"
+              UPLOAD_SUCCESS=$(echo "$RESPONSE" | jq -r .success)
+              if [ "$UPLOAD_SUCCESS" = "true" ]; then
+                IMAGE_URL=$(echo "$RESPONSE" | jq -r .data.link)
+                echo "Screenshot uploaded to Imgur: $IMAGE_URL"
+              else
+                ERROR_MSG=$(echo "$RESPONSE" | jq -r .data.error)
+                echo "::warning::Failed to upload screenshot to Imgur. Error: $ERROR_MSG"
+              fi
+            fi
+          else
+            echo "::warning::Screenshot file $SCREENSHOT_FILE not found. Cannot upload to Imgur."
+          fi
+          echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Upload Douglas Summary Artifact
+        # ... (This step remains unchanged) ...
+        if: always() && steps.serve_static.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: douglas-summary-${{ github.run_id }}
+          path: ${{ runner.temp }}/douglas_summary.md
+          if-no-files-found: warn
+
+      - name: Upload Douglas Screenshot Artifact (as fallback)
+        # ... (This step remains unchanged) ...
+        if: always() && steps.serve_static.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: douglas-screenshot-${{ github.run_id }}
+          path: ${{ runner.temp }}/douglas_screenshot.png
+          if-no-files-found: warn
+
+      - name: Kill Static Server
+        # ... (This step remains unchanged) ...
+        if: always() && steps.serve_static.outcome == 'success' && steps.serve_static.outputs.server_pid
+        run: |
+          echo "Attempting to kill static server PID: ${{ steps.serve_static.outputs.server_pid }}..."
+          (sudo kill -9 ${{ steps.serve_static.outputs.server_pid }} || echo "Kill failed, server might be already stopped.")
+          if sudo fuser 3001/tcp > /dev/null 2>&1; then
+             echo "Port 3001 still in use after PID kill, attempting fuser kill..."
+             sudo fuser -k 3001/tcp || echo "fuser kill also failed or port now free."
+          else
+             echo "Port 3001 is free."
+          fi
+
+  report_pr_status:
+    name: 3. Report PR Validation Status
+    needs:
+      - initial_checks
+      - build_and_run_douglas_checker
+    # This job runs regardless of the success/failure of needed jobs,
+    # as long as they weren't cancelled and it's not a dependabot PR.
+    if: always() && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # To post comments
+      actions: read # To download artifacts
+
+    steps:
+      - name: Download Douglas Summary Artifact
+        id: download_summary
+        uses: actions/download-artifact@v4
+        with:
+          name: douglas-summary-${{ github.run_id }} # Matches upload name
+          path: ${{ runner.temp }}/douglas-artifacts/summary
+        continue-on-error: true # Allow to continue if artifact not found (e.g., Douglas skipped)
+
+      - name: Read Douglas Summary Content
+        id: read_summary
+        # Only run if download was successful and the file actually exists
+        if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
+        run: |
+          SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
+          SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
+          # Escape for multiline output in GitHub Actions
+          SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" 
+          SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
+          SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\r'/'%0D'}"
+          echo "summary_markdown=${SUMMARY_CONTENT}" >> $GITHUB_OUTPUT
+        shell: bash # Ensure bash for complex string manipulation if any
+        continue-on-error: true
+
+      - name: Construct and Post PR Comment
+        id: post_comment
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+
+          # Initial Checks Job Outputs
+          INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
+          # PATTERN_CHECK_PASSED: ${{ needs.initial_checks.outputs.pattern_check_passed }} # Removed this pattern check earlier
+          PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
+          INVALID_FILES_LIST: ${{ needs.initial_checks.outputs.invalid_files_list }}
+          AI_ANALYSIS_SUCCEEDED: ${{ needs.initial_checks.outputs.analysis_succeeded }}
+          AI_SCORE: ${{ needs.initial_checks.outputs.ai_analysis_score }}
+          AI_IS_TYPO: ${{ needs.initial_checks.outputs.ai_analysis_is_typo }}
+          AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
+          AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
+
+          # Build & Douglas Job Outputs
+          BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
+          LINT_FIX_ATTEMPTED: ${{ needs.build_and_run_douglas_checker.outputs.lint_fix_attempted }} # Key new output
+          DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
+          IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
+
+          # Processed Outputs for Comment
+          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or Douglas checks were skipped.' }}
+          ACTION_RUN_URL: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo, owner } = context.repo; 
+            const issue_number = parseInt(process.env.PR_NUMBER, 10);
+
+            if (isNaN(issue_number)) {
+              core.setFailed("PR Number is not available for commenting.");
+              return;
+            }
+
+            const toolDirective = process.env.TOOL_DIRECTIVE || "UnknownTool";
+            let commentBody = `## 🤖 OET Tool PR Validation Status for \`${toolDirective}\`\n\n`;
+            const actionRunUrl = `${process.env.ACTION_RUN_URL}?pr=${issue_number}`; // For easy linking
+
+            // --- 1. Initial PR Validations ---
+            commentBody += `### 1. Initial PR Validations\n`;
+            const initialChecksJobResult = process.env.INITIAL_CHECKS_JOB_RESULT;
+            const pathsPassed = process.env.PATH_VALIDATION_PASSED === 'true';
+            // const patternPassed = process.env.PATTERN_CHECK_PASSED === 'true'; // No longer used
+
+            if (initialChecksJobResult === 'success') {
+              commentBody += `✅ **Initial Validations Passed!**\n`;
+              // commentBody += `  - Directive \`${toolDirective}\` matches allowed patterns.\n`; // Removed
+              commentBody += `  - All changed files are within the allowed directory for \`${toolDirective}\`.\n`;
+            } else if (initialChecksJobResult === 'failure') {
+              commentBody += `🚨 **Initial Validations FAILED!**\n`;
+              // if (!patternPassed) commentBody += `  - **Pattern Check Failed:** Directive \`${toolDirective}\` does not match.\n`; // Removed
+              if (!pathsPassed) {
+                const invalidFiles = (process.env.INVALID_FILES_LIST || "List unavailable.").replace(/%0A/g, '\n    - ').replace(/%0D/g, '');
+                commentBody += `  - **Path Validation Failed:** Files changed outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
+              }
+            } else {
+               commentBody += `🟡 Initial validations were skipped or had an issue (Job status: ${initialChecksJobResult}). See [Action logs](${actionRunUrl}) for details.\n`;
+            }
+
+            commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
+            if (process.env.AI_ANALYSIS_SUCCEEDED === 'true') {
+              commentBody += `    - Score: **${process.env.AI_SCORE}**\n`;
+              commentBody += `    - Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? '**Yes** ❗' : 'No'}\n`;
+              let reasoning = process.env.AI_REASONING || "No reasoning provided.";
+              reasoning = reasoning.replace(/%0A/g, '\n        '); // Indent multiline reasoning
+              commentBody += `    - Reasoning:\n        ${reasoning}\n`;
+              try {
+                const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON || '[]');
+                if (suggestions.length > 0) {
+                  commentBody += `    - Suggestions: ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
+                }
+              } catch (e) { console.warn("Could not parse AI suggestions JSON for comment: " + e.message); }
+            } else {
+              commentBody += `    - ⚠️ AI name analysis could not be performed or API call failed.\n`;
+            }
+            commentBody += "\n---\n";
+
+            // --- 2. Local Build & Douglas Ethos Check ---
+            commentBody += `### 2. Local Build & Douglas Ethos Check\n`;
+            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT; // Overall result of the job
+            const lintFixAttempted = process.env.LINT_FIX_ATTEMPTED === 'true';
+            const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME; // Outcome of the specific Douglas script run step
+
+            if (lintFixAttempted) {
+              commentBody += `🟡 **Build/Lint Failed.** An AI Lint Fixer workflow has been triggered to attempt automatic corrections.\n`;
+              commentBody += `   Please monitor the [AI Lint Fixer workflow run](${actionRunUrl}) (it will appear as a new check or a separate workflow run triggered by this one's completion).\n`;
+              commentBody += `   Douglas Ethos Check was skipped in this run due to the build failure.\n`;
+            } else if (buildDouglasJobResult === 'skipped') {
+              // This happens if initial_checks failed critically, preventing build_and_run_douglas_checker from running.
+              commentBody += `🟡 Local build and Douglas Ethos Check job were skipped (likely due to earlier critical validation failures in Initial Checks).\n`;
+            } else if (buildDouglasJobResult === 'failure') {
+              // The job itself failed, and it wasn't a lint issue we decided to pass to the AI fixer.
+              commentBody += `🚨 **Local Static Build FAILED!** (AI lint fix was not attempted for this failure).\n`;
+              commentBody += `   Review [Action logs for Build & Douglas Job](${actionRunUrl}) for build failure details.\n`;
+              commentBody += `   Douglas Ethos Check was likely not run or also failed.\n`;
+            } else if (buildDouglasJobResult === 'success') {
+              // Build job succeeded, meaning build was structurally okay and no AI fix was attempted. Now check Douglas.
+              commentBody += `✅ **Local Static Build Successful.**\n`;
+              if (douglasCheckStepOutcome === 'success') {
+                commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
+              } else if (douglasCheckStepOutcome === 'skipped') {
+                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., static server did not start).\n`;
+              } else { // failure, cancelled, timed_out etc.
+                commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome})\n`;
+              }
+              
+              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD).replace(/%0A/g, '\n').replace(/%0D/g, '');
+              commentBody += `\n${douglasSummary}\n`; 
+              
+              const imgurUrl = process.env.IMGUR_SCREENSHOT_URL;
+              if (imgurUrl) {
+                commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${imgurUrl})\n`;
+                commentBody += `   (Direct link: ${imgurUrl})\n\n`;
+              } else if (douglasCheckStepOutcome !== 'skipped') { // Only show if Douglas was meant to run
+                commentBody += `   (Screenshot not uploaded to Imgur or not found. View screenshot artifact [on the Action run page](${actionRunUrl}))\n`;
+              }
+            }
+            commentBody += "\n---\n";
+
+            // --- 3. Next Steps ---
+            commentBody += `### 3. Next Steps\n`;
+            const criticalInitialChecksPassed = initialChecksJobResult === 'success';
+            // Overall success for *this specific run* (before considering AI fixer re-runs)
+            const thisRunChecksSuccess = criticalInitialChecksPassed && 
+                                         buildDouglasJobResult === 'success' && 
+                                         douglasCheckStepOutcome === 'success';
+
+            if (lintFixAttempted) {
+              commentBody += `⏳ An AI Lint Fix is in progress. If successful, this PR will be updated, and these checks will re-run.\n`;
+              commentBody += `   The current PR status might show as failing until the AI fixer completes and the checks are re-evaluated on the new commit.\n`;
+            } else if (thisRunChecksSuccess) {
+              commentBody += `✅ All local checks for this run passed!\n`;
+              commentBody += `⏳ A Netlify Deploy Preview should be building now. Its status will appear as a separate check from Netlify on this PR.\n`;
+              commentBody += `👍 Once ready, please test your tool thoroughly using the Deploy Preview link!\n`;
+            } else {
+              commentBody += `‼️ **Action Required:** One or more critical local checks failed in this run. Review details above and in [Action run logs](${actionRunUrl}).\n`;
+              if (!criticalInitialChecksPassed) {
+                 commentBody += `🔴 Initial validations failed. Core tool structure or naming might be incorrect.\n`;
+              } else if (buildDouglasJobResult !== 'success') {
+                 commentBody += `🔴 Local build failed. Netlify Deploy Preview may fail or not reflect intended functionality.\n`;
+              } else { // Initial checks passed, build succeeded, but Douglas failed
+                 commentBody += `🔴 Douglas Ethos Check identified issues.\n`;
+              }
+            }
+
+            commentBody += `\n---\n*This comment is auto-generated by OET CI. For full details, see the [Action Run](${actionRunUrl}).*`;
+
+            try {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
+            } catch (e) {
+              core.error(`Failed to post PR comment: ${e.message}`);
+              // Don't fail the whole job just because comment posting failed
+            }
+
+            // --- Determine overall workflow failure for THIS RUN ---
+            // If a lint fix is being attempted, this specific run of the main workflow should NOT fail the PR checks.
+            // It should allow the AI Fixer workflow and the subsequent re-run of this main workflow to determine the true status.
+            if (lintFixAttempted) {
+              core.notice("AI Lint Fix attempt initiated by the previous job. This workflow run will not set a hard failure status for the PR at this stage. The subsequent run after AI fixes (if any) will determine the PR's mergeability based on checks.");
+              // This job will complete successfully, but the overall check suite for the PR might still show the previous job as "failed"
+              // until the AI fixer pushes and this workflow re-runs successfully on the new commit.
+            } else {
+              // Original failure logic if no AI fix is being attempted
+              let failWorkflow = false;
+              let failureReason = "";
+              if (initialChecksJobResult === 'failure') {
+                failWorkflow = true;
+                failureReason += "Initial PR Validations failed. ";
+              }
+              if (buildDouglasJobResult === 'failure') { 
+                failWorkflow = true;
+                failureReason += "Local Build or dependent setup failed. ";
+              } else if (buildDouglasJobResult === 'success' && douglasCheckStepOutcome !== 'success' && douglasCheckStepOutcome !== 'skipped') {
+                // Build succeeded, Douglas ran but didn't pass (and wasn't skipped)
+                failWorkflow = true;
+                failureReason += "Douglas Ethos Check reported issues. ";
+              }
+              
+              if (failWorkflow) {
+                core.setFailed(`One or more checks failed in this run (and no AI fix was attempted): ${failureReason.trim()}See comment and Action logs.`);
+              }
+            }
+
+      - name: Fail workflow if critical checks failed (and no AI Fix Attempted)
+        if: >
+          (
+            needs.initial_checks.result == 'failure' ||
+            (
+              needs.build_and_run_douglas_checker.result == 'failure' &&
+              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
+            ) ||
+            (
+              needs.build_and_run_douglas_checker.result == 'success' &&
+              (needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped') != 'success' &&
+              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
+            )
+          )
+        run: |
+          echo "::error::One or more critical checks failed, and no AI Lint Fix was successfully initiated by the previous job to address them. Marking this workflow run as failed."
+          exit 1

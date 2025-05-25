@@ -1,0 +1,54 @@
+name: Auto Delete Branch
+
+on:
+  pull_request:
+    types:
+      - closed # Trigger when a PR is closed (either merged or closed without merging)
+
+jobs:
+  delete_branch_on_close:
+    name: Delete Branch on PR Close/Merge
+    # Only run if the PR was closed AND the head ref starts with 'feat/gen-' (for your AI-generated branches)
+    # OR if the PR was merged (github.event.pull_request.merged == true) and starts with 'feat/gen-'
+    # You can adjust this `if` condition to be more general if you want to delete other types of branches too.
+    if: |
+      (github.event.action == 'closed' && startsWith(github.event.pull_request.head.ref, 'feat/gen-'))
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to delete refs (branches)
+      contents: write # This permission allows writing to the repository, including deleting branches.
+
+    steps:
+      - name: Extract branch name
+        id: extract_branch
+        run: echo "branch_name=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+
+      - name: Log Branch Info
+        run: |
+          echo "PR Action: ${{ github.event.action }}"
+          echo "PR Merged: ${{ github.event.pull_request.merged }}"
+          echo "Branch to potentially delete: ${{ steps.extract_branch.outputs.branch_name }}"
+          echo "Base branch: ${{ github.event.pull_request.base.ref }}"
+
+      - name: Delete branch
+        # Only delete if:
+        # 1. The branch is not the repository's default branch (safety check)
+        # 2. The PR was either merged OR it was closed without merging (covered by `on: pull_request: types: [closed]`)
+        # 3. The branch name starts with 'feat/gen-' (as per the job's `if` condition)
+        if: |
+          steps.extract_branch.outputs.branch_name != github.event.repository.default_branch &&
+          steps.extract_branch.outputs.branch_name != github.event.pull_request.base.ref
+        uses: dawidd6/action-delete-branch@v3 # A popular and reliable action for this
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }} # Uses the default GITHUB_TOKEN
+          branches: ${{ steps.extract_branch.outputs.branch_name }}
+          # Optional: Set `fail_if_branch_not_found: false` if you don't want the action to fail
+          # if the branch was somehow already deleted (e.g., manually or by another process).
+          # Default is true, which is usually fine.
+
+      - name: Branch deletion skipped (default or base branch)
+        if: |
+          steps.extract_branch.outputs.branch_name == github.event.repository.default_branch ||
+          steps.extract_branch.outputs.branch_name == github.event.pull_request.base.ref
+        run: |
+          echo "Skipping deletion of default or base branch: ${{ steps.extract_branch.outputs.branch_name }}"
