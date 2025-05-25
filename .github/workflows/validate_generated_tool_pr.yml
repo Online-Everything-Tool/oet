@@ -353,19 +353,13 @@ jobs:
           echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
           echo "--- End of capture_for_ai_fix step ---"
 
-      - name: Debug Output Value Before Upload
-        if: always() # Ensure it always runs
-        run: |
-          echo "Value of steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai is [${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}]"
-          echo "Type of value: $(if [[ -z "${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}" ]]; then echo "empty"; elif [[ "${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}" == "true" ]]; then echo "string_true"; else echo "other_string_or_bool"; fi)"
-
-      - name: Upload Lint Failure Artifact
-        if: steps.capture_for_ai_fix.outputs.lint_errors_captured == 'true'
+      - name: Upload Lint Failure Artifact for AI Fixer # Renamed for clarity in my head
+        if: steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: lint-failure-data-${{ github.sha }}
           path: ${{ runner.temp }}/lint-data-for-artifact/
-          if-no-files-found: warn # Warn, as files_to_check might be empty if errors are in non-PR files
+          if-no-files-found: warn           
 
       - name: Serve Static Output Locally
         # ... (This step remains unchanged from your last full paste) ...
