@@ -134,6 +134,10 @@ jobs:
             -o "${{ runner.temp }}/fix_response.json")
 
           echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
+      
+          echo "--- AI API Response (fix_response.json) ---"
+          cat "${{ runner.temp }}/fix_response.json"
+          echo "--- End AI API Response ---"
 
           if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
             echo "::error::AI Lint Fix API call failed with HTTP status $HTTP_RESPONSE_CODE."
