@@ -357,7 +357,7 @@ jobs:
         if: steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: lint-failure-data-${{ github.sha }}
+          name: lint-failure-data-${{ github.event.pull_request.head.sha }} # <<< CORRECTED LINE
           path: ${{ runner.temp }}/lint-data-for-artifact/
           if-no-files-found: warn           
 
