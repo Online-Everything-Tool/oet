@@ -159,10 +159,11 @@ jobs:
   initial_checks:
     name: 1. Initial PR Validations
     needs: [prepare_run_context]
-    if: >
-      needs.prepare_run_context.outputs.run_validation == 'true' &&
-      startsWith(needs.prepare_run_context.outputs.head_ref, 'feat/gen-') &&
-      github.actor != 'dependabot[bot]'
+    if: always()
+    # if: >
+    #   needs.prepare_run_context.outputs.run_validation == 'true' &&
+    #   startsWith(needs.prepare_run_context.outputs.head_ref, 'feat/gen-') &&
+    #   github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -190,6 +191,12 @@ jobs:
         env:
           BRANCH_NAME_FROM_CONTEXT: ${{ needs.prepare_run_context.outputs.head_ref }}
         run: |
+
+          echo "Job: initial_checks"
+          echo "Value of needs.prepare_run_context.outputs.run_validation: '${{ needs.prepare_run_context.outputs.run_validation }}'"
+          echo "Value of needs.prepare_run_context.outputs.head_ref: '${{ needs.prepare_run_context.outputs.head_ref }}'"
+          echo "Value of github.actor: '${{ github.actor }}'"
+
           BRANCH_NAME="$BRANCH_NAME_FROM_CONTEXT"
           echo "Attempting to extract directive from branch name: $BRANCH_NAME"
           if [ -z "$BRANCH_NAME" ]; then
