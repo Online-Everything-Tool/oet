@@ -154,6 +154,7 @@ jobs:
             echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           fi
           cat $GITHUB_OUTPUT
+          echo "Actor is: ${{ github.actor }}"
 
   initial_checks:
     name: 1. Initial PR Validations
