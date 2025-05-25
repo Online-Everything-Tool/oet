@@ -28,6 +28,7 @@ jobs:
       contents: read
 
     outputs:
+      pr_number: ${{ steps.set_pr_info.outputs.pr_number }}
       tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
       pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
       path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
@@ -139,7 +140,7 @@ jobs:
           echo "pr_sha=${PR_SHA}" >> $GITHUB_OUTPUT
           echo "should_run=${SHOULD_RUN}" >> $GITHUB_OUTPUT
           echo "::endgroup::"
-          
+
       - name: Extract Tool Directive
         if: steps.set_pr_info.outputs.should_run == 'true'
         id: extract_directive
@@ -631,7 +632,7 @@ jobs:
         id: post_comment
         uses: actions/github-script@v7
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ needs.initial_checks.outputs.pr_number }}
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
           PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
