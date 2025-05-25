@@ -255,6 +255,8 @@ jobs:
           echo "--- End of Apply AI Fixes Locally ---"
       - name: Commit files
         run: |
+          git config --global user.email "kebin70@gmail.com"
+          git config --global user.name "Kevin McIntyre"        
           git commit -a -m "Add changes"
       - name: Push changes using PAT
         if: steps.apply_fixes_locally.outputs.changes_made == 'true'
