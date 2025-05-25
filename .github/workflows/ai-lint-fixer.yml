@@ -13,15 +13,15 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      actions: read
+      contents: write       # For checkout by GITHUB_TOKEN, and for ad-m/github-push-action to commit/push using PAT
+      actions: read         # For downloading artifacts using GITHUB_TOKEN
+      pull-requests: write  # For posting the comment using GITHUB_TOKEN
     env:
       EXPECTED_ARTIFACT_SHA: ${{ github.event.workflow_run.head_sha }}
       PR_HEAD_BRANCH_FOR_PUSH: ${{ github.event.workflow_run.head_branch }}
 
     steps:
       - name: Get Triggering Workflow Run Info
-        # ... (as before)
         id: get_trigger_info
         run: |
           echo "--- Trigger Info ---"
@@ -32,26 +32,23 @@ jobs:
           echo "----------------------"
 
       - name: Download Lint Failure Artifact
-        # ... (as before, but ensure PAT has Actions:Read if using it here, or use GITHUB_TOKEN)
         id: download_artifact
         uses: actions/download-artifact@v4
         with:
           name: lint-failure-data-${{ env.EXPECTED_ARTIFACT_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} # Using default GITHUB_TOKEN is usually fine and preferred here
+          github-token: ${{ secrets.GITHUB_TOKEN }} # Using default GITHUB_TOKEN
           run-id: ${{ github.event.workflow_run.id }}
         continue-on-error: true
 
       - name: Check if Artifact Exists and Contains Data
-        # ... (as before)
         id: check_artifact
         if: steps.download_artifact.outcome == 'success'
         run: |
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           echo "--- Artifact Download and Content Check ---"
-          echo "Download artifact step outcome: ${{ steps.download_artifact.outcome }}"
-          echo "Checking for file: $LINT_ERRORS_FILE"
+          # ... (rest of this script is unchanged)
           ls -la "${{ runner.temp }}/lint-data/"
           if [ -f "$LINT_ERRORS_FILE" ] && [ -s "$LINT_ERRORS_FILE" ] && \
              [ -f "$FILES_TO_CHECK_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
@@ -75,13 +72,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.EXPECTED_ARTIFACT_SHA }}
-          fetch-depth: 0
+          fetch-depth: 0 # Important for getting the correct last commit message
+          # No explicit token needed here, default GITHUB_TOKEN will be used
 
       - name: Prepare Data for AI Lint Fix API
-        # ... (as before)
         id: prepare_fix_data
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         run: |
+          # ... (script unchanged)
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           PR_FILES_JSON_PATH="${{ runner.temp }}/pr_files_for_lint_fix.json"
@@ -109,12 +107,12 @@ jobs:
           echo "-------------------------------------------"
 
       - name: Call AI Lint Fix API
-        # ... (as before)
         id: call_fix_api
         if: steps.prepare_fix_data.outcome == 'success' && steps.check_artifact.outputs.artifact_valid == 'true'
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
+          # ... (script unchanged)
           LINT_ERRORS_CONTENT=$(cat "${{ runner.temp }}/lint-data/lint_errors.txt")
           LINT_ERRORS_JSON_ESCAPED=$(echo "$LINT_ERRORS_CONTENT" | jq -R -s '.')
           FILES_TO_FIX_JSON_CONTENT=$(cat "${{ runner.temp }}/pr_files_for_lint_fix.json")
@@ -132,14 +130,11 @@ jobs:
             '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
 
           echo "Calling AI Lint Fix API at $LINT_FIX_API_ENDPOINT ..."
-
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" \
             -H "Content-Type: application/json" \
             -d "$API_PAYLOAD" \
             -o "${{ runner.temp }}/fix_response.json")
-
           echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
-      
           echo "--- AI API Response (fix_response.json) ---"
           cat "${{ runner.temp }}/fix_response.json"
           echo "--- End AI API Response ---"
@@ -158,7 +153,7 @@ jobs:
         if: steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true' && steps.check_artifact.outputs.artifact_valid == 'true'
         id: apply_fixes_locally
         run: |
-          # ... (Using the robust marker file version from previous message) ...
+          # ... (Using the robust marker file version - script unchanged)
           echo "--- Starting Apply AI Fixes Locally ---"
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           CHANGES_MADE_MARKER_FILE=$(mktemp)
@@ -226,23 +221,40 @@ jobs:
           echo "--- End of Apply AI Fixes Locally ---"
 
       - name: Commit files
-        # ---vvv--- ADDED CONDITION AND CORRECT COMMIT MESSAGE ---vvv---
         if: steps.apply_fixes_locally.outputs.changes_made == 'true'
         run: |
-          echo "Configuring git user..."
-          git config --global user.email "ai-fixer-bot@online-everything-tool.com" # Or your preferred bot email
-          git config --global user.name "OET AI Fixer Bot" # Or your preferred bot name
+          # Configure git user for the commit.
+          # If using GITHUB_TOKEN for push, this will be attributed to github-actions[bot]
+          # If using PAT for push, this configures the author, push is by PAT owner
+          git config --global user.email "ai-fixer-bot@online-everything-tool.com"
+          git config --global user.name "OET AI Fixer Bot"
           echo "Staging all changes..."
-          git add -A # Stage all changes made by the previous step
+          git add -A 
           echo "Committing staged changes..."
-          git commit -m "chore: AI-assisted lint fixes" # Use the specific commit message
-        # ---^^^--- ADDED CONDITION AND CORRECT COMMIT MESSAGE ---^^^---
+          git commit -m "chore: AI-assisted lint fixes"
 
-      - name: Push changes using PAT
-        if: steps.apply_fixes_locally.outputs.changes_made == 'true' # This condition ensures a commit was made (or attempted)
-        uses: ad-m/github-push-action@v0.8.0 # Using a specific version
+      - name: Push changes
+        if: steps.apply_fixes_locally.outputs.changes_made == 'true'
+        uses: ad-m/github-push-action@v0.8.0
         with:
-          github_token: ${{ secrets.AI_LINT_FIXER_PAT }}
           branch: ${{ env.PR_HEAD_BRANCH_FOR_PUSH }}
-          # No commit_message input needed here; commit is already made
           force: false
+
+      - name: Trigger Re-validation via PR Comment
+        if: steps.apply_fixes_locally.outputs.changes_made == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = ${{ github.event.workflow_run.pull_requests[0].number }};
+            if (!prNumber) {
+              core.setFailed("Could not determine PR number from triggering workflow run.");
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: '/revalidate-ai-fixes' 
+            });
+            core.info(`Posted re-validation comment to PR #${prNumber}`);
