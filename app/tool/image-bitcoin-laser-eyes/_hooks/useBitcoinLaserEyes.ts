@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import * as faceapi from 'face-api.js';
 
 interface UseBitcoinLaserEyesOptions {
   modelPath: string;
@@ -20,6 +19,8 @@ export function useBitcoinLaserEyes(options: UseBitcoinLaserEyesOptions) {
       setIsLoading(true);
       setError(null);
       try {
+        const faceapi = await import('face-api.js'); // Dynamic import to resolve build issue
+
         // Check if nets are already loaded to prevent re-loading
         if (!faceapi.nets.tinyFaceDetector.params) {
            await faceapi.nets.tinyFaceDetector.loadFromUri(options.modelPath);
@@ -70,6 +71,7 @@ export function useBitcoinLaserEyes(options: UseBitcoinLaserEyesOptions) {
       }
       return;
     }
+    const faceapi = await import('face-api.js'); // Dynamic import within useCallback
 
     const detections = await faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
       .withFaceLandmarks(true);
@@ -97,11 +99,7 @@ export function useBitcoinLaserEyes(options: UseBitcoinLaserEyesOptions) {
         const eyeXCoords = eyePoints.map(p => p.x);
         const eyeWidth = Math.max(...eyeXCoords) - Math.min(...eyeXCoords);
         
-        // Adjust scale: laser asset width relative to detected eye width.
-        // e.g. if laser asset is 100px wide and typical eye is 20px, scale = 20/100 = 0.2
-        // This needs tuning based on the laser asset. Let's assume laser asset is designed for a certain size.
-        // A simpler approach: scale laser width to be a factor of eyeWidth.
-        const desiredLaserWidthOnFace = eyeWidth * 1.5; // Laser appears 1.5x the eye's width
+        const desiredLaserWidthOnFace = eyeWidth * 1.5;
         const laserScale = desiredLaserWidthOnFace / laserImage.width;
 
         const laserW = laserImage.width * laserScale;
@@ -110,14 +108,10 @@ export function useBitcoinLaserEyes(options: UseBitcoinLaserEyesOptions) {
         ctx.save();
         ctx.translate(eyeCenterX, eyeCenterY);
         
-        // eyeIndex 0 is left eye, 1 is right eye
-        if (eyeIndex === 0) { // Left eye of the person (appears on right side of image if face is mirrored)
-            ctx.scale(-1, 1); // Flip horizontally to point left
+        if (eyeIndex === 0) {
+            ctx.scale(-1, 1);
         }
-        // Right eye (eyeIndex === 1) points right by default if asset points right
 
-        // Draw laser beam. Asset should be a beam starting at (0, -laserH/2) and extending to (laserW, laserH/2)
-        // The "source" of the laser is at its left edge (x=0).
         ctx.drawImage(laserImage, 0, -laserH / 2, laserW, laserH);
         ctx.restore();
       });

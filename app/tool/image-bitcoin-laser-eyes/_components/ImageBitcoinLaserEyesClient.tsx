@@ -92,7 +92,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
   const { getToolMetadata } = useMetadata();
   
   const {
-    isLoading: isProcessingImageHook, // Renamed to avoid conflict
+    isLoading: isProcessingImageHook,
     error: processingErrorHook,
     processImage,
     clearProcessingOutput: clearProcessingHookOutput,
@@ -145,7 +145,9 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
         setUiError('Metadata not found for source tool.');
         return;
       }
-      const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig);
+
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig, signal.data);
+
       if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none' || !resolvedPayload.data || resolvedPayload.data.length === 0) {
         setUiError(resolvedPayload.errorMessage || 'No transferable data received from source.');
         return;
@@ -158,7 +160,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
         const oldProcessedId = toolState.processedFileId;
         const newState: ImageBitcoinLaserEyesToolState = {
           ...DEFAULT_TOOL_STATE,
-          autoSaveProcessed: toolState.autoSaveProcessed, // Keep this setting
+          autoSaveProcessed: toolState.autoSaveProcessed,
           selectedFileId: newSelectedFileId,
         };
         setState(newState);
@@ -169,13 +171,13 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
         setUserDeferredAutoPopup(false);
         const destatedIds = [oldSelectedId, oldProcessedId].filter((id): id is string => !!(id && id !== newSelectedFileId));
         if (destatedIds.length > 0) {
-          cleanupOrphanedTemporaryFiles(destatedIds).catch(e => console.error('[LaserEyes ITDE Accept] Cleanup failed:', e));
+          cleanupOrphanedTemporaryFiles(destatedIds).catch(_err => console.error('[LaserEyes ITDE Accept] Cleanup failed:', _err));
         }
       } else {
         setUiError('No valid image item found in received ITDE data.');
       }
     },
-    [getToolMetadata, toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]
+    [getToolMetadata, toolState.autoSaveProcessed, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -191,7 +193,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
     if (initialToolStateLoadCompleteRef.current && itdeTarget.pendingSignals.length > 0 && !itdeTarget.isModalOpen && !userDeferredAutoPopup) {
       itdeTarget.openModalIfSignalsExist();
     }
-  }, [initialToolStateLoadCompleteRef, itdeTarget, userDeferredAutoPopup, directiveName]);
+  }, [initialToolStateLoadCompleteRef, itdeTarget, userDeferredAutoPopup]);
 
   useEffect(() => {
     let mounted = true;
@@ -214,7 +216,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
             setOriginalImageSrcForUI(localOrigObjUrl);
             setOriginalFilenameForDisplay(file.filename);
           }
-        } catch (e) { /* ignore */ }
+        } catch (_err) { /* ignore */ }
       }
       if (toolState.processedFileId) {
         try {
@@ -223,7 +225,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
             localProcObjUrl = URL.createObjectURL(file.blob);
             setProcessedImageSrcForUI(localProcObjUrl);
           }
-        } catch (e) { /* ignore */ }
+        } catch (_err) { /* ignore */ }
       }
     };
 
@@ -255,9 +257,9 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
       const outputFileName = generateDefaultOutputFilename();
       const result = await processImage(
         inputFile,
-        applyLaserEyes, // This is the callback from useBitcoinLaserEyes
+        applyLaserEyes,
         outputFileName,
-        {}, // No specific options needed for applyLaserEyes from useImageProcessing
+        {},
         toolState.autoSaveProcessed
       );
       if (result.id) {
@@ -305,12 +307,12 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
         setManualSaveSuccess(false);
         setDownloadAttempted(false);
         const destatedIds = [oldSelectedId, oldProcessedId].filter((id): id is string => !!(id && id !== newSelectedId));
-        if (destatedIds.length > 0) cleanupOrphanedTemporaryFiles(destatedIds).catch(e => console.error('[LaserEyes New Selection] Cleanup failed:', e));
+        if (destatedIds.length > 0) cleanupOrphanedTemporaryFiles(destatedIds).catch(_err => console.error('[LaserEyes New Selection] Cleanup failed:', _err));
       } else if (files?.length) {
         setUiError(`Selected file "${files[0].filename}" is not a recognized image type.`);
       }
     },
-    [toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, clearProcessingHookOutput, cleanupOrphanedTemporaryFiles]
+    [toolState.autoSaveProcessed, setState, saveStateNow, clearProcessingHookOutput, cleanupOrphanedTemporaryFiles]
   );
 
   const handleAutoSaveChange = useCallback(
@@ -329,12 +331,12 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
           else throw new Error('File could not be made permanent.');
         } catch (err) {
           setUiError(`Auto-save to permanent failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          setState(prev => ({ ...prev, autoSaveProcessed: false })); // Revert if failed
+          setState(prev => ({ ...prev, autoSaveProcessed: false }));
         } finally {
           setIsManuallySaving(false);
         }
       }
-      // Save tool state regardless of file operation outcome
+
       await saveStateNow({ ...toolState, autoSaveProcessed: newAutoSave, processedFileId: currentProcessedFileId });
     },
     [toolState, processedOutputPermanent, isProcessingImageHook, isManuallySaving, makeFilePermanentAndUpdate, setState, saveStateNow]
@@ -345,7 +347,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
     const oldProcessedId = toolState.processedFileId;
     const clearedState: ImageBitcoinLaserEyesToolState = {
       ...DEFAULT_TOOL_STATE,
-      autoSaveProcessed: toolState.autoSaveProcessed, // Keep this setting
+      autoSaveProcessed: toolState.autoSaveProcessed,
     };
     setState(clearedState);
     await saveStateNow(clearedState);
@@ -354,8 +356,8 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
     setManualSaveSuccess(false);
     setDownloadAttempted(false);
     const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter((id): id is string => !!id);
-    if (destatedIds.length > 0) cleanupOrphanedTemporaryFiles(destatedIds).catch(err => console.error(`[LaserEyes Clear] Cleanup failed:`, err));
-  }, [toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]);
+    if (destatedIds.length > 0) cleanupOrphanedTemporaryFiles(destatedIds).catch(_err => console.error(`[LaserEyes Clear] Cleanup failed:`, _err));
+  }, [toolState.autoSaveProcessed, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]);
 
   const _internalPerformSave = async (filename: string): Promise<boolean> => {
     if (!toolState.processedFileId) {
@@ -400,7 +402,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
   const initiateSave = async () => {
     if (!toolState.processedFileId || isProcessingImageHook || isManuallySaving || isLoadingFaceApiResources) return;
     const filenameToUse = toolState.lastUserGivenFilename || generateDefaultOutputFilename();
-    if (toolState.lastUserGivenFilename && !canInitiateSaveCurrent) { // Already saved with this name
+    if (toolState.lastUserGivenFilename && !canInitiateSaveCurrent) {
       setManualSaveSuccess(true); setTimeout(() => setManualSaveSuccess(false), 1500);
       return;
     }
@@ -439,8 +441,8 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
     
     if (success) {
       const newState = { ...toolState, lastUserGivenFilename: confirmedFilename };
-      setState(newState); // Update local state immediately
-      await saveStateNow(newState); // Persist
+      setState(newState);
+      await saveStateNow(newState);
     }
   };
 
