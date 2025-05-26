@@ -1,0 +1,28 @@
+{
+  "title": "Text Whitespace Remover",
+  "directive": "text-whitespace-remover",
+  "description": "Removes extra whitespace characters from text.  Replaces whitespace with either nothing or a carriage return. User can also reduce multiple spaces to a single space.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "tags": ["text", "whitespace", "cleanup"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
