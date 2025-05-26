@@ -4,6 +4,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ValidationResult } from '@/src/types/build';
 import Button from '@/app/tool/_components/form/Button';
+import { LightBulbIcon } from '@heroicons/react/24/solid';
 
 interface ValidateDirectiveProps {
   toolDirective: string;
@@ -15,6 +16,9 @@ interface ValidateDirectiveProps {
   onValidationSuccess: (result: ValidationResult) => void;
   onReset: () => void;
   isApiUnavailable: boolean;
+
+  analysisSuggestions?: string[];
+  analysisModelNameUsed?: string | null;
 }
 
 interface ApiValidationResponseData {
@@ -30,8 +34,9 @@ export default function ValidateDirective({
   validationModelOptions,
   defaultModelName,
   onValidationSuccess,
-
   isApiUnavailable,
+  analysisSuggestions = [],
+  analysisModelNameUsed,
 }: ValidateDirectiveProps) {
   const [isValidating, setIsValidating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -55,7 +60,6 @@ export default function ValidateDirective({
     if (fallbackModelsApi.length > 0) {
       return fallbackModelsApi;
     }
-
     return [];
   }, [validationModelOptions, fallbackModelsApi]);
 
@@ -140,19 +144,26 @@ export default function ValidateDirective({
       .replace(/-+/g, '-');
   }, []);
 
+  const handleSuggestionClick = (suggestedDirective: string) => {
+    setToolDirective(formatSlug(suggestedDirective));
+    setFeedback(null);
+    setStatus('idle');
+  };
+
   const handleValidateClick = async () => {
     setStatus('idle');
     setFeedback(null);
-    setIsValidating(true);
-    setFeedback('Validating directive with AI...');
-    const finalDirective = formatSlug(toolDirective);
 
+    const finalDirective = formatSlug(toolDirective);
     if (!finalDirective) {
+      setFeedback('Please enter a valid tool directive name.');
       setStatus('error');
-      setFeedback('Please enter a valid tool directive.');
-      setIsValidating(false);
       return;
     }
+    setToolDirective(finalDirective);
+
+    setIsValidating(true);
+    setFeedback('Validating directive with AI...');
 
     if (!currentSelectedModelForValidation && !modelToDisplayOrUse) {
       setStatus('error');
@@ -170,6 +181,10 @@ export default function ValidateDirective({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           toolDirective: finalDirective,
+          modelName:
+            currentSelectedModelForValidation ||
+            modelToDisplayOrUse ||
+            defaultModelName,
         }),
       });
 
@@ -193,7 +208,6 @@ export default function ValidateDirective({
         throw new Error('Validation succeeded but description was missing.');
       }
     } catch (error: unknown) {
-      console.error('Directive Validation Error:', error);
       setStatus('error');
       const message =
         error instanceof Error
@@ -242,7 +256,6 @@ export default function ValidateDirective({
           }
           className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
         >
-          {/* Add a placeholder if no model is selected yet and options exist */}
           {finalModelOptionsForUI.length > 0 &&
             !currentSelectedModelForValidation && (
               <option value="" disabled>
@@ -254,7 +267,6 @@ export default function ValidateDirective({
               {modelDisplayName(modelName)}
             </option>
           ))}
-          {/* If finalModelOptionsForUI is empty after loading, and default is used, it won't show here but in modelToDisplayOrUse */}
         </select>
       );
     }
@@ -290,7 +302,12 @@ export default function ValidateDirective({
             type="text"
             id="toolDirective"
             value={toolDirective}
-            onChange={(e) => setToolDirective(e.target.value)}
+            onChange={(e) => {
+              setToolDirective(e.target.value);
+              if (feedback) setFeedback(null);
+              if (status === 'error') setStatus('idle');
+            }}
+            onBlur={(e) => setToolDirective(formatSlug(e.target.value))}
             disabled={isValidating || isApiUnavailable}
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
             placeholder="e.g., json-formatter"
@@ -313,7 +330,7 @@ export default function ValidateDirective({
           </label>
           {renderModelSelector()}
           <p className="mt-1 text-xs text-gray-500">
-            Used by AI for initial name validation and description.
+            Used by AI for name validation and initial description.
           </p>
         </div>
       </div>
@@ -331,8 +348,10 @@ export default function ValidateDirective({
           }
           variant="primary"
           className="text-base px-6 py-2.5"
+          isLoading={isValidating}
+          loadingText="Validating..."
         >
-          {isValidating ? 'Validating...' : 'Validate Directive & Continue'}
+          Validate Directive & Continue
         </Button>
       </div>
 
@@ -343,6 +362,41 @@ export default function ValidateDirective({
           {feedback}
         </div>
       )}
+
+      {/* AI Suggestions Section (Conditional from project_analysis.json) */}
+      {analysisSuggestions &&
+        analysisSuggestions.length > 0 &&
+        currentSelectedModelForValidation && (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <h4 className="text-sm font-semibold text-gray-600 mb-3 flex items-center">
+              <LightBulbIcon className="h-4 w-4 mr-1.5 text-yellow-500" />
+              AI-Generated Tool Ideas:
+            </h4>
+            <ul className="flex flex-row flex-wrap gap-x-2.5 gap-y-1.5">
+              {analysisSuggestions.map((directive) => (
+                <li key={directive}>
+                  <button
+                    type="button"
+                    onClick={() => handleSuggestionClick(directive)}
+                    title={`Use '${directive}'`}
+                    disabled={isValidating || isApiUnavailable}
+                    className="transition-colors text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  >
+                    <code className="bg-indigo-50 text-indigo-700 group-hover:bg-indigo-100 px-2 py-1 rounded text-xs font-mono hover:bg-indigo-100 disabled:bg-gray-100 disabled:text-gray-500">
+                      {directive}
+                    </code>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {analysisModelNameUsed && (
+              <p className="text-xs text-gray-500 mt-3">
+                (Suggestions based on project analysis using{' '}
+                {analysisModelNameUsed.replace('models/', '')})
+              </p>
+            )}
+          </div>
+        )}
     </section>
   );
 }

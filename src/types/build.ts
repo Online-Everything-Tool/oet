@@ -1,5 +1,22 @@
 // FILE: src/types/build.ts
 
+export interface VetDependencyResult {
+  packageName: string;
+  isLikelySafeAndRelevant: boolean;
+  makesNetworkCalls: 'yes' | 'no' | 'unknown' | 'likely_no' | 'likely_yes';
+  justification: string;
+  popularityIndication?: 'high' | 'medium' | 'low' | 'niche' | 'unknown';
+  primaryFunction?: string;
+  isRelevant?: boolean;
+}
+
+export interface ApiVetDependencyResponse {
+  success: boolean;
+  message: string;
+  vettingResult?: VetDependencyResult | null;
+  error?: string;
+}
+
 export interface ResouceGenerationEpicChapter {
   chapterEmoji: string;
   chapterStory: string;
@@ -33,9 +50,9 @@ export interface LibraryDependency {
 
 export interface GenerationResult {
   message: string;
-
   generatedFiles: Record<string, string> | null;
   identifiedDependencies: LibraryDependency[] | null;
+  assetInstructions?: string | null;
 }
 
 export interface PrSubmissionResult {

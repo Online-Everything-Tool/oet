@@ -8,7 +8,7 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import type { Swiper as SwiperCore } from 'swiper/types';
 
 import ValidateDirective from './ValidateDirective';
@@ -19,6 +19,15 @@ import Button from '../../tool/_components/form/Button';
 
 import type { ValidationResult, GenerationResult } from '@/src/types/build';
 import { useMetadata } from '@/app/context/MetadataContext';
+
+interface ProjectAnalysisData {
+  siteTagline: string;
+  siteDescription: string;
+  siteBenefits: string[];
+  suggestedNewToolDirectives: string[];
+  modelNameUsed: string;
+  generatedAt: string;
+}
 
 type BuildStep = 'validation' | 'generation' | 'submission';
 type BuildMode = 'building' | 'monitoring';
@@ -38,6 +47,7 @@ const parseModelsFromEnv = (
 export default function BuildToolClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   const defaultModelName =
     process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME ||
@@ -61,6 +71,10 @@ export default function BuildToolClient() {
     [defaultModelName]
   );
 
+  const getInitialToolDirectiveFromUrl = useCallback(() => {
+    return searchParams.get('directive') || '';
+  }, [searchParams]);
+
   const getInitialModeAndPr = useCallback(() => {
     const prNumberFromUrlStr = searchParams.get('prNumber');
     if (prNumberFromUrlStr) {
@@ -73,6 +87,7 @@ export default function BuildToolClient() {
   }, [searchParams]);
 
   const initialDataRef = useRef(getInitialModeAndPr());
+  const initialDirectiveFromUrlRef = useRef(getInitialToolDirectiveFromUrl());
 
   const [currentStep, setCurrentStep] = useState<BuildStep>(
     initialDataRef.current.mode === 'monitoring' ? 'submission' : 'validation'
@@ -84,7 +99,9 @@ export default function BuildToolClient() {
     initialDataRef.current.pr
   );
 
-  const [toolDirective, setToolDirective] = useState('');
+  const [toolDirective, setToolDirective] = useState(
+    initialDirectiveFromUrlRef.current
+  );
 
   const [selectedGenerationModel, setSelectedGenerationModel] =
     useState<string>('');
@@ -119,6 +136,35 @@ export default function BuildToolClient() {
 
   const [swiperInstance, setSwiperInstance] = useState<SwiperCore | null>(null);
 
+  const [projectAnalysisSuggestions, setProjectAnalysisSuggestions] = useState<
+    string[]
+  >([]);
+  const [projectAnalysisModel, setProjectAnalysisModel] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    const fetchProjectAnalysis = async () => {
+      try {
+        const response = await fetch('/data/project_analysis.json');
+        if (!response.ok) {
+          console.warn(
+            `Failed to fetch project_analysis.json: ${response.status}`
+          );
+          return;
+        }
+        const data: ProjectAnalysisData = await response.json();
+        if (data && data.suggestedNewToolDirectives) {
+          setProjectAnalysisSuggestions(data.suggestedNewToolDirectives);
+          setProjectAnalysisModel(data.modelNameUsed || null);
+        }
+      } catch (error) {
+        console.warn('Error fetching or parsing project_analysis.json:', error);
+      }
+    };
+    fetchProjectAnalysis();
+  }, []);
+
   useEffect(() => {
     if (generationModelOptions.length > 0 && !selectedGenerationModel) {
       setSelectedGenerationModel(generationModelOptions[0]);
@@ -151,12 +197,27 @@ export default function BuildToolClient() {
             generatedFiles: {},
             identifiedDependencies: [],
           });
+        if (searchParams.get('directive')) {
+          const newSearchParams = new URLSearchParams(searchParams.toString());
+          newSearchParams.delete('directive');
+          router.replace(`${pathname}?${newSearchParams.toString()}`, {
+            scroll: false,
+          });
+        }
       } else {
         setCurrentMode('building');
         setCurrentStep('validation');
         setMonitoredPrNumber(null);
-        if (searchParams.get('prNumber') && router) {
-          router.replace('/build-tool', { scroll: false });
+        if (searchParams.get('prNumber')) {
+          const newSearchParams = new URLSearchParams(searchParams.toString());
+          newSearchParams.delete('prNumber');
+          router.replace(`${pathname}?${newSearchParams.toString()}`, {
+            scroll: false,
+          });
+        }
+        const directiveFromUrl = searchParams.get('directive');
+        if (directiveFromUrl) {
+          setToolDirective(directiveFromUrl);
         }
       }
     }
@@ -199,7 +260,9 @@ export default function BuildToolClient() {
 
   useEffect(() => {
     if (!componentInitializationStateDone) return;
+
     const prNumberFromUrlStr = searchParams.get('prNumber');
+    const directiveFromUrl = searchParams.get('directive');
     const prNumInUrl = prNumberFromUrlStr
       ? parseInt(prNumberFromUrlStr, 10)
       : null;
@@ -207,30 +270,39 @@ export default function BuildToolClient() {
     if (prNumInUrl && !isNaN(prNumInUrl) && prNumInUrl > 0) {
       if (currentMode !== 'monitoring' || monitoredPrNumber !== prNumInUrl) {
         setToolDirective('');
-        setValidationResult(null);
-        setGenerationResult(null);
+        setValidationResult({
+          generativeDescription: `Details for PR #${prNumInUrl}`,
+          generativeRequestedDirectives: [],
+        });
+        setGenerationResult({
+          message: `Monitoring PR #${prNumInUrl}`,
+          generatedFiles: {},
+          identifiedDependencies: [],
+        });
         setAdditionalDescription('');
         setUserSelectedDirectives([]);
         setCurrentMode('monitoring');
         setMonitoredPrNumber(prNumInUrl);
         setCurrentStep('submission');
-        if (!validationResult)
-          setValidationResult({
-            generativeDescription: `Details for PR #${prNumInUrl}`,
-            generativeRequestedDirectives: [],
+        if (directiveFromUrl) {
+          const newSearchParams = new URLSearchParams(searchParams.toString());
+          newSearchParams.delete('directive');
+          router.replace(`${pathname}?${newSearchParams.toString()}`, {
+            scroll: false,
           });
-        if (!generationResult)
-          setGenerationResult({
-            message: `Monitoring PR #${prNumInUrl}`,
-            generatedFiles: {},
-            identifiedDependencies: [],
-          });
+        }
       }
     } else {
       if (currentMode === 'monitoring') {
-        handleReset();
-      } else if (prNumberFromUrlStr && router) {
-        router.replace('/build-tool', { scroll: false });
+        handleReset(false);
+      }
+      if (
+        directiveFromUrl &&
+        directiveFromUrl !== toolDirective &&
+        currentMode === 'building' &&
+        currentStep === 'validation'
+      ) {
+        setToolDirective(directiveFromUrl);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,6 +311,7 @@ export default function BuildToolClient() {
     componentInitializationStateDone,
     currentMode,
     monitoredPrNumber,
+    pathname,
     router,
   ]);
 
@@ -261,46 +334,72 @@ export default function BuildToolClient() {
     }
   }, [currentStep, currentMode, swiperInstance]);
 
-  const handleReset = useCallback(() => {
-    const currentPrNumber = searchParams.get('prNumber');
-    if (router && currentPrNumber) {
-      router.replace('/build-tool', { scroll: false });
-    }
-    setCurrentMode('building');
-    setCurrentStep('validation');
-    setToolDirective('');
-    setValidationResult(null);
-    setAdditionalDescription('');
-    setUserSelectedDirectives([]);
-    setGenerationResult(null);
-    setMonitoredPrNumber(null);
-    if (generationModelOptions.length > 0) {
-      setSelectedGenerationModel(generationModelOptions[0]);
-    } else if (defaultModelName) {
-      setSelectedGenerationModel(defaultModelName);
-    } else {
-      setSelectedGenerationModel('');
-    }
-    setIsApiUnavailable(false);
-    setApiUnavailableMessage('');
+  const handleReset = useCallback(
+    (clearUrlParams = true) => {
+      if (clearUrlParams) {
+        const currentPrNumber = searchParams.get('prNumber');
+        const currentDirective = searchParams.get('directive');
+        if (router && (currentPrNumber || currentDirective)) {
+          router.replace(pathname, { scroll: false });
+        }
+      }
+      setCurrentMode('building');
+      setCurrentStep('validation');
+      setToolDirective(
+        clearUrlParams ? '' : searchParams.get('directive') || ''
+      );
+      setValidationResult(null);
+      setAdditionalDescription('');
+      setUserSelectedDirectives([]);
+      setGenerationResult(null);
+      setMonitoredPrNumber(null);
+      if (generationModelOptions.length > 0) {
+        setSelectedGenerationModel(generationModelOptions[0]);
+      } else if (defaultModelName) {
+        setSelectedGenerationModel(defaultModelName);
+      } else {
+        setSelectedGenerationModel('');
+      }
+      setIsApiUnavailable(false);
+      setApiUnavailableMessage('');
 
-    if (swiperInstance && !swiperInstance.destroyed) {
-      swiperInstance.slideTo(0);
-    }
-  }, [
-    router,
-    searchParams,
-    generationModelOptions,
-    defaultModelName,
-    swiperInstance,
-  ]);
+      if (swiperInstance && !swiperInstance.destroyed) {
+        swiperInstance.slideTo(0);
+      }
+    },
+    [
+      router,
+      searchParams,
+      pathname,
+      generationModelOptions,
+      defaultModelName,
+      swiperInstance,
+    ]
+  );
 
-  const handleValidationSuccess = useCallback((result: ValidationResult) => {
-    setValidationResult(result);
-    setUserSelectedDirectives([]);
-    setCurrentStep('generation');
-    setCurrentMode('building');
-  }, []);
+  const handleValidationSuccess = useCallback(
+    (result: ValidationResult) => {
+      setValidationResult(result);
+      setUserSelectedDirectives([]);
+      setCurrentStep('generation');
+      setCurrentMode('building');
+      const currentDirective = searchParams.get('directive');
+      if (currentDirective && router) {
+        const newSearchParams = new URLSearchParams(searchParams.toString());
+        newSearchParams.delete('directive');
+
+        const prNum = newSearchParams.get('prNumber');
+        if (prNum) {
+          router.replace(`${pathname}?${newSearchParams.toString()}`, {
+            scroll: false,
+          });
+        } else {
+          router.replace(pathname, { scroll: false });
+        }
+      }
+    },
+    [searchParams, router, pathname]
+  );
 
   const handleGenerationSuccess = useCallback((result: GenerationResult) => {
     setGenerationResult(result);
@@ -412,7 +511,7 @@ export default function BuildToolClient() {
           additionalDescription={''}
           userSelectedDirectives={[]}
           selectedModel={modelForMonitoringDisplay}
-          onBack={handleReset}
+          onBack={() => handleReset(true)}
           initialPrNumber={monitoredPrNumber}
           currentMode="monitoring"
           monitoredPrNumberForPolling={monitoredPrNumber}
@@ -432,13 +531,15 @@ export default function BuildToolClient() {
             validationModelOptions={validationModelOptions}
             defaultModelName={defaultModelName}
             onValidationSuccess={handleValidationSuccess}
-            onReset={handleReset}
+            onReset={() => handleReset(true)}
             isApiUnavailable={isApiUnavailable}
+            analysisSuggestions={projectAnalysisSuggestions}
+            analysisModelNameUsed={projectAnalysisModel}
           />
         );
       case 'generation':
         if (!validationResult) {
-          handleReset();
+          handleReset(true);
           return null;
         }
         return (
@@ -469,7 +570,7 @@ export default function BuildToolClient() {
           !toolDirective ||
           !selectedGenerationModel
         ) {
-          handleReset();
+          handleReset(true);
           return null;
         }
         return (
@@ -488,11 +589,10 @@ export default function BuildToolClient() {
           />
         );
       default:
-        const exhaustiveCheck: never = currentStep;
-        handleReset();
+        handleReset(true);
         return (
           <p className="text-center text-red-500">
-            Error: Invalid build step: {exhaustiveCheck}. Resetting...
+            Error: Invalid build step: {currentStep}. Resetting...
           </p>
         );
     }
@@ -503,12 +603,28 @@ export default function BuildToolClient() {
     if (!componentInitializationStateDone) return false;
     if (currentMode === 'monitoring') return true;
     if (currentMode === 'building' && currentStep !== 'validation') return true;
+    if (
+      currentMode === 'building' &&
+      currentStep === 'validation' &&
+      toolDirective !== initialDirectiveFromUrlRef.current &&
+      toolDirective !== ''
+    )
+      return true;
+    if (
+      currentMode === 'building' &&
+      currentStep === 'validation' &&
+      toolDirective === '' &&
+      initialDirectiveFromUrlRef.current !== ''
+    )
+      return true;
+
     return false;
   }, [
     currentMode,
     currentStep,
     isApiUnavailable,
     componentInitializationStateDone,
+    toolDirective,
   ]);
 
   return (
@@ -524,7 +640,7 @@ export default function BuildToolClient() {
           <Button
             variant="neutral-outline"
             size="sm"
-            onClick={handleReset}
+            onClick={() => handleReset(true)}
             className="text-sm"
           >
             Start Over / Build New

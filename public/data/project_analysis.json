@@ -1,19 +1,20 @@
 {
-  "siteTagline": "Your browser's swiss army knife for everyday tasks.",
-  "siteDescription": "OET is a comprehensive collection of free, client-side utilities designed for developers, data scientists, and anyone needing quick data manipulation tools.  It offers a wide range of functions for text, images, data, and more, all while prioritizing user privacy and security.",
+  "siteTagline": "Your all-in-one toolbox for everyday online tasks.",
+  "siteDescription": "The Online Everything Tool offers a vast collection of free, client-side utilities for data transformation and text manipulation.  It's perfect for developers, data analysts, and anyone needing quick, privacy-focused online tools.",
   "siteBenefits": [
-    "Access a wide variety of tools in one place.",
-    "Transform data quickly using client-side processing.",
-    "Track your past operations with the History feature.",
-    "Contribute new tools easily via the AI-assisted build process.",
-    "Many tools work offline thanks to PWA support."
+    "Access a wide variety of utilities in one place",
+    "Transform data quickly using client-side processing",
+    "Works offline for many tools due to PWA setup",
+    "Contribute new tools easily via the AI-assisted build process",
+    "Keep your data private with client-side processing"
   ],
   "suggestedNewToolDirectives": [
     "text-formatter",
-    "json-diff",
-    "image-compressor",
-    "color-palette",
-    "url-shortener"
+    "json-beautifier",
+    "image-resizer",
+    "url-shortener",
+    "string-manipulator"
   ],
-  "modelNameUsed": "gemini-1.5-flash-latest"
+  "modelNameUsed": "gemini-1.5-flash-latest",
+  "generatedAt": "2025-05-26T17:23:37.085Z"
 }

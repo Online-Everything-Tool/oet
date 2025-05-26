@@ -261,10 +261,120 @@ jobs:
             exit 1
           fi
 
+  # --- NEW JOB FOR DEPENDENCY ANALYSIS ---
+  analyze_dependencies:
+    name: 1B. Analyze & Prepare Dependencies
+    needs: initial_checks
+    if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      dependency_action_required: ${{ steps.check_deps.outputs.action_required }}
+      # This output tells other jobs (and ai-dependency-manager via workflow_run event) if action is needed
+    permissions:
+      contents: read # To read package.json, tool-generation-info.json
+      actions: write # To upload artifact
+
+    steps:
+      - name: Checkout PR Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.initial_checks.outputs.pr_sha }}
+
+      - name: Check for New Undeclared Dependencies
+        id: check_deps
+        env:
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+          TOOL_DESCRIPTION: ${{ needs.initial_checks.outputs.tool_description_from_metadata || 'No description available for tool.' }}
+        run: |
+          set -e # Bash strict mode
+          ACTION_REQUIRED="false"
+          NEW_DEPS_FOR_ARTIFACT_CONTENT="[]" # Initialize as empty JSON array string
+          ARTIFACT_PATH="${{ runner.temp }}/pending_dependencies.json"
+
+          TOOL_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+          PACKAGE_JSON_FILE="package.json"
+
+          if [ ! -f "$TOOL_INFO_FILE" ]; then
+            echo "::notice::'$TOOL_INFO_FILE' not found for tool '${TOOL_DIRECTIVE}'. Assuming no AI-identified dependencies to check."
+            echo "action_required=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [ ! -f "$PACKAGE_JSON_FILE" ]; then
+            echo "::error::'$PACKAGE_JSON_FILE' not found. Cannot proceed with dependency check."
+            # This is a more critical error, might want to fail the job or set a specific error state
+            exit 1
+          fi
+
+          echo "Reading identified dependencies from '$TOOL_INFO_FILE'..."
+          # Ensure identifiedDependencies is an array, default to empty if not found or not array
+          IDENTIFIED_DEPS_FROM_INFO_JSON=$(jq -r 'if .identifiedDependencies and (.identifiedDependencies | type == "array") then .identifiedDependencies | tojson else "[]" end' "$TOOL_INFO_FILE")
+
+          if [ "$(echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -r 'length')" -eq 0 ]; then
+            echo "No dependencies identified in '$TOOL_INFO_FILE' or format issue."
+            echo "action_required=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TEMP_NEW_DEPS_ARRAY='[]' # Start with an empty JSON array string for jq aggregation
+          ALL_DEPS_EXIST=true
+
+          # Iterate over each dependency object identified by the AI
+          echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
+            packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
+            if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then
+              echo "::warning::Found a dependency object with no packageName in '$TOOL_INFO_FILE'."
+              continue # Skip this invalid entry
+            fi
+
+            # Check if package exists in dependencies or devDependencies
+            if ! jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' "$PACKAGE_JSON_FILE" > /dev/null; then
+              echo "New dependency found: '$packageName' (Not in package.json). Adding to pending list for vetting."
+              ACTION_REQUIRED="true"
+              ALL_DEPS_EXIST=false
+              # Add the full dependency object from tool-generation-info.json
+              TEMP_NEW_DEPS_ARRAY=$(echo "$TEMP_NEW_DEPS_ARRAY" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
+            else
+              echo "Dependency '$packageName' already exists in package.json."
+            fi
+          done
+
+          if [ "$ACTION_REQUIRED" = "true" ]; then
+            # Only if there are actual new dependencies, create the artifact content
+            NEW_DEPS_FOR_ARTIFACT_CONTENT="$TEMP_NEW_DEPS_ARRAY"
+            echo "Preparing artifact with new dependencies: $NEW_DEPS_FOR_ARTIFACT_CONTENT"
+            
+            # Construct the final artifact JSON
+            jq -n \
+              --arg directive "$TOOL_DIRECTIVE" \
+              --arg description "$TOOL_DESCRIPTION" \
+              --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT" \
+              '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps}' > "$ARTIFACT_PATH"
+            
+            echo "Created artifact content for ai-dependency-manager at $ARTIFACT_PATH:"
+            cat "$ARTIFACT_PATH"
+            echo "artifact_file_path=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT # Pass path to next step if needed by upload
+          else
+            echo "No new, undeclared dependencies found requiring action."
+          fi
+
+          echo "action_required=${ACTION_REQUIRED}" >> $GITHUB_OUTPUT
+
+      - name: Upload Pending Dependencies Artifact (if any)
+        if: steps.check_deps.outputs.action_required == 'true' && steps.check_deps.outputs.artifact_file_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pending-dependencies-${{ needs.initial_checks.outputs.pr_sha }}
+          path: ${{ steps.check_deps.outputs.artifact_file_path }} # Use the path output by the previous step
+          if-no-files-found: error # Should error if we expect a file but it's not there
+
   build_and_run_douglas_checker:
     name: 2. Build Tool & Run Douglas Ethos Check
-    needs: initial_checks
-    if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
+    needs: [initial_checks, analyze_dependencies]
+    if: >
+      success() &&
+      needs.initial_checks.outputs.critical_initial_checks_passed == 'true' &&
+      needs.analyze_dependencies.outputs.dependency_action_required == 'false' && 
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -551,18 +661,21 @@ jobs:
           fi
 
   report_pr_status:
-    name: 3. Report PR Validation Status
+    name: 3. Report PR Validation Status & Determine Outcome
     needs:
       - initial_checks
+      - analyze_dependencies
       - build_and_run_douglas_checker
     if: always() && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       actions: read
+
     steps:
-      - name: Download Douglas Summary Artifact
+      - name: Download Douglas Summary Artifact (if build job ran)
         id: download_summary
+        if: needs.build_and_run_douglas_checker.result != 'skipped'
         uses: actions/download-artifact@v4
         with:
           name: douglas-summary-${{ github.run_id }}
@@ -575,7 +688,6 @@ jobs:
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
           SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
-          # Escape for multiline output in GitHub Actions
           SUMMARY_CONTENT="${SUMMARY_CONTENT//'%'/'%25'}" 
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\n'/'%0A'}"
           SUMMARY_CONTENT="${SUMMARY_CONTENT//$'\r'/'%0D'}"
@@ -585,8 +697,9 @@ jobs:
 
       - name: Construct and Post PR Comment
         id: post_comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v7 # <<< --- THIS LINE WAS MISSING ---
         env:
+          # --- Info from initial_checks job ---
           PR_NUMBER: ${{ needs.initial_checks.outputs.pr_number }}
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
@@ -597,14 +710,22 @@ jobs:
           AI_IS_TYPO: ${{ needs.initial_checks.outputs.ai_analysis_is_typo }}
           AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
           AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
+          CRITICAL_INITIAL_CHECKS_PASSED_OUTPUT: ${{ needs.initial_checks.outputs.critical_initial_checks_passed }}
 
+          # --- Info from analyze_dependencies job ---
+          ANALYZE_DEPENDENCIES_JOB_RESULT: ${{ needs.analyze_dependencies.result }}
+          DEPENDENCY_ACTION_REQUIRED_OUTPUT: ${{ needs.analyze_dependencies.outputs.dependency_action_required }}
+
+          # --- Info from build_and_run_douglas_checker job ---
           BUILD_DOUGLAS_JOB_RESULT: ${{ needs.build_and_run_douglas_checker.result }}
-          LINT_FIX_ATTEMPTED: ${{ needs.build_and_run_douglas_checker.outputs.lint_fix_attempted }} # Key new output
-          DOUGLAS_CHECK_STEP_OUTCOME: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
-          IMGUR_SCREENSHOT_URL: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
+          LINT_ERRORS_CAPTURED_OUTPUT: ${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai || 'false' }}
+          DOUGLAS_CHECK_STEP_OUTCOME_OUTPUT: ${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped' }}
+          IMGUR_SCREENSHOT_URL_OUTPUT: ${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}
 
-          DOUGLAS_SUMMARY_MD: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary artifact not found, unreadable, or Douglas checks were skipped.' }}
+          DOUGLAS_SUMMARY_MD_CONTENT: ${{ steps.read_summary.outputs.summary_markdown || 'Douglas summary not available or check skipped.' }}
           ACTION_RUN_URL: 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          # Pass PR_HEAD_SHA to include in the comment for clarity
+          PR_HEAD_SHA_ENV: ${{ needs.initial_checks.outputs.pr_sha || github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -617,168 +738,128 @@ jobs:
             }
 
             const toolDirective = process.env.TOOL_DIRECTIVE || "UnknownTool";
-            let commentBody = `## 🤖 OET Tool PR Validation Status for \`${toolDirective}\`\n\n`;
-            const actionRunUrl = `${process.env.ACTION_RUN_URL}?pr=${issue_number}`; // For easy linking
+            const prHeadShaShort = (process.env.PR_HEAD_SHA_ENV || 'N/A').substring(0,7);
+            let commentBody = `## 🤖 OET Tool PR Validation Status for \`${toolDirective}\`\n\nCommit: \`${prHeadShaShort}\` · [View Action Run (ID: ${{ github.run_id }})](${process.env.ACTION_RUN_URL}?pr=${issue_number})\n\n`;
 
-            // --- 1. Initial PR Validations ---
-            commentBody += `### 1. Initial PR Validations\n`;
+            const initialChecksPassed = process.env.CRITICAL_INITIAL_CHECKS_PASSED_OUTPUT === 'true';
+            const depActionRequired = process.env.DEPENDENCY_ACTION_REQUIRED_OUTPUT === 'true';
+            const lintErrorsCaptured = process.env.LINT_ERRORS_CAPTURED_OUTPUT === 'true';
+
             const initialChecksJobResult = process.env.INITIAL_CHECKS_JOB_RESULT;
-            const pathsPassed = process.env.PATH_VALIDATION_PASSED === 'true';
-            // const patternPassed = process.env.PATTERN_CHECK_PASSED === 'true'; // No longer used
+            const analyzeDepsJobResult = process.env.ANALYZE_DEPENDENCIES_JOB_RESULT;
+            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT;
+            const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME_OUTPUT;
 
-            if (initialChecksJobResult === 'success') {
-              commentBody += `✅ **Initial Validations Passed!**\n`;
-              // commentBody += `  - Directive \`${toolDirective}\` matches allowed patterns.\n`; // Removed
-              commentBody += `  - All changed files are within the allowed directory for \`${toolDirective}\`.\n`;
-            } else if (initialChecksJobResult === 'failure') {
-              commentBody += `🚨 **Initial Validations FAILED!**\n`;
-              // if (!patternPassed) commentBody += `  - **Pattern Check Failed:** Directive \`${toolDirective}\` does not match.\n`; // Removed
-              if (!pathsPassed) {
+            // --- 1. Initial PR Validations Summary ---
+            commentBody += `### 1. Initial PR Validations (Job Status: ${initialChecksJobResult})\n`; // Added job status
+            if (initialChecksJobResult === 'success' && initialChecksPassed) {
+              commentBody += `✅ **Passed!** All initial structure and naming checks are okay.\n`;
+            } else if (initialChecksJobResult === 'failure' || !initialChecksPassed) {
+              commentBody += `🚨 **Failed!**\n`;
+              if (process.env.PATH_VALIDATION_PASSED === 'false') {
                 const invalidFiles = (process.env.INVALID_FILES_LIST || "List unavailable.").replace(/%0A/g, '\n    - ').replace(/%0D/g, '');
-                commentBody += `  - **Path Validation Failed:** Files changed outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
+                commentBody += `  - **Path Validation Issue:** Files found outside allowed directory. Invalid files:\n    - ${invalidFiles}\n`;
+              } else {
+                commentBody += `  - One or more initial checks did not pass. Refer to Action logs for this job.\n`;
               }
-            } else {
-               commentBody += `🟡 Initial validations were skipped or had an issue (Job status: ${initialChecksJobResult}). See [Action logs](${actionRunUrl}) for details.\n`;
+            } else { 
+               commentBody += `🟡 Initial validations were skipped or had an unexpected status (${initialChecksJobResult}).\n`;
             }
-
             commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
             if (process.env.AI_ANALYSIS_SUCCEEDED === 'true') {
-              commentBody += `    - Score: **${process.env.AI_SCORE}**\n`;
-              commentBody += `    - Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? '**Yes** ❗' : 'No'}\n`;
+              commentBody += `    - Score: **${process.env.AI_SCORE}** / Likely Typo: ${process.env.AI_IS_TYPO === 'true' ? '**Yes** ❗' : 'No'}\n`;
               let reasoning = process.env.AI_REASONING || "No reasoning provided.";
-              reasoning = reasoning.replace(/%0A/g, '\n        '); // Indent multiline reasoning
+              reasoning = reasoning.replace(/%0A/g, '\n        ');
               commentBody += `    - Reasoning:\n        ${reasoning}\n`;
               try {
                 const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON || '[]');
                 if (suggestions.length > 0) {
                   commentBody += `    - Suggestions: ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
                 }
-              } catch (e) { console.warn("Could not parse AI suggestions JSON for comment: " + e.message); }
+              } catch (e) { /* ignore */ }
             } else {
               commentBody += `    - ⚠️ AI name analysis could not be performed or API call failed.\n`;
             }
             commentBody += "\n---\n";
 
-            // --- 2. Local Build & Douglas Ethos Check ---
-            commentBody += `### 2. Local Build & Douglas Ethos Check\n`;
-            const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT; // Overall result of the job
-            const lintFixAttempted = process.env.LINT_FIX_ATTEMPTED === 'true';
-            const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME; // Outcome of the specific Douglas script run step
+            // --- 1B. Dependency Analysis Summary ---
+            commentBody += `### 1B. Dependency Analysis (Job Status: ${analyzeDepsJobResult})\n`;
+            if (analyzeDepsJobResult === 'skipped') {
+                commentBody += `🟡 Skipped (likely due to prior critical failures).\n`;
+            } else if (depActionRequired) {
+                commentBody += `⏳ **Pending:** New dependencies identified. The 'AI Dependency Manager' workflow will attempt to vet and install them.\n`;
+            } else if (analyzeDepsJobResult === 'success') {
+                commentBody += `✅ No new dependencies require automatic action for this commit.\n`;
+            } else { 
+                commentBody += `🚨 **Failed!** Problem during dependency analysis. Review Action logs for this job.\n`;
+            }
+            commentBody += "\n---\n";
 
-            if (lintFixAttempted) {
-              commentBody += `🟡 **Build/Lint Failed.** An AI Lint Fixer workflow has been triggered to attempt automatic corrections.\n`;
-              commentBody += `   Please monitor the [AI Lint Fixer workflow run](${actionRunUrl}) (it will appear as a new check or a separate workflow run triggered by this one's completion).\n`;
-              commentBody += `   Douglas Ethos Check was skipped in this run due to the build failure.\n`;
-            } else if (buildDouglasJobResult === 'skipped') {
-              // This happens if initial_checks failed critically, preventing build_and_run_douglas_checker from running.
-              commentBody += `🟡 Local build and Douglas Ethos Check job were skipped (likely due to earlier critical validation failures in Initial Checks).\n`;
-            } else if (buildDouglasJobResult === 'failure') {
-              // The job itself failed, and it wasn't a lint issue we decided to pass to the AI fixer.
-              commentBody += `🚨 **Local Static Build FAILED!** (AI lint fix was not attempted for this failure).\n`;
-              commentBody += `   Review [Action logs for Build & Douglas Job](${actionRunUrl}) for build failure details.\n`;
-              commentBody += `   Douglas Ethos Check was likely not run or also failed.\n`;
-            } else if (buildDouglasJobResult === 'success') {
-              // Build job succeeded, meaning build was structurally okay and no AI fix was attempted. Now check Douglas.
+            // --- 2. Local Build & Douglas Ethos Check Summary ---
+            commentBody += `### 2. Local Build & Douglas Ethos Check (Job Status: ${buildDouglasJobResult})\n`;
+            if (buildDouglasJobResult === 'skipped') {
+              commentBody += `🟡 Skipped (likely due to pending dependency actions or prior critical failures).\n`;
+            } else if (lintErrorsCaptured) { 
+              commentBody += `🟡 **Build Failed (Lint Issues):** An 'AI Lint Fixer' workflow will attempt automatic corrections.\n`;
+              commentBody += `   Douglas Ethos Check was skipped due to this build failure.\n`;
+            } else if (buildDouglasJobResult === 'failure') { 
+              commentBody += `🚨 **Build Failed (Other Issues)!** AI lint fix was NOT attempted for this failure. Review Action logs.\n`;
+            } else if (buildDouglasJobResult === 'success') { 
               commentBody += `✅ **Local Static Build Successful.**\n`;
               if (douglasCheckStepOutcome === 'success') {
                 commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
               } else if (douglasCheckStepOutcome === 'skipped') {
-                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., static server did not start).\n`;
-              } else { // failure, cancelled, timed_out etc.
+                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., local server issue).\n`;
+              } else { 
                 commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome})\n`;
               }
-              
-              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD).replace(/%0A/g, '\n').replace(/%0D/g, '');
-              commentBody += `\n${douglasSummary}\n`; 
-              
-              const imgurUrl = process.env.IMGUR_SCREENSHOT_URL;
+              const douglasSummary = (process.env.DOUGLAS_SUMMARY_MD_CONTENT).replace(/%0A/g, '\n').replace(/%0D/g, '');
+              if (douglasSummary && douglasSummary.trim() !== 'Douglas summary not available or check skipped.') {
+                commentBody += `\n${douglasSummary}\n`; 
+              }
+              const imgurUrl = process.env.IMGUR_SCREENSHOT_URL_OUTPUT;
               if (imgurUrl) {
                 commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${imgurUrl})\n`;
-                commentBody += `   (Direct link: ${imgurUrl})\n\n`;
-              } else if (douglasCheckStepOutcome !== 'skipped') { // Only show if Douglas was meant to run
-                commentBody += `   (Screenshot not uploaded to Imgur or not found. View screenshot artifact [on the Action run page](${actionRunUrl}))\n`;
               }
             }
             commentBody += "\n---\n";
 
-            // --- 3. Next Steps ---
-            commentBody += `### 3. Next Steps\n`;
-            const criticalInitialChecksPassed = initialChecksJobResult === 'success';
-            // Overall success for *this specific run* (before considering AI fixer re-runs)
-            const thisRunChecksSuccess = criticalInitialChecksPassed && 
-                                         buildDouglasJobResult === 'success' && 
-                                         douglasCheckStepOutcome === 'success';
+            // --- 3. Overall Status & Next Steps ---
+            commentBody += `### 3. Overall Status for this Validation Run\n`;
+            const allLocalChecksConsideredForThisRunPassed = 
+                initialChecksJobResult === 'success' && initialChecksPassed &&
+                analyzeDepsJobResult === 'success' && !depActionRequired &&
+                buildDouglasJobResult === 'success' && !lintErrorsCaptured && douglasCheckStepOutcome === 'success';
 
-            if (lintFixAttempted) {
-              commentBody += `⏳ An AI Lint Fix is in progress. If successful, this PR will be updated, and these checks will re-run.\n`;
-              commentBody += `   The current PR status might show as failing until the AI fixer completes and the checks are re-evaluated on the new commit.\n`;
-            } else if (thisRunChecksSuccess) {
-              commentBody += `✅ All local checks for this run passed!\n`;
-              commentBody += `⏳ A Netlify Deploy Preview should be building now. Its status will appear as a separate check from Netlify on this PR.\n`;
-              commentBody += `👍 Once ready, please test your tool thoroughly using the Deploy Preview link!\n`;
+            if (depActionRequired && analyzeDepsJobResult !== 'failure') { // Don't say this if the dep analysis itself failed
+              commentBody += `⏳ **Next Step:** 'AI Dependency Manager' workflow will run to process dependencies. PR checks will update after it completes.`;
+            } else if (lintErrorsCaptured && buildDouglasJobResult !== 'failure' && !depActionRequired) { // Ensure it's not a cascade from dep failure
+              commentBody += `⏳ **Next Step:** 'AI Lint Fixer' workflow will run to correct linting issues. PR checks will update after it completes.`;
+            } else if (allLocalChecksConsideredForThisRunPassed) {
+              commentBody += `✅ **All local OET validation checks passed for this commit!**\n`;
+              commentBody += `   🚀 **Netlify Deploy Preview:** If configured, this should trigger. Monitor Netlify checks on the PR.`;
+              // Future: Add logic here to trigger Netlify Deployment Event if using that gating method
             } else {
-              commentBody += `‼️ **Action Required:** One or more critical local checks failed in this run. Review details above and in [Action run logs](${actionRunUrl}).\n`;
-              if (!criticalInitialChecksPassed) {
-                 commentBody += `🔴 Initial validations failed. Core tool structure or naming might be incorrect.\n`;
-              } else if (buildDouglasJobResult !== 'success') {
-                 commentBody += `🔴 Local build failed. Netlify Deploy Preview may fail or not reflect intended functionality.\n`;
-              } else { // Initial checks passed, build succeeded, but Douglas failed
-                 commentBody += `🔴 Douglas Ethos Check identified issues.\n`;
-              }
+              commentBody += `‼️ **Manual Action Required:** One or more critical checks failed in this validation run, and no further automated correctors were triggered for them *by this run*. Please review details above and in the [full Action logs](${actionRunUrl}).\n`;
             }
 
-            commentBody += `\n---\n*This comment is auto-generated by OET CI. For full details, see the [Action Run](${actionRunUrl}).*`;
+            commentBody += `\n\n---\n*OET CI Bot Report for commit \`${prHeadShaShort}\`*`;
 
             try {
               await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
             } catch (e) {
-              core.error(`Failed to post PR comment: ${e.message}`);
-              // Don't fail the whole job just because comment posting failed
+              core.warning(`Failed to post PR comment: ${e.message}`);
             }
 
-            // --- Determine overall workflow failure for THIS RUN ---
-            // If a lint fix is being attempted, this specific run of the main workflow should NOT fail the PR checks.
-            // It should allow the AI Fixer workflow and the subsequent re-run of this main workflow to determine the true status.
-            if (lintFixAttempted) {
-              core.notice("AI Lint Fix attempt initiated by the previous job. This workflow run will not set a hard failure status for the PR at this stage. The subsequent run after AI fixes (if any) will determine the PR's mergeability based on checks.");
-              // This job will complete successfully, but the overall check suite for the PR might still show the previous job as "failed"
-              // until the AI fixer pushes and this workflow re-runs successfully on the new commit.
+            // --- Set overall workflow outcome ---
+            if (depActionRequired || lintErrorsCaptured) {
+              if ((depActionRequired && analyzeDepsJobResult === 'failure') || (lintErrorsCaptured && buildDouglasJobResult === 'failure')){
+                 core.setFailed("A corrective workflow is needed, but its preceding preparatory job failed. Manual review of Action logs is required.");
+              } else {
+                 core.notice("Corrective AI workflows (Dependencies or Linting) are expected to run. This validation cycle is handing off processing. Monitor PR checks for updates from those workflows.");
+              }
+            } else if (!allLocalChecksConsideredForThisRunPassed) {
+                core.setFailed("One or more critical local OET checks failed for this commit, and no automated correctors were triggered by this validation run to address them.");
             } else {
-              // Original failure logic if no AI fix is being attempted
-              let failWorkflow = false;
-              let failureReason = "";
-              if (initialChecksJobResult === 'failure') {
-                failWorkflow = true;
-                failureReason += "Initial PR Validations failed. ";
-              }
-              if (buildDouglasJobResult === 'failure') { 
-                failWorkflow = true;
-                failureReason += "Local Build or dependent setup failed. ";
-              } else if (buildDouglasJobResult === 'success' && douglasCheckStepOutcome !== 'success' && douglasCheckStepOutcome !== 'skipped') {
-                // Build succeeded, Douglas ran but didn't pass (and wasn't skipped)
-                failWorkflow = true;
-                failureReason += "Douglas Ethos Check reported issues. ";
-              }
-              
-              if (failWorkflow) {
-                core.setFailed(`One or more checks failed in this run (and no AI fix was attempted): ${failureReason.trim()}See comment and Action logs.`);
-              }
+                core.info("All local OET checks passed for this commit, and no corrective AI workflows were triggered by this validation run.");
             }
-
-      - name: Fail workflow if critical checks failed (and no AI Fix Attempted)
-        if: >
-          (
-            needs.initial_checks.result == 'failure' ||
-            (
-              needs.build_and_run_douglas_checker.result == 'failure' &&
-              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
-            ) ||
-            (
-              needs.build_and_run_douglas_checker.result == 'success' &&
-              (needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome || 'skipped') != 'success' &&
-              (needs.build_and_run_douglas_checker.outputs.lint_fix_attempted || 'false') != 'true'
-            )
-          )
-        run: |
-          echo "::error::One or more critical checks failed, and no AI Lint Fix was successfully initiated by the previous job to address them. Marking this workflow run as failed."
-          exit 1

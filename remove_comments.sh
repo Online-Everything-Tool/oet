@@ -48,6 +48,7 @@ find "${TARGET_DIRS[@]}" -type f \( -name "*.ts" -o -name "*.tsx" \) -print0 | w
         /^[[:space:]]*\/\/ eslint/{b}
         # If the line starts with optional whitespace then // prettier, do nothing (branch to end)
         /^[[:space:]]*\/\/ prettier/{b}
+        /^[[:space:]]*\/\/ @ts/{b}
         
         # Case 1: Comment starts at the beginning of the line (preceded by potential whitespace)
         s,^[[:space:]]*//.*$,,
