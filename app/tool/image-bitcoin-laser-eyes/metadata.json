@@ -1,0 +1,24 @@
+{
+  "title": "Image Bitcoin Laser Eyes",
+  "directive": "image-bitcoin-laser-eyes",
+  "description": "Adds laser eyes to a given image, making the subject appear as if they are fixated on Bitcoin.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "bitcoin", "laser eyes"],
+  "includeInSitemap": true,
+  "status": "experimental"
+}
