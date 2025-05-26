@@ -19,7 +19,6 @@ export default function JsonDiffPage() {
       <ToolHeader title={toolTitle} description={metadata.description || ''} />
       <ToolSuspenseWrapper>
         <JsonDiffClient
-          urlStateParams={urlStateParams}
           toolRoute={toolRoute}
         />
       </ToolSuspenseWrapper>

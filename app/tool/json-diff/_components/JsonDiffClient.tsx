@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -10,7 +10,6 @@ import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {
   ArrowUpTrayIcon,
-  CheckIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -43,18 +42,18 @@ const DEFAULT_JSON_DIFF_STATE: JsonDiffToolState = {
 
 const metadata = importedMetadata as ToolMetadata;
 
-const diffJson = (json1: any, json2: any): string => {
-  const diff = JSONDiff(json1, json2);
+const diffJson = (json1: unknown, json2: unknown): string => {
+  const diff = JSONDiff(json1, json2); // JSONDiff is assumed to be a global
   return safeStringify(diff, 2);
 };
 
 interface JsonDiffClientProps {
-  urlStateParams: ParamConfig[];
+  _urlStateParams: ParamConfig[];
   toolRoute: string;
 }
 
 export default function JsonDiffClient({
-  urlStateParams,
+  _urlStateParams,
   toolRoute,
 }: JsonDiffClientProps) {
   const {
@@ -81,7 +80,7 @@ export default function JsonDiffClient({
   const [uiError, setUiError] = useState('');
 
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
-  const initialUrlLoadProcessedRef = useRef(false);
+  const _initialUrlLoadProcessedRef = useRef(false);
   const initialToolStateLoadCompleteRef = useRef(false);
 
   const { addFile: addFileToLibrary } = useFileLibrary();
@@ -140,8 +139,8 @@ export default function JsonDiffClient({
         json1,
         json2,
         diff: '',
-        lastLoadedFilename1: jsonItems.length > 0 ? (jsonItems[0] as StoredFile).filename : null,
-        lastLoadedFilename2: jsonItems.length > 1 ? (jsonItems[1] as StoredFile).filename : null,
+        lastLoadedFilename1: jsonItems.length > 0 ? jsonItems[0].filename : null,
+        lastLoadedFilename2: jsonItems.length > 1 ? jsonItems[1].filename : null,
       };
       setToolState(newState);
       await saveStateNow({ ...toolState, ...newState });
@@ -180,6 +179,7 @@ export default function JsonDiffClient({
     }
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup, directiveName]);
 
+
   useEffect(() => {
     if (isLoadingState || !initialToolStateLoadCompleteRef.current) {
       return;
@@ -204,6 +204,7 @@ export default function JsonDiffClient({
     toolState.json2,
     setToolState,
     generateOutputFilename,
+    isLoadingState, initialToolStateLoadCompleteRef
   ]);
 
   const handleInputChange = useCallback(
