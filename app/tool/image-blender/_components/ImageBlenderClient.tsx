@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import { useImageBlender, BlenderImage } from '../_hooks/useImageBlender';
+import { useImageBlender } from '../_hooks/useImageBlender';
 import ImageInputCard from './ImageInputCard';
 import Button from '../../_components/form/Button';
 import Input from '../../_components/form/Input';
@@ -348,7 +348,8 @@ export default function ImageBlenderClient({ toolRoute }: ImageBlenderClientProp
               directiveName={metadata.directive}
               outputConfig={metadata.outputConfig}
               selectedOutputItems={itdeSendableItems}
-              onBeforeSignal={onBeforeSendToTool}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              onBeforeSignal={onBeforeSendToTool as any}
             />
           </div>
         </div>

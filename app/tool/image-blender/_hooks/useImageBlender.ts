@@ -70,15 +70,13 @@ export function useImageBlender(toolRoute: string) {
     if (isLoadingState) return;
 
     const currentImageIds = new Set(state.inputImages.map(img => img.imageId));
-    const newImageLoadingStatus = { ...imageLoadingStatus };
-    let didStatusChange = false;
+    const newImageLoadingStatus: Record<string, 'idle' | 'loading' | 'loaded' | 'error'> = { ...imageLoadingStatus };
     const errorAccumulator: string[] = [];
 
     // Load new images
     state.inputImages.forEach(blenderImage => {
       if (!loadedHtmlImages.has(blenderImage.imageId) && newImageLoadingStatus[blenderImage.imageId] !== 'loading' && newImageLoadingStatus[blenderImage.imageId] !== 'error') {
         newImageLoadingStatus[blenderImage.imageId] = 'loading';
-        didStatusChange = true;
 
         getFile(blenderImage.imageId).then(storedFile => {
           if (!storedFile?.blob) throw new Error(`Blob missing for image ID ${blenderImage.imageId}`);
@@ -118,7 +116,6 @@ export function useImageBlender(toolRoute: string) {
     });
 
     // Cleanup old/removed images
-    let elementsCleaned = false;
     loadedHtmlImages.forEach((_, imageId) => {
       if (!currentImageIds.has(imageId)) {
         const url = objectUrlsRef.current.get(imageId);
@@ -126,29 +123,25 @@ export function useImageBlender(toolRoute: string) {
           URL.revokeObjectURL(url);
           objectUrlsRef.current.delete(imageId);
         }
-        elementsCleaned = true;
         if (newImageLoadingStatus[imageId]) {
           delete newImageLoadingStatus[imageId];
-          didStatusChange = true;
         }
       }
     });
 
-    if (elementsCleaned) {
-      setLoadedHtmlImages(prevMap => {
-        const newMap = new Map(prevMap);
-        prevMap.forEach((_, imageId) => {
-          if (!currentImageIds.has(imageId)) newMap.delete(imageId);
-        });
-        return newMap;
+    setLoadedHtmlImages(prevMap => {
+      const newMap = new Map(prevMap);
+      prevMap.forEach((_, imageId) => {
+        if (!currentImageIds.has(imageId)) newMap.delete(imageId);
       });
-    }
+      return newMap;
+    });
 
-    if (didStatusChange && JSON.stringify(newImageLoadingStatus) !== JSON.stringify(imageLoadingStatus)) {
-      setImageLoadingStatus(newImageLoadingStatus);
-    }
+
+    setImageLoadingStatus(newImageLoadingStatus);
+
     if (errorAccumulator.length > 0) {
-      if (htmlImageLoadingError !== errorAccumulator.join('; ')) setHtmlImageLoadingError(errorAccumulator.join('; '));
+      setHtmlImageLoadingError(errorAccumulator.join('; '));
     } else if (htmlImageLoadingError) {
       setHtmlImageLoadingError(null);
     }
@@ -209,7 +202,7 @@ export function useImageBlender(toolRoute: string) {
         ctx.drawImage(htmlImg, drawX, drawY, drawWidth, drawHeight);
       }
     }
-    
+
     ctx.globalAlpha = 1.0; // Reset for safety
     ctx.globalCompositeOperation = 'source-over'; // Reset for safety
 
@@ -223,7 +216,7 @@ export function useImageBlender(toolRoute: string) {
 
   const debouncedBlendAndUpdate = useDebouncedCallback(async () => {
     if (isLoadingState || stateRef.current.inputImages.length === 0) {
-       // If no input images, clear processedFileId if it exists and is temporary
+      // If no input images, clear processedFileId if it exists and is temporary
       if (stateRef.current.processedFileId) {
         const fileInfo = await getFile(stateRef.current.processedFileId);
         if (fileInfo && fileInfo.isTemporary) {
@@ -231,7 +224,7 @@ export function useImageBlender(toolRoute: string) {
           await cleanupOrphanedTemporaryFiles([stateRef.current.processedFileId]);
           setToolStateInternal(prev => ({ ...prev, processedFileId: null, lastUserGivenFilename: null }));
         } else if (!fileInfo) { // File ID in state but not in DB
-           setToolStateInternal(prev => ({ ...prev, processedFileId: null, lastUserGivenFilename: null }));
+          setToolStateInternal(prev => ({ ...prev, processedFileId: null, lastUserGivenFilename: null }));
         }
       }
       return;
@@ -254,9 +247,9 @@ export function useImageBlender(toolRoute: string) {
     } else {
       newProcessedFileId = await addFile(blob, tempFilename, 'image/png', true, toolRoute);
     }
-    
+
     if (newProcessedFileId !== stateRef.current.processedFileId) {
-       // If old processedFileId was temporary and different, clean it up
+      // If old processedFileId was temporary and different, clean it up
       if (stateRef.current.processedFileId && stateRef.current.processedFileId !== newProcessedFileId) {
         const oldFileInfo = await getFile(stateRef.current.processedFileId);
         if (oldFileInfo && oldFileInfo.isTemporary) {
@@ -283,7 +276,7 @@ export function useImageBlender(toolRoute: string) {
         imageId: file.id,
         filename: file.filename,
         opacity: 1,
-        blendMode: 'source-over' as GlobalCompositeOperation,
+        blendMode: 'source-over',
         order: (stateRef.current.inputImages.length > 0 ? Math.max(...stateRef.current.inputImages.map(im => im.order)) : -1) + 1 + idx,
         originalWidth: 0, // Will be updated by effect
         originalHeight: 0, // Will be updated by effect
@@ -304,14 +297,14 @@ export function useImageBlender(toolRoute: string) {
       inputImages: prev.inputImages.filter(img => img.instanceId !== instanceId),
     }));
     if (imageToRemove) {
-        const isStillUsed = stateRef.current.inputImages.some(img => img.imageId === imageToRemove.imageId && img.instanceId !== instanceId);
-        if (!isStillUsed) {
-            const fileInfo = await getFile(imageToRemove.imageId);
-            if (fileInfo && fileInfo.isTemporary) {
-                await markFileAsTemporary(imageToRemove.imageId);
-                await cleanupOrphanedTemporaryFiles([imageToRemove.imageId]);
-            }
+      const isStillUsed = stateRef.current.inputImages.some(img => img.imageId === imageToRemove.imageId && img.instanceId !== instanceId);
+      if (!isStillUsed) {
+        const fileInfo = await getFile(imageToRemove.imageId);
+        if (fileInfo && fileInfo.isTemporary) {
+          await markFileAsTemporary(imageToRemove.imageId);
+          await cleanupOrphanedTemporaryFiles([imageToRemove.imageId]);
         }
+      }
     }
   }, [setToolStateInternal, getFile, markFileAsTemporary, cleanupOrphanedTemporaryFiles]);
 
@@ -331,21 +324,22 @@ export function useImageBlender(toolRoute: string) {
       if (currentIndex === -1) return prev;
 
       const currentOrder = images[currentIndex].order;
-      let targetOrder: number;
+
 
       if (direction === 'up') { // Move towards start of array (visually left / earlier in order)
         if (currentIndex === 0) return prev;
-        targetOrder = images[currentIndex - 1].order;
+        const targetOrder = images[currentIndex - 1].order;
         images[currentIndex - 1].order = currentOrder;
+        images[currentIndex].order = targetOrder;
       } else { // Move towards end of array (visually right / later in order)
         if (currentIndex === images.length - 1) return prev;
-        targetOrder = images[currentIndex + 1].order;
+        const targetOrder = images[currentIndex + 1].order;
         images[currentIndex + 1].order = currentOrder;
+        images[currentIndex].order = targetOrder;
       }
-      images[currentIndex].order = targetOrder;
-      
+
       // Normalize order to be sequential 0, 1, 2...
-      images.sort((a,b) => a.order - b.order);
+      images.sort((a, b) => a.order - b.order);
       images.forEach((img, idx) => img.order = idx);
 
       return { ...prev, inputImages: images };
@@ -360,27 +354,27 @@ export function useImageBlender(toolRoute: string) {
   const clearAll = useCallback(async () => {
     const oldInputImageIds = [...new Set(stateRef.current.inputImages.map(img => img.imageId))];
     const oldProcessedId = stateRef.current.processedFileId;
-    
+
     await clearStateAndPersist(); // This resets toolState to DEFAULT_STATE
 
     const idsToCleanup: string[] = [];
     if (oldProcessedId) {
-        const fileInfo = await getFile(oldProcessedId);
-        if (fileInfo && fileInfo.isTemporary) idsToCleanup.push(oldProcessedId);
+      const fileInfo = await getFile(oldProcessedId);
+      if (fileInfo && fileInfo.isTemporary) idsToCleanup.push(oldProcessedId);
     }
     for (const imgId of oldInputImageIds) {
-        const fileInfo = await getFile(imgId);
-        if (fileInfo && fileInfo.isTemporary) idsToCleanup.push(imgId);
+      const fileInfo = await getFile(imgId);
+      if (fileInfo && fileInfo.isTemporary) idsToCleanup.push(imgId);
     }
     if (idsToCleanup.length > 0) {
-        for (const id of idsToCleanup) await markFileAsTemporary(id);
-        await cleanupOrphanedTemporaryFiles(idsToCleanup);
+      for (const id of idsToCleanup) await markFileAsTemporary(id);
+      await cleanupOrphanedTemporaryFiles(idsToCleanup);
     }
   }, [clearStateAndPersist, getFile, markFileAsTemporary, cleanupOrphanedTemporaryFiles]);
 
   const saveOutputPermanently = useCallback(async (filename: string): Promise<string | null> => {
     if (!stateRef.current.processedFileId) return null;
-    
+
     const success = await makeFilePermanentAndUpdate(stateRef.current.processedFileId, filename);
     if (success) {
       setToolStateInternal(prev => ({ ...prev, lastUserGivenFilename: filename }));
