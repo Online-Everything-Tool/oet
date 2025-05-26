@@ -328,10 +328,6 @@ export async function POST(req: NextRequest) {
       throw new Error('Gemini API call failed: No response received.');
     }
     const responseText = result.response.text();
-    console.log(
-      '[API generate-tool] Raw AI Text Response (delimited format):\n',
-      responseText
-    );
 
     const parsedAIRData = parseDelimitedAIResponse(responseText);
 

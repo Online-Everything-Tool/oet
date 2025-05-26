@@ -22,7 +22,6 @@ jobs:
         startsWith(github.event.comment.body, '/revalidate-ai-fixes') &&
         github.actor != 'dependabot[bot]'
       )
-    #if: startsWith(github.head_ref, 'feat/gen-') && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,7 +30,6 @@ jobs:
       pr_number: ${{ steps.set_pr_info.outputs.pr_number }}
       pr_sha: ${{ steps.set_pr_info.outputs.pr_sha }}
       tool_directive: ${{ steps.extract_directive.outputs.tool_directive }}
-      pattern_check_passed: ${{ steps.check_patterns.outputs.check_passed }}
       path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
       invalid_files_list: ${{ steps.validate_paths.outputs.invalid_files_list }}
       analysis_succeeded: ${{ steps.analyze_name.outputs.analysis_succeeded }}
@@ -39,13 +37,13 @@ jobs:
       ai_analysis_is_typo: ${{ steps.analyze_name.outputs.is_typo }}
       ai_analysis_suggestions_json: ${{ steps.analyze_name.outputs.suggestions }}
       ai_analysis_reasoning: ${{ steps.analyze_name.outputs.reasoning }}
-      critical_initial_checks_passed: ${{ (steps.check_patterns.outputs.check_passed == 'true' && steps.validate_paths.outputs.validation_passed == 'true') }}
+      critical_initial_checks_passed: ${{ steps.validate_paths.outputs.validation_passed == 'true' }}
 
     steps:
       - name: Set PR Info and Validate Trigger
         id: set_pr_info
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Or your PAT if needed for API rate limits/permissions
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "::group::Set PR Info and Validate Trigger Details"
           PR_NUMBER=""
@@ -157,58 +155,8 @@ jobs:
           echo "Extracted Tool Directive: $TOOL_DIRECTIVE"
           echo "tool_directive=${TOOL_DIRECTIVE}" >> $GITHUB_OUTPUT
 
-      - name: Check Directive Pattern
-        id: check_patterns
-        run: |
-          TOOL_DIRECTIVE="${{ steps.extract_directive.outputs.tool_directive }}"
-          JSON_PATTERN_FILE="app/api/validate-directive/_data/tool-directive-patterns.json"
-
-          echo "DEBUG: TOOL_DIRECTIVE is '$TOOL_DIRECTIVE'"
-          if [ -z "$TOOL_DIRECTIVE" ]; then
-            echo "::error::TOOL_DIRECTIVE is empty. Cannot check pattern."
-            echo "check_passed=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-          if [ ! -f "$JSON_PATTERN_FILE" ]; then 
-            echo "::error::JSON Pattern file '$JSON_PATTERN_FILE' not found."
-            echo "check_passed=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-
-          echo "DEBUG: Content of $JSON_PATTERN_FILE (raw):"
-          cat "$JSON_PATTERN_FILE"
-          echo "--- End of raw JSON pattern file content ---"
-
-          TEMP_CLEANED_PATTERNS_FILE=$(mktemp)
-          jq -r '.prefixPatterns[], .suffixPatterns[], .complexPatterns[] // empty' "$JSON_PATTERN_FILE" | \
-          awk '!/^#/ && NF {gsub(/\r$/,""); print}' > "$TEMP_CLEANED_PATTERNS_FILE"
-
-          if [ ! -s "$TEMP_CLEANED_PATTERNS_FILE" ]; then
-            echo "::warning::No active patterns found in '$JSON_PATTERN_FILE' after cleaning and jq extraction. Assuming pass."
-            echo "check_passed=true" >> $GITHUB_OUTPUT
-            rm "$TEMP_CLEANED_PATTERNS_FILE"
-            exit 0
-          fi
-
-          echo "DEBUG: Using cleaned patterns from $TEMP_CLEANED_PATTERNS_FILE for grep:"
-          cat "$TEMP_CLEANED_PATTERNS_FILE"
-          echo "--- End of Cleaned Patterns for grep ---"
-
-          if echo "$TOOL_DIRECTIVE" | grep -q -E -f "$TEMP_CLEANED_PATTERNS_FILE"; then
-            echo "Directive '$TOOL_DIRECTIVE' matches an allowed pattern."
-            echo "check_passed=true" >> $GITHUB_OUTPUT
-          else 
-            echo "::error::Directive '$TOOL_DIRECTIVE' does not match any allowed patterns in '$JSON_PATTERN_FILE'."
-            echo "check_passed=false" >> $GITHUB_OUTPUT
-            exit 1 
-          fi
-          rm "$TEMP_CLEANED_PATTERNS_FILE"
-
       - name: Analyze Directive Name (AI Check)
         id: analyze_name
-        if: steps.check_patterns.outputs.check_passed == 'true'
-        continue-on-error: true
         env:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
         run: |
@@ -257,7 +205,6 @@ jobs:
 
       - name: Validate Changed File Paths
         id: validate_paths
-        if: steps.check_patterns.outputs.check_passed == 'true'
         env:
           TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
         run: |

@@ -2,6 +2,22 @@
 @import 'tailwindcss';
 @import 'file-icons-js/css/style.css';
 
+.oet-swiper-build-tool {
+  position: relative;
+  padding-bottom: 40px;
+}
+
+.oet-swiper-build-tool .swiper-button-next,
+.oet-swiper-build-tool .swiper-button-prev {
+  top: auto;                      
+  bottom: 8px;                                                      
+  transform: none;
+}
+
+.oet-swiper-build-tool .swiper-button-prev {
+  left: 10px;
+}
+
 html {
   overflow-y: scroll;
 }

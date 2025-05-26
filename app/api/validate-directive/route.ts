@@ -157,10 +157,10 @@ export async function POST(req: NextRequest) {
   const model = genAI.getGenerativeModel({ model: modelName });
 
   const generationConfig: GenerationConfig = {
-    temperature: 0.4,
+    temperature: 0.3,
     topK: 40,
-    topP: 0.9,
-    maxOutputTokens: 4096,
+    topP: 0.85,
+    maxOutputTokens: 512,
     responseMimeType: 'application/json',
   };
 
@@ -189,20 +189,12 @@ export async function POST(req: NextRequest) {
       `[API validate-directive] Sending prompt for directive: ${toolDirective} to model: ${modelName}`
     );
 
-    console.log('--- [API validate-directive] PROMPT SENT TO GEMINI ---');
-    console.log(prompt);
-    console.log('--- END PROMPT ---');
-
     const result = await model.generateContent({
       contents: [{ role: 'user', parts }],
       generationConfig,
       safetySettings,
     });
 
-    console.log(
-      `[API validate-directive] RAW FULL RESULT for ${modelName}:`,
-      JSON.stringify(result, null, 2)
-    );
     if (!result.response) {
       console.error(
         '[API validate-directive] Gemini API call failed: No response field.'
@@ -211,11 +203,6 @@ export async function POST(req: NextRequest) {
     }
 
     const responseText = result.response.text();
-
-    console.log('--- [API validate-directive] RAW GEMINI RESPONSE ---');
-    console.log(`(Response length: ${responseText.length})`);
-    console.log(responseText);
-    console.log('--- END RAW GEMINI RESPONSE ---');
 
     if (!responseText || responseText.trim() === '') {
       console.error(

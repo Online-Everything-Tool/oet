@@ -1,19 +1,20 @@
-// /app/build-tool/_components/ValidateDirective.tsx
+// FILE: app/build-tool/_components/ValidateDirective.tsx
 'use client';
 
-import React, { useState } from 'react';
-import type { AiModel, ValidationResult } from '@/src/types/build';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import type { ValidationResult } from '@/src/types/build';
+import Button from '@/app/tool/_components/form/Button';
 
 interface ValidateDirectiveProps {
   toolDirective: string;
   setToolDirective: (value: string) => void;
-  selectedModel: string;
-  setSelectedModel: (value: string) => void;
-  availableModels: AiModel[];
-  modelsLoading: boolean;
-  modelsError: string | null;
+
+  validationModelOptions: string[];
+  defaultModelName: string;
+
   onValidationSuccess: (result: ValidationResult) => void;
   onReset: () => void;
+  isApiUnavailable: boolean;
 }
 
 interface ApiValidationResponseData {
@@ -26,18 +27,112 @@ interface ApiValidationResponseData {
 export default function ValidateDirective({
   toolDirective,
   setToolDirective,
-  selectedModel,
-  setSelectedModel,
-  availableModels,
-  modelsLoading,
-  modelsError,
+  validationModelOptions,
+  defaultModelName,
   onValidationSuccess,
+
+  isApiUnavailable,
 }: ValidateDirectiveProps) {
   const [isValidating, setIsValidating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [status, setStatus] = useState<'idle' | 'error'>('idle');
 
-  const formatSlug = (value: string): string => {
+  const [
+    currentSelectedModelForValidation,
+    setCurrentSelectedModelForValidation,
+  ] = useState<string>('');
+
+  const [fallbackModelsApi, setFallbackModelsApi] = useState<string[]>([]);
+  const [fallbackModelsLoading, setFallbackModelsLoading] = useState(false);
+  const [fallbackModelsError, setFallbackModelsError] = useState<string | null>(
+    null
+  );
+
+  const finalModelOptionsForUI = useMemo(() => {
+    if (validationModelOptions.length > 0) {
+      return validationModelOptions;
+    }
+    if (fallbackModelsApi.length > 0) {
+      return fallbackModelsApi;
+    }
+
+    return [];
+  }, [validationModelOptions, fallbackModelsApi]);
+
+  const showModelDropdown = useMemo(
+    () => finalModelOptionsForUI.length > 1,
+    [finalModelOptionsForUI]
+  );
+
+  const modelToDisplayOrUse = useMemo(() => {
+    if (finalModelOptionsForUI.length === 1) {
+      return finalModelOptionsForUI[0];
+    }
+    if (finalModelOptionsForUI.length === 0 && !fallbackModelsLoading) {
+
+      return defaultModelName;
+    }
+    return null;
+  }, [finalModelOptionsForUI, fallbackModelsLoading, defaultModelName]);
+
+  useEffect(() => {
+    if (validationModelOptions.length === 0 && !isApiUnavailable) {
+      setFallbackModelsLoading(true);
+      setFallbackModelsError(null);
+      fetch('/api/list-models?filterExcluded=true&latestOnly=true')
+        .then((res) => {
+          if (!res.ok) {
+            return res.json().then((err) => {
+              throw new Error(
+                err.error || `Failed to fetch models: ${res.status}`
+              );
+            });
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          const modelNames = (data.models || []).map(
+            (m: { name: string }) => m.name
+          );
+          setFallbackModelsApi(modelNames.length > 0 ? modelNames : []);
+        })
+        .catch((err) => {
+          console.error('Error fetching fallback models for validation:', err);
+          setFallbackModelsError(err.message || 'Could not load AI models.');
+          setFallbackModelsApi([]);
+        })
+        .finally(() => {
+          setFallbackModelsLoading(false);
+        });
+    } else if (validationModelOptions.length > 0) {
+      setFallbackModelsApi([]);
+      setFallbackModelsError(null);
+    }
+  }, [validationModelOptions, isApiUnavailable]);
+
+  useEffect(() => {
+    let modelToSet = '';
+    if (finalModelOptionsForUI.length > 0) {
+      modelToSet = finalModelOptionsForUI[0];
+    } else if (!fallbackModelsLoading) {
+
+      modelToSet = defaultModelName;
+    }
+
+    if (modelToSet && currentSelectedModelForValidation !== modelToSet) {
+      setCurrentSelectedModelForValidation(modelToSet);
+    }
+  }, [
+    finalModelOptionsForUI,
+    defaultModelName,
+    fallbackModelsLoading,
+    currentSelectedModelForValidation,
+  ]);
+
+  const formatSlug = useCallback((value: string): string => {
     if (typeof value !== 'string') return '';
     return value
       .toLowerCase()
@@ -45,7 +140,7 @@ export default function ValidateDirective({
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-');
-  };
+  }, []);
 
   const handleValidateClick = async () => {
     setStatus('idle');
@@ -60,9 +155,12 @@ export default function ValidateDirective({
       setIsValidating(false);
       return;
     }
-    if (!selectedModel) {
+
+    if (!currentSelectedModelForValidation && !modelToDisplayOrUse) {
       setStatus('error');
-      setFeedback('Please select an AI model.');
+      setFeedback(
+        'AI model for validation is not determined. Please wait or check configuration.'
+      );
       setIsValidating(false);
       return;
     }
@@ -74,7 +172,7 @@ export default function ValidateDirective({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           toolDirective: finalDirective,
-          modelName: selectedModel,
+
         }),
       });
 
@@ -110,21 +208,80 @@ export default function ValidateDirective({
     }
   };
 
+  const modelDisplayName = (modelName: string | null | undefined) =>
+    modelName ? modelName.replace('models/', '') : 'N/A';
+
+  const renderModelSelector = () => {
+    if (validationModelOptions.length === 0 && fallbackModelsLoading) {
+      return (
+        <div className="h-9 flex items-center">
+          <p className="text-sm text-gray-500 animate-pulse">
+            Loading AI models...
+          </p>
+        </div>
+      );
+    }
+    if (validationModelOptions.length === 0 && fallbackModelsError) {
+      return (
+        <div className="h-9 flex items-center" title={fallbackModelsError}>
+          <p className="text-sm text-red-600">
+            Error loading models. Using default:{' '}
+            {modelDisplayName(defaultModelName)}
+          </p>
+        </div>
+      );
+    }
+
+    if (showModelDropdown) {
+      return (
+        <select
+          id="validationAiModel"
+          value={currentSelectedModelForValidation}
+          onChange={(e) => setCurrentSelectedModelForValidation(e.target.value)}
+          disabled={
+            isValidating ||
+            isApiUnavailable ||
+            finalModelOptionsForUI.length === 0
+          }
+          className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
+        >
+          {/* Add a placeholder if no model is selected yet and options exist */}
+          {finalModelOptionsForUI.length > 0 &&
+            !currentSelectedModelForValidation && (
+              <option value="" disabled>
+                -- Select Model --
+              </option>
+            )}
+          {finalModelOptionsForUI.map((modelName) => (
+            <option key={modelName} value={modelName}>
+              {modelDisplayName(modelName)}
+            </option>
+          ))}
+          {/* If finalModelOptionsForUI is empty after loading, and default is used, it won't show here but in modelToDisplayOrUse */}
+        </select>
+      );
+    }
+
+    const displayModel =
+      modelToDisplayOrUse ||
+      currentSelectedModelForValidation ||
+      defaultModelName;
+    return (
+      <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 sm:text-sm h-9 flex items-center">
+        {modelDisplayName(displayModel)}
+      </div>
+    );
+  };
+
   return (
     <section
-      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isValidating ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-gray-200'}`}
+      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isValidating || isApiUnavailable ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-gray-200'}`}
     >
-      {/* Title reflects the step/purpose */}
-      <h2 className="text-lg font-semibold mb-3 text-gray-700">
-        Step 1: Validate Directive
-      </h2>
-      <p className="text-sm text-gray-600 mb-4">
-        Enter a unique, URL-friendly directive and select the AI model for
-        validation.
-      </p>
+      <h3 className="text-md font-semibold mb-4 text-gray-700">
+        Define Tool Name & Configure Validation
+      </h3>
 
-      {/* Inputs for Directive and Model */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-4">
         <div>
           <label
             htmlFor="toolDirective"
@@ -137,80 +294,51 @@ export default function ValidateDirective({
             id="toolDirective"
             value={toolDirective}
             onChange={(e) => setToolDirective(e.target.value)}
-            disabled={isValidating}
+            disabled={isValidating || isApiUnavailable}
             className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
             placeholder="e.g., json-formatter"
+            aria-describedby="directive-format-hint"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            URL: `/tool/{formatSlug(toolDirective) || '...'}`
+          <p id="directive-format-hint" className="mt-1 text-xs text-gray-500">
+            Preview URL: <code>/tool/{formatSlug(toolDirective) || '...'}</code>
           </p>
         </div>
+
         <div>
           <label
-            htmlFor="aiModelSelect"
+            htmlFor="validationAiModel"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Select AI Model <span className="text-red-600">*</span>
+            {showModelDropdown
+              ? 'Select AI Model for Validation'
+              : 'AI Model for Validation'}
+            {showModelDropdown && <span className="text-red-600">*</span>}
           </label>
-          {modelsLoading && (
-            <p className="text-sm text-gray-500 animate-pulse h-9 flex items-center">
-              Loading...
-            </p>
-          )}
-          {modelsError && (
-            <p className="text-sm text-red-600 h-9 flex items-center">
-              Error: {modelsError}
-            </p>
-          )}
-          {!modelsLoading && !modelsError && availableModels.length === 0 && (
-            <p className="text-sm text-orange-600 h-9 flex items-center">
-              No models.
-            </p>
-          )}
-          {!modelsLoading && !modelsError && availableModels.length > 0 && (
-            <select
-              id="aiModelSelect"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              disabled={
-                isValidating || modelsLoading || availableModels.length === 0
-              }
-              className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100"
-            >
-              {selectedModel === '' && (
-                <option value="" disabled>
-                  -- Select --
-                </option>
-              )}
-              {availableModels.map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.displayName} ({model.name.replace('models/', '')})
-                </option>
-              ))}
-            </select>
-          )}
+          {renderModelSelector()}
           <p className="mt-1 text-xs text-gray-500">
-            Model used for validation & generation.
+            Used by AI for initial name validation and description.
           </p>
         </div>
       </div>
 
-      {/* Button to trigger the validation */}
-      <button
-        type="button"
-        onClick={handleValidateClick}
-        disabled={
-          isValidating ||
-          !toolDirective.trim() ||
-          modelsLoading ||
-          !selectedModel
-        }
-        className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isValidating ? 'Validating...' : 'Validate Directive'}
-      </button>
+      <div className="mt-6 flex justify-center">
+        <Button
+          type="button"
+          onClick={handleValidateClick}
+          disabled={
+            isValidating ||
+            isApiUnavailable ||
+            !toolDirective.trim() ||
+            (!currentSelectedModelForValidation && !modelToDisplayOrUse) ||
+            (validationModelOptions.length === 0 && fallbackModelsLoading)
+          }
+          variant="primary"
+          className="text-base px-6 py-2.5"
+        >
+          {isValidating ? 'Validating...' : 'Validate Directive & Continue'}
+        </Button>
+      </div>
 
-      {/* Feedback Area */}
       {feedback && (
         <div
           className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}

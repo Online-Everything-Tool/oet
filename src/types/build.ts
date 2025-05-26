@@ -1,10 +1,16 @@
 // FILE: src/types/build.ts
 
+export interface ResouceGenerationEpicChapter {
+  chapterEmoji: string;
+  chapterStory: string;
+}
+
 export interface ResouceGenerationEpic {
   epicCompanyName: string;
-  epicCompanyEmployee: string;
+  epicCompanyEmployeeName: string;
   epicCompanyJobTitle: string;
-  epicGenerationMessages: string[];
+  epicCompanyEmployeeEmoji: string;
+  epicNarrative: ResouceGenerationEpicChapter[];
 }
 
 export interface AiModel {
