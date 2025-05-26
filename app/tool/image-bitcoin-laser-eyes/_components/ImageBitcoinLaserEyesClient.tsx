@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
@@ -18,7 +18,7 @@ import importedMetadata from '../metadata.json';
 import useItdeTargetHandler, { IncomingSignal } from '../../_hooks/useItdeTargetHandler';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
 
 
 interface ImageBitcoinLaserEyesToolState {
@@ -122,7 +122,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
         setUiError('Metadata not found for source tool.');
         return;
       }
-      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
+      const resolvedPayload = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
@@ -168,8 +168,8 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
           (id): id is string => !!(id && id !== newSelectedFileId)
         );
         if (destatedIds.length > 0) {
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[ImageBitcoinLaserEyes ITDE Accept] Cleanup call failed:', e)
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((_e) =>
+            console.error('[ImageBitcoinLaserEyes ITDE Accept] Cleanup call failed:', _e)
           );
         }
       }
@@ -212,7 +212,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
     ) {
       itdeTarget.openModalIfSignalsExist();
     }
-  }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup, directiveName]);
+  }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup]);
 
   useEffect(() => {
     let mounted = true;
@@ -268,7 +268,7 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
       if (localProcObjUrl) URL.revokeObjectURL(localProcObjUrl);
     };
-  }, [toolState.selectedFileId, toolState.processedFileId, getFile, isLoadingToolSettings]);
+  }, [toolState.selectedFileId, toolState.processedFileId, getFile, isLoadingToolSettings, originalImageSrcForUI, processedImageSrcForUI]);
 
   const addLaserEyes = useCallback(async (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
     const { naturalWidth: w, naturalHeight: h } = img;
@@ -358,8 +358,8 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
           (id): id is string => !!(id && id !== newSelectedId)
         );
         if (destatedIds.length > 0)
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[ImageBitcoinLaserEyes New Selection] Cleanup failed:', e)
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((_e) =>
+            console.error('[ImageBitcoinLaserEyes New Selection] Cleanup failed:', _e)
           );
       } else if (files?.length) {
         setUiError(
@@ -444,8 +444,8 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
       (id): id is string => !!id
     );
     if (destatedIds.length > 0)
-      cleanupOrphanedTemporaryFiles(destatedIds).catch((err) =>
-        console.error(`[ImageBitcoinLaserEyes Clear] Cleanup call failed:`, err)
+      cleanupOrphanedTemporaryFiles(destatedIds).catch((_err) =>
+        console.error(`[ImageBitcoinLaserEyes Clear] Cleanup call failed:`, _err)
       );
   }, [
     toolState.autoSaveProcessed,
@@ -511,6 +511,14 @@ export default function ImageBitcoinLaserEyesClient({ toolRoute }: ImageBitcoinL
 
     const filenameToUse =
       toolState.lastUserGivenFilename || generateDefaultOutputFilename();
+
+    const canInitiateSaveCurrent =
+    !!toolState.processedFileId &&
+    !toolState.autoSaveProcessed &&
+    !processedOutputPermanent &&
+    !isProcessingImage &&
+    !isManuallySaving;
+
 
     if (toolState.lastUserGivenFilename && !canInitiateSaveCurrent) {
       setManualSaveSuccess(true);
