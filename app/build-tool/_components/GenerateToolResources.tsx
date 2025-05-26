@@ -151,7 +151,7 @@ export default function GenerateToolResources({
           clearInterval(narrativeIntervalRef.current);
         return prevIndex;
       });
-    }, 4000);
+    }, 8000);
   };
 
   const handleGenerateClick = async () => {
@@ -198,7 +198,6 @@ export default function GenerateToolResources({
         ) {
           startNarrativeDisplay(narrative);
         } else {
-
           setNarrativeData(null);
           setIsNarrativeModalOpen(true);
           setShowViewProgressButton(true);
@@ -264,8 +263,6 @@ export default function GenerateToolResources({
       setIsGeneratingMain(false);
       if (narrativeIntervalRef.current)
         clearInterval(narrativeIntervalRef.current);
-
-      setShowViewProgressButton(false);
     }
   };
 
@@ -281,7 +278,6 @@ export default function GenerateToolResources({
           Refine Details, Select Examples & AI Model for Generation
         </h3>
 
-        {/* Target Directive */}
         <div className="mb-4">
           <span className="block text-sm font-medium text-gray-700 mb-1">
             Target Directive:
@@ -293,7 +289,6 @@ export default function GenerateToolResources({
           </div>
         </div>
 
-        {/* AI Generated Description */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             AI Generated Description (Review):
@@ -310,7 +305,6 @@ export default function GenerateToolResources({
           </div>
         </div>
 
-        {/* AI Requested Examples */}
         {(validationResult.generativeRequestedDirectives?.length ?? 0) > 0 && (
           <div className="mb-4 p-3 border-gray-300 border rounded">
             <p className="text-sm font-medium mb-1">
@@ -339,7 +333,6 @@ export default function GenerateToolResources({
           </div>
         )}
 
-        {/* AI Model for Generation */}
         <div className="mb-4">
           <label
             htmlFor="generationAiModelSelect"
@@ -389,7 +382,6 @@ export default function GenerateToolResources({
           )}
         </div>
 
-        {/* User Select Additional Examples */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Select Additional Examples (Optional, Max {MAX_USER_EXAMPLES}):
@@ -447,7 +439,6 @@ export default function GenerateToolResources({
           </p>
         </div>
 
-        {/* Additional Details */}
         <div className="mb-6">
           <label
             htmlFor="additionalDescription"
@@ -469,7 +460,6 @@ export default function GenerateToolResources({
           </p>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-wrap gap-4">
           <Button
             type="button"
@@ -510,14 +500,13 @@ export default function GenerateToolResources({
           </Button>
         </div>
 
-        {feedback &&
-          !isNarrativeModalOpen && (
-            <div
-              className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}
-            >
-              {feedback}
-            </div>
-          )}
+        {feedback && !isNarrativeModalOpen && (
+          <div
+            className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}
+          >
+            {feedback}
+          </div>
+        )}
       </section>
 
       <GenerationLoadingModal

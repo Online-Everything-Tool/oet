@@ -7,6 +7,7 @@ export interface ResouceGenerationEpicChapter {
 
 export interface ResouceGenerationEpic {
   epicCompanyName: string;
+  epicCompanyEmoji: string;
   epicCompanyEmployeeName: string;
   epicCompanyJobTitle: string;
   epicCompanyEmployeeEmoji: string;

@@ -9,11 +9,14 @@ import {
 } from '@google/generative-ai';
 import fs from 'fs/promises';
 import path from 'path';
-import type { ResouceGenerationEpic } from '@/src/types/build';
+import type {
+  ResouceGenerationEpic,
+  ResouceGenerationEpicChapter,
+} from '@/src/types/build';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const NARRATIVE_MODEL_NAME =
-
+  process.env.DEFAULT_GEMINI_NARRATIVE_MODEL_NAME ||
   'models/gemini-1.5-flash-latest';
 
 if (!API_KEY) {
@@ -32,12 +35,21 @@ interface RequestBody {
   userSelectedExamples?: string[];
 }
 
+interface ProcessedRequestData {
+  toolDirective: string;
+  toolDescription: string;
+  generationModelName: string;
+  userAdditionalDescription: string;
+  aiRequestedExamples?: string[];
+  userSelectedExamples?: string[];
+}
+
 const generationConfig: GenerationConfig = {
-  temperature: 0.75,
+  temperature: 0.8,
   topK: 50,
   topP: 0.95,
-  maxOutputTokens: 3072,
-  responseMimeType: 'application/json',
+  maxOutputTokens: 4096,
+  responseMimeType: 'text/plain',
 };
 
 const safetySettings: SafetySetting[] = [
@@ -59,32 +71,318 @@ const safetySettings: SafetySetting[] = [
   },
 ];
 
-let promptTemplateCache: string | null = null;
+let mainPromptTemplateCache: string | null = null;
+const exampleNarrativeTemplatesCache: string[] = [];
 
-async function readNarrativePromptTemplate(): Promise<string> {
-  if (promptTemplateCache) return promptTemplateCache;
-  try {
-    const templatePath = path.join(
-      process.cwd(),
-      'app',
-      'api',
-      'generate-modal-narrative',
-      '_prompts',
-      'narrative_prompt_template.md'
+async function loadPromptAndInjectExample(
+  requestData: ProcessedRequestData
+): Promise<string> {
+  if (!mainPromptTemplateCache) {
+    try {
+      const templatePath = path.join(
+        process.cwd(),
+        'app',
+        'api',
+        'generate-modal-narrative',
+        '_prompts',
+        'narrative_prompt_template.md'
+      );
+      mainPromptTemplateCache = await fs.readFile(templatePath, 'utf-8');
+    } catch (error) {
+      console.error('Error reading main narrative prompt template:', error);
+      throw new Error(
+        'Failed to load main prompt template for modal narrative.'
+      );
+    }
+  }
+
+  if (exampleNarrativeTemplatesCache.length === 0) {
+    try {
+      const examplesDir = path.join(
+        process.cwd(),
+        'app',
+        'api',
+        'generate-modal-narrative',
+        '_data'
+      );
+      const files = await fs.readdir(examplesDir);
+      const mdFiles = files.filter(
+        (file) => file.endsWith('.md') && /^\d\d_template\.md$/.test(file)
+      );
+      console.log(
+        `[Narrative API] Found ${mdFiles.length} example template files: ${mdFiles.join(', ')}`
+      );
+      for (const file of mdFiles) {
+        const filePath = path.join(examplesDir, file);
+        const content = await fs.readFile(filePath, 'utf-8');
+        exampleNarrativeTemplatesCache.push(content.trim());
+      }
+      console.log(
+        `[Narrative API] Loaded ${exampleNarrativeTemplatesCache.length} templates into cache.`
+      );
+      if (exampleNarrativeTemplatesCache.length === 0) {
+        console.warn(
+          '[API generate-modal-narrative] No example templates found in _data directory (e.g., 01_template.md).'
+        );
+      }
+    } catch (error) {
+      console.warn(
+        '[API generate-modal-narrative] Error reading example templates:',
+        error
+      );
+    }
+  }
+
+  let exampleContentToSubstitute = `EPIC_COMPANY_NAME::Default Example Co.
+EPIC_COMPANY_EMOJI::📝
+EPIC_COMPANY_EMPLOYEE_NAME::N. A. Example
+EPIC_COMPANY_JOB_TITLE::Placeholder
+EPIC_COMPANY_EMPLOYEE_EMOJI::🧑‍🔬
+--START_CHAPTER--
+CHAPTER_EMOJI::🤔
+CHAPTER_STORY::OET is building '{{TOOL_DIRECTIVE}}'. Interesting...
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::🧐
+CHAPTER_STORY::Description: '{{TOOL_DESCRIPTION}}'. Hmm.
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::😅
+CHAPTER_STORY::Model '{{GENERATION_MODEL_NAME}}', eh?
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::😬
+CHAPTER_STORY::User refined: '{{USER_ADDITIONAL_DESCRIPTION}}'.
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::💦
+CHAPTER_STORY::Examples like '{{AI_REQUESTED_EXAMPLES_LIST}}' and '{{USER_SELECTED_EXAMPLES_LIST}}'.
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::😨
+CHAPTER_STORY::This '{{TOOL_DIRECTIVE}}' is almost ready!
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::😰
+CHAPTER_STORY::Our market share!
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::😱
+CHAPTER_STORY::It's probably done!
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::🔥
+CHAPTER_STORY::We need a plan!
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::💀
+CHAPTER_STORY::Maybe OET is hiring?
+--END_CHAPTER--`;
+
+  if (exampleNarrativeTemplatesCache.length > 0) {
+    const randomIndex = Math.floor(
+      Math.random() * exampleNarrativeTemplatesCache.length
     );
-    promptTemplateCache = await fs.readFile(templatePath, 'utf-8');
-    return promptTemplateCache;
+    console.log(
+      `[Narrative API] Picked random example template index: ${randomIndex} (out of ${exampleNarrativeTemplatesCache.length})`
+    );
+    exampleContentToSubstitute = exampleNarrativeTemplatesCache[randomIndex];
+  }
+
+  const {
+    toolDirective,
+    toolDescription,
+    generationModelName,
+    userAdditionalDescription,
+    aiRequestedExamples,
+    userSelectedExamples,
+  } = requestData;
+
+  const formatExampleListForPrompt = (examples?: string[]): string => {
+    if (!examples || examples.length === 0) return '    - None.';
+    return examples.map((ex) => `    - \`${ex}\``).join('\n');
+  };
+
+  const aiRequestedExamplesListString =
+    formatExampleListForPrompt(aiRequestedExamples);
+  const userSelectedExamplesListString =
+    formatExampleListForPrompt(userSelectedExamples);
+
+  const fullySubstitutedExample = exampleContentToSubstitute
+    .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+    .replace(/{{TOOL_DESCRIPTION}}/g, toolDescription)
+    .replace(
+      /{{GENERATION_MODEL_NAME}}/g,
+      generationModelName.replace('models/', '')
+    )
+    .replace(/{{USER_ADDITIONAL_DESCRIPTION}}/g, userAdditionalDescription)
+    .replace(/{{AI_REQUESTED_EXAMPLES_LIST}}/g, aiRequestedExamplesListString)
+    .replace(
+      /{{USER_SELECTED_EXAMPLES_LIST}}/g,
+      userSelectedExamplesListString
+    );
+
+  let finalPrompt = mainPromptTemplateCache.replace(
+    '{{FULL_EXAMPLE}}',
+    fullySubstitutedExample
+  );
+
+  finalPrompt = finalPrompt
+    .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
+    .replace(/{{TOOL_DESCRIPTION}}/g, toolDescription)
+    .replace(
+      /{{GENERATION_MODEL_NAME}}/g,
+      generationModelName.replace('models/', '')
+    )
+    .replace(/{{USER_ADDITIONAL_DESCRIPTION}}/g, userAdditionalDescription)
+    .replace(/{{AI_REQUESTED_EXAMPLES_LIST}}/g, aiRequestedExamplesListString)
+    .replace(
+      /{{USER_SELECTED_EXAMPLES_LIST}}/g,
+      userSelectedExamplesListString
+    );
+
+  return finalPrompt;
+}
+
+function parseDelimitedNarrative(
+  responseText: string
+): ResouceGenerationEpic | null {
+  console.log(responseText);
+  try {
+    const lines = responseText.split('\n');
+    const result: Partial<ResouceGenerationEpic> = { epicNarrative: [] };
+    let currentChapter: Partial<ResouceGenerationEpicChapter> | null = null;
+    let inChapterStory = false;
+
+    for (const line of lines) {
+      if (line.startsWith('--START_CHAPTER--')) {
+        if (currentChapter) {
+          (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
+            currentChapter as ResouceGenerationEpicChapter
+          );
+        }
+        currentChapter = {};
+        inChapterStory = false;
+        continue;
+      }
+      if (line.startsWith('--END_CHAPTER--')) {
+        if (
+          currentChapter &&
+          currentChapter.chapterEmoji &&
+          currentChapter.chapterStory
+        ) {
+          (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
+            currentChapter as ResouceGenerationEpicChapter
+          );
+        } else {
+          console.warn(
+            '[Narrative Parser] Encountered END_CHAPTER without complete chapter data:',
+            currentChapter
+          );
+        }
+        currentChapter = null;
+        inChapterStory = false;
+        continue;
+      }
+
+      const parts = line.split('::');
+      if (parts.length >= 2) {
+        const key = parts[0].trim();
+        const value = parts.slice(1).join('::').trim();
+
+        if (currentChapter) {
+          if (key === 'CHAPTER_EMOJI') {
+            currentChapter.chapterEmoji = value;
+            inChapterStory = false;
+          } else if (key === 'CHAPTER_STORY') {
+            currentChapter.chapterStory = value;
+            inChapterStory = true;
+          }
+        } else {
+          switch (key) {
+            case 'EPIC_COMPANY_NAME':
+              result.epicCompanyName = value;
+              break;
+            case 'EPIC_COMPANY_EMOJI':
+              result.epicCompanyEmoji = value;
+              break;
+            case 'EPIC_COMPANY_EMPLOYEE_NAME':
+              result.epicCompanyEmployeeName = value;
+              break;
+            case 'EPIC_COMPANY_JOB_TITLE':
+              result.epicCompanyJobTitle = value;
+              break;
+            case 'EPIC_COMPANY_EMPLOYEE_EMOJI':
+              result.epicCompanyEmployeeEmoji = value;
+              break;
+          }
+        }
+      } else if (
+        inChapterStory &&
+        currentChapter &&
+        currentChapter.chapterStory !== undefined
+      ) {
+        currentChapter.chapterStory += '\n' + line;
+      }
+    }
+
+    if (
+      currentChapter &&
+      currentChapter.chapterEmoji &&
+      currentChapter.chapterStory
+    ) {
+      (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
+        currentChapter as ResouceGenerationEpicChapter
+      );
+    }
+
+    if (
+      !result.epicCompanyName ||
+      !result.epicCompanyEmoji ||
+      typeof result.epicCompanyEmoji !== 'string' ||
+      result.epicCompanyEmoji.trim() === '' ||
+      !result.epicCompanyEmployeeName ||
+      !result.epicCompanyJobTitle ||
+      !result.epicCompanyEmployeeEmoji ||
+      typeof result.epicCompanyEmployeeEmoji !== 'string' ||
+      result.epicCompanyEmployeeEmoji.trim() === '' ||
+      !result.epicNarrative ||
+      result.epicNarrative.length !== 10 ||
+      !result.epicNarrative.every(
+        (ch) =>
+          ch.chapterEmoji &&
+          typeof ch.chapterEmoji === 'string' &&
+          ch.chapterEmoji.trim() !== '' &&
+          ch.chapterStory &&
+          typeof ch.chapterStory === 'string' &&
+          ch.chapterStory.trim() !== ''
+      )
+    ) {
+      console.warn(
+        '[Narrative Parser] Parsed object failed validation. Missing fields or incorrect chapter count/structure.',
+        result
+      );
+      return null;
+    }
+
+    return result as ResouceGenerationEpic;
   } catch (error) {
-    console.error('Error reading narrative prompt template:', error);
-    throw new Error('Failed to load prompt template for modal narrative.');
+    console.error(
+      '[Narrative Parser] Error parsing delimited text:',
+      error,
+      '\nText was:\n',
+      responseText
+    );
+    return null;
   }
 }
 
 const defaultFallbackEpic: ResouceGenerationEpic = {
   epicCompanyName: "Cogsworth's Calculators & Curios",
+  epicCompanyEmoji: '⚙️',
   epicCompanyEmployeeName: "Barnaby 'Bytes' Buttons",
   epicCompanyJobTitle: 'Chief Innovation Quasher',
-  epicCompanyEmployeeEmoji: '⚙️',
+  epicCompanyEmployeeEmoji: '🧑‍🔧',
   epicNarrative: [
     {
       chapterEmoji: '🧐',
@@ -149,17 +447,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(defaultFallbackEpic, { status: 200 });
   }
 
-  let toolDirective: string | undefined;
-  let toolDescription: string | undefined;
-  let generationModelName: string;
-  let userAdditionalDescription: string;
-  let aiRequestedExamples: string[] | undefined;
-  let userSelectedExamples: string[] | undefined;
+  let processedRequestDataForPrompt: ProcessedRequestData;
 
   try {
     const body: RequestBody = await request.json();
-    toolDirective = body.toolDirective?.trim();
-    toolDescription = body.toolDescription?.trim();
+    const toolDirective = body.toolDirective?.trim();
+    const toolDescription = body.toolDescription?.trim();
 
     if (!toolDirective || !toolDescription) {
       console.warn(
@@ -168,12 +461,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(defaultFallbackEpic, { status: 200 });
     }
 
-    generationModelName =
-      body.generationModelName?.trim() || 'an unspecified AI model';
-    userAdditionalDescription =
-      body.userAdditionalDescription?.trim() || 'None provided.';
-    aiRequestedExamples = body.aiRequestedExamples;
-    userSelectedExamples = body.userSelectedExamples;
+    processedRequestDataForPrompt = {
+      toolDirective,
+      toolDescription,
+      generationModelName:
+        body.generationModelName?.trim() || 'an unspecified AI model',
+      userAdditionalDescription:
+        body.userAdditionalDescription?.trim() || 'None provided.',
+      aiRequestedExamples: body.aiRequestedExamples,
+      userSelectedExamples: body.userSelectedExamples,
+    };
   } catch (error) {
     console.warn(
       '[API generate-modal-narrative] Invalid request body. Returning fallback epic.',
@@ -182,9 +479,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(defaultFallbackEpic, { status: 200 });
   }
 
-  let promptTemplate: string;
+  let prompt: string;
   try {
-    promptTemplate = await readNarrativePromptTemplate();
+    prompt = await loadPromptAndInjectExample(processedRequestDataForPrompt);
   } catch (templateError) {
     console.error(
       '[API generate-modal-narrative] Prompt template load error. Returning fallback epic.',
@@ -193,35 +490,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(defaultFallbackEpic, { status: 200 });
   }
 
-  const formatExampleListForPrompt = (examples?: string[]): string => {
-    if (!examples || examples.length === 0)
-      return '    - None selected/provided.';
-    return examples.map((ex) => `    - \`${ex}\``).join('\n');
-  };
-
-  const aiRequestedExamplesListString =
-    formatExampleListForPrompt(aiRequestedExamples);
-  const userSelectedExamplesListString =
-    formatExampleListForPrompt(userSelectedExamples);
-
-  const prompt = promptTemplate
-    .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
-    .replace(/{{TOOL_DESCRIPTION}}/g, toolDescription)
-    .replace(
-      /{{GENERATION_MODEL_NAME}}/g,
-      generationModelName.replace('models/', '')
-    )
-    .replace(/{{USER_ADDITIONAL_DESCRIPTION}}/g, userAdditionalDescription)
-    .replace(/{{AI_REQUESTED_EXAMPLES_LIST}}/g, aiRequestedExamplesListString)
-    .replace(
-      /{{USER_SELECTED_EXAMPLES_LIST}}/g,
-      userSelectedExamplesListString
-    );
-
   try {
     console.log(
-      `[API generate-modal-narrative] Calling Gemini (${NARRATIVE_MODEL_NAME}) for narrative for tool: ${toolDirective}.`
+      `[API generate-modal-narrative] Calling Gemini (${NARRATIVE_MODEL_NAME}) for narrative for tool: ${processedRequestDataForPrompt.toolDirective}. Prompt length: ~${prompt.length}`
     );
+
     const model = genAI.getGenerativeModel({ model: NARRATIVE_MODEL_NAME });
 
     const result = await model.generateContent({
@@ -245,38 +518,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(defaultFallbackEpic, { status: 200 });
     }
 
-    try {
-      const narrativeResult = JSON.parse(responseText) as ResouceGenerationEpic;
+    const narrativeResult = parseDelimitedNarrative(responseText);
 
-      if (
-        !narrativeResult.epicCompanyName ||
-        !narrativeResult.epicCompanyEmployeeName ||
-        !narrativeResult.epicCompanyJobTitle ||
-        !narrativeResult.epicCompanyEmployeeEmoji ||
-        !Array.isArray(narrativeResult.epicNarrative) ||
-        narrativeResult.epicNarrative.length !== 10 ||
-        !narrativeResult.epicNarrative.every(
-          (ch) =>
-            typeof ch.chapterEmoji === 'string' &&
-            ch.chapterEmoji.trim() !== '' &&
-            typeof ch.chapterStory === 'string' &&
-            ch.chapterStory.trim() !== ''
-        )
-      ) {
-
-        console.log(responseText);
-
-        return NextResponse.json(defaultFallbackEpic, { status: 200 });
-      }
+    if (narrativeResult) {
       console.log(
-        `[API generate-modal-narrative] Narrative generation successful for ${toolDirective}`
+        `[API generate-modal-narrative] Narrative generation and parsing successful for ${processedRequestDataForPrompt.toolDirective}`
       );
       return NextResponse.json(narrativeResult, { status: 200 });
-    } catch (parseError) {
-      console.error(
-        '[API generate-modal-narrative] Error parsing JSON response from AI. Returning fallback epic:',
-        parseError,
-        `Raw text: ${responseText}`
+    } else {
+      console.warn(
+        '[API generate-modal-narrative] Failed to parse delimited narrative from AI. Returning fallback epic. Raw text:',
+        responseText
       );
       return NextResponse.json(defaultFallbackEpic, { status: 200 });
     }

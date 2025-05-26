@@ -69,7 +69,6 @@ export default function ValidateDirective({
       return finalModelOptionsForUI[0];
     }
     if (finalModelOptionsForUI.length === 0 && !fallbackModelsLoading) {
-
       return defaultModelName;
     }
     return null;
@@ -118,7 +117,6 @@ export default function ValidateDirective({
     if (finalModelOptionsForUI.length > 0) {
       modelToSet = finalModelOptionsForUI[0];
     } else if (!fallbackModelsLoading) {
-
       modelToSet = defaultModelName;
     }
 
@@ -172,7 +170,6 @@ export default function ValidateDirective({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           toolDirective: finalDirective,
-
         }),
       });
 

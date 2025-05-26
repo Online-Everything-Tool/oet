@@ -127,7 +127,6 @@ export default function BuildToolClient() {
       !selectedGenerationModel &&
       defaultModelName
     ) {
-
       setSelectedGenerationModel(defaultModelName);
     }
   }, [generationModelOptions, selectedGenerationModel, defaultModelName]);
@@ -430,7 +429,6 @@ export default function BuildToolClient() {
           <ValidateDirective
             toolDirective={toolDirective}
             setToolDirective={setToolDirective}
-
             validationModelOptions={validationModelOptions}
             defaultModelName={defaultModelName}
             onValidationSuccess={handleValidationSuccess}
@@ -449,7 +447,6 @@ export default function BuildToolClient() {
             validationResult={validationResult}
             additionalDescription={additionalDescription}
             setAdditionalDescription={setAdditionalDescription}
-
             availableGenerationModels={
               generationModelOptions.length > 0
                 ? generationModelOptions
