@@ -8,14 +8,14 @@ import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 
 export default function TextWhitespaceRemoverPage() {
   const typedMetadata = metadata as ToolMetadata;
-  const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
-  const toolTitle = metadata.title || 'Text Whitespace Remover';
+  const urlStateParams = typedMetadata.urlStateParams as ParamConfig[];
+  const toolTitle = typedMetadata.title || 'Text Whitespace Remover';
   const toolRoute = '/tool/text-whitespace-remover';
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader title={toolTitle} description={typedMetadata.description || ''} />
       <ToolSuspenseWrapper>
         <TextWhitespaceRemoverClient urlStateParams={urlStateParams} toolRoute={toolRoute} />
       </ToolSuspenseWrapper>

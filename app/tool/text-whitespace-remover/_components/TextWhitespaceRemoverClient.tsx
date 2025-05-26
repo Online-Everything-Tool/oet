@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import useToolState from '../../_hooks/useToolState';
 import Textarea from '../../_components/form/Textarea';
 import Button from '../../_components/form/Button';
@@ -13,10 +13,13 @@ import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
 import importedMetadata from '../metadata.json';
-import { XCircleIcon } from '@heroicons/react/24/solid';
 import { ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import type { StoredFile } from '@/src/types/storage';
+import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
+import { useEffect } from 'react';
 
 
 interface TextWhitespaceRemoverToolState {
@@ -98,8 +101,8 @@ export default function TextWhitespaceRemoverClient({
     if (firstItem) {
       try {
         newText = await firstItem.blob.text();
-        if ('id' in firstItem && 'name' in firstItem) {
-          loadedFilename = (firstItem as StoredFile).filename;
+        if ('filename' in firstItem) {
+          loadedFilename = firstItem.filename;
         }
       } catch (e) {
         const errorMsgText = e instanceof Error ? e.message : String(e);
@@ -160,19 +163,19 @@ export default function TextWhitespaceRemoverClient({
 
   const handleWhitespaceActionChange = useCallback((value: 'replace' | 'reduce') => {
     setToolState({ whitespaceAction: value, outputValue: '' });
-  }, []);
+  }, [setToolState]);
 
   const handleReplaceWithChange = useCallback((value: 'nothing' | 'carriageReturn') => {
     setToolState({ replaceWith: value, outputValue: '' });
-  }, []);
+  }, [setToolState]);
 
   const handleReduceSpacesToChange = useCallback((value: number) => {
     setToolState({ reduceSpacesTo: value, outputValue: '' });
-  }, []);
+  }, [setToolState]);
 
   const handleInputChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setToolState({ inputText: event.target.value, lastLoadedFilename: null, outputValue: '' });
-  }, []);
+  }, [setToolState]);
 
   const removeExtraWhitespace = useCallback(() => {
     if (!toolState.inputText) return;
@@ -187,7 +190,7 @@ export default function TextWhitespaceRemoverClient({
       output = output.replace(/\s{2,}/g, ' '.repeat(toolState.reduceSpacesTo));
     }
     setToolState({ outputValue: output });
-  }, [toolState]);
+  }, [toolState, setToolState]);
 
   useEffect(() => {
     removeExtraWhitespace();
