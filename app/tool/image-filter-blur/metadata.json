@@ -1,0 +1,24 @@
+{
+  "title": "Image Blur Filter",
+  "directive": "image-filter-blur",
+  "description": "Applies a blur filter effect to an image.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["image/*"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "blur", "filter"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
