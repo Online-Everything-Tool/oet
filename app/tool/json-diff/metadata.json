@@ -1,0 +1,21 @@
+{
+  "title": "JSON Diff",
+  "directive": "json-diff",
+  "description": "Compare two JSON objects and highlight their differences.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/json"],
+    "stateFiles": ["none"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "diff",
+        "mimeType": "application/json"
+      }
+    ]
+  },
+  "tags": ["json", "diff", "compare"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
