@@ -1,0 +1,25 @@
+{
+  "title": "Image Blender",
+  "directive": "image-blender",
+  "description": "The image-blender tool combines multiple images into a single blended image.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["image/*"],
+    "stateFiles": [
+      {
+        "stateKey": "imageId",
+        "arrayStateKey": "inputImages"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "blend", "combine", "graphics", "layer"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
