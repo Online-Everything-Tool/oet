@@ -165,6 +165,8 @@ jobs:
             done
           fi # End of if new dependencies exist
 
+          echo "safe to install list: $safe_to_install_list"
+
           # --- Perform installations (logic unchanged) ---
           if [ ${#safe_to_install_list[@]} -gt 0 ]; then
             echo "Attempting to install safe dependencies: ${safe_to_install_list[*]}"
