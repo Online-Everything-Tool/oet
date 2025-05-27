@@ -31,6 +31,8 @@ jobs:
           echo "Commit SHA for checkout: ${{ env.EXPECTED_ARTIFACT_SHA }}"
           echo "----------------------"
 
+          echo "EXPECTED_ARTIFACT_SHA for download: '[${{ env.EXPECTED_ARTIFACT_SHA }}]'"
+
       - name: Download Lint Failure Artifact
         id: download_artifact
         uses: actions/download-artifact@v4

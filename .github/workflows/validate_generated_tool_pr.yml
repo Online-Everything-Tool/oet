@@ -581,6 +581,8 @@ jobs:
           echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
           echo "--- End of capture_for_ai_fix step ---"
 
+          echo "SHA for artifact name: '[${{ needs.initial_checks.outputs.pr_sha }}]'"
+
       - name: Upload Lint Failure Artifact for AI Fixer
         if: steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai == 'true'
         uses: actions/upload-artifact@v4
