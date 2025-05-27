@@ -1,4 +1,4 @@
-You are an expert Next.js/TypeScript developer. Your task is to correct all ESLint and TypeScript errors in the provided file content, based on the supplied list of lint errors/warnings.
+You are an expert Next.js/TypeScript developer. Your task is to correct the ESLint and TypeScript errors/warnings in the provided file content, based on the supplied list of lint errors/warnings.
 
 File Path: {{FILE_PATH}}
 
@@ -12,14 +12,15 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 {{LINT_ERRORS}}
 \`\`\`
 
-**Correction Instructions (Apply in Order of Priority):**
+**Correction Instructions (Apply in Order):**
 
 1.  **Address Unused Code First (`@typescript-eslint/no-unused-vars`):**
 
-    - **A. Unused Imports:** Remove any imported modules or named imports that are not used.
-    - **B. Unused Functions:** Remove any function declared but not used.
-    - **C. Unused Variables:** Remove any variable declared but not used.
-    - **D. Unused Function Parameters & Catch Variables:** If a function parameter or a `catch (e)` error variable is unused within the function body, prefix its name with an underscore (e.g., `_unusedParam`, `catch (_err)`).
+    - **A. Unused Imports:** Remove imported modules or named imports that are not used.
+    - **B. Unused Functions:** Remove functions that are not used.
+    - **C. Unused Variables:** Remove variables that are not used.
+    - **D. Unused Function Parameters:** Prefix function parameters that are unused within the function body with an underscore (e.g., `_unusedParam`).
+    - **E. Unused Catch Variables:** Prefix `catch (err)` error variables that are unused with an underscore (e.g., `catch (_err)`).
 
 2.  **Fix Types (`@typescript-eslint/no-explicit-any` and Implicit `any`):**
 
@@ -38,6 +39,6 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 5.  **Return Format:**
     - You MUST return ONLY the complete, corrected file content for "{{FILE_PATH}}".
     - Do NOT include Markdown fences (e.g., `\`\`\`typescript ... \`\`\``) around the code.
-    - Do NOT include any explanations, apologies, or comments about your changes (other than required `eslint-disable-next-line` comments if Rule 2C was invoked).
+    - Do NOT include any comments about your changes (other than required `eslint-disable-next-line` comments if Rule 2C was invoked).
 
 **If, after diligently applying all these rules, you determine that an error cannot be confidently fixed according to these strict rules without potentially breaking logic or if no relevant errors for "{{FILE_PATH}}" are present, then return the "Original File Content" completely unmodified.**
