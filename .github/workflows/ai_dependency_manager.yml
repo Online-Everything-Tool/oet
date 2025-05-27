@@ -252,6 +252,25 @@ jobs:
           echo "Pushing dependency changes to branch ${{ env.PR_HEAD_BRANCH }}..."
           git push https://x-access-token:${GITHUB_TOKEN_FOR_PUSH}@github.com/${{ github.repository }}.git HEAD:${{ env.PR_HEAD_BRANCH }}
 
+      - name: Trigger Re-validation via PR Comment After Dep Push
+        if: steps.vet_and_install.outputs.changes_made == 'true' # Only if ADM pushed changes
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} # Use PAT with comment permissions
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            if (isNaN(prNumber)) {
+              core.setFailed("ADM: Could not determine PR number for re-validation comment.");
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: '/revalidate-ai-fixes' 
+            });
+            core.info(`ADM: Posted /revalidate-ai-fixes comment to PR #${prNumber} after dependency changes.`);
+
       - name: Post Summary Comment to PR
         uses: actions/github-script@v7
         if: always() # Post comment regardless of previous step failures, to inform user
