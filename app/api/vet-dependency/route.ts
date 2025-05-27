@@ -30,6 +30,7 @@ interface VetDependencyRequestBody {
   packageName: string;
   toolDirective: string;
   toolDescription: string;
+  assetInstructions?: string | null;
   vettingModelName?: string;
 }
 
@@ -74,6 +75,7 @@ async function readVettingPromptTemplate(): Promise<string> {
       'vetting_prompt_template.md'
     );
     promptTemplateCache = await fs.readFile(templatePath, 'utf-8');
+    console.log('[API vet-dependency] Vetting prompt template loaded.');
     return promptTemplateCache;
   } catch (error) {
     console.error(
@@ -97,8 +99,6 @@ function isValidVetDependencyResult(obj: any): obj is VetDependencyResult {
     'yes',
     'no',
     'unknown',
-    'likely_no',
-    'likely_yes',
   ];
   const popularityValues: VetDependencyResult['popularityIndication'][] = [
     'high',
@@ -110,14 +110,38 @@ function isValidVetDependencyResult(obj: any): obj is VetDependencyResult {
   ];
 
   for (const field of requiredStringFields) {
-    if (typeof obj[field] !== 'string') return false;
+    if (typeof obj[field] !== 'string') {
+      console.warn(
+        `[isValidVetDependencyResult] Missing or invalid string field: ${field}`,
+        obj
+      );
+      return false;
+    }
   }
   for (const field of requiredBooleanFields) {
-    if (typeof obj[field] !== 'boolean') return false;
+    if (typeof obj[field] !== 'boolean') {
+      console.warn(
+        `[isValidVetDependencyResult] Missing or invalid boolean field: ${field}`,
+        obj
+      );
+      return false;
+    }
   }
-  if (!makesNetworkCallsValues.includes(obj.makesNetworkCalls)) return false;
-  if (!popularityValues.includes(obj.popularityIndication)) return false;
 
+  if (!makesNetworkCallsValues.includes(obj.makesNetworkCalls)) {
+    console.warn(
+      `[isValidVetDependencyResult] Invalid makesNetworkCalls value: ${obj.makesNetworkCalls}`,
+      obj
+    );
+    return false;
+  }
+  if (!popularityValues.includes(obj.popularityIndication)) {
+    console.warn(
+      `[isValidVetDependencyResult] Invalid popularityIndication value: ${obj.popularityIndication}`,
+      obj
+    );
+    return false;
+  }
   return true;
 }
 
@@ -149,10 +173,13 @@ export async function POST(
         'Missing required fields: packageName, toolDirective, toolDescription.'
       );
     }
+    console.log(
+      `[API vet-dependency] Request body parsed. Package: ${packageName}, Tool: ${toolDirective}`
+    );
   } catch (error: unknown) {
     const msg =
       error instanceof Error ? error.message : 'Invalid request body.';
-    console.error('[API vet-dependency] Invalid request body:', msg);
+    console.error('[API vet-dependency] Invalid request body:', msg, error);
     return NextResponse.json(
       { success: false, message: msg, vettingResult: null },
       { status: 400 }
@@ -163,6 +190,7 @@ export async function POST(
     packageName,
     toolDirective,
     toolDescription,
+    assetInstructions,
     vettingModelName = DEFAULT_VETTING_MODEL_NAME,
   } = requestBody;
 
@@ -188,12 +216,18 @@ export async function POST(
   const prompt = promptTemplate
     .replace(/{{PACKAGE_NAME}}/g, packageName)
     .replace(/{{TOOL_DIRECTIVE}}/g, toolDirective)
-    .replace(/{{TOOL_DESCRIPTION}}/g, toolDescription);
+    .replace(/{{TOOL_DESCRIPTION}}/g, toolDescription)
+    .replace(
+      /{{ASSET_INSTRUCTIONS}}/g,
+      assetInstructions ||
+        'No specific asset instructions provided for this dependency vetting context.'
+    );
 
   try {
     console.log(
-      `[API vet-dependency] Calling Gemini (${vettingModelName}) for vetting package: ${packageName}`
+      `[API vet-dependency] Calling Gemini (${vettingModelName}) for vetting package: ${packageName} for tool: ${toolDirective}`
     );
+
     const model = genAI.getGenerativeModel({ model: vettingModelName });
 
     const result = await model.generateContent({
@@ -211,17 +245,25 @@ export async function POST(
     const responseText = result.response.text();
     if (!responseText || responseText.trim() === '') {
       const finishReason = result.response.candidates?.[0]?.finishReason;
+      const safetyRatings = result.response.candidates?.[0]?.safetyRatings;
+      console.warn(
+        `[API vet-dependency] AI returned an empty response for vetting. Finish Reason: ${finishReason || 'Unknown'}. Safety Ratings: ${JSON.stringify(safetyRatings)}`
+      );
       throw new Error(
         `AI returned an empty response for vetting. Finish Reason: ${finishReason || 'Unknown'}`
       );
     }
+
+    console.log(
+      `[API vet-dependency] Raw AI response for ${packageName}:\n${responseText}`
+    );
 
     let vettingData: VetDependencyResult;
     try {
       const parsedJsonFromAI = JSON.parse(responseText);
       if (!isValidVetDependencyResult(parsedJsonFromAI)) {
         console.warn(
-          '[API vet-dependency] AI response failed validation schema.',
+          '[API vet-dependency] AI response failed validation schema after parsing.',
           parsedJsonFromAI
         );
         throw new Error(
@@ -237,13 +279,13 @@ export async function POST(
       console.error(
         '[API vet-dependency] Error parsing JSON response from AI for vetting:',
         msg,
-        `Raw text: ${responseText.substring(0, 500)}...`
+        `Raw text that failed parse: ${responseText.substring(0, 500)}...`
       );
 
       return NextResponse.json(
         {
           success: false,
-          message: `Error parsing AI's vetting response: ${msg}`,
+          message: `Error parsing AI's vetting response: ${msg}. Check server logs for raw AI output.`,
           vettingResult: null,
           error: 'AI_RESPONSE_PARSE_FAILURE',
         },
@@ -252,7 +294,7 @@ export async function POST(
     }
 
     console.log(
-      `[API vet-dependency] Vetting successful for package: ${packageName}`
+      `[API vet-dependency] Vetting successful for package: ${packageName}. SafeAndRelevant: ${vettingData.isLikelySafeAndRelevant}`
     );
     return NextResponse.json(
       {
@@ -276,7 +318,10 @@ export async function POST(
     let errorType = 'AI_SERVICE_ERROR';
     let status = 500;
 
-    if (message.toLowerCase().includes('safety')) {
+    if (
+      message.toLowerCase().includes('safety') ||
+      message.toLowerCase().includes('blocked')
+    ) {
       errorType = 'SAFETY_BLOCK';
       status = 400;
     } else if (message.toLowerCase().includes('max_tokens')) {
@@ -303,6 +348,7 @@ export async function POST(
 
 export async function GET() {
   return NextResponse.json({
-    message: 'API route /api/vet-dependency is active. Use POST.',
+    message:
+      'API route /api/vet-dependency is active. Use POST with packageName, toolDirective, toolDescription, and optional assetInstructions.',
   });
 }

@@ -9,9 +9,8 @@ import { fileURLToPath } from 'url';
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPTS_DIR, '..');
 const TOOLS_BASE_DIR = path.join(PROJECT_ROOT, 'app', 'tool');
-const PUBLIC_DATA_BASE_DIR = path.join(PROJECT_ROOT, 'public', 'data'); // For static assets
+const PUBLIC_DATA_BASE_DIR = path.join(PROJECT_ROOT, 'public', 'data');
 
-// Helper to load .env (basic version)
 async function loadEnv() {
   try {
     const envPath = path.resolve(PROJECT_ROOT, '.env');
@@ -34,26 +33,25 @@ async function loadEnv() {
   } catch (error) {
     // @ts-ignore
     console.warn(
-      `[Real PR Script - loadEnv] Could not load .env file. Error: ${error.message}`
+      `[Real PR Script - loadEnv] Could not load .env file. Error: ${error.message}. Ensure GITHUB_APP_ID and GITHUB_PRIVATE_KEY_BASE64 are set as environment variables if .env is not used.`
     );
   }
 }
 
-// Module-scoped variables
-let appId;
-let privateKeyBase64;
+let appIdEnv;
+let privateKeyBase64Env;
 
-const GITHUB_REPO_OWNER =
-  process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool'; // Use your actual repo owner
-const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'oet'; // Use your actual repo name
-const BASE_BRANCH = process.env.GITHUB_DEFAULT_BRANCH || 'main';
+const GITHUB_REPO_OWNER_ENV =
+  process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool';
+const GITHUB_REPO_NAME_ENV = process.env.GITHUB_REPO_NAME || 'oet';
+const BASE_BRANCH_ENV = process.env.GITHUB_DEFAULT_BRANCH || 'main';
 
 let octokitInstance;
 
 async function getInstallationOctokit() {
   if (octokitInstance) return octokitInstance;
 
-  if (!appId || !privateKeyBase64) {
+  if (!appIdEnv || !privateKeyBase64Env) {
     throw new Error(
       '[Real PR Script] GitHub App ID or Private Key missing. Check .env or environment variables (GITHUB_APP_ID, GITHUB_PRIVATE_KEY_BASE64).'
     );
@@ -61,7 +59,9 @@ async function getInstallationOctokit() {
 
   let privateKeyPem;
   try {
-    privateKeyPem = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
+    privateKeyPem = Buffer.from(privateKeyBase64Env, 'base64').toString(
+      'utf-8'
+    );
     if (!privateKeyPem.startsWith('-----BEGIN')) {
       throw new Error(
         'Decoded private key does not appear to be in PEM format.'
@@ -74,38 +74,39 @@ async function getInstallationOctokit() {
     );
   }
 
-  const appAuth = createAppAuth({ appId, privateKey: privateKeyPem });
+  const appAuth = createAppAuth({ appId: appIdEnv, privateKey: privateKeyPem });
   const appOctokit = new Octokit({
     authStrategy: createAppAuth,
-    auth: { appId, privateKey: privateKeyPem },
+    auth: { appId: appIdEnv, privateKey: privateKeyPem },
   });
 
   let installation;
   try {
+    console.log(
+      `[Real PR Script] Fetching GitHub App installation for ${GITHUB_REPO_OWNER_ENV}/${GITHUB_REPO_NAME_ENV}...`
+    );
     const { data } = await appOctokit.rest.apps.getRepoInstallation({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
     });
     installation = data;
   } catch (e) {
     // @ts-ignore
     console.error(
-      `[Real PR Script] Failed to get repo installation for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Status: ${e.status}`
+      `[Real PR Script] Failed to get repo installation for ${GITHUB_REPO_OWNER_ENV}/${GITHUB_REPO_NAME_ENV}. Status: ${e?.status}`
     );
     throw new Error(
       // @ts-ignore
-      `App installation not found or accessible for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}. Ensure App has permissions. Message: ${e.message}`
+      `App installation not found or accessible for ${GITHUB_REPO_OWNER_ENV}/${GITHUB_REPO_NAME_ENV}. Ensure App has permissions. Message: ${e?.message}`
     );
   }
 
-  // @ts-ignore
   if (!installation.id) {
     throw new Error(
-      `[Real PR Script] App installation ID not found for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`
+      `[Real PR Script] App installation ID not found for ${GITHUB_REPO_OWNER_ENV}/${GITHUB_REPO_NAME_ENV}`
     );
   }
 
-  // @ts-ignore
   const { token } = await appAuth({
     type: 'installation',
     installationId: installation.id,
@@ -115,38 +116,56 @@ async function getInstallationOctokit() {
   return octokitInstance;
 }
 
-// Recursively get all file paths from a directory
 async function getAllFilePaths(dirPath, originalBasePath = dirPath) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map(async (entry) => {
+  let allFiles = [];
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
       const res = path.resolve(dirPath, entry.name);
       if (entry.isDirectory()) {
-        return getAllFilePaths(res, originalBasePath);
+        allFiles = allFiles.concat(
+          await getAllFilePaths(res, originalBasePath)
+        );
+      } else {
+        allFiles.push(path.relative(PROJECT_ROOT, res));
       }
-      // Return path relative to the original base path (e.g., app/tool/<directive> or public/data/<directive>)
-      return path.relative(PROJECT_ROOT, res);
-    })
-  );
-  return Array.prototype.concat(...files);
+    }
+  } catch (error) {
+    // @ts-ignore
+    if (error.code === 'ENOENT') {
+      // directory doesn't exist, which is fine for optional dirs like public/data
+      return [];
+    }
+    throw error; // re-throw other errors
+  }
+  return allFiles;
 }
 
 async function createBlob(octokit, contentBuffer) {
-  // Takes Buffer for binary files
   const { data: blobData } = await octokit.rest.git.createBlob({
-    owner: GITHUB_REPO_OWNER,
-    repo: GITHUB_REPO_NAME,
-    content: contentBuffer.toString('base64'), // Base64 encode for GitHub API
+    owner: GITHUB_REPO_OWNER_ENV,
+    repo: GITHUB_REPO_NAME_ENV,
+    content: contentBuffer.toString('base64'),
     encoding: 'base64',
   });
   return blobData.sha;
 }
 
-async function main() {
-  await loadEnv();
+const formatListForPrBody = (
+  items,
+  noneMessage = '_None provided._',
+  prefix = '- '
+) => {
+  if (!items || !Array.isArray(items) || items.length === 0) return noneMessage;
+  return items.map((item) => `${prefix}\`${item}\``).join('\n');
+};
 
-  appId = process.env.GITHUB_APP_ID;
-  privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
+async function main() {
+  console.log('[Real PR Script] Starting...');
+  await loadEnv(); // Load .env variables into process.env
+
+  appIdEnv = process.env.GITHUB_APP_ID;
+  privateKeyBase64Env = process.env.GITHUB_PRIVATE_KEY_BASE64;
 
   const args = process.argv.slice(2);
   const toolDirective = args.find((arg) => !arg.startsWith('--'));
@@ -176,78 +195,100 @@ async function main() {
     );
     process.exit(1);
   }
+  console.log(`[Real PR Script] Processing tool directive: ${toolDirective}`);
 
   const sourceToolDir = path.join(TOOLS_BASE_DIR, toolDirective);
-  const sourcePublicDataDir = path.join(PUBLIC_DATA_BASE_DIR, toolDirective); // For static assets
+  const sourcePublicDataDir = path.join(PUBLIC_DATA_BASE_DIR, toolDirective);
 
   try {
     await fs.access(sourceToolDir);
+    console.log(`[Real PR Script] Found tool directory: ${sourceToolDir}`);
   } catch (error) {
     console.error(`Error: Source tool directory not found: ${sourceToolDir}`);
     process.exit(1);
   }
 
-  // --- Read tool-generation-info.json ---
   const toolInfoPath = path.join(sourceToolDir, 'tool-generation-info.json');
   let toolInfo = {
+    toolDirective: toolDirective, // Default from arg
+    generatorModel: 'N/A (Manual or Pre-existing)',
     identifiedDependencies: [],
-    generatorModel: 'Unknown',
+    assetInstructions: null,
+    generativeDescription: `Tool for ${toolDirective}`, // Basic default
+    additionalDescription: '',
+    generativeRequestedDirectives: [],
+    userSelectedExampleDirectives: [],
     notes: '',
-  }; // Default structure
-  let identifiedDependenciesString = '[]'; // Default for PR body
+  };
 
   try {
     const toolInfoContent = await fs.readFile(toolInfoPath, 'utf-8');
-    toolInfo = JSON.parse(toolInfoContent);
-    if (
-      toolInfo.identifiedDependencies &&
-      Array.isArray(toolInfo.identifiedDependencies)
-    ) {
-      identifiedDependenciesString = JSON.stringify(
-        toolInfo.identifiedDependencies.map((dep) => dep.packageName || dep),
-        null,
-        2
-      );
-    }
+    const parsedInfo = JSON.parse(toolInfoContent);
+    toolInfo = { ...toolInfo, ...parsedInfo }; // Merge with defaults, parsed overwrites
     console.log(
-      `[Real PR Script] Read tool-generation-info.json for ${toolDirective}.`
+      `[Real PR Script] Successfully read and parsed ${toolInfoPath}.`
     );
   } catch (error) {
     console.warn(
-      `[Real PR Script] Warning: Could not read or parse ${toolInfoPath}. Proceeding with default/empty dependency info.`
+      `[Real PR Script] Warning: Could not read or parse ${toolInfoPath}. Proceeding with defaults.`
     );
     // @ts-ignore
-    console.warn(`  Error: ${error.message}`);
+    console.warn(`  Error details: ${error.message}`);
   }
 
-  const branchSuffix = Date.now().toString().slice(-5);
+  const branchSuffix = Date.now().toString().slice(-6); // Slightly longer suffix
   const newBranchName = `feat/gen-${toolDirective}-${branchSuffix}`;
-  const prTitle = prTitleArg || `feat: Add New Tool - ${toolDirective}`;
+  const defaultPrTitle = `feat: Add New Tool - ${toolDirective}`;
+  const prTitle = prTitleArg || defaultPrTitle;
+
+  // Construct PR Body (enhanced)
+  const identifiedDependenciesForBody = (
+    toolInfo.identifiedDependencies &&
+    Array.isArray(toolInfo.identifiedDependencies)
+      ? toolInfo.identifiedDependencies.map((dep) =>
+          typeof dep === 'string' ? dep : dep.packageName
+        )
+      : []
+  ).filter(Boolean);
+
   const prBody =
     prBodyArg ||
     `This PR introduces the new AI-assisted or manually prepared tool: \`${toolDirective}\`.
 
-**Tool Generation Information:**
-- Model Used: \`${toolInfo.generatorModel || 'N/A (Manual or Pre-existing)'}\`
-${toolInfo.notes ? `- Notes: ${toolInfo.notes}\n` : ''}
+**AI Generated Description (from tool-generation-info.json or default):**
+${toolInfo.generativeDescription || '_No AI description provided._'}
 
-**Identified Dependencies (from tool-generation-info.json):**
-\`\`\`json
-${identifiedDependenciesString}
-\`\`\`
+**User Provided Details/Refinements (from tool-generation-info.json, if any):**
+${toolInfo.additionalDescription || '_None provided._'}
 
-Please review the code, functionality, and ensure all dependencies are correctly handled by CI.
+**AI Model Used for Generation (from tool-generation-info.json):**
+${toolInfo.generatorModel ? `\`${toolInfo.generatorModel}\`` : '_Not specified_'}
+
+**Dependencies Identified (from tool-generation-info.json):**
+${formatListForPrBody(identifiedDependenciesForBody, '_None explicitly identified._')}
+${identifiedDependenciesForBody.length > 0 ? '\n_Note: CI will attempt to vet and install these dependencies. Review PR checks for status._' : ''}
+
+${toolInfo.assetInstructions ? `**Manual Asset Instructions (from tool-generation-info.json):**\n\`\`\`text\n${toolInfo.assetInstructions}\n\`\`\`\n_Note: If this tool requires manual asset placement, please ensure they are added as per these instructions._\n` : ''}
+
+**AI Requested Examples During Tool Conception (from tool-generation-info.json):**
+${formatListForPrBody(toolInfo.generativeRequestedDirectives, '_None requested or loaded._')}
+
+**User Selected Examples During Tool Conception (from tool-generation-info.json):**
+${formatListForPrBody(toolInfo.userSelectedExampleDirectives, '_None selected by user._')}
+
+${toolInfo.notes ? `**Additional Notes (from tool-generation-info.json):**\n${toolInfo.notes}\n` : ''}
+*Please review the attached code changes and CI checks.*
 `;
 
-  const targetBaseBranch = prBaseBranchArg || BASE_BRANCH;
+  const targetBaseBranch = prBaseBranchArg || BASE_BRANCH_ENV;
 
   const octokit = await getInstallationOctokit();
 
   try {
     console.log(`Fetching SHA for base branch: ${targetBaseBranch}...`);
     const { data: baseBranchData } = await octokit.rest.repos.getBranch({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
       branch: targetBaseBranch,
     });
     const baseSha = baseBranchData.commit.sha;
@@ -257,8 +298,8 @@ Please review the code, functionality, and ensure all dependencies are correctly
       `Creating new branch: ${newBranchName} from ${targetBaseBranch} (SHA: ${baseSha})...`
     );
     await octokit.rest.git.createRef({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
       ref: `refs/heads/${newBranchName}`,
       sha: baseSha,
     });
@@ -266,90 +307,90 @@ Please review the code, functionality, and ensure all dependencies are correctly
 
     const treeObjects = [];
 
-    // 1. Process files from app/tool/<directive>/
+    console.log(`Processing files from tool directory: ${sourceToolDir}`);
     const toolFilesRelativePaths = await getAllFilePaths(sourceToolDir);
-    console.log(`Found files in ${sourceToolDir}:`, toolFilesRelativePaths);
-    for (const relativeFilePath of toolFilesRelativePaths) {
-      const fullFilePath = path.join(PROJECT_ROOT, relativeFilePath); // Use project root to make absolute path
-      const contentBuffer = await fs.readFile(fullFilePath); // Read as buffer
-      const blobSha = await createBlob(octokit, contentBuffer);
-      treeObjects.push({
-        path: relativeFilePath, // Path relative to project root
-        mode: '100644',
-        type: 'blob',
-        sha: blobSha,
-      });
-      console.log(`Prepared blob for ${relativeFilePath}`);
-    }
-
-    // 2. Process files from public/data/<directive>/ (if exists)
-    try {
-      await fs.access(sourcePublicDataDir); // Check if directory exists
-      const publicDataFilesRelativePaths =
-        await getAllFilePaths(sourcePublicDataDir);
+    if (toolFilesRelativePaths.length > 0) {
       console.log(
-        `Found files in ${sourcePublicDataDir}:`,
-        publicDataFilesRelativePaths
+        `Found files in ${sourceToolDir}:`,
+        toolFilesRelativePaths.join(', ')
       );
-      for (const relativeFilePath of publicDataFilesRelativePaths) {
+      for (const relativeFilePath of toolFilesRelativePaths) {
         const fullFilePath = path.join(PROJECT_ROOT, relativeFilePath);
-        const contentBuffer = await fs.readFile(fullFilePath); // Read as buffer for assets
+        const contentBuffer = await fs.readFile(fullFilePath);
         const blobSha = await createBlob(octokit, contentBuffer);
         treeObjects.push({
-          path: relativeFilePath, // Path relative to project root
+          path: relativeFilePath,
           mode: '100644',
           type: 'blob',
           sha: blobSha,
         });
-        console.log(`Prepared blob for asset ${relativeFilePath}`);
+        console.log(`  Prepared blob for ${relativeFilePath}`);
       }
-    } catch (error) {
-      // @ts-ignore
-      if (error.code === 'ENOENT') {
-        console.log(
-          `No public data directory found at ${sourcePublicDataDir}, skipping asset processing.`
-        );
-      } else {
-        console.warn(
-          `Warning: Could not process public data directory ${sourcePublicDataDir}: ${error}`
-        );
+    } else {
+      console.log(`No files found in ${sourceToolDir}.`);
+    }
+
+    console.log(
+      `Processing files from public data directory: ${sourcePublicDataDir}`
+    );
+    const publicDataFilesRelativePaths =
+      await getAllFilePaths(sourcePublicDataDir);
+    if (publicDataFilesRelativePaths.length > 0) {
+      console.log(
+        `Found files in ${sourcePublicDataDir}:`,
+        publicDataFilesRelativePaths.join(', ')
+      );
+      for (const relativeFilePath of publicDataFilesRelativePaths) {
+        const fullFilePath = path.join(PROJECT_ROOT, relativeFilePath);
+        const contentBuffer = await fs.readFile(fullFilePath);
+        const blobSha = await createBlob(octokit, contentBuffer);
+        treeObjects.push({
+          path: relativeFilePath,
+          mode: '100644',
+          type: 'blob',
+          sha: blobSha,
+        });
+        console.log(`  Prepared blob for asset ${relativeFilePath}`);
       }
+    } else {
+      console.log(
+        `No files found in ${sourcePublicDataDir} (this may be normal).`
+      );
     }
 
     if (treeObjects.length === 0) {
       console.error(
         'Error: No files found to commit in the specified tool or public data directories.'
       );
-      // Optionally, delete the created branch if no files
       await octokit.rest.git.deleteRef({
-        owner: GITHUB_REPO_OWNER,
-        repo: GITHUB_REPO_NAME,
+        owner: GITHUB_REPO_OWNER_ENV,
+        repo: GITHUB_REPO_NAME_ENV,
         ref: `heads/${newBranchName}`,
       });
       console.log(`Cleaned up empty branch ${newBranchName}.`);
       process.exit(1);
     }
 
-    console.log('Creating new git tree...');
+    console.log('Creating new git tree with collected file blobs...');
     const { data: treeData } = await octokit.rest.git.createTree({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
-      base_tree: baseSha, // Important to base on the target branch's tree if it's not empty
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
+      base_tree: baseSha,
       tree: treeObjects,
     });
     console.log(`New tree created (SHA: ${treeData.sha})`);
 
-    const commitMessage = `feat: Add tool '${toolDirective}' and associated assets`;
-    console.log('Creating new commit...');
+    const commitMessage = prTitle; // Use PR title as commit message for simplicity
+    console.log(`Creating new commit with message: "${commitMessage}"...`);
     const { data: newCommit } = await octokit.rest.git.createCommit({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
       message: commitMessage,
       tree: treeData.sha,
       parents: [baseSha],
       author: {
         name: 'OET Real PR Script Bot',
-        email: 'bot@online-everything-tool.com',
+        email: 'bot@online-everything-tool.com', // Update if you have a specific bot email
       },
     });
     console.log(`New commit created (SHA: ${newCommit.sha})`);
@@ -358,8 +399,8 @@ Please review the code, functionality, and ensure all dependencies are correctly
       `Updating branch ${newBranchName} to point to commit ${newCommit.sha}...`
     );
     await octokit.rest.git.updateRef({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
       ref: `heads/${newBranchName}`,
       sha: newCommit.sha,
     });
@@ -367,8 +408,8 @@ Please review the code, functionality, and ensure all dependencies are correctly
 
     console.log(`Creating Pull Request: "${prTitle}"...`);
     const { data: pullRequest } = await octokit.rest.pulls.create({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+      owner: GITHUB_REPO_OWNER_ENV,
+      repo: GITHUB_REPO_NAME_ENV,
       title: prTitle,
       body: prBody,
       head: newBranchName,
@@ -379,13 +420,15 @@ Please review the code, functionality, and ensure all dependencies are correctly
       `✅ Pull Request created successfully! URL: ${pullRequest.html_url}`
     );
   } catch (error) {
-    console.error('❌ Error in script:');
+    console.error('❌ Error in script execution:');
     // @ts-ignore
     if (error.status) {
+      // @ts-ignore
       console.error(`  Status: ${error.status}`);
     }
     // @ts-ignore
     if (error.message) {
+      // @ts-ignore
       console.error(`  Message: ${error.message}`);
     }
     // @ts-ignore
@@ -393,25 +436,29 @@ Please review the code, functionality, and ensure all dependencies are correctly
       console.error('  GitHub API Errors:');
       // @ts-ignore
       error.response.data.errors.forEach((err) =>
-        // @ts-ignore
         console.error(
+          // @ts-ignore
           `    - ${err.resource} ${err.field}: ${err.code} (${err.message})`
         )
       );
       // @ts-ignore
     } else if (error.response?.data) {
       // @ts-ignore
-      console.error('  GitHub API Response Data:', error.response.data);
+      console.error('  GitHub API Response Data (raw):', error.response.data);
     }
     // @ts-ignore
     if (error.stack && !error.status) {
-      /* console.error('  Stack trace:', error.stack); */
+      // console.error('  Stack trace:', error.stack); // Often too verbose
     }
     // @ts-ignore
     if (!error.status) {
+      // Log full object for non-API errors
       console.error('Full error object:', error);
     }
   }
 }
 
-main();
+main().catch((e) => {
+  console.error('Unhandled error in main execution:', e);
+  process.exit(1);
+});

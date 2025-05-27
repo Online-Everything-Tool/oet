@@ -78,39 +78,62 @@ jobs:
         run: |
           set -e # Exit on error
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path }}"
+
+          echo "Contents of PENDING_DEPS_FILE ($PENDING_DEPS_FILE):"
+          cat "$PENDING_DEPS_FILE" # Log the artifact content for debugging
+
           TOOL_DIRECTIVE=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
-          TOOL_DESCRIPTION=$(jq -r '.toolDescription' "$PENDING_DEPS_FILE")
-          NEW_DEPENDENCIES_JSON=$(jq -c '.newDependencies[]' "$PENDING_DEPS_FILE") # Get each dep as a line of JSON
+          # Ensure TOOL_DESCRIPTION is correctly populated in the artifact by V_PR
+          TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided in artifact."' "$PENDING_DEPS_FILE") 
+          # Extract assetInstructions from the artifact
+          ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
+
+          # Ensure newDependencies is an array, default to empty if not or null
+          NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
 
           safe_to_install_list=()
           unsafe_details_list=()
           manual_review_details_list=()
           changes_made_to_package_json=false
 
-          if [ -z "$NEW_DEPENDENCIES_JSON" ]; then
+          if [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -eq 0 ]; then
             echo "No new dependencies listed in the artifact to vet or install."
           else
-            echo "$NEW_DEPENDENCIES_JSON" | while IFS= read -r dep_json; do
+            # Iterate over each dependency object
+            echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -c '.[]' | while IFS= read -r dep_json; do
               packageName=$(echo "$dep_json" | jq -r '.packageName')
-              echo "--- Vetting dependency: $packageName for tool $TOOL_DIRECTIVE ---"
+              if [ "$packageName" == "null" ] || [ -z "$packageName" ]; then
+                echo "::warning::Skipping dependency with no packageName."
+                continue
+              fi
 
+              echo "--- Vetting dependency: $packageName for tool $TOOL_DIRECTIVE ---"
+              echo "Tool Description for vetting: $TOOL_DESCRIPTION"
+              echo "Asset Instructions for vetting (first 100 chars): ${ASSET_INSTRUCTIONS_FROM_ARTIFACT:0:100}..."
+
+              # Construct the API payload, now including assetInstructions
               API_PAYLOAD=$(jq -n \
                 --arg pkg "$packageName" \
                 --arg directive "$TOOL_DIRECTIVE" \
                 --arg desc "$TOOL_DESCRIPTION" \
-                '{packageName: $pkg, toolDirective: $directive, toolDescription: $desc}')
+                --arg assetInst "$ASSET_INSTRUCTIONS_FROM_ARTIFACT" \
+                '{packageName: $pkg, toolDirective: $directive, toolDescription: $desc, assetInstructions: $assetInst}')
               
+              echo "Sending payload to VET_DEPENDENCY_API_ENDPOINT:"
+              echo "$API_PAYLOAD"
+
               HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "${{ env.VET_DEPENDENCY_API_ENDPOINT }}" \
                 -H "Content-Type: application/json" \
                 -d "$API_PAYLOAD" \
                 -o "${{ runner.temp }}/vet_response.json")
               
+              echo "Vetting API response for $packageName (HTTP $HTTP_RESPONSE_CODE):"
               cat "${{ runner.temp }}/vet_response.json" # Log response for debugging
 
               if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
                 echo "::error::API call to vet $packageName failed (HTTP $HTTP_RESPONSE_CODE). See response above."
                 unsafe_details_list+=("'$packageName' (API call failed: HTTP $HTTP_RESPONSE_CODE)")
-                continue # Move to next dependency
+                continue 
               fi
 
               vetting_success=$(jq -r .success "${{ runner.temp }}/vet_response.json")
@@ -128,23 +151,23 @@ jobs:
               echo "Vetting result for $packageName: SafeAndRelevant=$isSafeAndRelevant, NetworkCalls=$makesNetworkCalls"
               echo "Justification: $justification"
 
-              if [ "$isSafeAndRelevant" = "true" ] && ( [ "$makesNetworkCalls" = "no" ] || [ "$makesNetworkCalls" = "likely_no" ] ); then
+              # Adjusted logic: if AI says 'no' to network calls (because it understands local assets plan)
+              if [ "$isSafeAndRelevant" = "true" ] && [ "$makesNetworkCalls" = "no" ]; then
                 safe_to_install_list+=("$packageName")
                 echo "$packageName deemed safe to install."
-              elif [ "$makesNetworkCalls" = "yes" ] || [ "$makesNetworkCalls" = "likely_yes" ]; then
-                unsafe_details_list+=("'$packageName' (Reason: Likely makes external network calls. Justification: $justification)")
-                echo "::error::$packageName flagged as potentially making network calls."
-              else # Unknown network calls, not relevant, or other concerns
-                manual_review_details_list+=("'$packageName' (Reason: Needs review. Network calls: $makesNetworkCalls. Justification: $justification)")
-                echo "::warning::$packageName flagged for manual review."
+              elif [ "$makesNetworkCalls" = "yes" ]; then
+                unsafe_details_list+=("'$packageName' (Reason: Makes external network calls. Justification: $justification)")
+                echo "::error::$packageName flagged as making network calls by vetting API."
+              else # unknown network calls, not relevant, or other concerns
+                manual_review_details_list+=("'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesNetworkCalls. Justification: $justification)")
+                echo "::warning::$packageName flagged for manual review by vetting API."
               fi
             done
-          fi # End of if [ -n "$NEW_DEPENDENCIES_JSON" ]
+          fi # End of if new dependencies exist
 
-          # --- Perform installations ---
+          # --- Perform installations (logic unchanged) ---
           if [ ${#safe_to_install_list[@]} -gt 0 ]; then
             echo "Attempting to install safe dependencies: ${safe_to_install_list[*]}"
-            # Check if dependencies are already in package.json (might have been added manually or by a previous run)
             final_deps_to_install=()
             for pkg_name in "${safe_to_install_list[@]}"; do
                 if ! grep -q "\"$pkg_name\"" package.json; then
@@ -156,7 +179,7 @@ jobs:
             
             if [ ${#final_deps_to_install[@]} -gt 0 ]; then
                 echo "Actually installing: ${final_deps_to_install[*]}"
-                npm install "${final_deps_to_install[@]}" --save # Or --save-dev if discernible
+                npm install "${final_deps_to_install[@]}" --save 
                 changes_made_to_package_json=true
             else
                 echo "No new safe dependencies to install (all were already present or none were safe)."
@@ -165,10 +188,22 @@ jobs:
 
           echo "changes_made=$changes_made_to_package_json" >> $GITHUB_OUTPUT
           echo "unsafe_deps_count=${#unsafe_details_list[@]}" >> $GITHUB_OUTPUT
-          # Store details for comment - complex to pass arrays directly via output, better to construct comment here
-          echo "UNSAFE_DEPS_DETAILS=${unsafe_details_list[*]}" >> $GITHUB_ENV
-          echo "MANUAL_REVIEW_DEPS_DETAILS=${manual_review_details_list[*]}" >> $GITHUB_ENV
-          echo "INSTALLED_DEPS_LIST=${safe_to_install_list[*]}" >> $GITHUB_ENV
+
+          # Join array elements with a unique delimiter for easier parsing in github-script later
+          # Or better, write to files if details are long/complex
+          UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_details_list[*]}")
+          MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_details_list[*]}")
+          INSTALLED_DEPS_STR=$(IFS=' '; echo "${safe_to_install_list[*]}")
+
+          echo "UNSAFE_DEPS_DETAILS<<EOF_UNSAFE" >> $GITHUB_ENV
+          echo "$UNSAFE_DETAILS_STR" >> $GITHUB_ENV
+          echo "EOF_UNSAFE" >> $GITHUB_ENV
+
+          echo "MANUAL_REVIEW_DEPS_DETAILS<<EOF_MANUAL" >> $GITHUB_ENV
+          echo "$MANUAL_REVIEW_DETAILS_STR" >> $GITHUB_ENV
+          echo "EOF_MANUAL" >> $GITHUB_ENV
+
+          echo "INSTALLED_DEPS_LIST=$INSTALLED_DEPS_STR" >> $GITHUB_ENV
 
       - name: Commit and Push Dependency Changes
         if: steps.vet_and_install.outputs.changes_made == 'true'
