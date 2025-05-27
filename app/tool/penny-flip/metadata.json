@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: PennyFlip (With Lint Error)",
+  "directive": "penny-flip",
+  "description": "A dummy tool for testing CI workflows: penny-flip. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
