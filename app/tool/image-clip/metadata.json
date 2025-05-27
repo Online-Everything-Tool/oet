@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: ImageClip (With Lint Error)",
+  "directive": "image-clip",
+  "description": "A dummy tool for testing CI workflows: image-clip. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
