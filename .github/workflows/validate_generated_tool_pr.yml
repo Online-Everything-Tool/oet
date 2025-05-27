@@ -286,93 +286,102 @@ jobs:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
           TOOL_DESCRIPTION: ${{ needs.initial_checks.outputs.tool_description_from_metadata || 'No description available for tool.' }}
         run: |
-          # In .github/workflows/validate_generated_tool_pr.yml
-          # Job: analyze_dependencies
-          # Step: Check for New Undeclared Dependencies
+          set -e # Exit immediately if a command exits with a non-zero status.
+          echo "--- Starting: Check for New Undeclared Dependencies ---"
+          echo "Tool Directive: $TOOL_DIRECTIVE"
+          echo "Tool Description (from env): $ENV_TOOL_DESCRIPTION"
 
-          set -e # Bash strict mode
-          # ACTION_REQUIRED will be determined after the loop using a marker
-          ARTIFACT_PATH="${{ runner.temp }}/pending_dependencies.json" # Define where artifact content will be built
+          ARTIFACT_CONTENT_PATH="${{ runner.temp }}/pending_dependencies.json"
+          TOOL_INFO_FILE_PATH="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+          PACKAGE_JSON_FILE_PATH="package.json"
 
-          TOOL_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json" # TOOL_DIRECTIVE from env
-          PACKAGE_JSON_FILE="package.json"
-          # TOOL_DESCRIPTION from env - ensure it's available here if needed for artifact
-
-          if [ ! -f "$TOOL_INFO_FILE" ]; then
-            echo "::notice::'$TOOL_INFO_FILE' not found for tool '${TOOL_DIRECTIVE}'. Assuming no AI-identified dependencies to check."
-            echo "action_required=false" >> $GITHUB_OUTPUT
-            exit 0
+          if [ -z "$TOOL_DIRECTIVE" ]; then
+            echo "::error::Environment variable TOOL_DIRECTIVE is not set."
+            exit 1
           fi
-          if [ ! -f "$PACKAGE_JSON_FILE" ]; then
-            echo "::error::'$PACKAGE_JSON_FILE' not found. Cannot proceed with dependency check."
+          if [ ! -f "$PACKAGE_JSON_FILE_PATH" ]; then
+            echo "::error::'$PACKAGE_JSON_FILE_PATH' not found. Cannot proceed."
             exit 1
           fi
 
-          echo "Reading identified dependencies from '$TOOL_INFO_FILE'..."
-          IDENTIFIED_DEPS_FROM_INFO_JSON=$(jq -r 'if .identifiedDependencies and (.identifiedDependencies | type == "array") then .identifiedDependencies | tojson else "[]" end' "$TOOL_INFO_FILE")
-
-          if [ "$(echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -r 'length')" -eq 0 ]; then
-            echo "No dependencies identified in '$TOOL_INFO_FILE' or format issue."
+          if [ ! -f "$TOOL_INFO_FILE_PATH" ]; then
+            echo "::notice::'$TOOL_INFO_FILE_PATH' not found for tool '${TOOL_DIRECTIVE}'. Assuming no AI-identified dependencies or asset instructions."
             echo "action_required=false" >> $GITHUB_OUTPUT
+            echo "--- Finished: No tool-generation-info.json found ---"
             exit 0
           fi
 
-          TEMP_NEW_DEPS_ARRAY_FILE=$(mktemp)
-          echo "[]" > "$TEMP_NEW_DEPS_ARRAY_FILE" # Initialize with empty JSON array for accumulation
+          echo "Reading 'tool-generation-info.json' from: $TOOL_INFO_FILE_PATH"
+          IDENTIFIED_DEPS_JSON_STR=$(jq -r 'if .identifiedDependencies and (.identifiedDependencies | type == "array") then .identifiedDependencies | tojson else "[]" end' "$TOOL_INFO_FILE_PATH")
+          ASSET_INSTRUCTIONS_STR=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
 
-          FOUND_NEW_DEP_MARKER_FILE=$(mktemp) # Marker file
-          echo "false" > "$FOUND_NEW_DEP_MARKER_FILE" # Default to false
+          if [ "$(echo "$IDENTIFIED_DEPS_JSON_STR" | jq -r 'length')" -eq 0 ]; then
+            echo "No 'identifiedDependencies' array found or it is empty in '$TOOL_INFO_FILE_PATH'."
+            echo "action_required=false" >> $GITHUB_OUTPUT
+            echo "--- Finished: No identified dependencies ---"
+            exit 0
+          fi
 
-          echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
+          TEMP_NEW_DEPS_ACCUMULATOR_FILE=$(mktemp)
+          echo "[]" > "$TEMP_NEW_DEPS_ACCUMULATOR_FILE" # Initialize as empty JSON array
+
+          FOUND_NEW_DEP_MARKER_FILE=$(mktemp)
+          echo "false" > "$FOUND_NEW_DEP_MARKER_FILE"
+
+          echo "Comparing identified dependencies with '$PACKAGE_JSON_FILE_PATH'..."
+          echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
             packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
             if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then
-              echo "::warning::Found a dependency object with no packageName in '$TOOL_INFO_FILE'."
-              continue # Skip this invalid entry
+              echo "::warning::Skipping a dependency entry with no packageName in '$TOOL_INFO_FILE_PATH'."
+              continue
             fi
 
-            # Check if package exists in dependencies or devDependencies
-            if ! jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' "$PACKAGE_JSON_FILE" > /dev/null; then
-              echo "New dependency found: '$packageName' (Not in package.json). Adding to pending list for vetting."
-              current_array_content=$(cat "$TEMP_NEW_DEPS_ARRAY_FILE")
-              echo "$current_array_content" | jq --argjson obj "$dep_obj_json" '. + [$obj]' > "$TEMP_NEW_DEPS_ARRAY_FILE"
-              echo "true" > "$FOUND_NEW_DEP_MARKER_FILE" # Signal that at least one new dep was found
+            if ! jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' "$PACKAGE_JSON_FILE_PATH" > /dev/null; then
+              echo "  New dependency found: '$packageName'. Adding to list for vetting."
+              current_array_content=$(cat "$TEMP_NEW_DEPS_ACCUMULATOR_FILE")
+              echo "$current_array_content" | jq --argjson obj "$dep_obj_json" '. + [$obj]' > "$TEMP_NEW_DEPS_ACCUMULATOR_FILE"
+              echo "true" > "$FOUND_NEW_DEP_MARKER_FILE"
             else
-              echo "Dependency '$packageName' already exists in package.json."
+              echo "  Dependency '$packageName' already exists in '$PACKAGE_JSON_FILE_PATH'."
             fi
           done
 
-          # Read the final state from the marker file AFTER the pipeline/subshell has finished
-          FINAL_ACTION_REQUIRED_VALUE="false"
+          FINAL_ACTION_REQUIRED="false"
           if [ "$(cat "$FOUND_NEW_DEP_MARKER_FILE")" = "true" ]; then
-            FINAL_ACTION_REQUIRED_VALUE="true"
+            FINAL_ACTION_REQUIRED="true"
           fi
-          rm "$FOUND_NEW_DEP_MARKER_FILE"
 
-
-          if [ "$FINAL_ACTION_REQUIRED_VALUE" = "true" ]; then
-            NEW_DEPS_FOR_ARTIFACT_CONTENT=$(cat "$TEMP_NEW_DEPS_ARRAY_FILE")
-            echo "Preparing artifact with new dependencies: $NEW_DEPS_FOR_ARTIFACT_CONTENT"
+          if [ "$FINAL_ACTION_REQUIRED" = "true" ]; then
+            NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR=$(cat "$TEMP_NEW_DEPS_ACCUMULATOR_FILE")
             
-            # Ensure TOOL_DESCRIPTION is available, e.g., from job env or needs.initial_checks.outputs
-            # For now, using a placeholder if not set in env for this specific step.
-            CURRENT_TOOL_DESCRIPTION="${TOOL_DESCRIPTION:-"Description not available for artifact"}"
+            echo "Final list of new dependencies for artifact: $NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR"
+            echo "Tool Description for artifact: $ENV_TOOL_DESCRIPTION"
+            echo "Asset Instructions for artifact (first 100 chars): ${ASSET_INSTRUCTIONS_STR:0:100}..."
 
+            # Construct the artifact content JSON
             jq -n \
               --arg directive "$TOOL_DIRECTIVE" \
-              --arg description "$CURRENT_TOOL_DESCRIPTION" \
-              --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT" \
-              '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps}' > "$ARTIFACT_PATH"
+              --arg description "$ENV_TOOL_DESCRIPTION" \
+              --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
+              --arg assetInst "$ASSET_INSTRUCTIONS_STR" \
+              '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$ARTIFACT_CONTENT_PATH"
             
-            echo "Created artifact content for ai-dependency-manager at $ARTIFACT_PATH:"
-            cat "$ARTIFACT_PATH"
-            echo "artifact_file_path=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT # This output is used by the upload step's 'if'
+            echo "Created artifact content at: $ARTIFACT_CONTENT_PATH"
+            echo "Artifact content preview:"
+            cat "$ARTIFACT_CONTENT_PATH"
+            
+            echo "artifact_file_path=${ARTIFACT_CONTENT_PATH}" >> $GITHUB_OUTPUT
           else
-            echo "No new, undeclared dependencies found requiring action."
-            # No artifact_file_path output means upload step's 'if' will be false for that part
+            echo "No new, undeclared dependencies were found that require action."
           fi
-          rm "$TEMP_NEW_DEPS_ARRAY_FILE"
 
-            echo "action_required=${FINAL_ACTION_REQUIRED_VALUE}" >> $GITHUB_OUTPUT
+          # Cleanup temporary files
+          rm "$TEMP_NEW_DEPS_ACCUMULATOR_FILE"
+          rm "$FOUND_NEW_DEP_MARKER_FILE"
+
+          echo "action_required=${FINAL_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
+          echo "--- Finished: Check for New Undeclared Dependencies ---"
+
       - name: Upload Pending Dependencies Artifact (if any)
         if: steps.check_deps.outputs.action_required == 'true' && steps.check_deps.outputs.artifact_file_path != ''
         uses: actions/upload-artifact@v4
