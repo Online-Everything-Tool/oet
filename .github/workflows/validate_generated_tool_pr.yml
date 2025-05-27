@@ -232,10 +232,15 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Validate Changed File Paths
+        if: |
+          steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' &&
+          github.event_name == 'pull_request' &&
+          github.event.action == 'opened'
         id: validate_paths
         env:
           TOOL_DIRECTIVE: ${{ steps.extract_directive_and_metadata.outputs.tool_directive }}
         run: |
+          echo "Running path validation because it's a 'pull_request.opened' event."    
           if [ -z "$TOOL_DIRECTIVE" ]; then 
             echo "::error::TOOL_DIRECTIVE not set for path validation."
             echo "validation_passed=false" >> $GITHUB_OUTPUT
