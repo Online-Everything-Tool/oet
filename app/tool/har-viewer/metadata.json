@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: HarViewer (With Lint Error)",
+  "directive": "har-viewer",
+  "description": "A dummy tool for testing CI workflows: har-viewer. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
