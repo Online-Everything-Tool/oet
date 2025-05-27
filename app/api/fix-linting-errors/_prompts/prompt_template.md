@@ -17,21 +17,21 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 1.  **Address Unused Code First (`@typescript-eslint/no-unused-vars`):**
 
     - **A. Unused Imports:** You MUST remove any imported modules or named imports that are not used anywhere in the file.
-    - **B. Unused Local Variables & Functions:** If a local variable or function (declared within another function or at the module scope but not exported) is declared but never used, and its removal does not break any other logic, you MUST remove its entire declaration.
-    - **C. Unused Function Parameters & Catch Variables:** If a function parameter or a `catch (e)` error variable is unused within the function body, you MUST prefix its name with an underscore (e.g., `_unusedParam`, `catch (_err)`). Do NOT remove the parameter itself if the function signature requires it (e.g., for interface implementation or an exported function where the signature is public).
+    - **B. Unused Variables & Functions:** If a variable or function (declared within another function or at the module scope but not exported) is declared but never used, you MUST remove its entire declaration.
+    - **C. Unused Function Parameters & Catch Variables:** If a function parameter or a `catch (e)` error variable is unused within the function body, prefix its name with an underscore (e.g., `_unusedParam`, `catch (_err)`).
 
 2.  **Fix Types (`@typescript-eslint/no-explicit-any` and Implicit `any`):**
 
-    - **A. Infer Specific Types (Highest Priority):** If an `any` type (explicit or implicit) causes an error, your **ABSOLUTE FIRST ATTEMPT** must be to replace it with the most specific and correct TypeScript type possible, based on the variable's initialization, usage, and context within the file. For example, if `let x: any = { foo: "bar" }`, infer `let x: { foo: string; } = { foo: "bar" }`.
-    - **B. `unknown` as a Safer Alternative:** If a truly dynamic type is needed and a specific type cannot be reasonably inferred, prefer `unknown` over `any` and use type guards (like `typeof` or `instanceof`) for safe operations.
-    - **C. `eslint-disable-next-line` (Last Resort for `any`):** Only if a specific type cannot be inferred (Priority 2A) AND `unknown` with type guards (Priority 2B) is overly cumbersome or not applicable for a _deliberate, temporary_ use of `any`, you MAY add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` comment on the line immediately preceding the line causing the `no-explicit-any` error.
+    - **A. Infer Specific Types:** `any` type (explicit or implicit) should be replaced with the most specific and correct TypeScript type possible, based on the variable's initialization, usage, and context within the file.
+    - **B. `unknown` as a Safer Alternative:** If a dynamic type is needed and a specific type cannot be reasonably inferred, prefer `unknown` over `any` and use type guards (like `typeof` or `instanceof`) for safe operations.
+    - **C. `eslint-disable-next-line`:** If a specific type cannot be inferred you may add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` comment on the line immediately preceding the line causing the `no-explicit-any` error.
 
-3.  **Fix `prefer-const` Errors:** If a variable is declared with `let` but is never reassigned after its initial declaration, you MUST change its declaration to `const`.
+3.  **Fix `prefer-const` Errors:** If a variable is declared with `let` but is never reassigned after its initial declaration, change its declaration to `const`.
 
 4.  **Strict Adherence to Rules:**
 
-    - **No Logical Changes:** You MUST NOT alter the program's logic, functionality, or intended behavior beyond what is strictly necessary to fix the identified lint/compiler errors according to the rules above.
-    - **No New Functionality:** Do NOT add new features, variables, or functions unless it's a direct and unavoidable consequence of fixing a type error by inferring a more specific type (e.g., importing a type definition if one exists and is appropriate).
+    - **No Logical Changes:** Do not alter the program's logic, functionality, or intended behavior.
+    - **No New Functionality:** Do not add new features, variables, or functions.
     - **Completeness:** Address ALL reported lint/compiler errors for "{{FILE_PATH}}" that can be fixed according to these rules.
 
 5.  **Return Format:**
