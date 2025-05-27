@@ -1,0 +1,7 @@
+{
+  "toolDirective": "text-whitespace-remover",
+  "generatorModel": "models/gemini-1.5-pro-latest",
+  "generationTimestamp": "2025-05-27T14:27:13.893Z",
+  "identifiedDependencies": [],
+  "assetInstructions": null
+}
