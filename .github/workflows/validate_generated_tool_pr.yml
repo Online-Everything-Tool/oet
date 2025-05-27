@@ -234,7 +234,7 @@ jobs:
       - name: Validate Changed File Paths
         id: validate_paths
         env:
-          TOOL_DIRECTIVE: ${{ steps.extract_directive.outputs.tool_directive }}
+          TOOL_DIRECTIVE: ${{ steps.extract_directive_and_metadata.outputs.tool_directive }}
         run: |
           if [ -z "$TOOL_DIRECTIVE" ]; then 
             echo "::error::TOOL_DIRECTIVE not set for path validation."
