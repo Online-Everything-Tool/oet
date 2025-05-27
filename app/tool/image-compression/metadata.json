@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: ImageCompression (With Lint Error)",
+  "directive": "image-compression",
+  "description": "A dummy tool for testing CI workflows: image-compression. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
