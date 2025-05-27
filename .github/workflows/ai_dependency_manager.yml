@@ -238,10 +238,7 @@ jobs:
       - name: Commit and Push Dependency Changes
         if: steps.vet_and_install.outputs.changes_made == 'true'
         env:
-          # Use a PAT that can trigger workflows if needed, or GITHUB_TOKEN if it's configured for that.
-          # For pushing to PR branches opened by others, a PAT is usually safer.
-          # GITHUB_TOKEN can push to PR branches originating from the same repo.
-          GITHUB_TOKEN_FOR_PUSH: ${{ secrets.AI_LINT_FIXER_PAT || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN_FOR_PUSH: ${{ secrets.AI_LINT_FIXER_PAT }}
         run: |
           git config --global user.name "OET Dependency Bot"
           git config --global user.email "bot@online-everything-tool.com" # Or your bot's email
