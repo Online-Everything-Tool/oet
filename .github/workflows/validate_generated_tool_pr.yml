@@ -300,7 +300,7 @@ jobs:
 
   # --- NEW JOB FOR DEPENDENCY ANALYSIS ---
   analyze_dependencies:
-    name: 1B. Analyze & Prepare Dependencies
+    name: 2. Analyze & Prepare Dependencies
     needs: initial_checks
     if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true'
     runs-on: ubuntu-latest
@@ -428,7 +428,7 @@ jobs:
           if-no-files-found: error # Should error if we expect a file but it's not there
 
   build_and_run_douglas_checker:
-    name: 2. Build Tool & Run Douglas Ethos Check
+    name: 3. Build Tool & Run Douglas Ethos Check
     needs: [initial_checks, analyze_dependencies]
     if: >
       success() &&
@@ -721,7 +721,7 @@ jobs:
           fi
 
   report_pr_status:
-    name: 3. Report PR Validation Status & Determine Outcome
+    name: 4. Report PR Validation Status & Determine Outcome
     needs:
       - initial_checks
       - analyze_dependencies
