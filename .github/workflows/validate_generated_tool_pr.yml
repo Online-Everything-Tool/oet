@@ -286,13 +286,17 @@ jobs:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
           TOOL_DESCRIPTION: ${{ needs.initial_checks.outputs.tool_description_from_metadata || 'No description available for tool.' }}
         run: |
-          set -e # Bash strict mode
-          ACTION_REQUIRED="false"
-          NEW_DEPS_FOR_ARTIFACT_CONTENT="[]" # Initialize as empty JSON array string
-          ARTIFACT_PATH="${{ runner.temp }}/pending_dependencies.json"
+          # In .github/workflows/validate_generated_tool_pr.yml
+          # Job: analyze_dependencies
+          # Step: Check for New Undeclared Dependencies
 
-          TOOL_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+          set -e # Bash strict mode
+          # ACTION_REQUIRED will be determined after the loop using a marker
+          ARTIFACT_PATH="${{ runner.temp }}/pending_dependencies.json" # Define where artifact content will be built
+
+          TOOL_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json" # TOOL_DIRECTIVE from env
           PACKAGE_JSON_FILE="package.json"
+          # TOOL_DESCRIPTION from env - ensure it's available here if needed for artifact
 
           if [ ! -f "$TOOL_INFO_FILE" ]; then
             echo "::notice::'$TOOL_INFO_FILE' not found for tool '${TOOL_DIRECTIVE}'. Assuming no AI-identified dependencies to check."
@@ -301,12 +305,10 @@ jobs:
           fi
           if [ ! -f "$PACKAGE_JSON_FILE" ]; then
             echo "::error::'$PACKAGE_JSON_FILE' not found. Cannot proceed with dependency check."
-            # This is a more critical error, might want to fail the job or set a specific error state
             exit 1
           fi
 
           echo "Reading identified dependencies from '$TOOL_INFO_FILE'..."
-          # Ensure identifiedDependencies is an array, default to empty if not found or not array
           IDENTIFIED_DEPS_FROM_INFO_JSON=$(jq -r 'if .identifiedDependencies and (.identifiedDependencies | type == "array") then .identifiedDependencies | tojson else "[]" end' "$TOOL_INFO_FILE")
 
           if [ "$(echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -r 'length')" -eq 0 ]; then
@@ -315,10 +317,12 @@ jobs:
             exit 0
           fi
 
-          TEMP_NEW_DEPS_ARRAY='[]' # Start with an empty JSON array string for jq aggregation
-          ALL_DEPS_EXIST=true
+          TEMP_NEW_DEPS_ARRAY_FILE=$(mktemp)
+          echo "[]" > "$TEMP_NEW_DEPS_ARRAY_FILE" # Initialize with empty JSON array for accumulation
 
-          # Iterate over each dependency object identified by the AI
+          FOUND_NEW_DEP_MARKER_FILE=$(mktemp) # Marker file
+          echo "false" > "$FOUND_NEW_DEP_MARKER_FILE" # Default to false
+
           echo "$IDENTIFIED_DEPS_FROM_INFO_JSON" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
             packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
             if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then
@@ -329,36 +333,46 @@ jobs:
             # Check if package exists in dependencies or devDependencies
             if ! jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' "$PACKAGE_JSON_FILE" > /dev/null; then
               echo "New dependency found: '$packageName' (Not in package.json). Adding to pending list for vetting."
-              ACTION_REQUIRED="true"
-              ALL_DEPS_EXIST=false
-              # Add the full dependency object from tool-generation-info.json
-              TEMP_NEW_DEPS_ARRAY=$(echo "$TEMP_NEW_DEPS_ARRAY" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
+              current_array_content=$(cat "$TEMP_NEW_DEPS_ARRAY_FILE")
+              echo "$current_array_content" | jq --argjson obj "$dep_obj_json" '. + [$obj]' > "$TEMP_NEW_DEPS_ARRAY_FILE"
+              echo "true" > "$FOUND_NEW_DEP_MARKER_FILE" # Signal that at least one new dep was found
             else
               echo "Dependency '$packageName' already exists in package.json."
             fi
           done
 
-          if [ "$ACTION_REQUIRED" = "true" ]; then
-            # Only if there are actual new dependencies, create the artifact content
-            NEW_DEPS_FOR_ARTIFACT_CONTENT="$TEMP_NEW_DEPS_ARRAY"
+          # Read the final state from the marker file AFTER the pipeline/subshell has finished
+          FINAL_ACTION_REQUIRED_VALUE="false"
+          if [ "$(cat "$FOUND_NEW_DEP_MARKER_FILE")" = "true" ]; then
+            FINAL_ACTION_REQUIRED_VALUE="true"
+          fi
+          rm "$FOUND_NEW_DEP_MARKER_FILE"
+
+
+          if [ "$FINAL_ACTION_REQUIRED_VALUE" = "true" ]; then
+            NEW_DEPS_FOR_ARTIFACT_CONTENT=$(cat "$TEMP_NEW_DEPS_ARRAY_FILE")
             echo "Preparing artifact with new dependencies: $NEW_DEPS_FOR_ARTIFACT_CONTENT"
             
-            # Construct the final artifact JSON
+            # Ensure TOOL_DESCRIPTION is available, e.g., from job env or needs.initial_checks.outputs
+            # For now, using a placeholder if not set in env for this specific step.
+            CURRENT_TOOL_DESCRIPTION="${TOOL_DESCRIPTION:-"Description not available for artifact"}"
+
             jq -n \
               --arg directive "$TOOL_DIRECTIVE" \
-              --arg description "$TOOL_DESCRIPTION" \
+              --arg description "$CURRENT_TOOL_DESCRIPTION" \
               --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT" \
               '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps}' > "$ARTIFACT_PATH"
             
             echo "Created artifact content for ai-dependency-manager at $ARTIFACT_PATH:"
             cat "$ARTIFACT_PATH"
-            echo "artifact_file_path=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT # Pass path to next step if needed by upload
+            echo "artifact_file_path=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT # This output is used by the upload step's 'if'
           else
             echo "No new, undeclared dependencies found requiring action."
+            # No artifact_file_path output means upload step's 'if' will be false for that part
           fi
+          rm "$TEMP_NEW_DEPS_ARRAY_FILE"
 
-          echo "action_required=${ACTION_REQUIRED}" >> $GITHUB_OUTPUT
-
+            echo "action_required=${FINAL_ACTION_REQUIRED_VALUE}" >> $GITHUB_OUTPUT
       - name: Upload Pending Dependencies Artifact (if any)
         if: steps.check_deps.outputs.action_required == 'true' && steps.check_deps.outputs.artifact_file_path != ''
         uses: actions/upload-artifact@v4
@@ -525,7 +539,7 @@ jobs:
         if: steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: lint-failure-data-${{ github.event.pull_request.head.sha }}
+          name: lint-failure-data-${{ needs.initial_checks.outputs.pr_sha }}
           path: ${{ runner.temp }}/lint-data-for-artifact/
           if-no-files-found: warn
 

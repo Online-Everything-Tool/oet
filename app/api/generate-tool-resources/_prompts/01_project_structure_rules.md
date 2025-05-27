@@ -6,7 +6,7 @@
     - `app/tool/<directive>/_components/<ComponentName>Client.tsx`: Main Client Component named `<ComponentName>Client.tsx`. Contains core state (useState), logic (handlers, effects), and UI (HTML).
     - `app/tool/<directive>/metadata.json`: Contains tool metadata (title, description, inputConfig, outputConfig etc.). Use the 'ToolMetadata' type definition from `src/types/tools.ts`.
     - **(NEW)** `app/tool/<directive>/tool-generation-info.json`: This file will be created by the system that consumes your generated output. You DO NOT generate this file directly. However, you MUST provide the necessary components for it: specifically, `identifiedDependencies` (as a JSON array string in the `---START_DEPS---` block) and any `assetInstructions` (as plain text in the `---START_ASSET_INSTRUCTIONS---` block if applicable).
-3.  **Decomposition (IMPORTANT):** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
+3.  **Decomposition:** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
     - **Custom Hooks:** For tool-specific complex state logic, side effects, or reusable calculations, create custom hooks in `app/tool/<directive>/_hooks/<hookName>.ts`.
     - **Sub-Components:** For complex UI sections, break them into smaller, focused presentational components in `app/tool/<directive>/_components/<SubComponentName>.tsx`.
 4.  **UI:**
@@ -32,9 +32,13 @@
         3.  Extracting the specific output data (e.g., a `processedFileId` or `outputValue` value) from that source state.
         4.  Setting the current tool's own input state (e.g., using its `setToolState` to update a `selectedFileId` or input text fields) with the received data, and then triggering its own processing logic if appropriate.
 7.  **Shared Components & Hooks:** Utilize the provided shared components (e.g., `Button`, `Input`, `FileSelectionModal`) and hooks (e.g., `useImageProcessing`, `useFileLibrary`) from the Core Project Definitions where appropriate. Study their usage in the examples.
-8.  **(NEW) Static Assets & Developer Instructions:**
-    - Some tools might require additional static assets that cannot be generated as code (e.g., pre-trained machine learning models for libraries like `face-api.js`, large data files for lookup, specific images/icons not suitable for inline SVG).
-    - These assets should be placed by the developer in the `public/data/{{TOOL_DIRECTIVE}}/` directory (e.g., `public/data/{{TOOL_DIRECTIVE}}/models/`).
-    - Your generated client-side code (`<ComponentName>Client.tsx` or hooks) MUST reference these assets using a relative path that resolves correctly from the browser (e.g., `/data/{{TOOL_DIRECTIVE}}/models/model_file.weights`).
-    - **If such static assets are required, you MUST provide clear, multi-line instructions for the developer in the `---START_ASSET_INSTRUCTIONS---` block of your output.** This should specify exactly what files are needed, where the developer can obtain them (e.g., "Download from the official face-api.js GitHub repository"), and the precise sub-path within `public/data/{{TOOL_DIRECTIVE}}/` where they should be placed.
-    - You DO NOT generate the binary asset files themselves. Only the code that _uses_ them and the _instructions_ to obtain them.
+8.  **Static Assets, Local Data Paths, and Asset Declaration:**
+    - **Core Offline Principle:** The fundamental logic of any tool you generate must operate entirely client-side after initial page load, without making external network calls to third-party APIs or CDNs for dynamic data, scripts, or telemetry.
+    - **Permitted Use of Local Static Assets:**
+      - Some tools may require static assets that are not part of the generated code itself. Examples include pre-trained machine learning models, large JSON data files for lookups, SVG files for complex iconography, or other binary assets.
+      - For the purpose of your code generation, you can **presume such necessary static assets will be made available locally within the project.**
+      - Your generated client-side code (`<ComponentName>Client.tsx` or custom hooks) should be written to **fetch and/or otherwise utilize these assets ONLY from relative paths starting with `/data/{{TOOL_DIRECTIVE}}/`** (e.g., `/data/{{TOOL_DIRECTIVE}}/models/model.weights`, `/data/{{TOOL_DIRECTIVE}}/datasets/dataset.json`).
+      - **Crucially, your generated code must NOT attempt to fetch these assets from external internet URLs at runtime.** All asset loading must be from these local project paths.
+    - **Mandatory Asset Declaration (`---START_ASSET_INSTRUCTIONS---`):**
+      - If your generated tool's code relies on any such locally-hosted static assets (as described above), you **MUST declare these requirements** in the `---START_ASSET_INSTRUCTIONS---` block of your output.
+      - This declaration is critical. It will be used by an automated "Staff Engineer AI" to ensure the necessary assets are correctly provisioned and placed into the `public/data/{{TOOL_DIRECTIVE}}/` directory structure.

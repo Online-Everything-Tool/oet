@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
+import { ToolGenerationInfoFileContent } from '@/src/types/build';
 
 const GITHUB_USER_OR_ORG =
   process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool';
@@ -229,22 +230,26 @@ export async function POST(request: Request) {
     );
   }
 
-  const toolGenerationInfo = {
-    toolDirective: toolDirective,
-    generatorModel: selectedModelName,
-    generationTimestamp: new Date().toISOString(),
+  const filesToCommit = {
+    ...allGeneratedFiles,
+  };
+
+  const toolGenerationInfoFileContent: ToolGenerationInfoFileContent = {
     identifiedDependencies: identifiedDependencies,
     assetInstructions: assetInstructions || null,
   };
-  const toolGenerationInfoPath = `app/tool/${toolDirective}/tool-generation-info.json`;
-  const toolGenerationInfoContent = JSON.stringify(toolGenerationInfo, null, 2);
 
-  const filesToCommit = {
-    ...allGeneratedFiles,
-    [toolGenerationInfoPath]: toolGenerationInfoContent,
-  };
+  if (identifiedDependencies.length > 0 || assetInstructions) {
+    const toolGenerationInfoPath = `app/tool/${toolDirective}/tool-generation-info.json`;
+    filesToCommit[toolGenerationInfoPath] = JSON.stringify(
+      toolGenerationInfoFileContent,
+      null,
+      2
+    );
+  }
+
   console.log(
-    `[API create-anonymous-pr] Files to commit including tool-generation-info.json: ${Object.keys(filesToCommit).length}`
+    `[API create-anonymous-pr] Files to commit: ${Object.keys(filesToCommit).join(',')}`
   );
 
   let octokit: Octokit;

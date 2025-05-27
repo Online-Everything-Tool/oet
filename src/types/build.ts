@@ -1,5 +1,17 @@
 // FILE: src/types/build.ts
 
+export interface ToolGenerationInfoFileContent {
+  identifiedDependencies: LibraryDependency[] | null;
+  assetInstructions: string | null;
+}
+
+export interface ToolReconciliationInfo {
+  sha: string;
+  toolDirective: string;
+  identifiedDependencies: LibraryDependency[] | null;
+  assetInstructions: string | null;
+}
+
 export interface VetDependencyResult {
   packageName: string;
   isLikelySafeAndRelevant: boolean;

@@ -29,7 +29,6 @@ interface LibraryDependency {
 }
 
 interface ClientResponsePayload extends GenerationResult {
-
   success: boolean;
   error?: string;
 }
@@ -140,7 +139,6 @@ function parseDelimitedAIResponse(
   if (messageMatch && messageMatch[1]) {
     message = messageMatch[1].trim();
   } else if (assetInstructions) {
-
     if (
       !message.toLowerCase().includes('asset') &&
       !message.toLowerCase().includes('manual setup')
@@ -415,7 +413,6 @@ export async function POST(req: NextRequest) {
         console.warn(
           `[API generate-tool] Parsed metadata.json content is not valid JSON or missing required fields. Content: ${metadataContent.substring(0, 200)}...`
         );
-
       }
     } catch (jsonError) {
       console.error(
