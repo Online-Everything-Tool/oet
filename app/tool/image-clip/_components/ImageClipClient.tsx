@@ -1,19 +1,19 @@
 // FILE: app/tool/image-clip/_components/ImageClipClient.tsx
 'use client';
-import React, { useEffect } from 'react';
+import React from 'react';
 
 export default function ImageClipClient({ toolRoute }: { toolRoute: string }) {
   // Minimal client component for testing
 
 
-  let usedAny: any = { message: "I am used and explicitly any." };
+  const usedAny: { message: string } = { message: "I am used and explicitly any." };
   console.log('Logging usedAny to ensure it is used:', usedAny.message);
   
-  const unusedAny: any = { value: "I am unused and explicitly any" }; 
+  const unusedAny: { value: string } = { value: "I am unused and explicitly any" }; 
 
-  function problematicFunction(param1: any, param2) {
+  function _problematicFunction(_param1: unknown, _param2: unknown) {
     const anotherUnused: number = 123;
-    let result: any = param1 + (param2 || 0);
+    const result: unknown = _param1 + (_param2 || 0);
     return result;
   }
 
