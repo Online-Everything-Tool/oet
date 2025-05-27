@@ -1,19 +1,18 @@
 // FILE: app/tool/image-clipper/_components/ImageClipperClient.tsx
 'use client';
-import React, { useEffect } from 'react';
+import React from 'react';
 
 export default function ImageClipperClient({ toolRoute }: { toolRoute: string }) {
   // Minimal client component for testing
 
-
-  let logMessage: any = { message: "Log message" };
+  const logMessage = { message: "Log message" };
   console.log('Log:', logMessage.message);
   
-  const logValue: any = { value: "Log value" }; 
+  const logValue = { value: "Log value" }; 
 
-  function addParams(param1: any, param2) {
+  function addParams(param1: number, param2: number | undefined) {
     const htt: number = 123;
-    let result: any = param1 + (param2 || 0);
+    const result: number = param1 + (param2 || 0);
     return result;
   }
 
