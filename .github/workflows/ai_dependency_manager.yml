@@ -76,30 +76,32 @@ jobs:
         if: steps.check_artifact.outputs.artifact_valid == 'true'
         id: vet_and_install
         run: |
-          set -e # Exit on error
+          set -e 
+          echo "--- Starting: Vet and Install Dependencies ---"
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path }}"
-
+          
           echo "Contents of PENDING_DEPS_FILE ($PENDING_DEPS_FILE):"
-          cat "$PENDING_DEPS_FILE" # Log the artifact content for debugging
+          cat "$PENDING_DEPS_FILE" 
 
           TOOL_DIRECTIVE=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
-          # Ensure TOOL_DESCRIPTION is correctly populated in the artifact by V_PR
           TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided in artifact."' "$PENDING_DEPS_FILE") 
-          # Extract assetInstructions from the artifact
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
-
+          
           # Ensure newDependencies is an array, default to empty if not or null
           NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
 
-          safe_to_install_list=()
-          unsafe_details_list=()
-          manual_review_details_list=()
-          changes_made_to_package_json=false
+          # Temporary files for accumulating lists from the subshell
+          VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp) # Will store packageNames of those provisionally safe
+          UNSAFE_DETAILS_TMP_FILE=$(mktemp)     # Stores details of unsafe packages
+          MANUAL_REVIEW_TMP_FILE=$(mktemp)  # Stores details of packages needing manual review
+
+          ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="true" # Assume true until a problem is found with any new dependency
 
           if [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -eq 0 ]; then
             echo "No new dependencies listed in the artifact to vet or install."
+            ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" # No deps means no action, but not "all safe" in context of needing to install
           else
-            # Iterate over each dependency object
+            echo "Processing ${NEW_DEPENDENCIES_JSON_ARRAY_STR} for vetting..."
             echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -c '.[]' | while IFS= read -r dep_json; do
               packageName=$(echo "$dep_json" | jq -r '.packageName')
               if [ "$packageName" == "null" ] || [ -z "$packageName" ]; then
@@ -111,7 +113,6 @@ jobs:
               echo "Tool Description for vetting: $TOOL_DESCRIPTION"
               echo "Asset Instructions for vetting (first 100 chars): ${ASSET_INSTRUCTIONS_FROM_ARTIFACT:0:100}..."
 
-              # Construct the API payload, now including assetInstructions
               API_PAYLOAD=$(jq -n \
                 --arg pkg "$packageName" \
                 --arg directive "$TOOL_DIRECTIVE" \
@@ -128,11 +129,12 @@ jobs:
                 -o "${{ runner.temp }}/vet_response.json")
               
               echo "Vetting API response for $packageName (HTTP $HTTP_RESPONSE_CODE):"
-              cat "${{ runner.temp }}/vet_response.json" # Log response for debugging
+              cat "${{ runner.temp }}/vet_response.json" 
 
               if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
-                echo "::error::API call to vet $packageName failed (HTTP $HTTP_RESPONSE_CODE). See response above."
-                unsafe_details_list+=("'$packageName' (API call failed: HTTP $HTTP_RESPONSE_CODE)")
+                echo "::error::API call to vet $packageName failed (HTTP $HTTP_RESPONSE_CODE)."
+                echo "'$packageName' (Vetting API call failed: HTTP $HTTP_RESPONSE_CODE)" >> "$UNSAFE_DETAILS_TMP_FILE"
+                ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false"
                 continue 
               fi
 
@@ -140,7 +142,8 @@ jobs:
               if [ "$vetting_success" != "true" ] || ! jq -e .vettingResult "${{ runner.temp }}/vet_response.json" > /dev/null; then
                   api_message=$(jq -r .message "${{ runner.temp }}/vet_response.json")
                   echo "::error::Vetting API reported failure for $packageName: $api_message"
-                  unsafe_details_list+=("'$packageName' (Vetting API error: $api_message)")
+                  echo "'$packageName' (Vetting API error: $api_message)" >> "$UNSAFE_DETAILS_TMP_FILE"
+                  ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false"
                   continue
               fi
 
@@ -148,54 +151,78 @@ jobs:
               makesExternalNetworkCalls=$(jq -r '.vettingResult.makesExternalNetworkCalls' "${{ runner.temp }}/vet_response.json")
               justification=$(jq -r '.vettingResult.justification' "${{ runner.temp }}/vet_response.json")
 
-              echo "Vetting result for $packageName: SafeAndRelevant=$isSafeAndRelevant, NetworkCalls=$makesExternalNetworkCalls"
-              echo "Justification: $justification"
+              echo "Debug: For $packageName -> isSafeAndRelevant='${isSafeAndRelevant}', makesExternalNetworkCalls='${makesExternalNetworkCalls}'"
 
-              # Adjusted logic: if AI says 'no' to network calls (because it understands local assets plan)
               if [ "$isSafeAndRelevant" = "true" ] && [ "$makesExternalNetworkCalls" = "no" ]; then
-                safe_to_install_list+=("$packageName")
-                echo "$packageName deemed safe to install."
+                echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE" # Add packageName to temp file
+                echo "$packageName deemed provisionally safe by vetting API."
               elif [ "$makesExternalNetworkCalls" = "yes" ]; then
-                unsafe_details_list+=("'$packageName' (Reason: Makes external network calls. Justification: $justification)")
-                echo "::error::$packageName flagged as making network calls by vetting API."
-              else # unknown network calls, not relevant, or other concerns
-                manual_review_details_list+=("'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)")
+                echo "'$packageName' (Reason: Makes external network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"
+                echo "::error::$packageName flagged by vetting as making external network calls."
+                ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
+              else 
+                echo "'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)" >> "$MANUAL_REVIEW_TMP_FILE"
                 echo "::warning::$packageName flagged for manual review by vetting API."
+                ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
               fi
-            done
-          fi # End of if new dependencies exist
+            done # End of while loop for vetting each dependency
+          fi # End of if new dependencies exist in artifact
 
-          echo "safe to install list: $safe_to_install_list"
+          # --- Process accumulated results after the loop ---
+          mapfile -t provisionally_safe_packages < "$VETTED_SAFE_PACKAGES_TMP_FILE"
+          mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE"
+          mapfile -t manual_review_package_details < "$MANUAL_REVIEW_TMP_FILE"
 
-          # --- Perform installations (logic unchanged) ---
-          if [ ${#safe_to_install_list[@]} -gt 0 ]; then
-            echo "Attempting to install safe dependencies: ${safe_to_install_list[*]}"
-            final_deps_to_install=()
-            for pkg_name in "${safe_to_install_list[@]}"; do
+          changes_made_to_package_json=false
+          packages_actually_installed_this_run=()
+
+          if [ "$ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT" = "true" ] && [ ${#provisionally_safe_packages[@]} -gt 0 ]; then
+            echo "All identified new dependencies were vetted as safe. Checking against package.json for installation..."
+            packages_to_npm_install=()
+            for pkg_name in "${provisionally_safe_packages[@]}"; do
                 if ! grep -q "\"$pkg_name\"" package.json; then
-                    final_deps_to_install+=("$pkg_name")
+                    packages_to_npm_install+=("$pkg_name")
                 else
-                    echo "Dependency '$pkg_name' already found in package.json, skipping install command for it."
+                    echo "Dependency '$pkg_name' already found in package.json, skipping npm install for it."
                 fi
             done
             
-            if [ ${#final_deps_to_install[@]} -gt 0 ]; then
-                echo "Actually installing: ${final_deps_to_install[*]}"
-                npm install "${final_deps_to_install[@]}" --save 
-                changes_made_to_package_json=true
+            if [ ${#packages_to_npm_install[@]} -gt 0 ]; then
+                echo "Attempting to install: ${packages_to_npm_install[*]}"
+                if npm install "${packages_to_npm_install[@]}" --save; then
+                    echo "Successfully installed: ${packages_to_npm_install[*]}"
+                    changes_made_to_package_json=true
+                    packages_actually_installed_this_run=("${packages_to_npm_install[@]}")
+                else
+                    echo "::error::'npm install' command failed for some packages: ${packages_to_npm_install[*]}"
+                    # Add these to unsafe/manual review as install failed
+                    for pkg_failed in "${packages_to_npm_install[@]}"; do
+                         echo "'$pkg_failed' (npm install command failed)" >> "$UNSAFE_DETAILS_TMP_FILE"
+                    done
+                    mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE" # Re-read
+                    ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" # Mark as not fully successful
+                fi
             else
-                echo "No new safe dependencies to install (all were already present or none were safe)."
+                echo "No new dependencies needed npm install (all vetted safe ones were already present in package.json)."
             fi
+          elif [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -gt 0 ]; then
+            # This means there were dependencies, but not ALL were safe.
+            echo "Not all dependencies were vetted as safe, or some failed vetting. No dependencies will be installed automatically by this run."
+          else
+            # This means the newDependencies array in the artifact was empty from the start.
+            echo "No new dependencies were identified in the artifact. No installation action taken."
           fi
+          
+          # Cleanup temp files
+          rm "$VETTED_SAFE_PACKAGES_TMP_FILE" "$UNSAFE_DETAILS_TMP_FILE" "$MANUAL_REVIEW_TMP_FILE"
 
+          # Set outputs for subsequent steps (like commit/push and PR comment)
           echo "changes_made=$changes_made_to_package_json" >> $GITHUB_OUTPUT
-          echo "unsafe_deps_count=${#unsafe_details_list[@]}" >> $GITHUB_OUTPUT
-
-          # Join array elements with a unique delimiter for easier parsing in github-script later
-          # Or better, write to files if details are long/complex
-          UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_details_list[*]}")
-          MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_details_list[*]}")
-          INSTALLED_DEPS_STR=$(IFS=' '; echo "${safe_to_install_list[*]}")
+          echo "unsafe_deps_count=${#unsafe_package_details[@]}" >> $GITHUB_OUTPUT
+          
+          UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_package_details[*]}")
+          MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_package_details[*]}")
+          INSTALLED_DEPS_STR=$(IFS=' '; echo "${packages_actually_installed_this_run[*]}")
 
           echo "UNSAFE_DEPS_DETAILS<<EOF_UNSAFE" >> $GITHUB_ENV
           echo "$UNSAFE_DETAILS_STR" >> $GITHUB_ENV
@@ -204,8 +231,9 @@ jobs:
           echo "MANUAL_REVIEW_DEPS_DETAILS<<EOF_MANUAL" >> $GITHUB_ENV
           echo "$MANUAL_REVIEW_DETAILS_STR" >> $GITHUB_ENV
           echo "EOF_MANUAL" >> $GITHUB_ENV
-
+          
           echo "INSTALLED_DEPS_LIST=$INSTALLED_DEPS_STR" >> $GITHUB_ENV
+          echo "--- Finished: Vet and Install Dependencies ---"
 
       - name: Commit and Push Dependency Changes
         if: steps.vet_and_install.outputs.changes_made == 'true'
