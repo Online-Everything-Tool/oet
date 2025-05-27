@@ -6,7 +6,6 @@ import * as faceapi from 'face-api.js';
 
 // Corrected path according to your "public/data/<directive>/assets" convention
 const MODEL_URL = '/data/image-bitcoin-laser-eyes/face-api-models';
-// const MODEL_URL = '/models/face-api'; // Original AI suggestion
 
 interface UseFaceApiLoaderReturn {
   modelsLoaded: boolean;
@@ -14,7 +13,7 @@ interface UseFaceApiLoaderReturn {
   errorLoadingModels: string | null;
   loadModels: () => Promise<void>;
   detectFaces: (
-    imageElement: HTMLImageElement | HTMLCanvasElement // HTMLVideoElement also possible if needed
+    imageElement: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement
   ) => Promise<faceapi.WithFaceLandmarks<faceapi.WithFaceDetection<{}>>[]>;
 }
 
@@ -24,12 +23,9 @@ export default function useFaceApiLoader(): UseFaceApiLoaderReturn {
   const [errorLoadingModels, setErrorLoadingModels] = useState<string | null>(
     null
   );
-  // useRef to track if the initial load attempt has been made,
-  // to prevent multiple auto-loads if component re-renders.
   const initialLoadAttemptedRef = useRef(false);
 
   const loadModels = useCallback(async () => {
-    // Check if already loaded or currently loading
     if (modelsLoaded || isLoadingModels) {
       return;
     }
@@ -40,16 +36,12 @@ export default function useFaceApiLoader(): UseFaceApiLoaderReturn {
     );
     setIsLoadingModels(true);
     setErrorLoadingModels(null);
-    initialLoadAttemptedRef.current = true; // Mark that an attempt is being made / has been made
+    initialLoadAttemptedRef.current = true;
 
     try {
-      // Using specific models mentioned in the AI feedback for clarity
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        // Add other models if your drawLaserEyesFunction intends to use more, e.g., for expressions or age/gender
-        // faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
-        // faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
       ]);
       console.log('[useFaceApiLoader] Models loaded successfully.');
       setModelsLoaded(true);
@@ -63,17 +55,11 @@ export default function useFaceApiLoader(): UseFaceApiLoaderReturn {
           ? error.message
           : 'Failed to load face detection models from server.'
       );
-      // Keep initialLoadAttemptedRef.current as true, because an attempt was made.
-      // The UI can offer a retry button that calls loadModels() again.
-      // If we reset initialLoadAttemptedRef to false here, an auto-retry might loop on error.
     } finally {
       setIsLoadingModels(false);
     }
-  }, [modelsLoaded, isLoadingModels]); // Dependencies are stable states managed by this hook
+  }, [modelsLoaded, isLoadingModels]);
 
-  // Optional: Auto-initiate model loading once when hook is first used, if desired
-  // Or, require the consuming component to call loadModels() explicitly.
-  // For auto-load:
   useEffect(() => {
     if (!initialLoadAttemptedRef.current && typeof window !== 'undefined') {
       loadModels();
@@ -88,29 +74,26 @@ export default function useFaceApiLoader(): UseFaceApiLoaderReturn {
         console.warn(
           '[useFaceApiLoader] FaceAPI models not loaded. Cannot detect faces.'
         );
-        // Could throw error or return empty array, based on desired behavior
-        // throw new Error('FaceAPI models are not loaded. Call loadModels() first.');
         return [];
       }
       try {
-        // Ensure you are using the correct options for the loaded detector (TinyFaceDetectorOptions for tinyFaceDetector)
         const detections = await faceapi
           .detectAllFaces(imageElement, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks(); // Use .withFaceLandmarks() as per model loaded
+          .withFaceLandmarks();
         return detections;
       } catch (error) {
         console.error('[useFaceApiLoader] Error detecting faces:', error);
-        throw error; // Re-throw for the calling component to handle if needed
+        throw error;
       }
     },
-    [modelsLoaded] // Depends only on modelsLoaded state
+    [modelsLoaded]
   );
 
   return {
     modelsLoaded,
     isLoadingModels,
     errorLoadingModels,
-    loadModels, // Expose loadModels so components can trigger a retry if needed
+    loadModels,
     detectFaces,
   };
 }
