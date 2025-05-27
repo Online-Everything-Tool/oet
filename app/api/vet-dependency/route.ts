@@ -95,7 +95,7 @@ function isValidVetDependencyResult(obj: any): obj is VetDependencyResult {
     'primaryFunction',
   ];
   const requiredBooleanFields = ['isLikelySafeAndRelevant', 'isRelevant'];
-  const makesNetworkCallsValues: VetDependencyResult['makesNetworkCalls'][] = [
+  const makesExternalNetworkCallsValues: VetDependencyResult['makesExternalNetworkCalls'][] = [
     'yes',
     'no',
     'unknown',
@@ -128,9 +128,9 @@ function isValidVetDependencyResult(obj: any): obj is VetDependencyResult {
     }
   }
 
-  if (!makesNetworkCallsValues.includes(obj.makesNetworkCalls)) {
+  if (!makesExternalNetworkCallsValues.includes(obj.makesExternalNetworkCalls)) {
     console.warn(
-      `[isValidVetDependencyResult] Invalid makesNetworkCalls value: ${obj.makesNetworkCalls}`,
+      `[isValidVetDependencyResult] Invalid makesExternalNetworkCalls value: ${obj.makesExternalNetworkCalls}`,
       obj
     );
     return false;

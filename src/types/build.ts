@@ -15,7 +15,7 @@ export interface ToolReconciliationInfo {
 export interface VetDependencyResult {
   packageName: string;
   isLikelySafeAndRelevant: boolean;
-  makesNetworkCalls: 'yes' | 'no' | 'unknown' | 'likely_no' | 'likely_yes';
+  makesExternalNetworkCalls: 'yes' | 'no' | 'unknown' | 'likely_no' | 'likely_yes';
   justification: string;
   popularityIndication?: 'high' | 'medium' | 'low' | 'niche' | 'unknown';
   primaryFunction?: string;

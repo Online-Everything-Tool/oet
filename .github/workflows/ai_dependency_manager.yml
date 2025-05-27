@@ -145,21 +145,21 @@ jobs:
               fi
 
               isSafeAndRelevant=$(jq -r '.vettingResult.isLikelySafeAndRelevant' "${{ runner.temp }}/vet_response.json")
-              makesNetworkCalls=$(jq -r '.vettingResult.makesNetworkCalls' "${{ runner.temp }}/vet_response.json")
+              makesExternalNetworkCalls=$(jq -r '.vettingResult.makesExternalNetworkCalls' "${{ runner.temp }}/vet_response.json")
               justification=$(jq -r '.vettingResult.justification' "${{ runner.temp }}/vet_response.json")
 
-              echo "Vetting result for $packageName: SafeAndRelevant=$isSafeAndRelevant, NetworkCalls=$makesNetworkCalls"
+              echo "Vetting result for $packageName: SafeAndRelevant=$isSafeAndRelevant, NetworkCalls=$makesExternalNetworkCalls"
               echo "Justification: $justification"
 
               # Adjusted logic: if AI says 'no' to network calls (because it understands local assets plan)
-              if [ "$isSafeAndRelevant" = "true" ] && [ "$makesNetworkCalls" = "no" ]; then
+              if [ "$isSafeAndRelevant" = "true" ] && [ "$makesExternalNetworkCalls" = "no" ]; then
                 safe_to_install_list+=("$packageName")
                 echo "$packageName deemed safe to install."
-              elif [ "$makesNetworkCalls" = "yes" ]; then
+              elif [ "$makesExternalNetworkCalls" = "yes" ]; then
                 unsafe_details_list+=("'$packageName' (Reason: Makes external network calls. Justification: $justification)")
                 echo "::error::$packageName flagged as making network calls by vetting API."
               else # unknown network calls, not relevant, or other concerns
-                manual_review_details_list+=("'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesNetworkCalls. Justification: $justification)")
+                manual_review_details_list+=("'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)")
                 echo "::warning::$packageName flagged for manual review by vetting API."
               fi
             done

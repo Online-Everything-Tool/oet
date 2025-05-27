@@ -12,7 +12,7 @@ Respond ONLY with a single JSON object adhering to this structure (do not includ
 {
 "packageName": "{{PACKAGE_NAME}}",
 "isLikelySafeAndRelevant": <boolean>,
-"makesNetworkCalls": "<'yes'|'no'|'unknown'|'likely_no'|'likely_yes'>",
+"makesExternalNetworkCalls": "<'yes'|'no'|'unknown'|'likely_no'|'likely_yes'>",
 "justification": "<string>",
 "popularityIndication": "<'high'|'medium'|'low'|'niche'|'unknown'>",
 "primaryFunction": "<string>",
