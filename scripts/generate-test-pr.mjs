@@ -199,13 +199,13 @@ export default function ${pascalCaseName}Client({ toolRoute }: { toolRoute: stri
 
   if (includeLintError) {
     const lintErrorBlock = `
-  let usedAny: any = { message: "I am used and explicitly any." };
-  console.log('Logging usedAny to ensure it is used:', usedAny.message);
+  let logMessage: any = { message: "Log message" };
+  console.log('Log:', logMessage.message);
   
-  const unusedAny: any = { value: "I am unused and explicitly any" }; 
+  const logValue: any = { value: "Log value" }; 
 
-  function problematicFunction(param1: any, param2) {
-    const anotherUnused: number = 123;
+  function addParams(param1: any, param2) {
+    const htt: number = 123;
     let result: any = param1 + (param2 || 0);
     return result;
   }

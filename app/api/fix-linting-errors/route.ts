@@ -11,9 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_MODEL_NAME ||
-  'models/gemini-2.5-pro-preview-05-06';
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-pro-latest';
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -132,6 +130,11 @@ export async function POST(request: NextRequest) {
       );
     }
     if (typeof lintErrors !== 'string' || !lintErrors.trim()) {
+      // Allow empty lintErrors globally if we filter per file,
+      // but individual files might still have no *specific* errors
+      // For now, let's keep the check for a non-empty global string,
+      // as it implies there are *some* errors to begin with.
+      // If the prompt expects errors, this is still relevant.
       throw new Error('Missing or empty "lintErrors" string.');
     }
     console.log(
@@ -151,7 +154,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { filesToFix, lintErrors, modelName = DEFAULT_MODEL_NAME } = body;
+  // Original lintErrors from the request body.
+  const { filesToFix, lintErrors: globalLintErrors, modelName = DEFAULT_MODEL_NAME } = body;
   const model = genAI.getGenerativeModel({ model: modelName });
   const fixedFilesResults: Record<string, string | null> = {};
   let allSucceededOverall = true;
@@ -189,12 +193,33 @@ export async function POST(request: NextRequest) {
     const fileProcessStartTime = Date.now();
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
+    // --- START: MODIFICATION TO FILTER LINT ERRORS ---
+    const specificLintErrorsForThisFile = globalLintErrors
+      .split('\n')
+      .filter(line => line.includes(file.path))
+      .join('\n');
+
+    if (!specificLintErrorsForThisFile.trim()) {
+      console.log(
+        `[API fix-linting-errors] No specific lint errors found for ${file.path} in the provided global list. Skipping AI processing for this file, retaining original content.`
+      );
+      fixedFilesResults[file.path] = file.currentContent; // Keep original if no errors for it
+      console.log(
+        `[API fix-linting-errors] Finished processing ${file.path} in ${Date.now() - fileProcessStartTime}ms (skipped AI).`
+      );
+      continue; // Move to the next file
+    }
+    // --- END: MODIFICATION TO FILTER LINT ERRORS ---
+
     const populatedPrompt = promptTemplate
       .replace(/{{FILE_PATH}}/g, file.path)
       .replace(/{{FILE_CONTENT}}/g, file.currentContent)
-      .replace(/{{LINT_ERRORS}}/g, lintErrors);
+      .replace(/{{LINT_ERRORS}}/g, specificLintErrorsForThisFile); // Use filtered errors
 
     try {
+      console.log(
+        `[API fix-linting-errors] Sending to AI for ${file.path} with ${specificLintErrorsForThisFile.split('\n').length} specific error line(s).`
+      );
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: populatedPrompt }] }],
         generationConfig,
@@ -298,7 +323,7 @@ export async function POST(request: NextRequest) {
     console.warn(`[API fix-linting-errors] ${overallMessage}`);
   } else if (allSucceededOverall && !anyFileActuallyFixedByAI) {
     overallMessage =
-      'Lint fixing process completed. AI proposed no changes to any files (after stripping fences).';
+      'Lint fixing process completed. AI proposed no changes to any files (after stripping fences), or no specific errors were found for any files.';
     console.log(`[API fix-linting-errors] ${overallMessage}`);
   } else if (allSucceededOverall && anyFileActuallyFixedByAI) {
     overallMessage =
