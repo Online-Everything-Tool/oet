@@ -79,14 +79,14 @@ jobs:
           set -e 
           echo "--- Starting: Vet and Install Dependencies ---"
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path }}"
-          
+
           echo "Contents of PENDING_DEPS_FILE ($PENDING_DEPS_FILE):"
           cat "$PENDING_DEPS_FILE" 
 
           TOOL_DIRECTIVE=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
           TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided in artifact."' "$PENDING_DEPS_FILE") 
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
-          
+
           # Ensure newDependencies is an array, default to empty if not or null
           NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
 
@@ -212,14 +212,14 @@ jobs:
             # This means the newDependencies array in the artifact was empty from the start.
             echo "No new dependencies were identified in the artifact. No installation action taken."
           fi
-          
+
           # Cleanup temp files
           rm "$VETTED_SAFE_PACKAGES_TMP_FILE" "$UNSAFE_DETAILS_TMP_FILE" "$MANUAL_REVIEW_TMP_FILE"
 
           # Set outputs for subsequent steps (like commit/push and PR comment)
           echo "changes_made=$changes_made_to_package_json" >> $GITHUB_OUTPUT
           echo "unsafe_deps_count=${#unsafe_package_details[@]}" >> $GITHUB_OUTPUT
-          
+
           UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_package_details[*]}")
           MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_package_details[*]}")
           INSTALLED_DEPS_STR=$(IFS=' '; echo "${packages_actually_installed_this_run[*]}")
@@ -231,7 +231,7 @@ jobs:
           echo "MANUAL_REVIEW_DEPS_DETAILS<<EOF_MANUAL" >> $GITHUB_ENV
           echo "$MANUAL_REVIEW_DETAILS_STR" >> $GITHUB_ENV
           echo "EOF_MANUAL" >> $GITHUB_ENV
-          
+
           echo "INSTALLED_DEPS_LIST=$INSTALLED_DEPS_STR" >> $GITHUB_ENV
           echo "--- Finished: Vet and Install Dependencies ---"
 

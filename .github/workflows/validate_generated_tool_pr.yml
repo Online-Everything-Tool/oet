@@ -149,7 +149,7 @@ jobs:
           BRANCH_NAME="${{ steps.set_pr_info.outputs.head_ref }}"
           TEMP_DIRECTIVE=${BRANCH_NAME#feat/gen-}
           TOOL_DIRECTIVE=$(echo "$TEMP_DIRECTIVE" | sed 's/-[0-9]*$//')
-          
+
           if [ -z "$TOOL_DIRECTIVE" ]; then 
             echo "::error::Could not extract tool directive from branch name '$BRANCH_NAME'."
             echo "tool_directive=" >> $GITHUB_OUTPUT
@@ -178,7 +178,7 @@ jobs:
             echo "metadata_ok=false" >> $GITHUB_OUTPUT
             exit 1
           fi
-          
+
           echo "Successfully extracted tool description: $TOOL_DESCRIPTION"
           echo "tool_description=${TOOL_DESCRIPTION}" >> $GITHUB_OUTPUT
           echo "metadata_ok=true" >> $GITHUB_OUTPUT
@@ -187,7 +187,7 @@ jobs:
         if: |
           steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' &&
           github.event_name == 'pull_request' &&
-          github.event.action == 'opened'      
+          github.event.action == 'opened'
         id: analyze_name
         env:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
