@@ -31,14 +31,14 @@ jobs:
       pr_sha: ${{ steps.set_pr_info.outputs.pr_sha }}
       tool_directive: ${{ steps.extract_directive_and_metadata.outputs.tool_directive }}
       tool_description: ${{ steps.extract_directive_and_metadata.outputs.tool_description }}
-      path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed }}
-      invalid_files_list: ${{ steps.validate_paths.outputs.invalid_files_list }}
+      path_validation_passed: ${{ steps.validate_paths.outputs.validation_passed || 'skipped' }}
+      invalid_files_list: ${{ steps.validate_paths.outputs.invalid_files_list || '' }}
       analysis_succeeded: ${{ steps.analyze_name.outputs.analysis_succeeded }}
       ai_analysis_score: ${{ steps.analyze_name.outputs.score }}
       ai_analysis_is_typo: ${{ steps.analyze_name.outputs.is_typo }}
       ai_analysis_suggestions_json: ${{ steps.analyze_name.outputs.suggestions }}
       ai_analysis_reasoning: ${{ steps.analyze_name.outputs.reasoning }}
-      critical_initial_checks_passed: ${{ steps.validate_paths.outputs.validation_passed == 'true' }}
+      critical_initial_checks_passed: ${{ (steps.validate_paths.outputs.validation_passed == 'true' || steps.validate_paths.outcome == 'skipped') && steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' }}
 
     steps:
       - name: Set PR Info and Validate Trigger
