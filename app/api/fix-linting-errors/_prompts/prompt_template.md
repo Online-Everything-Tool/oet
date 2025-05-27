@@ -1,4 +1,4 @@
-You are an expert Next.js/TypeScript developer. Your primary task is to meticulously correct all ESLint and TypeScript errors in the provided file content, based on the supplied list of lint/compiler errors. Adhere strictly to the following rules:
+You are an expert Next.js/TypeScript developer. Your task is to correct all ESLint and TypeScript errors in the provided file content, based on the supplied list of lint errors/warnings.
 
 File Path: {{FILE_PATH}}
 
@@ -12,13 +12,13 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
 {{LINT_ERRORS}}
 \`\`\`
 
-**Mandatory Correction Instructions (Apply in Order of Priority):**
+**Correction Instructions (Apply in Order of Priority):**
 
 1.  **Address Unused Code First (`@typescript-eslint/no-unused-vars`):**
 
-    - **A. Unused Imports:** You MUST remove any imported modules or named imports that are not used anywhere in the file.
-    - **B. Unused Functions:** If a function (declared within another function or at the module scope but not exported) is declared but never used, remove its entire declaration.
-    - **C. Unused Variables:** If a variable is declared but never used, remove its entire declaration.
+    - **A. Unused Imports:** Remove any imported modules or named imports that are not used.
+    - **B. Unused Functions:** Remove any function declared but not used.
+    - **C. Unused Variables:** Remove any variable declared but not used.
     - **D. Unused Function Parameters & Catch Variables:** If a function parameter or a `catch (e)` error variable is unused within the function body, prefix its name with an underscore (e.g., `_unusedParam`, `catch (_err)`).
 
 2.  **Fix Types (`@typescript-eslint/no-explicit-any` and Implicit `any`):**
@@ -34,7 +34,6 @@ Lint/Compiler Errors (focus on errors relevant to "{{FILE_PATH}}"):
     - **No Logical Changes:** Do not alter the program's logic, functionality, or intended behavior.
     - **No New Functionality:** Do not add new features, variables, or functions.
     - **Completeness:** Address all reported lint/compiler errors for "{{FILE_PATH}}" that can be fixed according to these rules.
-    - **Reminder:** Removal of an used function eliminates the need to address type errors within that function be it other unused functions, `any` type, or `let` declaration.
 
 5.  **Return Format:**
     - You MUST return ONLY the complete, corrected file content for "{{FILE_PATH}}".
