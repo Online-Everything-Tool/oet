@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: ImageFilterBlue (With Lint Error)",
+  "directive": "image-filter-blue",
+  "description": "A dummy tool for testing CI workflows: image-filter-blue. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
