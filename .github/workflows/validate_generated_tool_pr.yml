@@ -184,6 +184,10 @@ jobs:
           echo "metadata_ok=true" >> $GITHUB_OUTPUT
 
       - name: Analyze Directive Name (AI Check)
+        if: |
+          steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' &&
+          github.event_name == 'pull_request' &&
+          github.event.action == 'opened'      
         id: analyze_name
         env:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
@@ -761,11 +765,13 @@ jobs:
           INITIAL_CHECKS_JOB_RESULT: ${{ needs.initial_checks.result }}
           PATH_VALIDATION_PASSED: ${{ needs.initial_checks.outputs.path_validation_passed }}
           INVALID_FILES_LIST: ${{ needs.initial_checks.outputs.invalid_files_list }}
-          AI_ANALYSIS_SUCCEEDED: ${{ needs.initial_checks.outputs.analysis_succeeded }}
-          AI_SCORE: ${{ needs.initial_checks.outputs.ai_analysis_score }}
-          AI_IS_TYPO: ${{ needs.initial_checks.outputs.ai_analysis_is_typo }}
-          AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}
-          AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }}
+
+          AI_ANALYSIS_SUCCEEDED: ${{ needs.initial_checks.outputs.analysis_succeeded || 'skipped' }} # Default if skipped
+          AI_SCORE: ${{ needs.initial_checks.outputs.ai_analysis_score || 'N/A' }}
+          AI_IS_TYPO: ${{ needs.initial_checks.outputs.ai_analysis_is_typo || 'N/A' }}
+          AI_SUGGESTIONS_JSON: ${{ needs.initial_checks.outputs.ai_analysis_suggestions_json || '[]' }}
+          AI_REASONING: ${{ needs.initial_checks.outputs.ai_analysis_reasoning || 'Skipped on this run.' }}
+
           CRITICAL_INITIAL_CHECKS_PASSED_OUTPUT: ${{ needs.initial_checks.outputs.critical_initial_checks_passed }}
 
           # --- Info from analyze_dependencies job ---
@@ -833,8 +839,10 @@ jobs:
                   commentBody += `    - Suggestions: ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
                 }
               } catch (e) { /* ignore */ }
-            } else {
+            } else if (process.env.AI_ANALYSIS_SUCCEEDED === 'false') {
               commentBody += `    - ⚠️ AI name analysis could not be performed or API call failed.\n`;
+            } else if (process.env.AI_ANALYSIS_SUCCEEDED === 'skipped') {
+              commentBody += `    - 🌈 AI name analysis is skipped on subsequent runs.\n`;
             }
             commentBody += "\n---\n";
 
