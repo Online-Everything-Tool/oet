@@ -1,4 +1,4 @@
-# .github/workflows/ai-dependency-manager.yml
+# .github/workflows/ai_dependency_manager.yml
 name: AI Dependency Manager
 
 on:
@@ -10,12 +10,10 @@ on:
 jobs:
   resolve_dependencies:
     name: Resolve Tool Dependencies
-    # Only run if the triggering workflow was for a PR, succeeded or was neutral,
-    # AND if it set an output indicating dependency action is needed.
-    # This `if` condition will need `validate_generated_tool_pr.yml` to set a specific output.
-    # For now, let's assume `validate_generated_tool_pr.yml` will *only* trigger this if needed,
-    # for simplicity in this draft, we'll check for a specific artifact.
-    if: github.event.workflow_run.conclusion != 'failure' # Example: only run if validate didn't hard fail
+    if: >
+      github.event.workflow_run.conclusion != 'failure' &&
+      github.event.workflow_run.head_branch != 'main' &&
+      github.event.workflow_run.head_branch != github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,16 +24,22 @@ jobs:
       # These come from the triggering workflow run event
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
       PR_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-      PR_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-      VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency # Your backend URL
+      PR_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }} # This is github.event.workflow_run.head_branch
+      VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency 
 
     steps:
       - name: Log Triggering Event Info
         run: |
           echo "Triggered by workflow run: ${{ github.event.workflow_run.id }} for PR #${{ env.PR_NUMBER }}"
           echo "Commit SHA: ${{ env.PR_HEAD_SHA }}"
-          echo "Branch: ${{ env.PR_HEAD_BRANCH }}"
+          echo "Branch from workflow_run event: ${{ env.PR_HEAD_BRANCH }}"
+          echo "Repo default branch: ${{ github.event.repository.default_branch }}"
           echo "Conclusion of triggering workflow: ${{ github.event.workflow_run.conclusion }}"
+          # The job-level 'if' condition should prevent this job from running if head_branch is main/default.
+          # This log is just for verification if it ever does run when it shouldn't.
+          if [ "${{ env.PR_HEAD_BRANCH }}" == "${{ github.event.repository.default_branch }}" ]; then
+            echo "::warning::This job is running but PR_HEAD_BRANCH ('${{ env.PR_HEAD_BRANCH }}') is the default branch. This might be unexpected."
+          fi
 
       - name: Download Pending Dependencies Artifact
         id: download_pending_deps
@@ -45,7 +49,7 @@ jobs:
           path: ${{ runner.temp }}/pending-deps-data
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
-        continue-on-error: true # Allow script to check if download succeeded
+        continue-on-error: true 
 
       - name: Check Artifact and Read Data
         id: check_artifact
@@ -55,14 +59,11 @@ jobs:
           if [ -f "$PENDING_DEPS_FILE" ] && [ -s "$PENDING_DEPS_FILE" ]; then
             echo "Pending dependencies artifact found and is not empty."
             cat "$PENDING_DEPS_FILE"
-            # Further parse with jq if needed here, or pass file path to next step
             echo "artifact_valid=true" >> $GITHUB_OUTPUT
             echo "pending_deps_path=$PENDING_DEPS_FILE" >> $GITHUB_OUTPUT
           else
-            echo "::warning::Pending dependencies artifact ($PENDING_DEPS_FILE) not found or empty. No dependencies to process."
+            echo "::notice::Pending dependencies artifact ($PENDING_DEPS_FILE) not found or empty. No dependencies to process for this run."
             echo "artifact_valid=false" >> $GITHUB_OUTPUT
-            # This job might then just complete without error if no artifact, or you could fail it.
-            # For now, let's assume it means no action needed.
           fi
 
       - name: Checkout PR Code
@@ -79,27 +80,25 @@ jobs:
           set -e 
           echo "--- Starting: Vet and Install Dependencies ---"
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path }}"
-
+          
           echo "Contents of PENDING_DEPS_FILE ($PENDING_DEPS_FILE):"
           cat "$PENDING_DEPS_FILE" 
 
           TOOL_DIRECTIVE=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
           TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided in artifact."' "$PENDING_DEPS_FILE") 
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
-
-          # Ensure newDependencies is an array, default to empty if not or null
+          
           NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
 
-          # Temporary files for accumulating lists from the subshell
-          VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp) # Will store packageNames of those provisionally safe
-          UNSAFE_DETAILS_TMP_FILE=$(mktemp)     # Stores details of unsafe packages
-          MANUAL_REVIEW_TMP_FILE=$(mktemp)  # Stores details of packages needing manual review
+          VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp) 
+          UNSAFE_DETAILS_TMP_FILE=$(mktemp)     
+          MANUAL_REVIEW_TMP_FILE=$(mktemp)  
 
-          ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="true" # Assume true until a problem is found with any new dependency
+          ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="true" 
 
           if [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -eq 0 ]; then
             echo "No new dependencies listed in the artifact to vet or install."
-            ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" # No deps means no action, but not "all safe" in context of needing to install
+            ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
           else
             echo "Processing ${NEW_DEPENDENCIES_JSON_ARRAY_STR} for vetting..."
             echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -c '.[]' | while IFS= read -r dep_json; do
@@ -154,7 +153,7 @@ jobs:
               echo "Debug: For $packageName -> isSafeAndRelevant='${isSafeAndRelevant}', makesExternalNetworkCalls='${makesExternalNetworkCalls}'"
 
               if [ "$isSafeAndRelevant" = "true" ] && [ "$makesExternalNetworkCalls" = "no" ]; then
-                echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE" # Add packageName to temp file
+                echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE" 
                 echo "$packageName deemed provisionally safe by vetting API."
               elif [ "$makesExternalNetworkCalls" = "yes" ]; then
                 echo "'$packageName' (Reason: Makes external network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"
@@ -165,10 +164,9 @@ jobs:
                 echo "::warning::$packageName flagged for manual review by vetting API."
                 ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
               fi
-            done # End of while loop for vetting each dependency
-          fi # End of if new dependencies exist in artifact
+            done 
+          fi 
 
-          # --- Process accumulated results after the loop ---
           mapfile -t provisionally_safe_packages < "$VETTED_SAFE_PACKAGES_TMP_FILE"
           mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE"
           mapfile -t manual_review_package_details < "$MANUAL_REVIEW_TMP_FILE"
@@ -189,37 +187,37 @@ jobs:
             
             if [ ${#packages_to_npm_install[@]} -gt 0 ]; then
                 echo "Attempting to install: ${packages_to_npm_install[*]}"
+                # --- IMPORTANT: Determine branch to push to ---
+                # If PR_HEAD_BRANCH from workflow_run is default, we should not have gotten here.
+                # But as a safeguard, or if we wanted to push to the PR's actual head ref,
+                # we might need to fetch it via API if PR_NUMBER is available and reliable.
+                # For now, this script assumes PR_HEAD_BRANCH is the correct feature branch if the job runs.
                 if npm install "${packages_to_npm_install[@]}" --save; then
                     echo "Successfully installed: ${packages_to_npm_install[*]}"
                     changes_made_to_package_json=true
                     packages_actually_installed_this_run=("${packages_to_npm_install[@]}")
                 else
                     echo "::error::'npm install' command failed for some packages: ${packages_to_npm_install[*]}"
-                    # Add these to unsafe/manual review as install failed
                     for pkg_failed in "${packages_to_npm_install[@]}"; do
                          echo "'$pkg_failed' (npm install command failed)" >> "$UNSAFE_DETAILS_TMP_FILE"
                     done
-                    mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE" # Re-read
-                    ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" # Mark as not fully successful
+                    mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE" 
+                    ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
                 fi
             else
                 echo "No new dependencies needed npm install (all vetted safe ones were already present in package.json)."
             fi
           elif [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -gt 0 ]; then
-            # This means there were dependencies, but not ALL were safe.
             echo "Not all dependencies were vetted as safe, or some failed vetting. No dependencies will be installed automatically by this run."
           else
-            # This means the newDependencies array in the artifact was empty from the start.
             echo "No new dependencies were identified in the artifact. No installation action taken."
           fi
-
-          # Cleanup temp files
+          
           rm "$VETTED_SAFE_PACKAGES_TMP_FILE" "$UNSAFE_DETAILS_TMP_FILE" "$MANUAL_REVIEW_TMP_FILE"
 
-          # Set outputs for subsequent steps (like commit/push and PR comment)
           echo "changes_made=$changes_made_to_package_json" >> $GITHUB_OUTPUT
           echo "unsafe_deps_count=${#unsafe_package_details[@]}" >> $GITHUB_OUTPUT
-
+          
           UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_package_details[*]}")
           MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_package_details[*]}")
           INSTALLED_DEPS_STR=$(IFS=' '; echo "${packages_actually_installed_this_run[*]}")
@@ -231,7 +229,7 @@ jobs:
           echo "MANUAL_REVIEW_DEPS_DETAILS<<EOF_MANUAL" >> $GITHUB_ENV
           echo "$MANUAL_REVIEW_DETAILS_STR" >> $GITHUB_ENV
           echo "EOF_MANUAL" >> $GITHUB_ENV
-
+          
           echo "INSTALLED_DEPS_LIST=$INSTALLED_DEPS_STR" >> $GITHUB_ENV
           echo "--- Finished: Vet and Install Dependencies ---"
 
@@ -239,28 +237,34 @@ jobs:
         if: steps.vet_and_install.outputs.changes_made == 'true'
         env:
           GITHUB_TOKEN_FOR_PUSH: ${{ secrets.AI_LINT_FIXER_PAT }}
+          # PR_HEAD_BRANCH_FOR_PUSH is ${{ env.PR_HEAD_BRANCH }} which comes from workflow_run.head_branch
         run: |
           git config --global user.name "OET Dependency Bot"
-          git config --global user.email "bot@online-everything-tool.com" # Or your bot's email
+          git config --global user.email "bot@online-everything-tool.com"
           git add package.json package-lock.json
           COMMIT_MSG="chore: add auto-vetted dependencies"
-          if [ -n "$INSTALLED_DEPS_LIST" ]; then # From previous step env var
+          if [ -n "$INSTALLED_DEPS_LIST" ]; then 
             COMMIT_MSG="chore: add auto-vetted dependencies ($INSTALLED_DEPS_LIST)"
           fi
           git commit -m "$COMMIT_MSG"
 
+          # env.PR_HEAD_BRANCH here is from github.event.workflow_run.head_branch
+          # The job-level 'if' should prevent pushing to main/default.
           echo "Pushing dependency changes to branch ${{ env.PR_HEAD_BRANCH }}..."
           git push https://x-access-token:${GITHUB_TOKEN_FOR_PUSH}@github.com/${{ github.repository }}.git HEAD:${{ env.PR_HEAD_BRANCH }}
 
       - name: Trigger Re-validation via PR Comment After Dep Push
-        if: steps.vet_and_install.outputs.changes_made == 'true' # Only if ADM pushed changes
+        # This step needs a reliable PR_NUMBER.
+        # The job-level 'if' (head_branch != default_branch) makes it more likely that PR_NUMBER is available
+        # from github.event.workflow_run.pull_requests[0].number.
+        if: steps.vet_and_install.outputs.changes_made == 'true' 
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} # Use PAT with comment permissions
+          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} 
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
             if (isNaN(prNumber)) {
-              core.setFailed("ADM: Could not determine PR number for re-validation comment.");
+              core.setFailed("ADM: Could not determine PR number for re-validation comment. This might happen if PR context was lost.");
               return;
             }
             await github.rest.issues.createComment({
@@ -272,15 +276,21 @@ jobs:
             core.info(`ADM: Posted /revalidate-ai-fixes comment to PR #${prNumber} after dependency changes.`);
 
       - name: Post Summary Comment to PR
+        # This step also needs a reliable PR_NUMBER.
+        # The job-level 'if' (head_branch != default_branch) makes it more likely that PR_NUMBER is available.
         uses: actions/github-script@v7
-        if: always() # Post comment regardless of previous step failures, to inform user
+        if: always() 
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN can comment
+          github-token: ${{ secrets.GITHUB_TOKEN }} 
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            // If job ran, PR_NUMBER should be valid due to the job-level 'if' filtering out 'main' branch runs
+            // where PR_NUMBER might be missing from workflow_run.pull_requests
             if (isNaN(prNumber)) {
-              core.setFailed("PR Number not available for commenting.");
-              return;
+              core.warning("ADM: PR Number not available for summary comment. This is unexpected if the job ran. Skipping comment.");
+              // Do not fail the job here if PR_NUMBER is bad, just skip the comment.
+              // The job's success/failure should depend on the actual dependency management.
+              return; 
             }
 
             let commentBody = `## 🤖 AI Dependency Manager Results for PR #${prNumber}\n\n`;
@@ -289,21 +299,39 @@ jobs:
             const unsafeDetails = process.env.UNSAFE_DEPS_DETAILS || "";
             const manualReviewDetails = process.env.MANUAL_REVIEW_DEPS_DETAILS || "";
 
-            if (process.env.steps_check_artifact_outputs_artifact_valid !== 'true') {
-                commentBody += "No dependency information found from the validation workflow. No actions taken.\n";
-            } else {
+            // Check artifact_valid from the 'check_artifact' step's output
+            // Assuming 'steps.check_artifact.outputs.artifact_valid' is accessible here,
+            // though it's better practice to pass outputs explicitly or check outcomes of earlier steps.
+            // For simplicity, we'll infer based on other conditions for now.
+            const artifactProcessed = process.env.steps_check_artifact_outputs_artifact_valid === 'true';
+
+
+            if (!artifactProcessed && steps.download_pending_deps.outcome != 'success') {
+                 commentBody += "No dependency information artifact found from the validation workflow, or it was empty. No actions taken.\n";
+            } else if (!artifactProcessed && steps.download_pending_deps.outcome == 'success' && process.env.steps_check_artifact_outputs_artifact_valid !== 'true') {
+                 commentBody += "Dependency artifact was downloaded but found to be empty or invalid. No actions taken.\n";
+            }
+            else { // Artifact was valid and processed
               if (unsafeCount > 0) {
                 commentBody += `🚨 **Vetting Failed for some dependencies:**\n${unsafeDetails.split(',').map(d => `- ${d.trim()}`).join('\n')}\nThese were NOT installed.\n\n`;
               }
               if (manualReviewDetails) {
                 commentBody += `⚠️ **Dependencies requiring manual review:**\n${manualReviewDetails.split(',').map(d => `- ${d.trim()}`).join('\n')}\nThese were NOT installed automatically. Please review their suitability and add them manually if appropriate.\n\n`;
               }
-              if (process.env.steps_vet_and_install_outputs_changes_made === 'true' && installedDeps) {
+              
+              // Check vet_and_install outputs for changes_made
+              const changesWereMade = process.env.steps_vet_and_install_outputs_changes_made === 'true';
+
+              if (changesWereMade && installedDeps) {
                 commentBody += `✅ **Successfully vetted and installed:** ${installedDeps.split(' ').map(d => `\`${d}\``).join(', ')}\nChanges have been pushed to the PR branch. Validation checks will re-run.\n`;
-              } else if (!unsafeDetails && !manualReviewDetails && !installedDeps) {
-                commentBody += "✅ All new declared dependencies (if any) were already present or none required action after vetting.\n";
-              } else if (process.env.steps_vet_and_install_outputs_changes_made !== 'true' && installedDeps && !unsafeDetails && !manualReviewDetails){
-                 commentBody += `✅ Dependencies (${installedDeps.split(' ').map(d => `\`${d}\``).join(', ')}) were vetted as safe, but were already in package.json. No changes pushed.\n`;
+              } else if (!unsafeDetails && !manualReviewDetails && !installedDeps && !changesWereMade) {
+                 // This case means artifact was valid, but either no new deps in it, or all already in package.json, and nothing was installed.
+                commentBody += "✅ All new declared dependencies (if any from artifact) were already present or none required action after vetting. No changes made to package.json by this run.\n";
+              } else if (!changesWereMade && installedDeps && !unsafeDetails && !manualReviewDetails){
+                 // This means deps were safe, but already in package.json
+                 commentBody += `✅ Dependencies (${installedDeps.split(' ').map(d => `\`${d}\``).join(', ')}) were vetted as safe, but were already in package.json. No changes pushed by this run.\n`;
+              } else if (!changesWereMade && !installedDeps && !unsafeDetails && !manualReviewDetails && artifactProcessed){
+                  commentBody += "✅ Dependency artifact processed. No new dependencies required installation, and no issues found with existing identified dependencies.\n";
               }
             }
 
@@ -320,20 +348,29 @@ jobs:
               core.warning(`Failed to post PR comment: ${e.message}`);
             }
 
-            // If there were unsafe or manual review dependencies, fail this workflow check
+            // Determine job failure based on actual dependency processing, not comment posting
             if (unsafeCount > 0 || manualReviewDetails) {
-              core.setFailed("One or more dependencies failed vetting or require manual review. See PR comment.");
+              // Only fail if there were actual dependencies to process from a valid artifact
+              if (artifactProcessed) {
+                 core.setFailed("One or more dependencies failed vetting or require manual review. See PR comment.");
+              } else {
+                 core.notice("No dependencies processed, but noting unsafe/manual review flags if they were somehow set without an artifact.");
+              }
             }
-
       - name: Add 'needs-dependency-review' label
         if: steps.vet_and_install.outputs.MANUAL_REVIEW_DEPS_DETAILS != '' && steps.vet_and_install.outputs.MANUAL_REVIEW_DEPS_DETAILS != null
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} # Needs PAT to add labels typically
+          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} 
           script: |
+            const prNumber = parseInt(process.env.PR_NUMBER, 10);
+            if (isNaN(prNumber)) {
+              core.warning("ADM: PR Number not available for adding label. Skipping.");
+              return;
+            }
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: ${{ env.PR_NUMBER }},
+              issue_number: prNumber,
               labels: ['needs-dependency-review']
             });
