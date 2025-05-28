@@ -148,21 +148,48 @@ jobs:
 
       - name: Call AI Lint Fix API
         id: call_fix_api
-        if: steps.prepare_fix_data.outcome == 'success' 
+        if: steps.prepare_fix_data.outcome == 'success'
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
           LINT_ERRORS_CONTENT=$(cat "${{ runner.temp }}/lint-data/lint_errors.txt")
           LINT_ERRORS_JSON_ESCAPED=$(echo "$LINT_ERRORS_CONTENT" | jq -R -s '.')
           FILES_TO_FIX_JSON_CONTENT=$(cat "${{ runner.temp }}/pr_files_for_lint_fix.json")
-          if ! echo "$FILES_TO_FIX_JSON_CONTENT" | jq -e 'type == "array" and length > 0' > /dev/null; then
-            echo "::warning::No valid files to fix. Skipping API call."; echo "api_call_skipped=true" >> $GITHUB_OUTPUT; exit 0 
-          fi; echo "api_call_skipped=false" >> $GITHUB_OUTPUT
-          API_PAYLOAD=$(jq -n --argjson filesToFix "$FILES_TO_FIX_JSON_CONTENT" --argjson lintErrors "$LINT_ERRORS_JSON_ESCAPED" --arg modelName "models/gemini-1.5-pro-latest" '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
+
+          if ! echo "$FILES_TO_FIX_JSON_CONTENT" | jq -e 'type == "array" and length > 0 and .[0].path' > /dev/null 2>&1; then
+            echo "::warning::No valid files with paths found in JSON to fix. Skipping API call."
+            echo "Content of pr_files_for_lint_fix.json that caused skip:"
+            cat "${{ runner.temp }}/pr_files_for_lint_fix.json"
+            echo "api_call_skipped=true" >> $GITHUB_OUTPUT; exit 0
+          fi
+          echo "api_call_skipped=false" >> $GITHUB_OUTPUT
+
+          # --- MODIFIED LINE: Removed modelName from payload ---
+          API_PAYLOAD=$(jq -n --argjson filesToFix "$FILES_TO_FIX_JSON_CONTENT" --argjson lintErrors "$LINT_ERRORS_JSON_ESCAPED" '{filesToFix: $filesToFix, lintErrors: $lintErrors}')
+          # --- END MODIFICATION ---
+          
+          echo "Size of API_PAYLOAD to be sent: $(echo -n "$API_PAYLOAD" | wc -c) bytes"
+          echo "First 1000 characters of API_PAYLOAD:"
+          echo "$API_PAYLOAD" | head -c 1000 && echo
+          echo "Last 1000 characters of API_PAYLOAD:"
+          echo "$API_PAYLOAD" | tail -c 1000 && echo
+          
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" -H "Content-Type: application/json" -d "$API_PAYLOAD" -o "${{ runner.temp }}/fix_response.json")
-          echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"; cat "${{ runner.temp }}/fix_response.json"
+          
+          echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
+          echo "--- Full AI API Response (fix_response.json) ---"
+          if [ -f "${{ runner.temp }}/fix_response.json" ]; then
+            echo "Size of fix_response.json: $(wc -c < "${{ runner.temp }}/fix_response.json") bytes"
+            cat "${{ runner.temp }}/fix_response.json" && echo
+          else
+            echo "fix_response.json not created."
+          fi
+          echo "--- End of Full AI API Response ---"
+
           if [ "$HTTP_RESPONSE_CODE" -ne 200 ] || ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
-             echo "::error::AI Lint Fix API call failed or returned invalid JSON."; exit 1 
+             echo "::error::AI Lint Fix API call failed or returned invalid JSON."
+             echo "api_response_success=false" >> $GITHUB_OUTPUT
+             return
           fi
           echo "api_response_success=$(jq -r .success "${{ runner.temp }}/fix_response.json")" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT

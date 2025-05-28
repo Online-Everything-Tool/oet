@@ -8,12 +8,10 @@ import {
   SafetySetting,
 } from '@google/generative-ai';
 import fs from 'fs/promises';
-import path from 'path'; // Import path module
+import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-// --- SWITCH TO FLASH MODEL ---
-const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest';
-// --- END SWITCH ---
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest'; // API controls this
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -28,7 +26,6 @@ interface FileToFix {
 interface RequestBody {
   filesToFix: FileToFix[];
   lintErrors: string;
-  modelName?: string;
 }
 
 interface ApiResponse {
@@ -42,7 +39,7 @@ const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,
   topP: 0.8,
-  maxOutputTokens: 8192,
+  maxOutputTokens: 32768,
   responseMimeType: 'text/plain',
 };
 
@@ -151,15 +148,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { filesToFix, lintErrors: globalLintErrorsInput, modelName = DEFAULT_MODEL_NAME } = body;
-  const model = genAI.getGenerativeModel({ model: modelName });
+  const { filesToFix, lintErrors: globalLintErrorsInput } = body; // modelName removed from destructuring
+  const modelToUse = DEFAULT_MODEL_NAME; // API decides which model to use
+  
+  const model = genAI.getGenerativeModel({ model: modelToUse });
   const fixedFilesResults: Record<string, string | null> = {};
   let allSucceededOverall = true;
   let anyFileActuallyFixedByAI = false;
   let overallMessage = 'Lint fixing process completed.';
   let promptTemplate: string;
 
-  // Normalize globalLintErrorsInput to ensure consistent line breaks
   const globalLintErrors = globalLintErrorsInput.replace(/\r\n/g, '\n');
 
 
@@ -186,22 +184,17 @@ export async function POST(request: NextRequest) {
   }
 
   console.log(
-    `[API fix-linting-errors] Attempting to fix ${filesToFix.length} file(s) using model ${modelName}.`
+    `[API fix-linting-errors] Attempting to fix ${filesToFix.length} file(s) using model ${modelToUse}.`
   );
 
   for (const file of filesToFix) {
     const fileProcessStartTime = Date.now();
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
-    // --- START: ROBUST LINT ERROR EXTRACTION ---
     const lines = globalLintErrors.split('\n');
     let collectingForCurrentFile = false;
     const errorsForThisFileArray: string[] = [];
-    // Normalize paths for comparison (e.g. handles './app/...' vs 'app/...')
     const currentFilePathNormalized = path.normalize(file.path);
-    // Regex to detect typical file path lines in lint output.
-    // Adjust this regex based on YOUR linter's output format!
-    // This example assumes paths might start with './' or be relative from project root.
     const pathHeaderRegex = /^(?:\.\/)?(?:app\/|src\/)?[\w/\-.]+\.(tsx|ts|js|jsx|mjs|cjs)/i;
 
     for (const line of lines) {
@@ -210,27 +203,20 @@ export async function POST(request: NextRequest) {
       let linePathNormalized = '';
 
       const pathMatch = trimmedLine.match(pathHeaderRegex);
-      if (pathMatch && pathMatch[0].trim() === trimmedLine) { // Ensure the whole trimmed line is the path
+      if (pathMatch && pathMatch[0].trim() === trimmedLine) {
         lineIsPathHeader = true;
         linePathNormalized = path.normalize(pathMatch[0].trim());
       }
       
       if (lineIsPathHeader && linePathNormalized === currentFilePathNormalized) {
         collectingForCurrentFile = true;
-        // Optionally, decide if you want to include the filename header in the errors sent to AI.
-        // If your linter groups errors under a filename, you might not need to.
-        // errorsForThisFileArray.push(line); 
       } else if (lineIsPathHeader && linePathNormalized !== currentFilePathNormalized) {
-        // This line is a header for a DIFFERENT file, stop collecting for the previous one.
         collectingForCurrentFile = false;
       } else if (collectingForCurrentFile && trimmedLine) {
-        // This line is assumed to be an actual error/warning message for the current file.
-        // Add more specific checks if needed (e.g., starts with "Error:", "Warning:", or line numbers).
-        errorsForThisFileArray.push(line); // Push the original line, not trimmedLine, to preserve indentation
+        errorsForThisFileArray.push(line);
       }
     }
     const specificLintErrorsForThisFile = errorsForThisFileArray.join('\n');
-    // --- END: ROBUST LINT ERROR EXTRACTION ---
 
     console.log(`[API fix-linting-errors] For file ${file.path}, specificLintErrorsForThisFile (trimmed length ${specificLintErrorsForThisFile.trim().length}):\n---\n${specificLintErrorsForThisFile.trim()}\n---`);
 
