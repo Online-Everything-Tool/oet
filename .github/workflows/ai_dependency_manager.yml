@@ -11,23 +11,23 @@ jobs:
   resolve_dependencies:
     name: Resolve Tool Dependencies
     if: >
-      github.event.workflow_run.conclusion == 'failure' && 
+      github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.pull_requests[0] != null &&
       github.event.workflow_run.pull_requests[0].head.ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: read 
-      pull-requests: write 
+      actions: read
+      pull-requests: write
 
     env:
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-      PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }} 
-      PR_HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref }} 
+      PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
+      PR_HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref }}
       TRIGGERING_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
-      VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency 
+      VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency
 
-    outputs: 
+    outputs:
         adm_action_taken: ${{ steps.final_status_log.outputs.adm_action_taken_final }}
         adm_pushed_changes: ${{ steps.final_status_log.outputs.adm_pushed_changes_final }}
 
@@ -51,11 +51,11 @@ jobs:
         if: steps.log_context.outputs.setup_failed != 'true'
         uses: actions/download-artifact@v4
         with:
-          name: pending-dependencies-${{ env.PR_HEAD_SHA }} 
+          name: pending-dependencies-${{ env.PR_HEAD_SHA }}
           path: ${{ runner.temp }}/pending-deps-data
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ env.TRIGGERING_WORKFLOW_RUN_ID }}
-        continue-on-error: true 
+        continue-on-error: true
 
       - name: Check Artifact Validity
         id: check_artifact
@@ -76,19 +76,18 @@ jobs:
             fi
           fi
 
-      # Subsequent steps only run if artifact was valid & actionable
       - name: Checkout PR Code (with PAT)
-        id: checkout_code_pat 
+        id: checkout_code_pat
         if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.PR_HEAD_SHA }} 
-          token: ${{ secrets.AI_LINT_FIXER_PAT }} 
-          fetch-depth: 0 
+          ref: ${{ env.PR_HEAD_SHA }}
+          token: ${{ secrets.AI_LINT_FIXER_PAT }}
+          fetch-depth: 0
 
       - name: Read tool-generation-info.json
         id: read_tool_gen_info
-        if: steps.checkout_code_pat.outcome == 'success' # Implies artifact was actionable
+        if: steps.checkout_code_pat.outcome == 'success'
         run: |
           RAW_BRANCH_NAME="${{ env.PR_HEAD_BRANCH }}"
           TOOL_DIRECTIVE_FROM_BRANCH=""
@@ -98,7 +97,7 @@ jobs:
             TOOL_DIRECTIVE_FROM_BRANCH="unknown-directive"
           fi
           TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FROM_BRANCH}/tool-generation-info.json"
-          NPM_DEPS_FULFILLED_STATUS="absent" 
+          NPM_DEPS_FULFILLED_STATUS="absent"
           if [ -f "$TOOL_GEN_INFO_FILE" ]; then
             if jq -e '.npmDependenciesFulfilled' "$TOOL_GEN_INFO_FILE" > /dev/null 2>&1; then
               NPM_DEPS_FULFILLED_STATUS_RAW=$(jq -r '.npmDependenciesFulfilled // "absent"' "$TOOL_GEN_INFO_FILE")
@@ -114,16 +113,12 @@ jobs:
 
       - name: Vet and Install Dependencies
         id: vet_and_install
-        # Run if artifact was actionable AND npm_deps_fulfilled_state from tool-gen-info is 'absent'
         if: steps.read_tool_gen_info.outcome == 'success' && steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state == 'absent'
         run: |
-          # ... (Vet and Install logic as in previous correct ADM version) ...
-          # OUTPUTS: all_deps_resolved_successfully (true/false), package_json_changed (true/false)
-          # ENV VARS for comment: UNSAFE_DEPS_DETAILS, MANUAL_REVIEW_DEPS_DETAILS, INSTALLED_DEPS_LIST, unsafe_deps_count_val, manual_review_deps_count_val
-          set -e 
+          set -e
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path_output }}"
           TOOL_DIRECTIVE_FROM_ARTIFACT=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
-          TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided"' "$PENDING_DEPS_FILE") 
+          TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided"' "$PENDING_DEPS_FILE")
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
           NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
           VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp); UNSAFE_DETAILS_TMP_FILE=$(mktemp); MANUAL_REVIEW_TMP_FILE=$(mktemp)
@@ -139,9 +134,9 @@ jobs:
               if [ "$vetting_success" != "true" ] || ! jq -e .vettingResult "${{ runner.temp }}/vet_response.json" > /dev/null; then api_message=$(jq -r .message "${{ runner.temp }}/vet_response.json"); echo "'$packageName' (Vetting API error: $api_message)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false"; continue; fi
               isSafeAndRelevant=$(jq -r '.vettingResult.isLikelySafeAndRelevant' "${{ runner.temp }}/vet_response.json"); makesExternalNetworkCalls=$(jq -r '.vettingResult.makesExternalNetworkCalls' "${{ runner.temp }}/vet_response.json"); justification=$(jq -r '.vettingResult.justification' "${{ runner.temp }}/vet_response.json")
               if [ "$isSafeAndRelevant" = "true" ] && [ "$makesExternalNetworkCalls" = "no" ]; then if ! grep -q "\"$packageName\"" package.json; then echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE"; fi
-              elif [ "$makesExternalNetworkCalls" = "yes" ]; then echo "'$packageName' (Network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false"; 
+              elif [ "$makesExternalNetworkCalls" = "yes" ]; then echo "'$packageName' (Network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false";
               else echo "'$packageName' (Needs review. Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)" >> "$MANUAL_REVIEW_TMP_FILE"; all_deps_resolved_successfully_flag="false"; fi
-            done; fi 
+            done; fi
           mapfile -t provisionally_safe_to_install < "$VETTED_SAFE_PACKAGES_TMP_FILE"; changes_made_to_package_json="false"
           if [ "$all_deps_resolved_successfully_flag" = "true" ] && [ ${#provisionally_safe_to_install[@]} -gt 0 ]; then
             if npm install "${provisionally_safe_to_install[@]}" --save; then changes_made_to_package_json="true"; packages_actually_installed_this_run=("${provisionally_safe_to_install[@]}"); else
@@ -159,7 +154,6 @@ jobs:
 
       - name: Commit Success State (with PAT)
         id: commit_success_pat
-        # Run if vet_and_install ran (implying artifact actionable & state was absent) AND all deps resolved successfully
         if: steps.vet_and_install.outcome == 'success' && steps.vet_and_install.outputs.all_deps_resolved_successfully == 'true'
         env:
           GITHUB_TOKEN_FOR_PUSH: ${{ secrets.AI_LINT_FIXER_PAT }}
@@ -167,7 +161,7 @@ jobs:
         run: |
           echo "Updating '${TOOL_GEN_INFO_FILE_TO_UPDATE}' to npmDependenciesFulfilled=true"
           jq '.npmDependenciesFulfilled = true' "${TOOL_GEN_INFO_FILE_TO_UPDATE}" > tmp_tool_gen_info.json && mv tmp_tool_gen_info.json "${TOOL_GEN_INFO_FILE_TO_UPDATE}"
-          
+
           git config --global user.name "OET Dependency Bot"; git config --global user.email "bot@online-everything-tool.com"
           git add "${TOOL_GEN_INFO_FILE_TO_UPDATE}"
           COMMIT_MSG="chore: Mark NPM dependencies as fulfilled"
@@ -183,13 +177,12 @@ jobs:
 
       - name: Prepare for Failure State Commit (Checkout with GITHUB_TOKEN)
         id: checkout_for_failure_commit
-        # Run if vet_and_install ran AND all_deps_resolved_successfully was false
         if: steps.vet_and_install.outcome == 'success' && steps.vet_and_install.outputs.all_deps_resolved_successfully == 'false'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.PR_HEAD_SHA }} # Original SHA
-          token: ${{ secrets.GITHUB_TOKEN }} # Checkout with GITHUB_TOKEN
-          fetch-depth: 0 # Not strictly needed for just committing one file
+          ref: ${{ env.PR_HEAD_SHA }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Modify tool-gen-info for Failure State
         id: modify_for_failure
@@ -214,8 +207,7 @@ jobs:
           author_email: bot@online-everything-tool.com
           message: 'chore: Mark NPM dependency resolution attempt as failed (will not re-trigger CI)'
           add: '${{ steps.read_tool_gen_info.outputs.tool_gen_info_file_path_output }}'
-          push: 'true' 
-          # Default token (GITHUB_TOKEN) is used by this action for push
+          push: 'true'
 
       - name: Prepare Outputs for Comment Script
         id: prepare_comment_data
@@ -226,74 +218,83 @@ jobs:
           echo "NPM_DEPS_FULFILLED_STATE_FROM_FILE=${{ steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state }}" >> $GITHUB_ENV
           echo "ALL_DEPS_RESOLVED_FROM_VET=${{ steps.vet_and_install.outputs.all_deps_resolved_successfully }}" >> $GITHUB_ENV
           echo "PUSHED_SUCCESS_PAT_OUTPUT=${{ steps.commit_success_pat.outputs.changes_pushed_by_pat }}" >> $GITHUB_ENV
-          # For push_failure_status, we check its 'outcome' directly in the comment script's if condition.
 
       - name: Post Summary Comment to PR
         uses: actions/github-script@v7
         if: always() && steps.log_context.outputs.setup_failed != 'true'
-        env: 
+        env:
             UNSAFE_DEPS_DETAILS_FOR_COMMENT: ${{ env.UNSAFE_DEPS_DETAILS }}
             MANUAL_REVIEW_DEPS_DETAILS_FOR_COMMENT: ${{ env.MANUAL_REVIEW_DEPS_DETAILS }}
             INSTALLED_DEPS_LIST_FOR_COMMENT: ${{ env.INSTALLED_DEPS_LIST }}
             UNSAFE_DEPS_COUNT_FOR_COMMENT: ${{ env.unsafe_deps_count_val }}
             MANUAL_REVIEW_DEPS_COUNT_FOR_COMMENT: ${{ env.manual_review_deps_count_val }}
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
-            if (isNaN(prNumber)) { core.warning("ADM: PR Number not available. Skipping comment."); return; }
+            if (isNaN(prNumber)) {
+              core.warning("ADM: PR Number not available. Skipping comment.");
+              return;
+            }
             let commentBody = `## 🤖 AI Dependency Manager Results for PR #${prNumber}\n\n`;
 
-            const npmDepsFulfilledStateFile = process.env.NPM_DEPS_FULFILLED_STATE_FROM_FILE; // 'absent', 'true', 'false'
-            const artifactDownloadOutcome = process.env.DOWNLOAD_OUTCOME; // 'success', 'failure', 'skipped'
-            const artifactWasActionable = process.env.ARTIFACT_VALID_AND_ACTIONABLE === 'true';
-            const allDepsResolvedByVet = process.env.ALL_DEPS_RESOLVED_FROM_VET === 'true';
-            const pushedSuccessWithPat = process.env.PUSHED_SUCCESS_PAT_OUTPUT === 'true';
-            // Check outcome of the failure push step directly if needed, e.g. process.env.steps_push_failure_status_outcome === 'success'
-            // For simplicity, if allDepsResolvedByVet is false and we attempted, assume failure path was taken or should have been.
+            const artifactDownloadOutcome = process.env.DOWNLOAD_OUTCOME; // From prepare_comment_data
+            const artifactWasActionable = process.env.ARTIFACT_VALID_AND_ACTIONABLE === 'true'; // From prepare_comment_data
 
-            const unsafeDetails = process.env.UNSAFE_DEPS_DETAILS_FOR_COMMENT || "";
-            const manualReviewDetails = process.env.MANUAL_REVIEW_DEPS_DETAILS_FOR_COMMENT || "";
-            const installedDeps = process.env.INSTALLED_DEPS_LIST_FOR_COMMENT || "";
-            const unsafeCount = parseInt(process.env.UNSAFE_DEPS_COUNT_FOR_COMMENT || "0");
-            const manualReviewCount = parseInt(process.env.MANUAL_REVIEW_DEPS_COUNT_FOR_COMMENT || "0");
+            if (!artifactWasActionable) {
+              // Scenario: No artifact found or artifact was invalid. ADM did not attempt processing.
+              commentBody += "ℹ️ ADM: No actionable pending dependency artifact was found. No dependency processing attempted.\n";
+            } else {
+              // Scenario: Artifact WAS actionable. Proceed to check status from tool-generation-info.json
+              // These env vars should be set if artifactWasActionable is true, because read_tool_gen_info should have run.
+              const npmDepsFulfilledStateFile = process.env.NPM_DEPS_FULFILLED_STATE_FROM_FILE; // From prepare_comment_data
+              const allDepsResolvedByVet = process.env.ALL_DEPS_RESOLVED_FROM_VET; // From prepare_comment_data, will be 'true' or 'false' if vet_and_install ran
+              const pushedSuccessWithPat = process.env.PUSHED_SUCCESS_PAT_OUTPUT === 'true'; // From prepare_comment_data
 
-            if (npmDepsFulfilledState === 'true') {
-              commentBody += "✅ NPM dependencies previously marked as fulfilled in `tool-generation-info.json`. No new processing by ADM.\n";
-            } else if (npmDepsFulfilledState === 'false') {
-              commentBody += "⚠️ NPM dependencies previously marked as FAILED in `tool-generation-info.json`. No new attempt by ADM. Manual intervention may be needed.\n";
-            } else if (artifactDownloadOutcome !== 'success' || !artifactWasActionable) { 
-              commentBody += "ℹ️ No actionable pending dependency artifact found for ADM (or VPR failed for other reasons). No dependency changes made.\n";
-            } else { // State was 'absent' and artifact was actionable, so processing was attempted
-              if (allDepsResolvedByVet) {
-                if (pushedSuccessWithPat) {
-                  commentBody += `✅ Dependencies successfully processed. Status updated to fulfilled in \`tool-generation-info.json\` and changes pushed.\n`;
-                  if (installedDeps) commentBody += `   Installed: \`${installedDeps}\`\n`;
-                } else { // Should not happen if resolved successfully, implies status file already true or no actual installs needed
-                  commentBody += `✅ Dependencies appear resolved (e.g., all already in package.json). \`tool-generation-info.json\` likely updated to fulfilled if it wasn't already.\n`;
+              // Details for when resolution failed
+              const unsafeDetails = process.env.UNSAFE_DEPS_DETAILS_FOR_COMMENT || "";
+              const manualReviewDetails = process.env.MANUAL_REVIEW_DEPS_DETAILS_FOR_COMMENT || "";
+              const installedDeps = process.env.INSTALLED_DEPS_LIST_FOR_COMMENT || "";
+              const unsafeCount = parseInt(process.env.UNSAFE_DEPS_COUNT_FOR_COMMENT || "0");
+              const manualReviewCount = parseInt(process.env.MANUAL_REVIEW_DEPS_COUNT_FOR_COMMENT || "0");
+
+              if (npmDepsFulfilledStateFile === 'true') {
+                commentBody += "✅ ADM: NPM dependencies already marked as fulfilled in `tool-generation-info.json`. No new processing by ADM.\n";
+              } else if (npmDepsFulfilledStateFile === 'false') {
+                commentBody += "⚠️ ADM: NPM dependency resolution previously failed (marked in `tool-generation-info.json`). ADM will not re-attempt. Manual intervention may be needed.\n";
+              } else if (npmDepsFulfilledStateFile === 'absent') {
+                if (allDepsResolvedByVet === 'true') {
+                  if (pushedSuccessWithPat) {
+                    commentBody += `✅ ADM: Dependencies successfully processed. Status updated to fulfilled in \`tool-generation-info.json\` and changes pushed.\n`;
+                    if (installedDeps) commentBody += `   Installed: \`${installedDeps}\`\n`;
+                  } else {
+                    commentBody += `✅ ADM: Dependencies appear resolved (e.g., all were already in package.json, or no new installs were needed). \`tool-generation-info.json\` likely updated to fulfilled if it wasn't already.\n`;
+                  }
+                } else { // allDepsResolvedByVet was 'false' (or empty if vet_and_install didn't run as expected)
+                  commentBody += `🚨 **ADM: Dependency Resolution Failed or Requires Manual Review:**\n`;
+                  if (unsafeCount > 0 && unsafeDetails) commentBody += `  - Unsafe/Failed Vetting or Install:\n${unsafeDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
+                  if (manualReviewCount > 0 && manualReviewDetails) commentBody += `  - Needs Manual Vetting Review:\n${manualReviewDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
+                  commentBody += `   The \`tool-generation-info.json\` file has been updated to mark \`npmDependenciesFulfilled: false\`. This status commit (by GITHUB_TOKEN) will not re-trigger CI. Manual intervention is likely needed for these dependencies.\n`;
                 }
-              } else { // allDepsResolvedByVet was false
-                commentBody += `🚨 **Dependency Resolution Failed or Requires Manual Review:**\n`;
-                if (unsafeCount > 0 && unsafeDetails) commentBody += `  - Unsafe/Failed Vetting or Install:\n${unsafeDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
-                if (manualReviewCount > 0 && manualReviewDetails) commentBody += `  - Needs Manual Vetting Review:\n${manualReviewDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
-                commentBody += `   The \`tool-generation-info.json\` file has been updated to mark \`npmDependenciesFulfilled: false\`. This status commit (by GITHUB_TOKEN) will not re-trigger CI. Manual intervention is likely needed for these dependencies.\n`;
+              } else {
+                commentBody += `⚠️ ADM: Unexpected internal state. Status of npmDependenciesFulfilled was '${npmDepsFulfilledStateFile}'. Please check workflow logs.\n`;
               }
             }
             commentBody += `\n---\n*This is an automated update by AI Dependency Manager.*`;
-            try { await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: commentBody }); }
-            catch (e) { core.warning(`Failed to post PR comment: ${e.message}`); }
-            
-            // Job failure condition: if state was 'absent', artifact was actionable, but resolution failed.
-            if (npmDepsFulfilledState === 'absent' && artifactWasActionable && !allDepsResolvedByVet) {
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            } catch (e) {
+              core.warning(`Failed to post PR comment: ${e.message}`);
+            }
+
+            const finalNpmStateCheck = process.env.NPM_DEPS_FULFILLED_STATE_FROM_FILE;
+            const finalResolutionCheck = process.env.ALL_DEPS_RESOLVED_FROM_VET;
+
+            if (artifactWasActionable && finalNpmStateCheck === 'absent' && finalResolutionCheck === 'false') {
               core.setFailed("ADM: Failed to resolve all dependencies or manual review needed.");
             }
-      
-      - name: Add 'needs-dependency-review' label
-        if: steps.vet_and_install.outcome == 'success' && (steps.vet_and_install.outputs.manual_review_deps_count_val > 0 || steps.vet_and_install.outputs.unsafe_deps_count_val > 0) && steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state == 'absent' && steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.AI_LINT_FIXER_PAT }} 
-          script: |
-            const prNumber = parseInt(process.env.PR_NUMBER, 10);
-            if (isNaN(prNumber)) { core.warning("ADM: PR Number not for label. Skipping."); return; }
-            await github.rest.issues.addLabels({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, labels: ['needs-dependency-review'] });

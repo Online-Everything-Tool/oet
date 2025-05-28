@@ -72,7 +72,6 @@ jobs:
             fi
           fi
 
-      # Subsequent steps only run if artifact was valid & actionable
       - name: Checkout PR Code
         id: checkout_code
         if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
@@ -84,7 +83,7 @@ jobs:
 
       - name: Read tool-generation-info.json to check lintFixesAttempted
         id: read_tool_gen_info
-        if: steps.checkout_code.outcome == 'success' # Implies artifact_is_valid_and_actionable was true
+        if: steps.checkout_code.outcome == 'success'
         run: |
           RAW_BRANCH_NAME="${{ env.PR_HEAD_BRANCH }}"
           TOOL_DIRECTIVE_FROM_BRANCH=""
@@ -116,18 +115,36 @@ jobs:
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           PR_FILES_JSON_PATH="${{ runner.temp }}/pr_files_for_lint_fix.json"
-          echo '[' > $PR_FILES_JSON_PATH; FIRST_FILE=true
+          
+          JQ_TEMP_OUTPUT_FILE="${{ runner.temp }}/jq_processed_files.json"
+
+          echo '[' > "$PR_FILES_JSON_PATH"
+          FIRST_FILE=true
           while IFS= read -r filepath; do
             if [ -z "$filepath" ]; then continue; fi;
-            if [ -f "$filepath" ]; then
-              if [ "$FIRST_FILE" = "false" ]; then echo ',' >> $PR_FILES_JSON_PATH; fi
-              jq -n --arg path "$filepath" --arg content "$(cat "$filepath")" \
-                '{path: $path, currentContent: $content}' >> $PR_FILES_JSON_PATH
+            actual_filepath=$(echo "$filepath" | tr -d '\r')
+            if [ -f "$actual_filepath" ]; then
+              if [ "$FIRST_FILE" = "false" ]; then echo ',' >> "$PR_FILES_JSON_PATH"; fi
+              jq -n --arg path "$actual_filepath" --arg content "$(cat "$actual_filepath")" \
+                '{path: $path, currentContent: $content}' >> "$PR_FILES_JSON_PATH"
               FIRST_FILE=false
-            else echo "::warning::File path '$filepath' from artifact not found in checkout."; fi
-          done < "$FILES_TO_CHECK_FILE"; echo ']' >> $PR_FILES_JSON_PATH
-          jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > tmp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
-          echo "Prepared pr_files_for_lint_fix.json"
+            else echo "::warning::File path '$actual_filepath' from artifact not found in checkout."; fi
+          done < "$FILES_TO_CHECK_FILE"
+          echo ']' >> "$PR_FILES_JSON_PATH"
+
+          if jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' "$PR_FILES_JSON_PATH" > "$JQ_TEMP_OUTPUT_FILE"; then
+            if [ -s "$JQ_TEMP_OUTPUT_FILE" ]; then
+              mv "$JQ_TEMP_OUTPUT_FILE" "$PR_FILES_JSON_PATH"
+            else
+              echo "::warning::jq post-processing produced an empty file. Using potentially unprocessed $PR_FILES_JSON_PATH."
+            fi
+          else
+            echo "::error::jq post-processing command failed. Check the input $PR_FILES_JSON_PATH (content below) and the jq command."
+            cat "$PR_FILES_JSON_PATH"
+            exit 1
+          fi
+          echo "Prepared pr_files_for_lint_fix.json. Content:"
+          cat "$PR_FILES_JSON_PATH"
 
       - name: Call AI Lint Fix API
         id: call_fix_api
@@ -204,6 +221,98 @@ jobs:
           github_token: ${{ secrets.AI_LINT_FIXER_PAT }} 
           force: false
       
+      - name: Prepare Outputs for ALF Comment
+        id: prepare_alf_comment_data
+        if: always() && steps.log_context.outputs.setup_failed != 'true'
+        run: |
+          echo "Setting up environment variables for ALF comment script..."
+          echo "PR_NUMBER_ALF=${{ env.PR_NUMBER }}" >> $GITHUB_ENV
+          echo "ARTIFACT_VALID_ACTIONABLE_ALF=${{ steps.check_artifact.outputs.artifact_is_valid_and_actionable }}" >> $GITHUB_ENV
+          echo "LINT_FIXES_ATTEMPTED_ALF=${{ steps.read_tool_gen_info.outputs.lint_fixes_already_attempted }}" >> $GITHUB_ENV
+          echo "API_CALL_SKIPPED_ALF=${{ steps.call_fix_api.outputs.api_call_skipped }}" >> $GITHUB_ENV
+          echo "API_CALL_STEP_OUTCOME_ALF=${{ steps.call_fix_api.outcome }}" >> $GITHUB_ENV
+          echo "API_RESPONSE_SUCCESS_ALF=${{ steps.call_fix_api.outputs.api_response_success }}" >> $GITHUB_ENV
+          echo "APPLY_FIXES_STEP_OUTCOME_ALF=${{ steps.apply_fixes.outcome }}" >> $GITHUB_ENV
+          echo "OVERALL_COMMIT_MADE_ALF=${{ steps.apply_fixes.outputs.overall_commit_made }}" >> $GITHUB_ENV
+          echo "ACTUAL_CODE_CHANGES_ALF=${{ steps.apply_fixes.outputs.actual_code_changes_by_ai }}" >> $GITHUB_ENV
+          echo "Comment data preparation complete."
+
+      - name: Post Summary Comment to PR
+        uses: actions/github-script@v7
+        if: always() && steps.log_context.outputs.setup_failed != 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt(process.env.PR_NUMBER_ALF, 10);
+            if (isNaN(prNumber)) {
+              core.warning("ALF: PR Number not available. Skipping comment.");
+              return;
+            }
+
+            let commentBody = `## 🤖 AI Lint Fixer Results for PR #${prNumber}\n\n`;
+            let alfShouldFailJob = false;
+
+            const artifactValidAndActionable = process.env.ARTIFACT_VALID_ACTIONABLE_ALF === 'true';
+            const lintFixesAlreadyAttempted = process.env.LINT_FIXES_ATTEMPTED_ALF === 'true';
+            const apiCallSkipped = process.env.API_CALL_SKIPPED_ALF === 'true';
+            const apiCallStepOutcome = process.env.API_CALL_STEP_OUTCOME_ALF; // 'success', 'failure', 'skipped'
+            const apiResponseSuccess = process.env.API_RESPONSE_SUCCESS_ALF === 'true';
+            const applyFixesStepOutcome = process.env.APPLY_FIXES_STEP_OUTCOME_ALF; // 'success', 'failure', 'skipped'
+            const overallCommitMade = process.env.OVERALL_COMMIT_MADE_ALF === 'true';
+            const actualCodeChangesByAi = process.env.ACTUAL_CODE_CHANGES_ALF === 'true';
+
+            if (!artifactValidAndActionable) {
+              commentBody += "ℹ️ ALF: No actionable lint failure artifact found. No lint fixing attempt by ALF.\n";
+            } else if (lintFixesAlreadyAttempted) {
+              commentBody += "ℹ️ ALF: Lint fixes were already marked as attempted for this tool version in `tool-generation-info.json`. No new attempt made.\n";
+            } else if (apiCallSkipped) {
+              commentBody += "ℹ️ ALF: AI API call skipped (e.g., no files found to fix after preparation). No lint fixing attempt by ALF.\n";
+            } else {
+              // Artifact was actionable, not already attempted, and API call was not skipped.
+              // This means ALF *tried* to do something or was supposed to.
+              if (apiCallStepOutcome !== 'success' || !apiResponseSuccess) {
+                commentBody += `🚨 **ALF: AI Lint Fix API Call Failed or Reported Error.**\n`;
+                commentBody += `   - API Call Step Outcome: \`${apiCallStepOutcome || 'N/A'}\`\n`;
+                commentBody += `   - API Reported Success: \`${apiResponseSuccess}\`\n`;
+                commentBody += `   Manual review of lint errors is likely needed. \`tool-generation-info.json\` was not updated by this process.\n`;
+                alfShouldFailJob = true;
+              } else if (overallCommitMade) {
+                if (actualCodeChangesByAi) {
+                  commentBody += "✅ ALF: AI-assisted lint fixes applied to code, `tool-generation-info.json` updated. Changes have been pushed.\n";
+                } else {
+                  commentBody += "✅ ALF: `tool-generation-info.json` updated (no actual code changes by AI). Changes have been pushed.\n";
+                }
+              } else if (applyFixesStepOutcome === 'success') { // API call was success, but no commit made
+                commentBody += "ℹ️ ALF: AI processed files but made no changes to code, and `tool-generation-info.json` was already up-to-date or not found. No commit made.\n";
+              } else if (applyFixesStepOutcome !== 'success' && applyFixesStepOutcome !== 'skipped' ) {
+                commentBody += `🚨 **ALF: Failed to apply fixes or update status file after successful API call.**\n`;
+                commentBody += `   - Apply Fixes Step Outcome: \`${applyFixesStepOutcome || 'N/A'}\`\n`;
+                commentBody += `   Manual review may be needed.\n`;
+                alfShouldFailJob = true;
+              } else {
+                commentBody += "⚠️ ALF: Reached an unexpected state after AI API call. Please review workflow logs.\n";
+                // Decide if this unexpected state should cause a job failure
+                // alfShouldFailJob = true;
+              }
+            }
+
+            commentBody += `\n---\n*This is an automated update by AI Lint Fixer.*`;
+
+            try {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            } catch (e) {
+              core.warning(`ALF: Failed to post PR comment: ${e.message}`);
+            }
+
+            if (alfShouldFailJob) {
+              core.setFailed("ALF: Failed to complete lint fixing process or an error occurred.");
+            }          
+
       - name: Final Status Log
         if: always() 
         run: |
