@@ -1,0 +1,21 @@
+{
+  "title": "CI Test: PennyFilter (With Lint Error)",
+  "directive": "penny-filter",
+  "description": "A dummy tool for testing CI workflows: penny-filter. This version includes intentional lint errors.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": [
+    "test",
+    "ci",
+    "dummy"
+  ],
+  "includeInSitemap": false,
+  "status": "stable"
+}
