@@ -1,0 +1,49 @@
+# .github/workflows/test_receiver_workflow.yml
+name: Test Receiver Workflow
+
+on:
+  workflow_run:
+    workflows: ['Test Trigger Workflow'] # Must match the name of the first workflow
+    types: [completed]
+
+jobs:
+  log_event_data:
+    name: Log Workflow Run Event Data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump github.event.workflow_run context
+        env:
+          WORKFLOW_RUN_EVENT_PAYLOAD: ${{ toJson(github.event.workflow_run) }}
+        run: |
+          echo "--- Received github.event.workflow_run payload ---"
+          echo "$WORKFLOW_RUN_EVENT_PAYLOAD"
+          echo "--------------------------------------------------"
+          echo ""
+          echo "--- Key Properties ---"
+          echo "Conclusion of triggering workflow ('Test Trigger Workflow'): ${{ github.event.workflow_run.conclusion }}"
+          echo "Head Branch from event: ${{ github.event.workflow_run.head_branch }}"
+          echo "Head SHA from event: ${{ github.event.workflow_run.head_sha }}"
+          echo "ID of triggering workflow run: ${{ github.event.workflow_run.id }}"
+          echo "Name of triggering workflow: ${{ github.event.workflow_run.name }}"
+          echo "Triggering workflow path: ${{ github.event.workflow_run.path }}"
+          echo "Number of pull_requests in event: $(echo '${{ toJson(github.event.workflow_run.pull_requests) }}' | jq '. | length')"
+          echo "Pull Requests array from event: ${{ toJson(github.event.workflow_run.pull_requests) }}"
+          
+          # Attempt to access PR number from the event
+          PR_NUMBER_FROM_EVENT="${{ github.event.workflow_run.pull_requests[0].number }}"
+          if [ -n "$PR_NUMBER_FROM_EVENT" ]; then
+            echo "PR Number directly from event (pull_requests[0].number): $PR_NUMBER_FROM_EVENT"
+          else
+            echo "PR Number NOT directly available from event (pull_requests[0].number was empty/null)"
+          fi
+          echo "----------------------"
+
+      - name: Show outputs from the triggering workflow (if accessible)
+        # Outputs from the triggering workflow's jobs are NOT directly available here.
+        # This step is more for illustrating that point.
+        # To get them, you'd need to use the API to fetch job details of the triggering run ID.
+        run: |
+          echo "Attempting to access outputs from triggering workflow (Note: this is generally not directly possible via context)"
+          echo "Example output from Test-Trigger-Workflow (processed_sha): ${{ github.event.workflow_run.outputs.processed_sha }}" # This will likely be empty
+          echo "This demonstrates that job outputs from the *triggering* workflow aren't in workflow_run.outputs"
+          echo "To get them, Test Receiver Workflow would need to use API with run_id: ${{ github.event.workflow_run.id }} "
