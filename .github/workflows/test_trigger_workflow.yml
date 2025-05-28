@@ -15,21 +15,13 @@ on:
 jobs:
   main_job:
     name: Main Job for Test Trigger
-    # Only run if specifically a push to test- branch OR
-    # a PR from test- branch OR a /revalidate-test comment on a PR from a test- branch
     if: |
       (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/test-')) ||
       (github.event_name == 'pull_request' && startsWith(github.head_ref, 'test-')) ||
       (
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request &&
-        (
-          startsWith(github.event.comment.body, '/revalidate-test')
-          // We need to ensure this comment is on a PR whose head_ref starts with 'test-'
-          // This requires an API call if we want to be super precise, or we make an assumption.
-          // For simplicity, let's assume for now if it's /revalidate-test, it's for such a PR.
-          // A more robust check would be added in a real scenario.
-        )
+        startsWith(github.event.comment.body, '/revalidate-test')
       )
     runs-on: ubuntu-latest
     outputs:
@@ -72,14 +64,25 @@ jobs:
             SHA_TO_PROCESS=$(echo "$PR_DATA" | jq -r .head.sha)
             BRANCH_TO_PROCESS=$(echo "$PR_DATA" | jq -r .head.ref)
             PR_NUMBER_TO_PROCESS="$PR_NUMBER_FROM_COMMENT"
+            
+            # Additional check for comment-triggered runs to ensure the PR branch is 'test-'
+            # This logic was previously commented out in the 'if' condition
+            if [[ ! "$BRANCH_TO_PROCESS" == test-* ]]; then
+              echo "::error::Comment-triggered run for PR #${PR_NUMBER_TO_PROCESS}, but its head branch ('$BRANCH_TO_PROCESS') does not start with 'test-'. This job will fail to ensure dependent workflows do not run with incorrect context."
+              exit 1
+            fi
           else
             echo "::error::Unhandled event type: ${{ github.event_name }}"
             exit 1
           fi
 
+          # This check is now effectively done for comment triggers above.
+          # For push/PR, the top-level 'if' or branch filters handle it.
+          # However, an explicit check in the script can be a safeguard.
           if [[ ! "$BRANCH_TO_PROCESS" == test-* ]]; then
             echo "::warning::Branch '$BRANCH_TO_PROCESS' does not start with 'test-'. This run might be skipped by dependent workflows if they check this."
-            # Potentially exit 0 if we strictly only want this for 'test-' branches
+            # Consider exiting if strict adherence to 'test-' branches is needed for this workflow itself
+            # exit 1 
           fi
 
           echo "SHA to process: $SHA_TO_PROCESS"
@@ -95,10 +98,4 @@ jobs:
           echo "Test Trigger Workflow processing SHA ${{ steps.get_info.outputs.sha_to_process }} on branch ${{ steps.get_info.outputs.branch_to_process }} for PR #${{ steps.get_info.outputs.pr_number_to_process }}"
           echo "Simulating some work..."
           sleep 5
-          # To test different conclusions, you could conditionally fail this step
-          # For example:
-          # if [[ "${{ steps.get_info.outputs.branch_to_process }}" == *"-fail" ]]; then
-          #   echo "Simulating failure for branch ${{ steps.get_info.outputs.branch_to_process }}"
-          #   exit 1
-          # fi
           echo "Test Trigger Workflow completed successfully for this run."
