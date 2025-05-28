@@ -1,15 +1,8 @@
-// FILE: app/tool/image-bitcoin-laser-eyes/_components/BitcoinLaserEyesClient.tsx
 'use client';
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
-import * as faceapi from 'face-api.js'; // For types, actual lib loaded by hook
+import * as faceapi from 'face-api.js';
 
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
@@ -25,9 +18,7 @@ import { OutputActionButtons } from '../../_components/shared/OutputActionButton
 import useFaceApiLoader from '../_hooks/useFaceApiLoader';
 
 import importedMetadata from '../metadata.json';
-import useItdeTargetHandler, {
-  IncomingSignal,
-} from '../../_hooks/useItdeTargetHandler';
+import useItdeTargetHandler, { IncomingSignal } from '../../_hooks/useItdeTargetHandler';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
@@ -59,9 +50,7 @@ interface BitcoinLaserEyesClientProps {
   toolRoute: string;
 }
 
-export default function BitcoinLaserEyesClient({
-  toolRoute,
-}: BitcoinLaserEyesClientProps) {
+export default function BitcoinLaserEyesClient({ toolRoute }: BitcoinLaserEyesClientProps) {
   const {
     state: toolState,
     setState,
@@ -73,34 +62,22 @@ export default function BitcoinLaserEyesClient({
   const [isManuallySaving, setIsManuallySaving] = useState<boolean>(false);
   const [uiError, setUiError] = useState<string | null>(null);
 
-  const [originalFilenameForDisplay, setOriginalFilenameForDisplay] = useState<
-    string | null
-  >(null);
-  const [originalImageSrcForUI, setOriginalImageSrcForUI] = useState<
-    string | null
-  >(null);
-  const [processedImageSrcForUI, setProcessedImageSrcForUI] = useState<
-    string | null
-  >(null);
-  const [processedOutputPermanent, setProcessedOutputPermanent] =
-    useState<boolean>(false);
+  const [originalFilenameForDisplay, setOriginalFilenameForDisplay] = useState<string | null>(null);
+  const [originalImageSrcForUI, setOriginalImageSrcForUI] = useState<string | null>(null);
+  const [processedImageSrcForUI, setProcessedImageSrcForUI] = useState<string | null>(null);
+  const [processedOutputPermanent, setProcessedOutputPermanent] = useState<boolean>(false);
   const [manualSaveSuccess, setManualSaveSuccess] = useState<boolean>(false);
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialToolStateLoadCompleteRef = useRef(false);
   const [downloadAttempted, setDownloadAttempted] = useState<boolean>(false);
 
-  const [isFilenamePromptOpen, setIsFilenamePromptOpen] =
-    useState<boolean>(false);
-  const [filenamePromptAction, setFilenamePromptAction] = useState<
-    'save' | 'download' | null
-  >(null);
-  const [filenamePromptInitialValue, setFilenamePromptInitialValue] =
-    useState<string>('');
+  const [isFilenamePromptOpen, setIsFilenamePromptOpen] = useState<boolean>(false);
+  const [filenamePromptAction, setFilenamePromptAction] = useState<'save' | 'download' | null>(null);
+  const [filenamePromptInitialValue, setFilenamePromptInitialValue] = useState<string>('');
 
   const directiveName = metadata.directive;
 
-  const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
-    useFileLibrary();
+  const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
     isLoading: isProcessingImage,
@@ -111,8 +88,7 @@ export default function BitcoinLaserEyesClient({
 
   const faceApi = useFaceApiLoader();
 
-  const [processedStoredFileForItde, setProcessedStoredFileForItde] =
-    useState<StoredFile | null>(null);
+  const [processedStoredFileForItde, setProcessedStoredFileForItde] = useState<StoredFile | null>(null);
 
   useEffect(() => {
     if (toolState.processedFileId) {
@@ -134,105 +110,68 @@ export default function BitcoinLaserEyesClient({
     return processedStoredFileForItde ? [processedStoredFileForItde] : [];
   }, [processedStoredFileForItde]);
 
-  // Auto-load face-api.js models on component mount
   useEffect(() => {
-    if (
-      !faceApi.modelsLoaded &&
-      !faceApi.isLoadingModels &&
-      !faceApi.errorLoadingModels
-    ) {
+    if (!faceApi.modelsLoaded && !faceApi.isLoadingModels && !faceApi.errorLoadingModels) {
       faceApi.loadModels();
     }
   }, [faceApi]);
 
   const generateDefaultOutputFilename = useCallback(() => {
     const originalName = originalFilenameForDisplay || 'processed-image';
-    const baseName =
-      originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+    const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
 
-    let extension = 'png'; // Default to PNG for canvas output
+    let extension = 'png';
     if (processedImageSrcForUI) {
-      // Check processed if available first
       const match = processedImageSrcForUI.match(/data:image\/(\w+);base64,/);
-      if (
-        match &&
-        (match[1] === 'jpeg' || match[1] === 'png' || match[1] === 'webp')
-      )
-        extension = match[1];
+      if (match && (match[1] === 'jpeg' || match[1] === 'png' || match[1] === 'webp')) extension = match[1];
     } else if (processedStoredFileForItde?.type) {
       const typePart = processedStoredFileForItde.type.split('/')[1];
-      if (typePart === 'jpeg' || typePart === 'png' || typePart === 'webp')
-        extension = typePart;
+      if (typePart === 'jpeg' || typePart === 'png' || typePart === 'webp') extension = typePart;
     } else if (originalFilenameForDisplay) {
-      // Fallback to original extension if known
-      const originalExt = originalFilenameForDisplay
-        .split('.')
-        .pop()
-        ?.toLowerCase();
-      if (
-        originalExt === 'jpg' ||
-        originalExt === 'jpeg' ||
-        originalExt === 'png' ||
-        originalExt === 'webp'
-      )
-        extension = originalExt === 'jpg' ? 'jpeg' : originalExt;
+      const originalExt = originalFilenameForDisplay.split('.').pop()?.toLowerCase();
+      if (originalExt === 'jpg' || originalExt === 'jpeg' || originalExt === 'png' || originalExt === 'webp') extension = originalExt === 'jpg' ? 'jpeg' : originalExt;
     }
     return `laser-eyes-${baseName}.${extension}`;
-  }, [
-    originalFilenameForDisplay,
-    processedImageSrcForUI,
-    processedStoredFileForItde,
-  ]);
+  }, [originalFilenameForDisplay, processedImageSrcForUI, processedStoredFileForItde]);
 
   const drawLaserEyesFunction = useCallback(
     async (ctx: CanvasRenderingContext2D, img: HTMLImageElement) => {
-      ctx.drawImage(img, 0, 0, img.width, img.height); // Draw original image first
+      ctx.drawImage(img, 0, 0, img.width, img.height);
 
       if (!faceApi.modelsLoaded || !faceApi.detectFaces) {
-        console.warn(
-          'FaceAPI models not loaded or detectFaces not available. Outputting original image.'
-        );
-        // Set UI error state, so it can be displayed to the user
-        // This function itself doesn't have access to setUiError directly without passing it
-        // Throwing an error might be one way, or this func could return a status.
-        // For now, assuming the processing effect will catch errors from detectFaces.
-        // Or the UI effect for !faceApi.modelsLoaded already shows a message.
+        console.warn('FaceAPI models not loaded or detectFaces not available. Outputting original image.');
         return;
       }
 
       try {
-        const detections = await faceApi.detectFaces(img); // This call comes from the hook
+        const detections = await faceApi.detectFaces(img);
         if (detections && detections.length > 0) {
-          setUiError(null); // Clear any "no faces" or model loading error from UI state
+          setUiError(null);
           detections.forEach((detection) => {
             const landmarks = detection.landmarks;
             if (!landmarks) {
               console.warn('No landmarks detected for a face.');
-              return; // Skip this face if no landmarks
+              return;
             }
-            const leftEye = landmarks.getLeftEye(); // Array of Point
-            const rightEye = landmarks.getRightEye(); // Array of Point
+            const leftEye = landmarks.getLeftEye();
+            const rightEye = landmarks.getRightEye();
 
             const getEyeCenter = (eyePoints: faceapi.Point[]) => {
-              if (!eyePoints || eyePoints.length === 0) return { x: 0, y: 0 }; // Should not happen with valid landmarks
-              const x =
-                eyePoints.reduce((sum, p) => sum + p.x, 0) / eyePoints.length;
-              const y =
-                eyePoints.reduce((sum, p) => sum + p.y, 0) / eyePoints.length;
+              if (!eyePoints || eyePoints.length === 0) return { x: 0, y: 0 };
+              const x = eyePoints.reduce((sum, p) => sum + p.x, 0) / eyePoints.length;
+              const y = eyePoints.reduce((sum, p) => sum + p.y, 0) / eyePoints.length;
               return { x, y };
             };
 
             const leftEyeCenter = getEyeCenter(leftEye);
             const rightEyeCenter = getEyeCenter(rightEye);
 
-            // Simple Bitcoin-y color and style (very basic)
-            const laserColor = '#F7931A'; // Bitcoin orange
-            const glowColor = 'rgba(247, 147, 26, 0.5)'; // Lighter orange glow
+            const laserColor = '#F7931A';
+            const glowColor = 'rgba(247, 147, 26, 0.5)';
 
             const drawLaser = (eyeCenter: { x: number; y: number }) => {
-              if (eyeCenter.x === 0 && eyeCenter.y === 0) return; // Skip if eye center calculation failed
+              if (eyeCenter.x === 0 && eyeCenter.y === 0) return;
 
-              // Outer glow
               ctx.strokeStyle = glowColor;
               ctx.lineWidth = Math.max(6, img.width * 0.03);
               ctx.lineCap = 'round';
@@ -241,10 +180,9 @@ export default function BitcoinLaserEyesClient({
               ctx.lineTo(
                 img.width * 1.2,
                 eyeCenter.y + (Math.random() - 0.5) * (img.height * 0.05)
-              ); // Slight random angle
+              );
               ctx.stroke();
 
-              // Main beam
               ctx.strokeStyle = laserColor;
               ctx.lineWidth = Math.max(2.5, img.width * 0.012);
               ctx.lineCap = 'round';
@@ -253,7 +191,7 @@ export default function BitcoinLaserEyesClient({
               ctx.lineTo(
                 img.width * 1.2,
                 eyeCenter.y + (Math.random() - 0.5) * (img.height * 0.05)
-              ); // Same slight random angle
+              );
               ctx.stroke();
             };
 
@@ -261,11 +199,8 @@ export default function BitcoinLaserEyesClient({
             drawLaser(rightEyeCenter);
           });
         } else {
-          // Only set UI error if not already showing a model loading error
           if (!faceApi.isLoadingModels && !faceApi.errorLoadingModels) {
-            setUiError(
-              'No faces detected in the image. Outputting original image.'
-            );
+            setUiError('No faces detected in the image. Outputting original image.');
           }
         }
       } catch (error) {
@@ -278,12 +213,7 @@ export default function BitcoinLaserEyesClient({
         ctx.lineCap = 'butt';
       }
     },
-    [
-      faceApi.modelsLoaded,
-      faceApi.detectFaces,
-      faceApi.isLoadingModels,
-      faceApi.errorLoadingModels,
-    ] // Added faceApi loading states
+    [faceApi.modelsLoaded, faceApi.detectFaces, faceApi.isLoadingModels, faceApi.errorLoadingModels]
   );
 
   const handleProcessIncomingSignal = useCallback(
@@ -294,26 +224,13 @@ export default function BitcoinLaserEyesClient({
         setUiError('Metadata not found for source tool.');
         return;
       }
-      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
-        signal.sourceDirective,
-        sourceMeta.outputConfig
-      );
-      if (
-        resolvedPayload.type === 'error' ||
-        resolvedPayload.type === 'none' ||
-        !resolvedPayload.data ||
-        resolvedPayload.data.length === 0
-      ) {
-        setUiError(
-          resolvedPayload.errorMessage ||
-            'No transferable data received from source.'
-        );
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig);
+      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none' || !resolvedPayload.data || resolvedPayload.data.length === 0) {
+        setUiError(resolvedPayload.errorMessage || 'No transferable data received from source.');
         return;
       }
       let newSelectedFileId: string | null = null;
-      const firstItem = resolvedPayload.data.find(
-        (item) => item.type?.startsWith('image/') && 'id' in item
-      );
+      const firstItem = resolvedPayload.data.find((item) => item.type?.startsWith('image/') && 'id' in item);
       if (firstItem) newSelectedFileId = (firstItem as StoredFile).id;
       else {
         setUiError('No valid image item found in received ITDE data.');
@@ -336,27 +253,14 @@ export default function BitcoinLaserEyesClient({
         setManualSaveSuccess(false);
         setDownloadAttempted(false);
         setUserDeferredAutoPopup(false);
-        setUiError(null); // Clear UI error on new valid input
-        const destatedIds = [oldSelectedId, oldProcessedId].filter(
-          (id): id is string => !!(id && id !== newSelectedFileId)
-        );
+        setUiError(null);
+        const destatedIds = [oldSelectedId, oldProcessedId].filter((id): id is string => !!(id && id !== newSelectedFileId));
         if (destatedIds.length > 0) {
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[LaserEyes ITDE Accept] Cleanup call failed:', e)
-          );
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) => console.error('[LaserEyes ITDE Accept] Cleanup call failed:', e));
         }
       }
     },
-    [
-      getToolMetadata,
-      toolState.autoSaveProcessed,
-      toolState.selectedFileId,
-      toolState.processedFileId,
-      setState,
-      saveStateNow,
-      cleanupOrphanedTemporaryFiles,
-      clearProcessingHookOutput,
-    ]
+    [getToolMetadata, toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -366,23 +270,15 @@ export default function BitcoinLaserEyesClient({
 
   useEffect(() => {
     if (!isLoadingToolSettings) {
-      if (!initialToolStateLoadCompleteRef.current)
-        initialToolStateLoadCompleteRef.current = true;
+      if (!initialToolStateLoadCompleteRef.current) initialToolStateLoadCompleteRef.current = true;
     } else {
-      if (initialToolStateLoadCompleteRef.current)
-        initialToolStateLoadCompleteRef.current = false;
+      if (initialToolStateLoadCompleteRef.current) initialToolStateLoadCompleteRef.current = false;
     }
   }, [isLoadingToolSettings]);
 
   useEffect(() => {
-    const canProceed =
-      !isLoadingToolSettings && initialToolStateLoadCompleteRef.current;
-    if (
-      canProceed &&
-      itdeTarget.pendingSignals.length > 0 &&
-      !itdeTarget.isModalOpen &&
-      !userDeferredAutoPopup
-    ) {
+    const canProceed = !isLoadingToolSettings && initialToolStateLoadCompleteRef.current;
+    if (canProceed && itdeTarget.pendingSignals.length > 0 && !itdeTarget.isModalOpen && !userDeferredAutoPopup) {
       itdeTarget.openModalIfSignalsExist();
     }
   }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup, directiveName]);
@@ -410,15 +306,8 @@ export default function BitcoinLaserEyesClient({
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
             if (!file) {
-              // File missing from DB after selection
-              setState((prev) => ({
-                ...prev,
-                selectedFileId: null,
-                processedFileId: null,
-              }));
-              setUiError(
-                'Selected original image is no longer available. Please select another.'
-              );
+              setState((prev) => ({ ...prev, selectedFileId: null, processedFileId: null }));
+              setUiError('Selected original image is no longer available. Please select another.');
             }
           }
         } catch (e) {
@@ -438,7 +327,6 @@ export default function BitcoinLaserEyesClient({
           } else if (mounted) {
             setProcessedImageSrcForUI(null);
             if (!file) {
-              // Processed file missing, clear it from state
               setState((prev) => ({ ...prev, processedFileId: null }));
               setUiError('Previously processed image is no longer available.');
             }
@@ -459,57 +347,47 @@ export default function BitcoinLaserEyesClient({
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
       if (localProcObjUrl) URL.revokeObjectURL(localProcObjUrl);
     };
-  }, [
-    toolState.selectedFileId,
-    toolState.processedFileId,
-    getFile,
-    isLoadingToolSettings,
-    setState, // Added setState
-  ]);
+  }, [toolState.selectedFileId, toolState.processedFileId, getFile, isLoadingToolSettings, setState]);
 
   useEffect(() => {
-    // Condition to trigger processing
     if (
-      isLoadingToolSettings || // Still loading tool state
-      !initialToolStateLoadCompleteRef.current || // Initial load not done
-      !toolState.selectedFileId || // No image selected
-      toolState.processedFileId || // Image already processed for current selectedFileId
-      isProcessingImage || // Another processing action is already in progress
-      !faceApi.modelsLoaded || // FaceAPI models aren't loaded yet
-      faceApi.isLoadingModels // FaceAPI models are currently in the process of loading
+      isLoadingToolSettings ||
+      !initialToolStateLoadCompleteRef.current ||
+      !toolState.selectedFileId ||
+      toolState.processedFileId ||
+      isProcessingImage ||
+      !faceApi.modelsLoaded ||
+      faceApi.isLoadingModels
     ) {
-      return; // Conditions not met for processing
+      return;
     }
     const triggerProcessing = async () => {
       setUiError(null);
-      const inputFile = await getFile(toolState.selectedFileId!); // selectedFileId is known to be non-null here
+      const inputFile = await getFile(toolState.selectedFileId);
       if (!inputFile?.blob) {
         setUiError('Original image data not found for processing.');
-        setState((prev) => ({ ...prev, selectedFileId: null })); // Clear invalid selected file
+        setState((prev) => ({ ...prev, selectedFileId: null }));
         return;
       }
       const outputFileName = generateDefaultOutputFilename();
       const result = await processImage(
         inputFile,
-        drawLaserEyesFunction, // This is our face-api enabled drawing function
+        drawLaserEyesFunction,
         outputFileName,
-        { outputFormat: 'image/png' }, // Ensure output is PNG to support transparency if lasers have it
+        { outputFormat: 'image/png' },
         toolState.autoSaveProcessed
       );
       if (result.id) {
         setState((prev) => ({
           ...prev,
           processedFileId: result.id,
-          lastUserGivenFilename: null, // Reset last filename on new processing
+          lastUserGivenFilename: null,
         }));
-        setManualSaveSuccess(false); // Reset save success flag
-        setDownloadAttempted(false); // Reset download success flag
+        setManualSaveSuccess(false);
+        setDownloadAttempted(false);
       } else if (processingErrorHook) {
-        // This hook's error is from processImage call itself
         setUiError(`Image processing failed: ${processingErrorHook}`);
       }
-      // Note: Errors from within drawLaserEyesFunction (like no faces detected)
-      // should set uiError directly from that function.
     };
     triggerProcessing();
   }, [
@@ -536,44 +414,29 @@ export default function BitcoinLaserEyesClient({
       const oldProcessedId = toolState.processedFileId;
 
       if (files?.[0]?.type?.startsWith('image/') && files[0].id) {
-        // Check for id too
         const newSelectedId = files[0].id;
         const currentAutoSave = toolState.autoSaveProcessed;
         const newState: BitcoinLaserEyesToolState = {
           selectedFileId: newSelectedId,
-          processedFileId: null, // Clear previous processed result on new image selection
+          processedFileId: null,
           autoSaveProcessed: currentAutoSave,
           lastUserGivenFilename: null,
         };
         setState(newState);
-        await saveStateNow(newState); // Persist this intermediate state
-        clearProcessingHookOutput(); // Clear any errors from useImageProcessing hook
+        await saveStateNow(newState);
+        clearProcessingHookOutput();
         setManualSaveSuccess(false);
         setDownloadAttempted(false);
-        setUserDeferredAutoPopup(false); // Reset ITDE deferral
+        setUserDeferredAutoPopup(false);
 
-        const destatedIds = [oldSelectedId, oldProcessedId].filter(
-          (id): id is string => !!(id && id !== newSelectedId)
-        );
+        const destatedIds = [oldSelectedId, oldProcessedId].filter((id): id is string => !!(id && id !== newSelectedId));
         if (destatedIds.length > 0)
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[LaserEyes New Selection] Cleanup failed:', e)
-          );
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) => console.error('[LaserEyes New Selection] Cleanup failed:', e));
       } else if (files?.length) {
-        setUiError(
-          `Selected file "${files[0].filename}" is not a recognized image type or is missing ID.`
-        );
+        setUiError(`Selected file "${files[0].filename}" is not a recognized image type or is missing ID.`);
       }
     },
-    [
-      toolState.autoSaveProcessed,
-      toolState.selectedFileId,
-      toolState.processedFileId,
-      setState,
-      saveStateNow,
-      clearProcessingHookOutput,
-      cleanupOrphanedTemporaryFiles,
-    ]
+    [toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, clearProcessingHookOutput, cleanupOrphanedTemporaryFiles]
   );
 
   const handleAutoSaveChange = useCallback(
@@ -583,76 +446,41 @@ export default function BitcoinLaserEyesClient({
       setState((prev) => ({ ...prev, autoSaveProcessed: newAutoSave }));
       setUiError(null);
       setManualSaveSuccess(false);
-      if (
-        newAutoSave &&
-        currentProcessedFileId &&
-        !processedOutputPermanent &&
-        !isProcessingImage &&
-        !isManuallySaving
-      ) {
+      if (newAutoSave && currentProcessedFileId && !processedOutputPermanent && !isProcessingImage && !isManuallySaving) {
         setIsManuallySaving(true);
         try {
-          // If auto-saving, use the generated default filename, unless user has already named it for this processed file
           const filenameToSaveWith =
-            toolState.lastUserGivenFilename &&
-            toolState.processedFileId === currentProcessedFileId
+            toolState.lastUserGivenFilename && toolState.processedFileId === currentProcessedFileId
               ? toolState.lastUserGivenFilename
               : generateDefaultOutputFilename();
 
-          const success = await makeFilePermanentAndUpdate(
-            currentProcessedFileId,
-            filenameToSaveWith
-          );
+          const success = await makeFilePermanentAndUpdate(currentProcessedFileId, filenameToSaveWith);
 
           if (success) {
             setProcessedOutputPermanent(true);
             if (!toolState.lastUserGivenFilename) {
-              // Only update lastUserGivenFilename if it wasn't already set for this exact processed image
-              setState((prev) => ({
-                ...prev,
-                lastUserGivenFilename: filenameToSaveWith,
-              }));
+              setState((prev) => ({ ...prev, lastUserGivenFilename: filenameToSaveWith }));
             }
           } else {
             throw new Error('File could not be made permanent via auto-save.');
           }
         } catch (err) {
-          setUiError(
-            `Auto-save to permanent failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-          );
-          setState((prev) => ({ ...prev, autoSaveProcessed: false })); // Revert UI on failure
+          setUiError(`Auto-save to permanent failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          setState((prev) => ({ ...prev, autoSaveProcessed: false }));
         } finally {
           setIsManuallySaving(false);
         }
       }
-      // Persist the autoSaveProcessed setting regardless of immediate save action
-      await saveStateNow({
-        ...toolState, // Get latest state
-        autoSaveProcessed: newAutoSave, // Apply new autoSave value
-        processedFileId: currentProcessedFileId, // Ensure this is passed through
-        lastUserGivenFilename: toolState.lastUserGivenFilename, // Ensure this is passed
-      });
+      await saveStateNow({ ...toolState, autoSaveProcessed: newAutoSave, processedFileId: currentProcessedFileId, lastUserGivenFilename: toolState.lastUserGivenFilename });
     },
-    [
-      toolState, // Full toolState for saveStateNow
-      processedOutputPermanent,
-      isProcessingImage,
-      isManuallySaving,
-      makeFilePermanentAndUpdate,
-      setState,
-      saveStateNow,
-      generateDefaultOutputFilename,
-    ]
+    [toolState, processedOutputPermanent, isProcessingImage, isManuallySaving, makeFilePermanentAndUpdate, setState, saveStateNow, generateDefaultOutputFilename]
   );
 
   const handleClear = useCallback(async () => {
     const oldSelectedId = toolState.selectedFileId;
     const oldProcessedId = toolState.processedFileId;
-    const currentAutoSave = toolState.autoSaveProcessed; // Preserve auto-save setting
-    const clearedState: BitcoinLaserEyesToolState = {
-      ...DEFAULT_TOOL_STATE, // Resets selectedFileId, processedFileId, lastUserGivenFilename
-      autoSaveProcessed: currentAutoSave,
-    };
+    const currentAutoSave = toolState.autoSaveProcessed;
+    const clearedState: BitcoinLaserEyesToolState = { ...DEFAULT_TOOL_STATE, autoSaveProcessed: currentAutoSave };
     setState(clearedState);
     await saveStateNow(clearedState);
 
@@ -660,28 +488,16 @@ export default function BitcoinLaserEyesClient({
     setUiError(null);
     setManualSaveSuccess(false);
     setDownloadAttempted(false);
-    setOriginalImageSrcForUI(null); // Clear previews
+    setOriginalImageSrcForUI(null);
     setProcessedImageSrcForUI(null);
     setOriginalFilenameForDisplay(null);
     setProcessedStoredFileForItde(null);
     setProcessedOutputPermanent(false);
 
-    const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter(
-      (id): id is string => !!id
-    );
+    const destatedIds: string[] = [oldSelectedId, oldProcessedId].filter((id): id is string => !!id);
     if (destatedIds.length > 0)
-      cleanupOrphanedTemporaryFiles(destatedIds).catch((err) =>
-        console.error(`[LaserEyes Clear] Cleanup call failed:`, err)
-      );
-  }, [
-    toolState.autoSaveProcessed, // Depends on this to preserve it
-    toolState.selectedFileId,
-    toolState.processedFileId,
-    setState,
-    saveStateNow,
-    cleanupOrphanedTemporaryFiles,
-    clearProcessingHookOutput,
-  ]);
+      cleanupOrphanedTemporaryFiles(destatedIds).catch((err) => console.error(`[LaserEyes Clear] Cleanup call failed:`, err));
+  }, [toolState.autoSaveProcessed, toolState.selectedFileId, toolState.processedFileId, setState, saveStateNow, cleanupOrphanedTemporaryFiles, clearProcessingHookOutput]);
 
   const _internalPerformSave = async (filename: string): Promise<boolean> => {
     if (!toolState.processedFileId) {
@@ -691,10 +507,7 @@ export default function BitcoinLaserEyesClient({
     setIsManuallySaving(true);
     setUiError(null);
     try {
-      const success = await makeFilePermanentAndUpdate(
-        toolState.processedFileId,
-        filename
-      );
+      const success = await makeFilePermanentAndUpdate(toolState.processedFileId, filename);
       if (success) {
         setProcessedOutputPermanent(true);
         setManualSaveSuccess(true);
@@ -704,27 +517,22 @@ export default function BitcoinLaserEyesClient({
         throw new Error('File could not be made permanent.');
       }
     } catch (err) {
-      setUiError(
-        `Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
-      setProcessedOutputPermanent(false); // If save failed, it's not permanent
+      setUiError(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setProcessedOutputPermanent(false);
       return false;
     } finally {
       setIsManuallySaving(false);
     }
   };
 
-  const _internalPerformDownload = async (
-    filename: string
-  ): Promise<boolean> => {
+  const _internalPerformDownload = async (filename: string): Promise<boolean> => {
     if (!processedImageSrcForUI) {
-      // Check against UI source, which depends on processedFileId
       setUiError('No image data to download.');
       return false;
     }
     const link = document.createElement('a');
     link.download = filename;
-    link.href = processedImageSrcForUI; // Use the blob URL for download
+    link.href = processedImageSrcForUI;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -734,47 +542,24 @@ export default function BitcoinLaserEyesClient({
   };
 
   const initiateSave = async () => {
-    if (
-      !toolState.processedFileId ||
-      isProcessingImage ||
-      isManuallySaving ||
-      !faceApi.modelsLoaded
-    )
-      return;
+    if (!toolState.processedFileId || isProcessingImage || isManuallySaving || !faceApi.modelsLoaded) return;
 
-    // If already saved (permanent) and auto-save is off, and filename hasn't changed, consider it a "no-op success"
-    if (
-      processedOutputPermanent &&
-      !toolState.autoSaveProcessed &&
-      toolState.lastUserGivenFilename
-    ) {
+    if (processedOutputPermanent && !toolState.autoSaveProcessed && toolState.lastUserGivenFilename) {
       const currentDefaultFilename = generateDefaultOutputFilename();
-      if (
-        toolState.lastUserGivenFilename === currentDefaultFilename ||
-        (await getFile(toolState.processedFileId))?.filename ===
-          toolState.lastUserGivenFilename
-      ) {
-        setManualSaveSuccess(true); // Show feedback
+      if (toolState.lastUserGivenFilename === currentDefaultFilename || (await getFile(toolState.processedFileId))?.filename === toolState.lastUserGivenFilename) {
+        setManualSaveSuccess(true);
         setTimeout(() => setManualSaveSuccess(false), 1500);
         return;
       }
     }
 
-    const filenameToUse =
-      toolState.lastUserGivenFilename || generateDefaultOutputFilename();
+    const filenameToUse = toolState.lastUserGivenFilename || generateDefaultOutputFilename();
 
-    // If auto-save is off, or if it's on but file isn't permanent yet, or if user wants to rename
-    if (
-      !toolState.autoSaveProcessed ||
-      !processedOutputPermanent ||
-      !toolState.lastUserGivenFilename
-    ) {
+    if (!toolState.autoSaveProcessed || !processedOutputPermanent || !toolState.lastUserGivenFilename) {
       setFilenamePromptInitialValue(filenameToUse);
       setFilenamePromptAction('save');
       setIsFilenamePromptOpen(true);
     } else if (toolState.autoSaveProcessed && processedOutputPermanent) {
-      // It's auto-saved and permanent. If user clicks save again, maybe they want to rename?
-      // Or treat as already saved. For now, let's assume they might want to rename if filename exists
       setFilenamePromptInitialValue(filenameToUse);
       setFilenamePromptAction('save');
       setIsFilenamePromptOpen(true);
@@ -782,16 +567,8 @@ export default function BitcoinLaserEyesClient({
   };
 
   const initiateDownload = async () => {
-    if (
-      !processedImageSrcForUI ||
-      isProcessingImage ||
-      isManuallySaving ||
-      !faceApi.modelsLoaded
-    )
-      return;
-    const filenameToUse =
-      toolState.lastUserGivenFilename || generateDefaultOutputFilename();
-    // Always prompt for download name if not set, or allow re-download with same/new name.
+    if (!processedImageSrcForUI || isProcessingImage || isManuallySaving || !faceApi.modelsLoaded) return;
+    const filenameToUse = toolState.lastUserGivenFilename || generateDefaultOutputFilename();
     setFilenamePromptInitialValue(filenameToUse);
     setFilenamePromptAction('download');
     setIsFilenamePromptOpen(true);
@@ -802,7 +579,7 @@ export default function BitcoinLaserEyesClient({
     setUiError(null);
     let success = false;
     const action = filenamePromptAction;
-    setFilenamePromptAction(null); // Clear action type
+    setFilenamePromptAction(null);
 
     if (action === 'save') {
       success = await _internalPerformSave(confirmedFilename);
@@ -811,31 +588,23 @@ export default function BitcoinLaserEyesClient({
     }
 
     if (success) {
-      const newState = {
-        ...toolState, // ensure all previous state is kept
-        lastUserGivenFilename: confirmedFilename,
-      };
-      setState(newState); // Update UI state
-      await saveStateNow(newState); // Persist tool state
+      const newState = { ...toolState, lastUserGivenFilename: confirmedFilename };
+      setState(newState);
+      await saveStateNow(newState);
     }
   };
 
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);
-  const displayError =
-    processingErrorHook || uiError || faceApi.errorLoadingModels;
+  const displayError = processingErrorHook || uiError || faceApi.errorLoadingModels;
 
-  const canPerformActions =
-    !!processedImageSrcForUI &&
-    !isProcessingImage &&
-    !isManuallySaving &&
-    faceApi.modelsLoaded;
+  const canPerformActions = !!processedImageSrcForUI && !isProcessingImage && !isManuallySaving && faceApi.modelsLoaded;
 
   const canInitiateSaveCurrent =
-    !!toolState.processedFileId && // Must have a processed file
-    !isProcessingImage && // Not currently processing
-    !isManuallySaving && // Not currently saving
-    faceApi.modelsLoaded && // Models must be loaded
-    (!toolState.autoSaveProcessed || !processedOutputPermanent); // EITHER auto-save is OFF OR it's ON but file is not yet permanent
+    !!toolState.processedFileId &&
+    !isProcessingImage &&
+    !isManuallySaving &&
+    faceApi.modelsLoaded &&
+    (!toolState.autoSaveProcessed || !processedOutputPermanent);
 
   const handleModalDeferAll = () => {
     setUserDeferredAutoPopup(true);
@@ -850,9 +619,7 @@ export default function BitcoinLaserEyesClient({
   };
   const handleModalIgnore = (sourceDirective: string) => {
     itdeTarget.ignoreSignal(sourceDirective);
-    const remaining = itdeTarget.pendingSignals.filter(
-      (s) => s.sourceDirective !== sourceDirective
-    );
+    const remaining = itdeTarget.pendingSignals.filter((s) => s.sourceDirective !== sourceDirective);
     if (remaining.length === 0) setUserDeferredAutoPopup(false);
   };
 
@@ -872,9 +639,7 @@ export default function BitcoinLaserEyesClient({
             variant="accent2"
             iconLeft={<PhotoIcon className="h-5 w-5" />}
             onClick={() => setIsLibraryModalOpen(true)}
-            disabled={
-              isProcessingImage || isManuallySaving || faceApi.isLoadingModels
-            }
+            disabled={isProcessingImage || isManuallySaving || faceApi.isLoadingModels}
             title={
               faceApi.isLoadingModels
                 ? 'Face models loading...'
@@ -908,18 +673,12 @@ export default function BitcoinLaserEyesClient({
             label="Auto-save processed image to Library"
             checked={toolState.autoSaveProcessed}
             onChange={handleAutoSaveChange}
-            disabled={
-              isProcessingImage || isManuallySaving || faceApi.isLoadingModels
-            }
+            disabled={isProcessingImage || isManuallySaving || faceApi.isLoadingModels}
             id="autoSaveProcessedImage"
           />
           <div className="flex gap-2 ml-auto items-center">
             <ReceiveItdeDataTrigger
-              hasDeferredSignals={
-                itdeTarget.pendingSignals.length > 0 &&
-                userDeferredAutoPopup &&
-                !itdeTarget.isModalOpen
-              }
+              hasDeferredSignals={itdeTarget.pendingSignals.length > 0 && userDeferredAutoPopup && !itdeTarget.isModalOpen}
               pendingSignalCount={itdeTarget.pendingSignals.length}
               onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
             />
@@ -982,30 +741,22 @@ export default function BitcoinLaserEyesClient({
         <div className="space-y-1">
           <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
             Laser Eyes Image{' '}
-            {processedOutputPermanent &&
-              processedStoredFileForItde?.filename && (
-                <span className="font-normal text-xs">
-                  ({processedStoredFileForItde.filename})
-                </span>
-              )}
+            {processedOutputPermanent && processedStoredFileForItde?.filename && (
+              <span className="font-normal text-xs">
+                ({processedStoredFileForItde.filename})
+              </span>
+            )}
           </label>
           <div className="w-full aspect-square border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {(isProcessingImage || faceApi.isLoadingModels) &&
-            !processedImageSrcForUI ? (
+            {(isProcessingImage || faceApi.isLoadingModels) && !processedImageSrcForUI ? (
               <div className="flex flex-col items-center text-sm italic text-[rgb(var(--color-text-muted))]">
                 <ArrowPathIcon className="animate-spin h-8 w-8 mb-2" />
-                {faceApi.isLoadingModels
-                  ? 'Loading models...'
-                  : 'Processing...'}
+                {faceApi.isLoadingModels ? 'Loading models...' : 'Processing...'}
               </div>
             ) : !isProcessingImage && processedImageSrcForUI ? (
               <Image
                 src={processedImageSrcForUI}
-                alt={
-                  originalFilenameForDisplay
-                    ? `Laser Eyes ${originalFilenameForDisplay}`
-                    : 'Laser Eyes'
-                }
+                alt={originalFilenameForDisplay ? `Laser Eyes ${originalFilenameForDisplay}` : 'Laser Eyes'}
                 width={500}
                 height={500}
                 className="max-w-full max-h-full object-contain"
@@ -1024,41 +775,3 @@ export default function BitcoinLaserEyesClient({
       <FileSelectionModal
         isOpen={isLibraryModalOpen}
         onClose={() => setIsLibraryModalOpen(false)}
-        onFilesSelected={handleFilesSelectedFromModal}
-        mode="selectExistingOrUploadNew"
-        initialTab="library"
-        showFilterAfterUploadCheckbox={false}
-        accept="image/*"
-        selectionMode="single"
-        libraryFilter={imageFilter}
-        className="max-w-4xl"
-      />
-      <IncomingDataModal
-        isOpen={itdeTarget.isModalOpen}
-        signals={itdeTarget.pendingSignals}
-        onAccept={handleModalAccept}
-        onIgnore={handleModalIgnore}
-        onDeferAll={handleModalDeferAll}
-        onIgnoreAll={handleModalIgnoreAll}
-      />
-      <FilenamePromptModal
-        isOpen={isFilenamePromptOpen}
-        onClose={() => {
-          setIsFilenamePromptOpen(false);
-          setFilenamePromptAction(null);
-        }}
-        onConfirm={handleConfirmFilename}
-        initialFilename={filenamePromptInitialValue}
-        title={
-          filenamePromptAction === 'save'
-            ? 'Save Image to Library'
-            : 'Download Image'
-        }
-        confirmButtonText={
-          filenamePromptAction === 'save' ? 'Save to Library' : 'Download'
-        }
-        filenameAction={filenamePromptAction || undefined}
-      />
-    </div>
-  );
-}
