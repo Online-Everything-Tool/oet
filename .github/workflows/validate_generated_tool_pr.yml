@@ -355,8 +355,6 @@ jobs:
       success() &&
       needs.initial_checks.outputs.critical_initial_checks_passed == 'true' &&
       needs.analyze_dependencies.outputs.dependency_action_required == 'false' && 
-      # Consider if asset_action_required should also gate this, or if build should proceed
-      # For now, only pending npm deps gate the build. Assets might be handled in parallel or after.
       github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
