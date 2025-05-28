@@ -8,10 +8,12 @@ import {
   SafetySetting,
 } from '@google/generative-ai';
 import fs from 'fs/promises';
-import path from 'path';
+import path from 'path'; // Import path module
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest'; // As per ALF workflow
+// --- SWITCH TO FLASH MODEL ---
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest';
+// --- END SWITCH ---
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -40,7 +42,7 @@ const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,
   topP: 0.8,
-  maxOutputTokens: 8192, // Assuming you've updated this
+  maxOutputTokens: 8192,
   responseMimeType: 'text/plain',
 };
 
@@ -149,13 +151,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { filesToFix, lintErrors: globalLintErrors, modelName = DEFAULT_MODEL_NAME } = body;
+  const { filesToFix, lintErrors: globalLintErrorsInput, modelName = DEFAULT_MODEL_NAME } = body;
   const model = genAI.getGenerativeModel({ model: modelName });
   const fixedFilesResults: Record<string, string | null> = {};
   let allSucceededOverall = true;
   let anyFileActuallyFixedByAI = false;
   let overallMessage = 'Lint fixing process completed.';
   let promptTemplate: string;
+
+  // Normalize globalLintErrorsInput to ensure consistent line breaks
+  const globalLintErrors = globalLintErrorsInput.replace(/\r\n/g, '\n');
+
 
   try {
     promptTemplate = await getPromptTemplate();
@@ -187,14 +193,46 @@ export async function POST(request: NextRequest) {
     const fileProcessStartTime = Date.now();
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
-    const specificLintErrorsForThisFile = globalLintErrors
-      .split('\n')
-      .filter(line => line.includes(file.path))
-      .join('\n');
+    // --- START: ROBUST LINT ERROR EXTRACTION ---
+    const lines = globalLintErrors.split('\n');
+    let collectingForCurrentFile = false;
+    const errorsForThisFileArray: string[] = [];
+    // Normalize paths for comparison (e.g. handles './app/...' vs 'app/...')
+    const currentFilePathNormalized = path.normalize(file.path);
+    // Regex to detect typical file path lines in lint output.
+    // Adjust this regex based on YOUR linter's output format!
+    // This example assumes paths might start with './' or be relative from project root.
+    const pathHeaderRegex = /^(?:\.\/)?(?:app\/|src\/)?[\w/\-.]+\.(tsx|ts|js|jsx|mjs|cjs)/i;
 
-    // --- ADDED LOGGING FOR specificLintErrorsForThisFile ---
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      let lineIsPathHeader = false;
+      let linePathNormalized = '';
+
+      const pathMatch = trimmedLine.match(pathHeaderRegex);
+      if (pathMatch && pathMatch[0].trim() === trimmedLine) { // Ensure the whole trimmed line is the path
+        lineIsPathHeader = true;
+        linePathNormalized = path.normalize(pathMatch[0].trim());
+      }
+      
+      if (lineIsPathHeader && linePathNormalized === currentFilePathNormalized) {
+        collectingForCurrentFile = true;
+        // Optionally, decide if you want to include the filename header in the errors sent to AI.
+        // If your linter groups errors under a filename, you might not need to.
+        // errorsForThisFileArray.push(line); 
+      } else if (lineIsPathHeader && linePathNormalized !== currentFilePathNormalized) {
+        // This line is a header for a DIFFERENT file, stop collecting for the previous one.
+        collectingForCurrentFile = false;
+      } else if (collectingForCurrentFile && trimmedLine) {
+        // This line is assumed to be an actual error/warning message for the current file.
+        // Add more specific checks if needed (e.g., starts with "Error:", "Warning:", or line numbers).
+        errorsForThisFileArray.push(line); // Push the original line, not trimmedLine, to preserve indentation
+      }
+    }
+    const specificLintErrorsForThisFile = errorsForThisFileArray.join('\n');
+    // --- END: ROBUST LINT ERROR EXTRACTION ---
+
     console.log(`[API fix-linting-errors] For file ${file.path}, specificLintErrorsForThisFile (trimmed length ${specificLintErrorsForThisFile.trim().length}):\n---\n${specificLintErrorsForThisFile.trim()}\n---`);
-    // --- END ADDED LOGGING ---
 
     if (!specificLintErrorsForThisFile.trim()) {
       console.log(
@@ -214,7 +252,7 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log(
-        `[API fix-linting-errors] Sending to AI for ${file.path} with ${specificLintErrorsForThisFile.split('\n').length} specific error line(s). Prompt length: ~${populatedPrompt.length}`
+        `[API fix-linting-errors] Sending to AI for ${file.path} with ${errorsForThisFileArray.length} specific error line(s). Prompt length: ~${populatedPrompt.length}`
       );
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: populatedPrompt }] }],
@@ -228,8 +266,7 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // --- DETAILED LOGGING FOR RAW AI RESPONSE (BEFORE ANY STRIPPING/TRIMMING) ---
-      const rawResponseText = result.response.text(); // Get raw text
+      const rawResponseText = result.response.text();
       console.log(`[API fix-linting-errors] --- START DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
       console.log(`[API fix-linting-errors] rawResponseText length from AI: ${rawResponseText.length}`);
       console.log(`[API fix-linting-errors] rawResponseText (first 500 chars from AI):\n${rawResponseText.substring(0, 500)}`);
@@ -240,20 +277,17 @@ export async function POST(request: NextRequest) {
       const tokenCount = result.response.usageMetadata?.totalTokenCount;
       const outputTokenCount = result.response.usageMetadata?.candidatesTokenCount;
 
-
       console.log(`[API fix-linting-errors] Finish Reason: ${finishReason || 'N/A'}`);
       console.log(`[API fix-linting-errors] Safety Ratings: ${JSON.stringify(safetyRatings)}`);
       console.log(`[API fix-linting-errors] Token Count (Total): ${tokenCount || 'N/A'}`);
       console.log(`[API fix-linting-errors] Token Count (Output/Candidates): ${outputTokenCount || 'N/A'}`);
       console.log(`[API fix-linting-errors] --- END DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
-      // --- END DETAILED LOGGING ---
-
-      const trimmedRawResponseText = rawResponseText.trim(); // Now trim for fence stripping and further processing
+      
+      const trimmedRawResponseText = rawResponseText.trim();
 
       const markdownFenceRegex =
         /^```(?:typescript|javascript|tsx|jsx)?\s*[\r\n]?|\s*[\r\n]?```$/g;
       
-      // Log what the regex matches before replacement
       const matches = Array.from(trimmedRawResponseText.matchAll(markdownFenceRegex));
       if (matches.length > 0) {
         console.log(`[API fix-linting-errors] Regex matches for fences found for ${file.path}:`);
@@ -280,7 +314,7 @@ export async function POST(request: NextRequest) {
       
       if (
         !strippedResponseText ||
-        strippedResponseText === file.currentContent.trim() // Compare with trimmed original content
+        strippedResponseText === file.currentContent.trim()
       ) {
         console.warn(
           `[API fix-linting-errors] AI did not change content for ${file.path} or returned empty (after stripping fences & final trim). Original content will be used.`
