@@ -6,5 +6,6 @@
       "importUsed": "import * as faceapi from 'face-api.js';"
     }
   ],
-  "npmDependenciesFulfilled": true
+  "npmDependenciesFulfilled": true,
+  "lintFixesAttempted": true
 }

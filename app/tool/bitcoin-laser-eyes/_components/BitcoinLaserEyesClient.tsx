@@ -30,7 +30,7 @@ import useItdeTargetHandler, {
 } from '../../_hooks/useItdeTargetHandler';
 import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
+import { resolveItdeData } from '@/app/lib/itdeDataUtils';
 
 import {
   PhotoIcon,
@@ -96,8 +96,6 @@ export default function BitcoinLaserEyesClient({
   >(null);
   const [filenamePromptInitialValue, setFilenamePromptInitialValue] =
     useState<string>('');
-
-  const directiveName = metadata.directive;
 
   const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
     useFileLibrary();
@@ -192,11 +190,7 @@ export default function BitcoinLaserEyesClient({
         console.warn(
           'FaceAPI models not loaded or detectFaces not available. Outputting original image.'
         );
-        // Set UI error state, so it can be displayed to the user
-        // This function itself doesn't have access to setUiError directly without passing it
-        // Throwing an error might be one way, or this func could return a status.
-        // For now, assuming the processing effect will catch errors from detectFaces.
-        // Or the UI effect for !faceApi.modelsLoaded already shows a message.
+
         return;
       }
 
@@ -294,7 +288,7 @@ export default function BitcoinLaserEyesClient({
         setUiError('Metadata not found for source tool.');
         return;
       }
-      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
+      const resolvedPayload = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
@@ -312,9 +306,9 @@ export default function BitcoinLaserEyesClient({
       }
       let newSelectedFileId: string | null = null;
       const firstItem = resolvedPayload.data.find(
-        (item) => item.type?.startsWith('image/') && 'id' in item
+        (item): item is StoredFile => item.type?.startsWith('image/') && 'id' in item
       );
-      if (firstItem) newSelectedFileId = (firstItem as StoredFile).id;
+      if (firstItem) newSelectedFileId = firstItem.id;
       else {
         setUiError('No valid image item found in received ITDE data.');
         return;
@@ -341,8 +335,8 @@ export default function BitcoinLaserEyesClient({
           (id): id is string => !!(id && id !== newSelectedFileId)
         );
         if (destatedIds.length > 0) {
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[LaserEyes ITDE Accept] Cleanup call failed:', e)
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((_e) =>
+            console.error('[LaserEyes ITDE Accept] Cleanup call failed:')
           );
         }
       }
@@ -360,7 +354,7 @@ export default function BitcoinLaserEyesClient({
   );
 
   const itdeTarget = useItdeTargetHandler({
-    targetToolDirective: directiveName,
+    targetToolDirective: metadata.directive,
     onProcessSignal: handleProcessIncomingSignal,
   });
 
@@ -385,7 +379,7 @@ export default function BitcoinLaserEyesClient({
     ) {
       itdeTarget.openModalIfSignalsExist();
     }
-  }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup, directiveName]);
+  }, [isLoadingToolSettings, itdeTarget, userDeferredAutoPopup]);
 
   useEffect(() => {
     let mounted = true;
@@ -421,8 +415,8 @@ export default function BitcoinLaserEyesClient({
               );
             }
           }
-        } catch (e) {
-          console.error('Error loading original image preview:', e);
+        } catch (_e) {
+          console.error('Error loading original image preview:');
           if (mounted) {
             setOriginalImageSrcForUI(null);
             setOriginalFilenameForDisplay(null);
@@ -443,8 +437,8 @@ export default function BitcoinLaserEyesClient({
               setUiError('Previously processed image is no longer available.');
             }
           }
-        } catch (e) {
-          console.error('Error loading processed image preview:', e);
+        } catch (_e) {
+          console.error('Error loading processed image preview:');
           if (mounted) {
             setProcessedImageSrcForUI(null);
           }
@@ -556,8 +550,8 @@ export default function BitcoinLaserEyesClient({
           (id): id is string => !!(id && id !== newSelectedId)
         );
         if (destatedIds.length > 0)
-          cleanupOrphanedTemporaryFiles(destatedIds).catch((e) =>
-            console.error('[LaserEyes New Selection] Cleanup failed:', e)
+          cleanupOrphanedTemporaryFiles(destatedIds).catch((_e) =>
+            console.error('[LaserEyes New Selection] Cleanup failed:')
           );
       } else if (files?.length) {
         setUiError(
@@ -670,8 +664,8 @@ export default function BitcoinLaserEyesClient({
       (id): id is string => !!id
     );
     if (destatedIds.length > 0)
-      cleanupOrphanedTemporaryFiles(destatedIds).catch((err) =>
-        console.error(`[LaserEyes Clear] Cleanup call failed:`, err)
+      cleanupOrphanedTemporaryFiles(destatedIds).catch((_err) =>
+        console.error(`[LaserEyes Clear] Cleanup call failed:`)
       );
   }, [
     toolState.autoSaveProcessed, // Depends on this to preserve it
@@ -800,15 +794,17 @@ export default function BitcoinLaserEyesClient({
   const handleConfirmFilename = async (confirmedFilename: string) => {
     setIsFilenamePromptOpen(false);
     setUiError(null);
-    let success = false;
+
     const action = filenamePromptAction;
     setFilenamePromptAction(null); // Clear action type
 
+    let success = false;
     if (action === 'save') {
       success = await _internalPerformSave(confirmedFilename);
     } else if (action === 'download') {
       success = await _internalPerformDownload(confirmedFilename);
     }
+
 
     if (success) {
       const newState = {
@@ -897,168 +893,4 @@ export default function BitcoinLaserEyesClient({
               size="sm"
               onClick={() => faceApi.loadModels()}
               iconLeft={<ExclamationTriangleIcon className="h-4 w-4" />}
-              title="Attempt to reload face detection models"
-            >
-              Retry Loading Models
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-gray-200 mt-2">
-          <Checkbox
-            label="Auto-save processed image to Library"
-            checked={toolState.autoSaveProcessed}
-            onChange={handleAutoSaveChange}
-            disabled={
-              isProcessingImage || isManuallySaving || faceApi.isLoadingModels
-            }
-            id="autoSaveProcessedImage"
-          />
-          <div className="flex gap-2 ml-auto items-center">
-            <ReceiveItdeDataTrigger
-              hasDeferredSignals={
-                itdeTarget.pendingSignals.length > 0 &&
-                userDeferredAutoPopup &&
-                !itdeTarget.isModalOpen
-              }
-              pendingSignalCount={itdeTarget.pendingSignals.length}
-              onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
-            />
-            <OutputActionButtons
-              canPerform={canPerformActions}
-              isSaveSuccess={manualSaveSuccess}
-              isDownloadSuccess={downloadAttempted}
-              canInitiateSave={canInitiateSaveCurrent}
-              onInitiateSave={initiateSave}
-              onInitiateDownload={initiateDownload}
-              onClear={handleClear}
-              directiveName={directiveName}
-              outputConfig={metadata.outputConfig}
-              selectedOutputItems={itdeSendableItems}
-            />
-          </div>
-        </div>
-      </div>
-      {displayError && (
-        <div
-          role="alert"
-          className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
-        >
-          <XCircleIcon
-            className="h-5 w-5 text-[rgb(var(--color-text-error))]"
-            aria-hidden="true"
-          />
-          <div>
-            <strong className="font-semibold">Error:</strong> {displayError}
-          </div>
-        </div>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            Original Image{' '}
-            {originalFilenameForDisplay && (
-              <span className="font-normal text-xs">
-                ({originalFilenameForDisplay})
-              </span>
-            )}
-          </label>
-          <div className="w-full aspect-square border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {originalImageSrcForUI ? (
-              <Image
-                src={originalImageSrcForUI}
-                alt={originalFilenameForDisplay || 'Original'}
-                width={500}
-                height={500}
-                className="max-w-full max-h-full object-contain"
-                unoptimized={true}
-              />
-            ) : (
-              <span className="text-sm italic text-[rgb(var(--color-text-muted))]">
-                Select an image
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            Laser Eyes Image{' '}
-            {processedOutputPermanent &&
-              processedStoredFileForItde?.filename && (
-                <span className="font-normal text-xs">
-                  ({processedStoredFileForItde.filename})
-                </span>
-              )}
-          </label>
-          <div className="w-full aspect-square border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {(isProcessingImage || faceApi.isLoadingModels) &&
-            !processedImageSrcForUI ? (
-              <div className="flex flex-col items-center text-sm italic text-[rgb(var(--color-text-muted))]">
-                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2" />
-                {faceApi.isLoadingModels
-                  ? 'Loading models...'
-                  : 'Processing...'}
-              </div>
-            ) : !isProcessingImage && processedImageSrcForUI ? (
-              <Image
-                src={processedImageSrcForUI}
-                alt={
-                  originalFilenameForDisplay
-                    ? `Laser Eyes ${originalFilenameForDisplay}`
-                    : 'Laser Eyes'
-                }
-                width={500}
-                height={500}
-                className="max-w-full max-h-full object-contain"
-                unoptimized={true}
-              />
-            ) : (
-              !isProcessingImage && (
-                <span className="text-sm italic text-[rgb(var(--color-text-muted))]">
-                  Output appears here
-                </span>
-              )
-            )}
-          </div>
-        </div>
-      </div>
-      <FileSelectionModal
-        isOpen={isLibraryModalOpen}
-        onClose={() => setIsLibraryModalOpen(false)}
-        onFilesSelected={handleFilesSelectedFromModal}
-        mode="selectExistingOrUploadNew"
-        initialTab="library"
-        showFilterAfterUploadCheckbox={false}
-        accept="image/*"
-        selectionMode="single"
-        libraryFilter={imageFilter}
-        className="max-w-4xl"
-      />
-      <IncomingDataModal
-        isOpen={itdeTarget.isModalOpen}
-        signals={itdeTarget.pendingSignals}
-        onAccept={handleModalAccept}
-        onIgnore={handleModalIgnore}
-        onDeferAll={handleModalDeferAll}
-        onIgnoreAll={handleModalIgnoreAll}
-      />
-      <FilenamePromptModal
-        isOpen={isFilenamePromptOpen}
-        onClose={() => {
-          setIsFilenamePromptOpen(false);
-          setFilenamePromptAction(null);
-        }}
-        onConfirm={handleConfirmFilename}
-        initialFilename={filenamePromptInitialValue}
-        title={
-          filenamePromptAction === 'save'
-            ? 'Save Image to Library'
-            : 'Download Image'
-        }
-        confirmButtonText={
-          filenamePromptAction === 'save' ? 'Save to Library' : 'Download'
-        }
-        filenameAction={filenamePromptAction || undefined}
-      />
-    </div>
-  );
-}
+              title="Attempt
