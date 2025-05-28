@@ -120,7 +120,7 @@ jobs:
           TOOL_DIRECTIVE_FROM_ARTIFACT=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
           TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided"' "$PENDING_DEPS_FILE")
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
-          NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
+          NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .identifiedDependencies and (.identifiedDependencies | type == "array") then .identifiedDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
           VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp); UNSAFE_DETAILS_TMP_FILE=$(mktemp); MANUAL_REVIEW_TMP_FILE=$(mktemp)
           deps_to_process_count=$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')
           all_deps_resolved_successfully_flag="true"; packages_actually_installed_this_run=()

@@ -246,7 +246,7 @@ jobs:
               if [ "$FOUND_NEW_DEP" = "true" ]; then
                 echo "Found new dependencies. Preparing artifact file..."
                 DEPS_ACTION_REQUIRED="true"
-                DEPS_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/pending_dependencies_payload.json"
+                DEPS_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/pending_dependencies.json"
                 ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
 
                 echo "Values for final jq command to create payload file:"
@@ -267,7 +267,7 @@ jobs:
                       --arg description "$TOOL_DESCRIPTION_FOR_ARTIFACT" \
                       --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
                       --arg assetInst "$ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT" \
-                      '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
+                      '{toolDirective: $directive, toolDescription: $description, identifiedDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
 
                     echo "Pending NPM dependencies artifact payload file created at: $DEPS_ARTIFACT_UPLOAD_PATH"
                     echo "Contents of $DEPS_ARTIFACT_UPLOAD_PATH:"
