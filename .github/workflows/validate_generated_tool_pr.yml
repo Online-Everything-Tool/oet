@@ -105,7 +105,7 @@ jobs:
       - name: Analyze Directive Name (AI Check)
         if: |
           steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' &&
-          github.event.action == 'opened' # Only on initial PR open
+          github.event.action == 'opened'
         id: analyze_name
         env:
           APP_URL: ${{ secrets.APP_URL || 'https://online-everything-tool.com' }}
