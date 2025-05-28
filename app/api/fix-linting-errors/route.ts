@@ -39,7 +39,7 @@ const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,
   topP: 0.8,
-  maxOutputTokens: 32768,
+  maxOutputTokens: 8192,
   responseMimeType: 'text/plain',
 };
 
