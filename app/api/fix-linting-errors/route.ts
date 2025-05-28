@@ -11,7 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME = 'models/gemini-1.5-pro-latest'; // As per ALF workflow
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest'; // As per ALF workflow
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -40,7 +40,7 @@ const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,
   topP: 0.8,
-  maxOutputTokens: 32768, // Assuming you've updated this
+  maxOutputTokens: 8192, // Assuming you've updated this
   responseMimeType: 'text/plain',
 };
 
