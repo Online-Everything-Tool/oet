@@ -578,6 +578,7 @@ jobs:
       - initial_checks
       - analyze_dependencies
       - build_and_run_douglas_checker
+    # Ensure this job runs only if initial_checks actually ran and passed its critical validations
     if: always() && github.actor != 'dependabot[bot]' && needs.initial_checks.outputs.critical_initial_checks_passed == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -588,7 +589,7 @@ jobs:
       - name: Prepare Comment Data from Step Outputs
         id: prepare_data
         run: |
-          # From initial_checks
+          # ... (this step remains the same, setting various ENV vars) ...
           echo "PR_NUMBER_VAL=${{ needs.initial_checks.outputs.pr_number }}" >> $GITHUB_ENV
           echo "TOOL_DIRECTIVE_VAL=${{ needs.initial_checks.outputs.tool_directive }}" >> $GITHUB_ENV
           echo "INITIAL_CHECKS_JOB_RESULT_VAL=${{ needs.initial_checks.result }}" >> $GITHUB_ENV
@@ -598,51 +599,64 @@ jobs:
           echo "AI_SCORE_VAL=${{ needs.initial_checks.outputs.ai_analysis_score }}" >> $GITHUB_ENV
           echo "AI_IS_TYPO_VAL=${{ needs.initial_checks.outputs.ai_analysis_is_typo }}" >> $GITHUB_ENV
           echo "AI_SUGGESTIONS_JSON_VAL=${{ needs.initial_checks.outputs.ai_analysis_suggestions_json }}" >> $GITHUB_ENV
-          # Note: Reasoning is multi-line, harder to pass as simple env var. Will construct in script.
           echo "CRITICAL_INITIAL_CHECKS_PASSED_VAL=${{ needs.initial_checks.outputs.critical_initial_checks_passed }}" >> $GITHUB_ENV
-          echo "PR_HEAD_SHA_VAL=${{ needs.initial_checks.outputs.pr_sha }}" >> $GITHUB_ENV # For comment
+          echo "PR_HEAD_SHA_VAL=${{ needs.initial_checks.outputs.pr_sha }}" >> $GITHUB_ENV
 
-          # From analyze_dependencies
           echo "ANALYZE_DEPENDENCIES_JOB_RESULT_VAL=${{ needs.analyze_dependencies.result }}" >> $GITHUB_ENV
           echo "DEPENDENCY_ACTION_REQUIRED_VAL=${{ needs.analyze_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
-          # echo "ASSET_ACTION_REQUIRED_VAL=${{ needs.analyze_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV # For AAP later
-
-          # From build_and_run_douglas_checker
+          
           echo "BUILD_DOUGLAS_JOB_RESULT_VAL=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
           echo "LINT_ERRORS_CAPTURED_VAL=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
           echo "DOUGLAS_CHECK_STEP_OUTCOME_VAL=${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome }}" >> $GITHUB_ENV
           echo "IMGUR_SCREENSHOT_URL_VAL=${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url }}" >> $GITHUB_ENV
-          # AI_REASONING is tricky as it can be multi-line. Fetch from needs context directly in script.
 
       - name: Download Douglas Summary Artifact
         id: download_summary
-        if: needs.build_and_run_douglas_checker.result != 'skipped' && needs.build_and_run_douglas_checker.result != ''
+        # Ensure this only runs if the build_and_run_douglas_checker job actually attempted to run Douglas
+        if: needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'skipped'
         uses: actions/download-artifact@v4
         with:
-          name: douglas-summary-${{ github.run_id }} # Assuming build_and_run_douglas_checker uses github.run_id
+          name: douglas-summary-${{ github.run_id }} 
           path: ${{ runner.temp }}/douglas-artifacts/summary
         continue-on-error: true
 
-      - name: Read Douglas Summary Content
-        id: read_summary
-        if: steps.download_summary.outcome == 'success' && (join(runner.os, '') != 'Windows' && system('test -f ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 0 || join(runner.os, '') == 'Windows' && system('Test-Path ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md') == 'True')
+      - name: Read Douglas Summary Content into ENV var
+        id: read_summary_content_to_env
+        # This step runs if download was attempted, even if it failed (to handle empty summary)
+        # but only if the douglas check itself wasn't skipped entirely by build_and_run_douglas_checker
+        if: needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome != 'skipped'
         run: |
           SUMMARY_FILE="${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md"
-          SUMMARY_CONTENT=$(cat "$SUMMARY_FILE")
-          # Escape for multi-line env var if passing directly, or use in script
-          # For now, will be accessed via downloaded file path if needed by script below
-          echo "summary_markdown_path=$SUMMARY_FILE" >> $GITHUB_ENV
-        shell: bash
+          SUMMARY_CONTENT_FOR_ENV="Douglas summary not available or check skipped."
+          if [ "${{ steps.download_summary.outcome }}" == "success" ] && [ -f "$SUMMARY_FILE" ] && [ -s "$SUMMARY_FILE" ]; then
+            # Read, escape for multiline env var, and truncate if too long for typical env var limits
+            # Using a simpler approach: just indicate it's available, script will read from file.
+            # For github-script, it's better to pass file path and let script read it.
+            # However, for this specific case, let's try to pass content if short, or a placeholder.
+            # Actually, the previous idea of passing path to script was better. Let's revert to that idea for the script.
+            # This step will just confirm if the file exists for the script to use.
+            echo "DOUGLAS_SUMMARY_FILE_PATH_FOR_SCRIPT=$SUMMARY_FILE" >> $GITHUB_ENV
+            echo "DOUGLAS_SUMMARY_AVAILABLE=true" >> $GITHUB_ENV
+            echo "Read summary content from $SUMMARY_FILE"
+          else
+            echo "DOUGLAS_SUMMARY_AVAILABLE=false" >> $GITHUB_ENV
+            echo "Douglas summary file not found or empty after download attempt."
+          fi
         continue-on-error: true
 
       - name: Construct and Post PR Comment
         id: post_comment
         uses: actions/github-script@v7
         env:
-          AI_REASONING_FROM_NEEDS: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }} # Pass multi-line directly
+          AI_REASONING_FROM_NEEDS: ${{ needs.initial_checks.outputs.ai_analysis_reasoning }} 
+          # DOUGLAS_SUMMARY_FILE_PATH_ENV is set by the step above
+          DOUGLAS_SUMMARY_FILE_PATH_ENV: ${{ env.DOUGLAS_SUMMARY_FILE_PATH_FOR_SCRIPT }}
+          DOUGLAS_SUMMARY_IS_AVAILABLE_ENV: ${{ env.DOUGLAS_SUMMARY_AVAILABLE }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const fs = require('fs').promises; // Require fs module for file reading
+
             const { repo, owner } = context.repo; 
             const issue_number = parseInt(process.env.PR_NUMBER_VAL, 10);
 
@@ -665,7 +679,7 @@ jobs:
             const buildDouglasJobResult = process.env.BUILD_DOUGLAS_JOB_RESULT_VAL;
             const douglasCheckStepOutcome = process.env.DOUGLAS_CHECK_STEP_OUTCOME_VAL;
             
-            commentBody += `### 1. Initial PR Validations (Job Status: ${initialChecksJobResult})\n`;
+            commentBody += `### 1. Initial PR Validations (Job Status: ${initialChecksJobResult || 'N/A'})\n`;
             if (initialChecksJobResult === 'success' && initialChecksPassed) {
               commentBody += `✅ **Passed!** All initial structure and naming checks are okay.\n`;
             } else if (initialChecksJobResult === 'failure' || !initialChecksPassed) {
@@ -677,65 +691,96 @@ jobs:
                 commentBody += `  - One or more initial checks did not pass. Refer to Action logs for this job.\n`;
               }
             } else { 
-               commentBody += `🟡 Initial validations were skipped or had an unexpected status (${initialChecksJobResult}).\n`;
+               commentBody += `🟡 Initial validations were skipped or had an unexpected status (${initialChecksJobResult || 'N/A'}).\n`;
             }
             commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
             if (process.env.AI_ANALYSIS_SUCCEEDED_VAL === 'true') {
               commentBody += `    - Score: **${process.env.AI_SCORE_VAL}** / Likely Typo: ${process.env.AI_IS_TYPO_VAL === 'true' ? '**Yes** ❗' : 'No'}\n`;
-              let reasoning = process.env.AI_REASONING_FROM_NEEDS || "No reasoning provided."; // Use env var passed to action
-              reasoning = reasoning.replace(/%0A/g, '\n        '); // Assuming it's already escaped if needed or use direct
-              commentBody += `    - Reasoning:\n        ${reasoning}\n`;
+              let reasoning = process.env.AI_REASONING_FROM_NEEDS || "No reasoning provided.";
+              // Reasoning is directly from 'needs' context, already a string.
+              // If it were from an ENV var set by a 'run' step with multiline content, it would need specific handling.
+              // For now, assume it's fine as is.
+              commentBody += `    - Reasoning:\n        ${reasoning.replace(/\n/g, '\n        ')}\n`;
               try {
-                const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON_VAL || '[]');
+                const suggestions = JSON.parse(process.env.AI_SUGGESTIONS_JSON_VAL || '[]', (key, value) => {
+                  // Basic sanitization for suggestions if they are not simple strings
+                  if (Array.isArray(value)) {
+                    return value.map(item => typeof item === 'string' ? item.replace(/[`*_{}[\]()#+\-.!]/g, '\\$&') : item);
+                  }
+                  return value;
+                });
                 if (suggestions.length > 0) {
                   commentBody += `    - Suggestions: ${suggestions.map(s => `\`${s}\``).join(', ')}\n`;
                 }
-              } catch (e) { /* ignore */ }
+              } catch (e) { console.warn("Error parsing AI suggestions JSON: " + e.message); }
             } else if (process.env.AI_ANALYSIS_SUCCEEDED_VAL === 'false') {
               commentBody += `    - ⚠️ AI name analysis could not be performed or API call failed.\n`;
-            } else if (process.env.AI_ANALYSIS_SUCCEEDED_VAL === 'skipped' || !process.env.AI_ANALYSIS_SUCCEEDED_VAL) {
+            } else { // Skipped or undefined
               commentBody += `    - ℹ️ AI name analysis was skipped on this run (e.g. not initial PR open).\n`;
             }
             commentBody += "\n---\n";
 
-            commentBody += `### 1B. Dependency Analysis (Job Status: ${analyzeDepsJobResult})\n`;
+            commentBody += `### 1B. Dependency Analysis (Job Status: ${analyzeDepsJobResult || 'N/A'})\n`;
             if (analyzeDepsJobResult === 'skipped') {
-                commentBody += `🟡 Skipped (likely due to prior critical failures).\n`;
+                commentBody += `🟡 Skipped.\n`;
             } else if (depActionRequired) {
-                commentBody += `⏳ **Pending:** New dependencies identified. The 'AI Dependency Manager' workflow will attempt to vet and install them.\n`;
+                commentBody += `⏳ **Pending:** New dependencies identified. 'AI Dependency Manager' will run.\n`;
             } else if (analyzeDepsJobResult === 'success') {
-                commentBody += `✅ No new dependencies require automatic action for this commit.\n`;
+                commentBody += `✅ No new dependencies require automatic action.\n`;
             } else { 
-                commentBody += `🚨 **Failed!** Problem during dependency analysis. Review Action logs for this job.\n`;
+                commentBody += `🚨 **Failed!** Problem during dependency analysis.\n`;
             }
             commentBody += "\n---\n";
 
-            commentBody += `### 2. Local Build & Douglas Ethos Check (Job Status: ${buildDouglasJobResult})\n`;
+            commentBody += `### 2. Local Build & Douglas Ethos Check (Job Status: ${buildDouglasJobResult || 'N/A'})\n`;
             if (buildDouglasJobResult === 'skipped') {
-              commentBody += `🟡 Skipped (likely due to pending dependency actions or prior critical failures).\n`;
+              commentBody += `🟡 Skipped.\n`;
             } else if (lintErrorsCaptured) { 
-              commentBody += `🟡 **Build Failed (Lint/Build Issues):** An 'AI Lint Fixer' workflow will attempt automatic corrections.\n`;
-              commentBody += `   Douglas Ethos Check was skipped due to this build failure.\n`;
+              commentBody += `🟡 **Build Failed (Lint/Build Issues):** 'AI Lint Fixer' will run.\n`;
+              commentBody += `   Douglas Ethos Check was skipped.\n`;
             } else if (buildDouglasJobResult === 'failure') { 
-              commentBody += `🚨 **Build Failed (Other Issues)!** AI lint fix was NOT attempted for this failure. Review Action logs.\n`;
+              commentBody += `🚨 **Build Failed (Other Issues)!** AI lint fix NOT attempted for this. Review logs.\n`;
             } else if (buildDouglasJobResult === 'success') { 
               commentBody += `✅ **Local Static Build Successful.**\n`;
               if (douglasCheckStepOutcome === 'success') {
                 commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
               } else if (douglasCheckStepOutcome === 'skipped') {
-                commentBody += `🟡 Douglas Ethos Check was skipped (e.g., local server issue or build failure).\n`;
+                commentBody += `🟡 Douglas Ethos Check was skipped.\n`;
               } else { 
-                commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome})\n`;
+                commentBody += `🚨 **Douglas Ethos Check FAILED or had issues!** (Outcome: ${douglasCheckStepOutcome || 'N/A'})\n`;
               }
-              // Read Douglas summary from file if path is available
-              const summaryPath = process.env.summary_markdown_path; // From read_summary step
+              
               let douglasSummary = 'Douglas summary not available or check skipped.';
-              if (summaryPath && (await ioUtil.exists(summaryPath))) {
-                 const summaryContent = await fs.readFile(summaryPath, 'utf8');
-                 douglasSummary = summaryContent.replace(/%0A/g, '\n').replace(/%0D/g, '');
-              }
+              const summaryFilePath = process.env.DOUGLAS_SUMMARY_FILE_PATH_ENV;
+              const summaryIsAvailable = process.env.DOUGLAS_SUMMARY_IS_AVAILABLE_ENV === 'true';
 
-              if (douglasSummary && douglasSummary.trim() !== 'Douglas summary not available or check skipped.') {
+              if (summaryIsAvailable && summaryFilePath) {
+                try {
+                  // Check existence again, as script context is different from `run` step's shell
+                  // Await fs.access to check existence before reading.
+                  // For simplicity, we'll trust the env var from the previous step for now.
+                  // A more robust way: github.rest.actions.downloadArtifact and read from there if needed.
+                  // But since 'read_summary_content_to_env' already did, let's assume if path is set, it's readable.
+                  // This part is tricky without direct fs access or passing content.
+                  // The previous 'read_summary_content_to_env' step should ideally set the content itself to an env var if small enough,
+                  // or the script needs to be more complex to download and read artifacts.
+                  // Let's assume for now summaryPath is set only if file exists AND is readable by 'run' step.
+                  // We will use a placeholder if the file can't be read by this script.
+                  // This script CANNOT directly use fs.readFile(summaryFilePath) if summaryFilePath is a runner path
+                  // from a PREVIOUS job. It needs to be an artifact or content passed.
+                  // The artifact "douglas-summary-${{ github.run_id }}" WAS downloaded by "Download Douglas Summary Artifact"
+                  // So, summaryFilePath will be like ${{ runner.temp }}/douglas-artifacts/summary/douglas_summary.md
+
+                  // THIS IS THE FIX: Use the `fs` module we required.
+                  const fileContent = await fs.readFile(summaryFilePath, 'utf8');
+                  douglasSummary = fileContent; // No need for replace of %0A, it's raw
+                } catch (e) {
+                  console.warn(`Could not read Douglas summary from path ${summaryFilePath} in script: ${e.message}`);
+                  douglasSummary = "Error reading Douglas summary content in script.";
+                }
+              }
+              
+              if (douglasSummary && douglasSummary.trim() !== 'Douglas summary not available or check skipped.' && douglasSummary.trim() !== "Error reading Douglas summary content in script.") {
                 commentBody += `\n${douglasSummary}\n`; 
               }
               const imgurUrl = process.env.IMGUR_SCREENSHOT_URL_VAL;
@@ -752,13 +797,15 @@ jobs:
                 buildDouglasJobResult === 'success' && !lintErrorsCaptured && douglasCheckStepOutcome === 'success';
 
             if (depActionRequired && analyzeDepsJobResult !== 'failure') { 
-              commentBody += `⏳ **Next Step:** 'AI Dependency Manager' workflow will run to process dependencies. Monitor PR checks.`;
+              commentBody += `⏳ **Next Step:** 'AI Dependency Manager' will run. Monitor PR checks.`;
             } else if (lintErrorsCaptured && buildDouglasJobResult !== 'failure' && !depActionRequired) { 
-              commentBody += `⏳ **Next Step:** 'AI Lint Fixer' workflow will run to correct issues. Monitor PR checks.`;
+              core.setFailed("Build failed due to lint/build issues. AI Lint Fixer is expected to run."); // Ensure VPR fails
+              commentBody += `⏳ **Next Step:** 'AI Lint Fixer' will run. Monitor PR checks.`;
             } else if (allLocalChecksConsideredForThisRunPassed) {
-              commentBody += `✅ **All local OET validation checks passed for this commit!**\n`;
-              commentBody += `   🚀 **Netlify Deploy Preview:** If configured, this should trigger. Monitor Netlify checks on the PR.`;
+              commentBody += `✅ **All local OET validation checks passed!**\n`;
+              commentBody += `   🚀 **Netlify Deploy Preview:** Monitor Netlify checks.`;
             } else {
+              core.setFailed("One or more critical local OET checks failed. Review details.");
               commentBody += `‼️ **Manual Action Required:** One or more critical checks failed. Review details above and in [Action logs](${actionRunUrl}).\n`;
             }
 
@@ -768,21 +815,4 @@ jobs:
               await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
             } catch (e) {
               core.warning(`Failed to post PR comment: ${e.message}`);
-            }
-
-            // --- Set overall workflow outcome ---
-            if (!initialChecksPassed) { // initialChecksPassed is from process.env.CRITICAL_INITIAL_CHECKS_PASSED_VAL
-                 core.setFailed("Critical initial checks failed. See details in '1. Initial PR Validations'.");
-            } else if (depActionRequired && analyzeDepsJobResult !== 'failure') {
-                 core.notice("AI Dependency Manager is expected to run. This validation is handing off.");
-                 // Workflow can still be 'success' or 'neutral' here to allow ADM to run
-            } else if (lintErrorsCaptured && buildDouglasJobResult !== 'failure' && !depActionRequired) {
-                 // This is the case for your lint-only test.
-                 // We WANT VPR to fail here to trigger ALF.
-                 core.setFailed("Build failed due to lint/build issues. AI Lint Fixer is expected to run.");
-            } else if (!allLocalChecksConsideredForThisRunPassed) {
-                 // This catches other failures if no specific hand-off occurred
-                 core.setFailed("One or more critical local OET checks failed, and no automated correctors were triggered by this run.");
-            } else {
-                 core.info("All local OET checks passed, and no corrective AI workflows triggered by this run.");
             }
