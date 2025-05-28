@@ -195,24 +195,22 @@ jobs:
           ASSET_ARTIFACT_UPLOAD_PATH=""
           TOOL_INFO_FILE_PATH="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
 
-          # Initialize variables that will be modified in the loop
           FOUND_NEW_DEP="false"
-          NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]"
+          NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]" # Must be initialized as a valid JSON array string
 
-          echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} (Process Substitution Fix) ---"
+          echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} (Focus on Payload Creation) ---"
           echo "Tool Info File Path: ${TOOL_INFO_FILE_PATH}"
           echo "Initial: FOUND_NEW_DEP='${FOUND_NEW_DEP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
           echo "---------------------------------------------"
 
           if [ ! -f "$TOOL_INFO_FILE_PATH" ]; then
-            echo "::notice::'$TOOL_INFO_FILE_PATH' not found. No dependencies or assets to process from it."
+            echo "::notice::'$TOOL_INFO_FILE_PATH' not found."
           else
             echo "Reading '$TOOL_INFO_FILE_PATH'"
             if jq -e '.identifiedDependencies? | type == "array" and length > 0' "$TOOL_INFO_FILE_PATH" > /dev/null 2>&1; then
               IDENTIFIED_DEPS_JSON_STR=$(jq -r '.identifiedDependencies | tojson' "$TOOL_INFO_FILE_PATH")
               echo "Identified Dependencies JSON from tool-info: $IDENTIFIED_DEPS_JSON_STR"
 
-              # Using process substitution here: < <(command)
               while IFS= read -r dep_obj_json; do
                 packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
                 echo "  Processing identified dependency: '$packageName'"
@@ -228,35 +226,66 @@ jobs:
                 set -e
 
                 if [ $JQ_EXIT_CODE -ne 0 ]; then # Package NOT found
-                  echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE). Adding to new deps list."
+                  echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE)."
+                  echo "    BEFORE append: NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
+                  # Ensure that dep_obj_json is valid JSON before trying to use it with --argjson
+                  if ! echo "$dep_obj_json" | jq -e . > /dev/null 2>&1; then
+                      echo "::error::Invalid JSON for dep_obj_json: $dep_obj_json"
+                      # Decide how to handle: skip this dep or fail the step
+                      continue # Skip this problematic dependency object
+                  fi
                   NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR=$(echo "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
                   FOUND_NEW_DEP="true"
-                  echo "    Updated loop vars: FOUND_NEW_DEP='${FOUND_NEW_DEP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR now contains '$packageName'"
+                  echo "    AFTER append:  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}' (FOUND_NEW_DEP='${FOUND_NEW_DEP}')"
                 else # Package IS found
                   echo "    '$packageName' IS ALREADY in package.json (jq exit code: $JQ_EXIT_CODE)."
                 fi
-              done < <(echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]') # Process substitution
+              done < <(echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]')
 
-              echo "Loop finished. Parent shell vars: FOUND_NEW_DEP='${FOUND_NEW_DEP}'"
+              echo "Loop finished. Parent shell vars: FOUND_NEW_DEP='${FOUND_NEW_DEP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
               if [ "$FOUND_NEW_DEP" = "true" ]; then
-                echo "Found new dependencies. Preparing artifact."
+                echo "Found new dependencies. Preparing artifact file..."
                 DEPS_ACTION_REQUIRED="true"
                 DEPS_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/pending_dependencies_payload.json"
                 ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
-                jq -n \
-                  --arg directive "$TOOL_DIRECTIVE" --arg description "$TOOL_DESCRIPTION_FOR_ARTIFACT" \
-                  --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
-                  --arg assetInst "$ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT" \
-                  '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
-                echo "Pending NPM dependencies identified. Artifact payload:"
-                cat "$DEPS_ARTIFACT_UPLOAD_PATH"
+
+                echo "Values for final jq command to create payload file:"
+                echo "  TOOL_DIRECTIVE='${TOOL_DIRECTIVE}'"
+                echo "  TOOL_DESCRIPTION_FOR_ARTIFACT='${TOOL_DESCRIPTION_FOR_ARTIFACT}'"
+                echo "  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}' (This must be valid JSON array string)"
+                echo "  ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT='${ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT}'"
+
+                # Validate NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR before using it
+                if ! echo "${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}" | jq -e 'type == "array"' > /dev/null 2>&1; then
+                    echo "::error::NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR is not a valid JSON array. Value: '${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
+                    echo "Skipping creation of pending_dependencies_payload.json due to invalid newDeps content."
+                    # This will lead to an empty artifact if not handled, or we can prevent upload
+                    DEPS_ACTION_REQUIRED="false" # Prevent upload of potentially empty/invalid file
+                else
+                    jq -n \
+                      --arg directive "$TOOL_DIRECTIVE" \
+                      --arg description "$TOOL_DESCRIPTION_FOR_ARTIFACT" \
+                      --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
+                      --arg assetInst "$ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT" \
+                      '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
+
+                    echo "Pending NPM dependencies artifact payload file created at: $DEPS_ARTIFACT_UPLOAD_PATH"
+                    echo "Contents of $DEPS_ARTIFACT_UPLOAD_PATH:"
+                    cat "$DEPS_ARTIFACT_UPLOAD_PATH"
+                    # Verify it's not empty
+                    if [ ! -s "$DEPS_ARTIFACT_UPLOAD_PATH" ]; then
+                        echo "::error:: $DEPS_ARTIFACT_UPLOAD_PATH is empty after jq command!"
+                        DEPS_ACTION_REQUIRED="false" # Prevent upload of empty file
+                    fi
+                fi
               else
-                echo "All identifiedDependencies (if any) already in package.json. (FOUND_NEW_DEP is '${FOUND_NEW_DEP}')"
+                echo "No new dependencies found that require artifact generation. (FOUND_NEW_DEP is '${FOUND_NEW_DEP}')"
               fi
             else
               echo "No 'identifiedDependencies' array or it's empty in '$TOOL_INFO_FILE_PATH'."
             fi
 
+            # ... (Asset processing remains the same) ...
             ASSET_INSTRUCTIONS_STR=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
             if [ -n "$ASSET_INSTRUCTIONS_STR" ] && [ "$ASSET_INSTRUCTIONS_STR" != "null" ]; then
               echo "Asset instructions found. Preparing artifact."
@@ -276,7 +305,7 @@ jobs:
           echo "action_required_for_assets=${ASSET_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
           echo "deps_artifact_upload_path=$DEPS_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "asset_artifact_upload_path=$ASSET_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
-          echo "--- End: check_tool_info (Process Substitution Fix) ---"
+          echo "--- End: check_tool_info (Focus on Payload Creation) ---"
 
       - name: Upload Pending Dependencies Artifact
         if: steps.check_tool_info.outputs.action_required_for_npm_deps == 'true' && steps.check_tool_info.outputs.deps_artifact_upload_path != ''
