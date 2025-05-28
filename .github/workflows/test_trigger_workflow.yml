@@ -1,98 +1,34 @@
 # .github/workflows/test_trigger_workflow.yml
-name: Test Trigger Workflow
+name: Test Trigger Workflow (for PAT Push Test)
 
 on:
   pull_request:
     types: [opened, synchronize]
-    branches:
-      - main # Target branch for PRs from 'test-**' branches
-  issue_comment:
-    types: [created]
+    # No 'branches: - main' here, we'll filter by head_ref in the job 'if'
+    # to ensure it's specifically for PRs *from* 'test-' branches.
 
 jobs:
   main_job:
     name: Main Job for Test Trigger
-    if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/test-')) ||
-      (github.event_name == 'pull_request' && startsWith(github.head_ref, 'test-')) ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        startsWith(github.event.comment.body, '/revalidate-test')
-      )
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'test-')
     runs-on: ubuntu-latest
     outputs:
-      processed_sha: ${{ steps.get_info.outputs.sha_to_process }}
-      processed_branch: ${{ steps.get_info.outputs.branch_to_process }}
-      pr_number: ${{ steps.get_info.outputs.pr_number_to_process }}
+      pr_number: ${{ github.event.pull_request.number }}
+      head_sha: ${{ github.event.pull_request.head.sha }}
+      head_branch: ${{ github.event.pull_request.head.ref }}
       
     steps:
-      - name: Determine SHA and Branch to Process
-        id: get_info
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log PR Info
         run: |
-          SHA_TO_PROCESS=""
-          BRANCH_TO_PROCESS=""
-          PR_NUMBER_TO_PROCESS=""
-
-          echo "Event name: ${{ github.event_name }}"
-          if [ "${{ github.event_name }}" == "push" ]; then
-            echo "Push event to ref: ${{ github.ref }}"
-            SHA_TO_PROCESS="${{ github.sha }}"
-            BRANCH_TO_PROCESS="${{ github.ref_name }}"
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "PR event for PR #${{ github.event.pull_request.number }}"
-            SHA_TO_PROCESS="${{ github.event.pull_request.head.sha }}"
-            BRANCH_TO_PROCESS="${{ github.event.pull_request.head.ref }}"
-            PR_NUMBER_TO_PROCESS="${{ github.event.pull_request.number }}"
-          elif [ "${{ github.event_name }}" == "issue_comment" ]; then
-            PR_NUMBER_FROM_COMMENT="${{ github.event.issue.number }}"
-            echo "Issue comment event for PR #${PR_NUMBER_FROM_COMMENT}"
-            # Fetch PR data to get actual head SHA and branch for comment-triggered run
-            PR_DATA=$(curl -s -L --fail \
-                           -H "Authorization: token $GITHUB_TOKEN" \
-                           -H "Accept: application/vnd.github.v3+json" \
-                           "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER_FROM_COMMENT")
-            if [ $? -ne 0 ]; then
-              echo "::error::Failed to fetch PR data for comment trigger."
-              exit 1
-            fi
-            SHA_TO_PROCESS=$(echo "$PR_DATA" | jq -r .head.sha)
-            BRANCH_TO_PROCESS=$(echo "$PR_DATA" | jq -r .head.ref)
-            PR_NUMBER_TO_PROCESS="$PR_NUMBER_FROM_COMMENT"
-            
-            # Additional check for comment-triggered runs to ensure the PR branch is 'test-'
-            # This logic was previously commented out in the 'if' condition
-            if [[ ! "$BRANCH_TO_PROCESS" == test-* ]]; then
-              echo "::error::Comment-triggered run for PR #${PR_NUMBER_TO_PROCESS}, but its head branch ('$BRANCH_TO_PROCESS') does not start with 'test-'. This job will fail to ensure dependent workflows do not run with incorrect context."
-              exit 1
-            fi
-          else
-            echo "::error::Unhandled event type: ${{ github.event_name }}"
-            exit 1
-          fi
-
-          # This check is now effectively done for comment triggers above.
-          # For push/PR, the top-level 'if' or branch filters handle it.
-          # However, an explicit check in the script can be a safeguard.
-          if [[ ! "$BRANCH_TO_PROCESS" == test-* ]]; then
-            echo "::warning::Branch '$BRANCH_TO_PROCESS' does not start with 'test-'. This run might be skipped by dependent workflows if they check this."
-            # Consider exiting if strict adherence to 'test-' branches is needed for this workflow itself
-            # exit 1 
-          fi
-
-          echo "SHA to process: $SHA_TO_PROCESS"
-          echo "Branch to process: $BRANCH_TO_PROCESS"
-          echo "PR Number to process: $PR_NUMBER_TO_PROCESS"
-
-          echo "sha_to_process=$SHA_TO_PROCESS" >> $GITHUB_OUTPUT
-          echo "branch_to_process=$BRANCH_TO_PROCESS" >> $GITHUB_OUTPUT
-          echo "pr_number_to_process=$PR_NUMBER_TO_PROCESS" >> $GITHUB_OUTPUT
+          echo "Test Trigger Workflow running for PR #${{ github.event.pull_request.number }}"
+          echo "Event Name: ${{ github.event_name }}"
+          echo "Event Action: ${{ github.event.action }}"
+          echo "PR Head Ref (Branch): ${{ github.head_ref }}"
+          echo "PR Head SHA: ${{ github.event.pull_request.head.sha }}"
+          echo "PR Base Ref: ${{ github.base_ref }}"
 
       - name: Simulate Work and Conclude
         run: |
-          echo "Test Trigger Workflow processing SHA ${{ steps.get_info.outputs.sha_to_process }} on branch ${{ steps.get_info.outputs.branch_to_process }} for PR #${{ steps.get_info.outputs.pr_number_to_process }}"
-          echo "Simulating some work..."
+          echo "Simulating some work in Test Trigger Workflow..."
           sleep 5
-          echo "Test Trigger Workflow completed successfully for this run."
+          echo "Test Trigger Workflow completed."
