@@ -154,7 +154,7 @@ jobs:
       - name: Validate Changed File Paths
         if: |
           steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' &&
-          github.event.action == 'opened' # Only on initial PR open
+          github.event.action == 'opened'
         id: validate_paths
         env:
           TOOL_DIRECTIVE: ${{ steps.extract_directive_and_metadata.outputs.tool_directive }}
