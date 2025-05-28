@@ -11,7 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME = 'models/gemini-1.5-pro-latest';
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-pro-latest'; // As per ALF workflow
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -40,7 +40,7 @@ const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,
   topP: 0.8,
-  maxOutputTokens: 16384,
+  maxOutputTokens: 32768, // Assuming you've updated this
   responseMimeType: 'text/plain',
 };
 
@@ -130,11 +130,6 @@ export async function POST(request: NextRequest) {
       );
     }
     if (typeof lintErrors !== 'string' || !lintErrors.trim()) {
-      // Allow empty lintErrors globally if we filter per file,
-      // but individual files might still have no *specific* errors
-      // For now, let's keep the check for a non-empty global string,
-      // as it implies there are *some* errors to begin with.
-      // If the prompt expects errors, this is still relevant.
       throw new Error('Missing or empty "lintErrors" string.');
     }
     console.log(
@@ -154,7 +149,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Original lintErrors from the request body.
   const { filesToFix, lintErrors: globalLintErrors, modelName = DEFAULT_MODEL_NAME } = body;
   const model = genAI.getGenerativeModel({ model: modelName });
   const fixedFilesResults: Record<string, string | null> = {};
@@ -193,32 +187,34 @@ export async function POST(request: NextRequest) {
     const fileProcessStartTime = Date.now();
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
-    // --- START: MODIFICATION TO FILTER LINT ERRORS ---
     const specificLintErrorsForThisFile = globalLintErrors
       .split('\n')
       .filter(line => line.includes(file.path))
       .join('\n');
 
+    // --- ADDED LOGGING FOR specificLintErrorsForThisFile ---
+    console.log(`[API fix-linting-errors] For file ${file.path}, specificLintErrorsForThisFile (trimmed length ${specificLintErrorsForThisFile.trim().length}):\n---\n${specificLintErrorsForThisFile.trim()}\n---`);
+    // --- END ADDED LOGGING ---
+
     if (!specificLintErrorsForThisFile.trim()) {
       console.log(
         `[API fix-linting-errors] No specific lint errors found for ${file.path} in the provided global list. Skipping AI processing for this file, retaining original content.`
       );
-      fixedFilesResults[file.path] = file.currentContent; // Keep original if no errors for it
+      fixedFilesResults[file.path] = file.currentContent;
       console.log(
         `[API fix-linting-errors] Finished processing ${file.path} in ${Date.now() - fileProcessStartTime}ms (skipped AI).`
       );
-      continue; // Move to the next file
+      continue;
     }
-    // --- END: MODIFICATION TO FILTER LINT ERRORS ---
 
     const populatedPrompt = promptTemplate
       .replace(/{{FILE_PATH}}/g, file.path)
       .replace(/{{FILE_CONTENT}}/g, file.currentContent)
-      .replace(/{{LINT_ERRORS}}/g, specificLintErrorsForThisFile); // Use filtered errors
+      .replace(/{{LINT_ERRORS}}/g, specificLintErrorsForThisFile);
 
     try {
       console.log(
-        `[API fix-linting-errors] Sending to AI for ${file.path} with ${specificLintErrorsForThisFile.split('\n').length} specific error line(s).`
+        `[API fix-linting-errors] Sending to AI for ${file.path} with ${specificLintErrorsForThisFile.split('\n').length} specific error line(s). Prompt length: ~${populatedPrompt.length}`
       );
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: populatedPrompt }] }],
@@ -231,45 +227,63 @@ export async function POST(request: NextRequest) {
           `AI analysis failed for ${file.path}: No response object received from Gemini.`
         );
       }
-
-      const rawResponseText = result.response.text(); // REMOVE .trim() for now to see raw output
-
-      // --- DETAILED LOGGING FOR TRUNCATION ---
+      
+      // --- DETAILED LOGGING FOR RAW AI RESPONSE (BEFORE ANY STRIPPING/TRIMMING) ---
+      const rawResponseText = result.response.text(); // Get raw text
       console.log(`[API fix-linting-errors] --- START DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
-      console.log(`[API fix-linting-errors] rawResponseText length: ${rawResponseText.length}`);
-      console.log(`[API fix-linting-errors] rawResponseText (first 500 chars):\n${rawResponseText.substring(0, 500)}`);
-      console.log(`[API fix-linting-errors] rawResponseText (last 500 chars):\n${rawResponseText.slice(-500)}`);
-      // Check for common truncation indicators if your model/API provides them
+      console.log(`[API fix-linting-errors] rawResponseText length from AI: ${rawResponseText.length}`);
+      console.log(`[API fix-linting-errors] rawResponseText (first 500 chars from AI):\n${rawResponseText.substring(0, 500)}`);
+      console.log(`[API fix-linting-errors] rawResponseText (last 500 chars from AI):\n${rawResponseText.slice(-500)}`);
+      
       const finishReason = result.response.candidates?.[0]?.finishReason;
       const safetyRatings = result.response.candidates?.[0]?.safetyRatings;
+      const tokenCount = result.response.usageMetadata?.totalTokenCount;
+      const outputTokenCount = result.response.usageMetadata?.candidatesTokenCount;
+
+
       console.log(`[API fix-linting-errors] Finish Reason: ${finishReason || 'N/A'}`);
       console.log(`[API fix-linting-errors] Safety Ratings: ${JSON.stringify(safetyRatings)}`);
+      console.log(`[API fix-linting-errors] Token Count (Total): ${tokenCount || 'N/A'}`);
+      console.log(`[API fix-linting-errors] Token Count (Output/Candidates): ${outputTokenCount || 'N/A'}`);
       console.log(`[API fix-linting-errors] --- END DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
-      
-      const trimmedRawResponseText = rawResponseText.trim(); // Now trim for fence stripping
+      // --- END DETAILED LOGGING ---
+
+      const trimmedRawResponseText = rawResponseText.trim(); // Now trim for fence stripping and further processing
 
       const markdownFenceRegex =
         /^```(?:typescript|javascript|tsx|jsx)?\s*[\r\n]?|\s*[\r\n]?```$/g;
+      
+      // Log what the regex matches before replacement
+      const matches = Array.from(trimmedRawResponseText.matchAll(markdownFenceRegex));
+      if (matches.length > 0) {
+        console.log(`[API fix-linting-errors] Regex matches for fences found for ${file.path}:`);
+        matches.forEach((matchArr, index) => {
+          console.log(`  Fence Match ${index + 1}: "${matchArr[0]}" at index ${matchArr.index}`);
+        });
+      } else {
+        console.log(`[API fix-linting-errors] No regex matches for fences found in ${file.path} (after initial trim).`);
+      }
+
       const strippedResponseText = trimmedRawResponseText
         .replace(markdownFenceRegex, '')
         .trim();
 
       if (trimmedRawResponseText !== strippedResponseText) {
         console.log(
-          `[API fix-linting-errors] Markdown fences stripped from AI response for ${file.path}. New length: ${strippedResponseText.length}`
+          `[API fix-linting-errors] Content changed after stripping fences for ${file.path}. Original (trimmed) length: ${trimmedRawResponseText.length}, New (stripped & trimmed) length: ${strippedResponseText.length}`
         );
       } else {
         console.log(
-          `[API fix-linting-errors] No Markdown fences found or stripped for ${file.path}.`
+          `[API fix-linting-errors] Content UNCHANGED after stripping attempt for ${file.path} (or no fences found). Length: ${strippedResponseText.length}`
         );
       }
-
+      
       if (
         !strippedResponseText ||
-        strippedResponseText === file.currentContent
+        strippedResponseText === file.currentContent.trim() // Compare with trimmed original content
       ) {
         console.warn(
-          `[API fix-linting-errors] AI did not change content for ${file.path} or returned empty (after stripping fences). Original content will be used.`
+          `[API fix-linting-errors] AI did not change content for ${file.path} or returned empty (after stripping fences & final trim). Original content will be used.`
         );
         fixedFilesResults[file.path] = file.currentContent;
       } else {
