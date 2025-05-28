@@ -2,9 +2,6 @@
 name: Test Trigger Workflow
 
 on:
-  push:
-    branches:
-      - 'test-**'
   pull_request:
     types: [opened, synchronize]
     branches:
