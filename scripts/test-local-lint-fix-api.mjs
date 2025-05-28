@@ -153,11 +153,6 @@ async function main() {
           console.log(`  Original length: ${originalLength} chars`);
           console.log(`  Fixed content length: ${fixedContentOrNull.length} chars`);
           
-          const outputFileName = `test_FIXED_${path.basename(filePath)}`;
-          const outputPath = path.resolve(__dirname, outputFileName);
-          await fs.writeFile(outputPath, fixedContentOrNull, 'utf-8');
-          console.log(`  Fixed content saved to: ${outputPath}`);
-
           if (typeof originalLength === 'number' && fixedContentOrNull.length < originalLength * 0.9 && originalLength > 0) {
             console.warn("  WARNING: Fixed content is significantly shorter than original. Possible truncation.");
           }
