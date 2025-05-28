@@ -140,6 +140,14 @@ async function createDummyToolFiles(toolDirective, includeLintError = false) {
 
   const pascalCaseName = toPascalCase(toolDirective);
 
+  const toolGenerationInfo = JSON.stringify(
+    {},
+    null,
+    2
+  );  
+
+  await fs.writeFile(path.join(toolDir, 'tool-generation-info.json'), toolGenerationInfo);
+
   const metadataContent = JSON.stringify(
     {
       title: `CI Test: ${pascalCaseName}${includeLintError ? ' (With Lint Error)' : ''}`,
@@ -230,6 +238,7 @@ export default function ${pascalCaseName}Client({ toolRoute }: { toolRoute: stri
     `[Test PR Script] Dummy files created locally for tool: ${toolDirective}${includeLintError ? ' (with intentional lint errors)' : ''}`
   );
   return [
+    `app/tool/${toolDirective}/tool-generation-info.json`,
     `app/tool/${toolDirective}/metadata.json`,
     `app/tool/${toolDirective}/page.tsx`,
     `app/tool/${toolDirective}/_components/${pascalCaseName}Client.tsx`,

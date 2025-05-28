@@ -11,7 +11,7 @@ jobs:
   resolve_dependencies:
     name: Resolve Tool Dependencies
     if: >
-      github.event.workflow_run.conclusion != 'failure' &&
+      github.event.workflow_run.conclusion == 'failure' && 
       github.event.workflow_run.pull_requests[0] != null &&
       github.event.workflow_run.pull_requests[0].head.ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
@@ -22,198 +22,349 @@ jobs:
 
     env:
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-      PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
-      PR_HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref }}
-      TRIGGERING_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }} # ID of VPR
+      PR_HEAD_SHA_FROM_EVENT: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
+      PR_HEAD_BRANCH_FROM_EVENT: ${{ github.event.workflow_run.pull_requests[0].head.ref }}
+      TRIGGERING_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
       VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency 
+
+    outputs: # Define job outputs
+        adm_action_taken: ${{ steps.final_status_set.outputs.adm_action_taken }}
+        adm_pushed_changes: ${{ steps.final_status_set.outputs.adm_pushed_changes }}
 
     steps:
       - name: Log Effective Context
+        id: log_context
         run: |
-          echo "--- ADM Effective Context from workflow_run event ---"
-          echo "Processing for PR #${{ env.PR_NUMBER }}"
-          echo "Target Branch for Push: ${{ env.PR_HEAD_BRANCH }}"
-          echo "Target Commit SHA for Checkout & Artifact: ${{ env.PR_HEAD_SHA }}"
+          echo "--- ADM Context from workflow_run event ---"
+          echo "Processing for PR #${{ env.PR_NUMBER }} on branch ${{ env.PR_HEAD_BRANCH_FROM_EVENT }} (SHA: ${{ env.PR_HEAD_SHA_FROM_EVENT }})"
           echo "Triggering VPR Workflow Run ID: ${{ env.TRIGGERING_WORKFLOW_RUN_ID }}"
-          echo "Default repository branch: ${{ github.event.repository.default_branch }}"
-          echo "Conclusion of VPR: ${{ github.event.workflow_run.conclusion }}"
-          echo "----------------------------------------------------"
-          if [ "${{ env.PR_HEAD_BRANCH }}" == "${{ github.event.repository.default_branch }}" ]; then
-            echo "::error::ADM: PR_HEAD_BRANCH is the default branch. This job should have been skipped by the job-level 'if'. Exiting."
+          echo "VPR Conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "-------------------------------------------"
+          if [ -z "${{ env.PR_HEAD_SHA_FROM_EVENT }}" ]; then
+            echo "::error::ADM: PR_HEAD_SHA_FROM_EVENT is empty. Cannot proceed."
+            echo "setup_failed=true" >> $GITHUB_OUTPUT
             exit 1
           fi
-          if [ -z "${{ env.PR_HEAD_SHA }}" ]; then
-            echo "::error::ADM: PR_HEAD_SHA is empty. Cannot proceed."
-            exit 1
+          echo "setup_failed=false" >> $GITHUB_OUTPUT
+
+      - name: Checkout PR Code (with PAT) for initial read
+        id: checkout_code_pat
+        if: steps.log_context.outputs.setup_failed != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_HEAD_SHA_FROM_EVENT }} 
+          token: ${{ secrets.AI_LINT_FIXER_PAT }} 
+          fetch-depth: 0 
+
+      - name: Read tool-generation-info.json
+        id: read_tool_gen_info
+        if: steps.checkout_code_pat.outcome == 'success'
+        run: |
+          RAW_BRANCH_NAME="${{ env.PR_HEAD_BRANCH_FROM_EVENT }}"
+          TOOL_DIRECTIVE_FROM_BRANCH=""
+          if [[ "$RAW_BRANCH_NAME" == feat/gen-* ]]; then
+            TOOL_DIRECTIVE_FROM_BRANCH=$(echo "$RAW_BRANCH_NAME" | sed 's|feat/gen-||' | sed 's/-[0-9]*$//')
+          else
+            echo "::warning::Branch name '${RAW_BRANCH_NAME}' does not match 'feat/gen-' pattern. Cannot reliably determine tool directive."
+            TOOL_DIRECTIVE_FROM_BRANCH="unknown-directive" # Fallback, will likely cause file not found
           fi
+          
+          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FROM_BRANCH}/tool-generation-info.json"
+          NPM_DEPS_FULFILLED_STATUS="absent" # absent, true, false
+
+          if [ -f "$TOOL_GEN_INFO_FILE" ]; then
+            if jq -e '.npmDependenciesFulfilled' "$TOOL_GEN_INFO_FILE" > /dev/null 2>&1; then
+              NPM_DEPS_FULFILLED_STATUS_RAW=$(jq -r '.npmDependenciesFulfilled // "absent"' "$TOOL_GEN_INFO_FILE")
+              if [ "$NPM_DEPS_FULFILLED_STATUS_RAW" == "true" ]; then
+                NPM_DEPS_FULFILLED_STATUS="true"
+              elif [ "$NPM_DEPS_FULFILLED_STATUS_RAW" == "false" ]; then
+                NPM_DEPS_FULFILLED_STATUS="false"
+              else
+                # If present but not true/false, treat as absent/needs processing
+                NPM_DEPS_FULFILLED_STATUS="absent" 
+                echo "::warning:: '.npmDependenciesFulfilled' key exists in $TOOL_GEN_INFO_FILE but is not true/false. Treating as absent."
+              fi
+            fi
+            echo "Read '$TOOL_GEN_INFO_FILE'. npmDependenciesFulfilled status: $NPM_DEPS_FULFILLED_STATUS"
+          else
+            echo "::notice::ADM: '$TOOL_GEN_INFO_FILE' not found. Assuming NPM dependencies need processing (status: absent)."
+          fi
+          echo "npm_deps_fulfilled_state=$NPM_DEPS_FULFILLED_STATUS" >> $GITHUB_OUTPUT
+          echo "derived_tool_directive=$TOOL_DIRECTIVE_FROM_BRANCH" >> $GITHUB_OUTPUT
+          echo "tool_gen_info_path=$TOOL_GEN_INFO_FILE" >> $GITHUB_ENV # For later steps to use
 
       - name: Download Pending Dependencies Artifact
         id: download_pending_deps
+        if: steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state == 'absent'
         uses: actions/download-artifact@v4
         with:
-          name: pending-dependencies-${{ env.PR_HEAD_SHA }} 
+          name: pending-dependencies-${{ env.PR_HEAD_SHA_FROM_EVENT }} 
           path: ${{ runner.temp }}/pending-deps-data
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ env.TRIGGERING_WORKFLOW_RUN_ID }} 
+          run-id: ${{ env.TRIGGERING_WORKFLOW_RUN_ID }}
         continue-on-error: true 
 
-      - name: Check Artifact and Read Data
+      - name: Check Artifact Validity
         id: check_artifact
-        if: steps.download_pending_deps.outcome == 'success'
+        if: steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state == 'absent'
         run: |
-          PENDING_DEPS_FILE="${{ runner.temp }}/pending-deps-data/pending_dependencies.json"
-          if [ -f "$PENDING_DEPS_FILE" ] && [ -s "$PENDING_DEPS_FILE" ]; then
-            echo "Pending dependencies artifact found and is not empty."
-            echo "artifact_valid=true" >> $GITHUB_OUTPUT
-            echo "pending_deps_path=$PENDING_DEPS_FILE" >> $GITHUB_OUTPUT
+          if [ "${{ steps.download_pending_deps.outcome }}" != "success" ]; then
+            echo "::notice::ADM: Pending dependencies artifact not found or download failed. VPR might have failed for a non-dependency reason. No ADM action."
+            echo "artifact_is_valid_and_actionable=false" >> $GITHUB_OUTPUT
           else
-            echo "::notice::Pending dependencies artifact downloaded but was empty/invalid."
-            echo "artifact_valid=false" >> $GITHUB_OUTPUT
+            PENDING_DEPS_FILE="${{ runner.temp }}/pending-deps-data/pending_dependencies.json"
+            if [ -f "$PENDING_DEPS_FILE" ] && [ -s "$PENDING_DEPS_FILE" ]; then
+              echo "ADM: Pending dependencies artifact found and appears valid."
+              echo "artifact_is_valid_and_actionable=true" >> $GITHUB_OUTPUT
+              echo "pending_deps_path=$PENDING_DEPS_FILE" >> $GITHUB_OUTPUT
+            else
+              echo "::notice::ADM: Pending dependencies artifact downloaded, but content is missing or empty."
+              echo "artifact_is_valid_and_actionable=false" >> $GITHUB_OUTPUT
+            fi
           fi
 
-      - name: Checkout PR Code
-        if: steps.check_artifact.outputs.artifact_valid == 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PR_HEAD_SHA }} 
-          token: ${{ secrets.AI_LINT_FIXER_PAT }} # <<< USE PAT FOR CHECKOUT
-
       - name: Vet and Install Dependencies
-        if: steps.check_artifact.outputs.artifact_valid == 'true'
         id: vet_and_install
+        if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
         run: |
+          # ... (Existing vetting and npm install logic) ...
+          # OUTPUTS: all_deps_resolved_successfully (true/false), package_json_changed (true/false)
+          # ENV VARS for comment: UNSAFE_DEPS_DETAILS, MANUAL_REVIEW_DEPS_DETAILS, INSTALLED_DEPS_LIST
           set -e 
           PENDING_DEPS_FILE="${{ steps.check_artifact.outputs.pending_deps_path }}"
-          TOOL_DIRECTIVE=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
+          TOOL_DIRECTIVE_FROM_ARTIFACT=$(jq -r '.toolDirective' "$PENDING_DEPS_FILE")
           TOOL_DESCRIPTION=$(jq -r '.toolDescription // "No tool description provided"' "$PENDING_DEPS_FILE") 
           ASSET_INSTRUCTIONS_FROM_ARTIFACT=$(jq -r '.assetInstructions // ""' "$PENDING_DEPS_FILE")
           NEW_DEPENDENCIES_JSON_ARRAY_STR=$(jq -r 'if .newDependencies and (.newDependencies | type == "array") then .newDependencies | tojson else "[]" end' "$PENDING_DEPS_FILE")
           VETTED_SAFE_PACKAGES_TMP_FILE=$(mktemp); UNSAFE_DETAILS_TMP_FILE=$(mktemp); MANUAL_REVIEW_TMP_FILE=$(mktemp)
-          ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="true" 
-          if [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -eq 0 ]; then
-            ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false"; echo "No new dependencies in artifact.";
+          
+          deps_to_process_count=$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')
+          all_deps_resolved_successfully_flag="true" # Assume true if no deps or all resolve
+          packages_actually_installed_this_run=()
+          
+          if [ "$deps_to_process_count" -eq 0 ]; then
+            echo "No new dependencies listed in the artifact to vet or install."
           else
             echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -c '.[]' | while IFS= read -r dep_json; do
-              packageName=$(echo "$dep_json" | jq -r '.packageName')
-              if [ "$packageName" == "null" ] || [ -z "$packageName" ]; then continue; fi
-              API_PAYLOAD=$(jq -n --arg pkg "$packageName" --arg directive "$TOOL_DIRECTIVE" --arg desc "$TOOL_DESCRIPTION" --arg assetInst "$ASSET_INSTRUCTIONS_FROM_ARTIFACT" '{packageName: $pkg, toolDirective: $directive, toolDescription: $desc, assetInstructions: $assetInst}')
+              packageName=$(echo "$dep_json" | jq -r '.packageName'); if [ "$packageName" == "null" ] || [ -z "$packageName" ]; then continue; fi
+              API_PAYLOAD=$(jq -n --arg pkg "$packageName" --arg directive "$TOOL_DIRECTIVE_FROM_ARTIFACT" --arg desc "$TOOL_DESCRIPTION" --arg assetInst "$ASSET_INSTRUCTIONS_FROM_ARTIFACT" '{packageName: $pkg, toolDirective: $directive, toolDescription: $desc, assetInstructions: $assetInst}')
               HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "${{ env.VET_DEPENDENCY_API_ENDPOINT }}" -H "Content-Type: application/json" -d "$API_PAYLOAD" -o "${{ runner.temp }}/vet_response.json")
               if [ "$HTTP_RESPONSE_CODE" -ne 200 ]; then
-                echo "'$packageName' (Vetting API call failed: HTTP $HTTP_RESPONSE_CODE)" >> "$UNSAFE_DETAILS_TMP_FILE"; ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false"; continue 
+                echo "'$packageName' (Vetting API call failed: HTTP $HTTP_RESPONSE_CODE)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false"; continue 
               fi
               vetting_success=$(jq -r .success "${{ runner.temp }}/vet_response.json")
               if [ "$vetting_success" != "true" ] || ! jq -e .vettingResult "${{ runner.temp }}/vet_response.json" > /dev/null; then
-                  api_message=$(jq -r .message "${{ runner.temp }}/vet_response.json"); echo "'$packageName' (Vetting API error: $api_message)" >> "$UNSAFE_DETAILS_TMP_FILE"; ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false"; continue
+                  api_message=$(jq -r .message "${{ runner.temp }}/vet_response.json"); echo "'$packageName' (Vetting API error: $api_message)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false"; continue
               fi
               isSafeAndRelevant=$(jq -r '.vettingResult.isLikelySafeAndRelevant' "${{ runner.temp }}/vet_response.json")
               makesExternalNetworkCalls=$(jq -r '.vettingResult.makesExternalNetworkCalls' "${{ runner.temp }}/vet_response.json")
               justification=$(jq -r '.vettingResult.justification' "${{ runner.temp }}/vet_response.json")
               if [ "$isSafeAndRelevant" = "true" ] && [ "$makesExternalNetworkCalls" = "no" ]; then
-                echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE"
+                 if ! grep -q "\"$packageName\"" package.json; then echo "$packageName" >> "$VETTED_SAFE_PACKAGES_TMP_FILE"; fi
               elif [ "$makesExternalNetworkCalls" = "yes" ]; then
-                echo "'$packageName' (Reason: Makes external network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"; ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
+                echo "'$packageName' (Reason: Makes external network calls. Justification: $justification)" >> "$UNSAFE_DETAILS_TMP_FILE"; all_deps_resolved_successfully_flag="false" 
               else 
-                echo "'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)" >> "$MANUAL_REVIEW_TMP_FILE"; ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
+                echo "'$packageName' (Reason: Needs review. Vetting - Safe: $isSafeAndRelevant, Network: $makesExternalNetworkCalls. Justification: $justification)" >> "$MANUAL_REVIEW_TMP_FILE"; all_deps_resolved_successfully_flag="false" 
               fi
-            done 
-          fi 
-          mapfile -t provisionally_safe_packages < "$VETTED_SAFE_PACKAGES_TMP_FILE"; mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE"; mapfile -t manual_review_package_details < "$MANUAL_REVIEW_TMP_FILE"
-          changes_made_to_package_json=false; packages_actually_installed_this_run=()
-          if [ "$ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT" = "true" ] && [ ${#provisionally_safe_packages[@]} -gt 0 ]; then
-            packages_to_npm_install=(); for pkg_name in "${provisionally_safe_packages[@]}"; do if ! grep -q "\"$pkg_name\"" package.json; then packages_to_npm_install+=("$pkg_name"); fi; done
-            if [ ${#packages_to_npm_install[@]} -gt 0 ]; then
-                if npm install "${packages_to_npm_install[@]}" --save; then
-                    changes_made_to_package_json=true; packages_actually_installed_this_run=("${packages_to_npm_install[@]}")
-                else
-                    for pkg_failed in "${packages_to_npm_install[@]}"; do echo "'$pkg_failed' (npm install command failed)" >> "$UNSAFE_DETAILS_TMP_FILE"; done
-                    mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE"; ALL_NEW_DEPS_ARE_SAFE_AND_RELEVANT="false" 
-                fi
-            else echo "No new dependencies needed npm install."; fi
-          elif [ "$(echo "$NEW_DEPENDENCIES_JSON_ARRAY_STR" | jq -r 'length')" -gt 0 ]; then echo "Not all dependencies were safe/relevant."; else echo "No new dependencies in artifact."; fi
-          rm "$VETTED_SAFE_PACKAGES_TMP_FILE" "$UNSAFE_DETAILS_TMP_FILE" "$MANUAL_REVIEW_TMP_FILE"
-          echo "changes_made=$changes_made_to_package_json" >> $GITHUB_OUTPUT
-          echo "unsafe_deps_count=${#unsafe_package_details[@]}" >> $GITHUB_OUTPUT
+            done
+          fi
+          mapfile -t provisionally_safe_to_install < "$VETTED_SAFE_PACKAGES_TMP_FILE"
+          changes_made_to_package_json="false"
+          if [ "$all_deps_resolved_successfully_flag" = "true" ] && [ ${#provisionally_safe_to_install[@]} -gt 0 ]; then
+            if npm install "${provisionally_safe_to_install[@]}" --save; then
+                changes_made_to_package_json="true"; packages_actually_installed_this_run=("${provisionally_safe_to_install[@]}")
+            else
+                for pkg_failed in "${provisionally_safe_to_install[@]}"; do echo "'$pkg_failed' (npm install command failed)" >> "$UNSAFE_DETAILS_TMP_FILE"; done; all_deps_resolved_successfully_flag="false"
+            fi
+          elif [ "$all_deps_resolved_successfully_flag" = "true" ] && [ "$deps_to_process_count" -gt 0 ]; then
+             echo "All identified dependencies were vetted safe, but already exist in package.json or none needed new install."
+          fi
+          rm "$VETTED_SAFE_PACKAGES_TMP_FILE" 
+          mapfile -t unsafe_package_details < "$UNSAFE_DETAILS_TMP_FILE"; mapfile -t manual_review_package_details < "$MANUAL_REVIEW_TMP_FILE"
+          rm "$UNSAFE_DETAILS_TMP_FILE" "$MANUAL_REVIEW_TMP_FILE"
+          
+          # If any unsafe or manual review items were generated, then not all deps resolved successfully
+          if [ ${#unsafe_package_details[@]} -gt 0 ] || [ ${#manual_review_package_details[@]} -gt 0 ]; then
+            all_deps_resolved_successfully_flag="false"
+          fi
+
+          echo "all_deps_resolved_successfully=$all_deps_resolved_successfully_flag" >> $GITHUB_OUTPUT
+          echo "package_json_changed=$changes_made_to_package_json" >> $GITHUB_OUTPUT
           UNSAFE_DETAILS_STR=$(IFS=$'\n'; echo "${unsafe_package_details[*]}"); MANUAL_REVIEW_DETAILS_STR=$(IFS=$'\n'; echo "${manual_review_package_details[*]}"); INSTALLED_DEPS_STR=$(IFS=' '; echo "${packages_actually_installed_this_run[*]}")
           echo "UNSAFE_DEPS_DETAILS<<EOF_UNSAFE" >> $GITHUB_ENV; echo "$UNSAFE_DETAILS_STR" >> $GITHUB_ENV; echo "EOF_UNSAFE" >> $GITHUB_ENV
           echo "MANUAL_REVIEW_DEPS_DETAILS<<EOF_MANUAL" >> $GITHUB_ENV; echo "$MANUAL_REVIEW_DETAILS_STR" >> $GITHUB_ENV; echo "EOF_MANUAL" >> $GITHUB_ENV
           echo "INSTALLED_DEPS_LIST=$INSTALLED_DEPS_STR" >> $GITHUB_ENV
+          echo "unsafe_deps_count_val=${#unsafe_package_details[@]}" >> $GITHUB_ENV
+          echo "manual_review_deps_count_val=${#manual_review_package_details[@]}" >> $GITHUB_ENV
 
-      - name: Prepare Outputs for Comment Script
-        id: prepare_comment_data
-        run: |
-          echo "DOWNLOAD_PENDING_DEPS_OUTCOME=${{ steps.download_pending_deps.outcome }}" >> $GITHUB_ENV
-          echo "CHECK_ARTIFACT_OUTPUTS_ARTIFACT_VALID=${{ steps.check_artifact.outputs.artifact_valid }}" >> $GITHUB_ENV
-          echo "VET_AND_INSTALL_OUTPUTS_CHANGES_MADE=${{ steps.vet_and_install.outputs.changes_made }}" >> $GITHUB_ENV
-
-      - name: Commit and Push Dependency Changes
-        if: steps.vet_and_install.outputs.changes_made == 'true'
+      - name: Commit Success State (with PAT)
+        id: commit_success_pat
+        if: steps.vet_and_install.outcome == 'success' && steps.vet_and_install.outputs.all_deps_resolved_successfully == 'true'
         env:
           GITHUB_TOKEN_FOR_PUSH: ${{ secrets.AI_LINT_FIXER_PAT }}
+          TOOL_GEN_INFO_FILE_PATH_ENV: ${{ env.tool_gen_info_path }}
         run: |
+          echo "Updating '${TOOL_GEN_INFO_FILE_PATH_ENV}' to npmDependenciesFulfilled=true"
+          jq '.npmDependenciesFulfilled = true' "${TOOL_GEN_INFO_FILE_PATH_ENV}" > tmp_tool_gen_info.json && mv tmp_tool_gen_info.json "${TOOL_GEN_INFO_FILE_PATH_ENV}"
+          
           git config --global user.name "OET Dependency Bot"
-          git config --global user.email "bot@online-everything-tool.com" 
-          git add package.json package-lock.json
-          COMMIT_MSG="chore: add auto-vetted dependencies"
-          if [ -n "$INSTALLED_DEPS_LIST" ]; then 
-            COMMIT_MSG="chore: add auto-vetted dependencies ($INSTALLED_DEPS_LIST)"
+          git config --global user.email "bot@online-everything-tool.com"
+          git add "${TOOL_GEN_INFO_FILE_PATH_ENV}" # Add updated tool-generation-info.json
+          if [ "${{ steps.vet_and_install.outputs.package_json_changed }}" == "true" ]; then
+            git add package.json package-lock.json
+            COMMIT_MSG="chore: Resolve NPM dependencies and mark fulfilled"
+            if [ -n "${{ env.INSTALLED_DEPS_LIST }}" ]; then
+              COMMIT_MSG="chore: Install deps (${{ env.INSTALLED_DEPS_LIST }}) & mark fulfilled"
+            fi
+          else
+            COMMIT_MSG="chore: Mark NPM dependencies as fulfilled (no new installs)"
           fi
           git commit -m "$COMMIT_MSG"
-          echo "Pushing dependency changes to branch ${{ env.PR_HEAD_BRANCH }}..."
-          git push https://x-access-token:${GITHUB_TOKEN_FOR_PUSH}@github.com/${{ github.repository }}.git HEAD:${{ env.PR_HEAD_BRANCH }}
+          echo "Pushing changes to branch ${{ env.PR_HEAD_BRANCH_FROM_EVENT }}..."
+          git push https://x-access-token:${GITHUB_TOKEN_FOR_PUSH}@github.com/${{ github.repository }}.git HEAD:${{ env.PR_HEAD_BRANCH_FROM_EVENT }}
+          echo "changes_pushed_by_pat=true" >> $GITHUB_OUTPUT
 
-      # No /revalidate-ai-fixes comment from ADM anymore, VPR triggers on synchronize
+      - name: Checkout PR Code (with GITHUB_TOKEN) for failure commit
+        id: checkout_code_github_token
+        if: steps.vet_and_install.outcome == 'success' && steps.vet_and_install.outputs.all_deps_resolved_successfully == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_HEAD_SHA_FROM_EVENT }} 
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Commit Failure State (with GITHUB_TOKEN)
+        id: commit_failure_github_token
+        if: steps.checkout_code_github_token.outcome == 'success'
+        env:
+          TOOL_GEN_INFO_FILE_PATH_ENV: ${{ env.tool_gen_info_path }}
+        uses: EndBug/add-and-commit@v9
+        with:
+          author_name: OET Dependency Bot
+          author_email: bot@online-everything-tool.com
+          message: 'chore: Mark NPM dependency resolution as failed'
+          add: |
+            ${{ env.TOOL_GEN_INFO_FILE_PATH_ENV }}
+      - name: Modify tool-gen-info for failure commit
+        if: steps.checkout_code_github_token.outcome == 'success'
+        env:
+          TOOL_GEN_INFO_FILE_PATH_ENV: ${{ env.tool_gen_info_path }}
+        run: |
+          echo "Updating '${TOOL_GEN_INFO_FILE_PATH_ENV}' to npmDependenciesFulfilled=false for failure commit"
+          if [ -f "${TOOL_GEN_INFO_FILE_PATH_ENV}" ]; then
+            jq '.npmDependenciesFulfilled = false' "${TOOL_GEN_INFO_FILE_PATH_ENV}" > tmp_tool_gen_info.json && mv tmp_tool_gen_info.json "${TOOL_GEN_INFO_FILE_PATH_ENV}"
+            echo "File ${TOOL_GEN_INFO_FILE_PATH_ENV} updated for failure state."
+          else
+            echo "::error:: ${TOOL_GEN_INFO_FILE_PATH_ENV} not found for failure update. This is unexpected."
+            exit 1
+          fi
+      - name: Commit and Push Failure Status (with GITHUB_TOKEN via EndBug)
+        id: push_failure_status
+        if: steps.checkout_code_github_token.outcome == 'success'
+        uses: EndBug/add-and-commit@v9
+        with:
+          author_name: OET Dependency Bot (via GITHUB_TOKEN)
+          author_email: bot@online-everything-tool.com
+          message: 'chore: Mark NPM dependency resolution attempt as failed'
+          add: '${{ env.tool_gen_info_path }}'
+          push: 'true'
+
+      - name: Set Final Status Outputs for Comment
+        id: final_status_set
+        run: |
+          ACTION_TAKEN="false"
+          PUSHED_CHANGES="false"
+
+          if [ "${{ steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state }}" == "true" ]; then
+            echo "ADM Action: Dependencies already marked fulfilled."
+          elif [ "${{ steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state }}" == "false" ]; then
+            echo "ADM Action: Dependencies previously marked as failed. No new attempt this run for this SHA."
+          elif [ "${{ steps.check_artifact.outputs.artifact_is_valid_and_actionable }}" != "true" ]; then
+            echo "ADM Action: No actionable dependency artifact."
+          elif [ "${{ steps.commit_success_pat.outputs.changes_pushed_by_pat }}" == "true" ]; then
+            echo "ADM Action: Dependencies resolved and changes pushed with PAT."
+            ACTION_TAKEN="true"; PUSHED_CHANGES="true";
+          elif [ "${{ steps.push_failure_status.outcome }}" == "success" ]; then # Check outcome of EndBug action
+            echo "ADM Action: Dependency resolution failed, status committed with GITHUB_TOKEN."
+            ACTION_TAKEN="true"; # Action was taken to mark failure
+          else
+            echo "ADM Action: No specific resolution path taken or vet_and_install step did not run as expected."
+          fi
+          echo "adm_action_taken=$ACTION_TAKEN" >> $GITHUB_OUTPUT
+          echo "adm_pushed_changes=$PUSHED_CHANGES" >> $GITHUB_OUTPUT
+
       - name: Post Summary Comment to PR
         uses: actions/github-script@v7
-        if: always() 
+        if: always() && steps.log_context.outputs.setup_failed != 'true'
+        env:
+            UNSAFE_DEPS_DETAILS_ENV: ${{ env.UNSAFE_DEPS_DETAILS }}
+            MANUAL_REVIEW_DEPS_DETAILS_ENV: ${{ env.MANUAL_REVIEW_DEPS_DETAILS }}
+            INSTALLED_DEPS_LIST_ENV: ${{ env.INSTALLED_DEPS_LIST }}
+            UNSAFE_DEPS_COUNT_ENV: ${{ env.unsafe_deps_count_val }}
+            MANUAL_REVIEW_DEPS_COUNT_ENV: ${{ env.manual_review_deps_count_val }}
+            ALL_DEPS_RESOLVED_SUCCESSFULLY_ENV: ${{ steps.vet_and_install.outputs.all_deps_resolved_successfully }}
+            NPM_DEPS_FULFILLED_STATE_ENV: ${{ steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state }}
+            ARTIFACT_IS_ACTIONABLE_ENV: ${{ steps.check_artifact.outputs.artifact_is_valid_and_actionable }}
+            SUCCESS_PUSH_PAT_ENV: ${{ steps.commit_success_pat.outputs.changes_pushed_by_pat }}
+            FAILURE_PUSH_GITHUB_TOKEN_ENV: ${{ steps.push_failure_status.outcome }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }} 
           script: |
             const prNumber = parseInt(process.env.PR_NUMBER, 10);
             if (isNaN(prNumber)) {
-              core.warning("ADM: PR Number not available for summary comment. Skipping comment.");
-              return; 
+              core.warning("ADM: PR Number not available. Skipping comment."); return;
             }
             let commentBody = `## 🤖 AI Dependency Manager Results for PR #${prNumber}\n\n`;
-            const unsafeCount = parseInt(process.env.unsafe_deps_count || "0"); 
-            const installedDeps = process.env.INSTALLED_DEPS_LIST || ""; 
-            const unsafeDetails = process.env.UNSAFE_DEPS_DETAILS || ""; 
-            const manualReviewDetails = process.env.MANUAL_REVIEW_DEPS_DETAILS || ""; 
-            const artifactDownloadSucceeded = process.env.DOWNLOAD_PENDING_DEPS_OUTCOME === 'success';
-            const artifactWasValid = process.env.CHECK_ARTIFACT_OUTPUTS_ARTIFACT_VALID === 'true';
-            const changesWereMadeByVetInstall = process.env.VET_AND_INSTALL_OUTPUTS_CHANGES_MADE === 'true';
 
-            if (!artifactDownloadSucceeded) {
-                 commentBody += "No dependency information artifact found, or download failed. No actions taken.\n";
-            } else if (!artifactWasValid) { 
-                 commentBody += "Dependency artifact downloaded but was empty/invalid. No actions taken.\n";
-            } else { 
-              if (unsafeCount > 0) { 
-                commentBody += `🚨 **Vetting Failed for some dependencies:**\n${unsafeDetails.split(',').map(d => `- ${d.trim()}`).join('\n')}\nThese were NOT installed.\n\n`;
-              }
-              if (manualReviewDetails) {
-                commentBody += `⚠️ **Dependencies requiring manual review:**\n${manualReviewDetails.split(',').map(d => `- ${d.trim()}`).join('\n')}\nThese were NOT installed automatically.\n\n`;
-              }
-              if (changesWereMadeByVetInstall && installedDeps) {
-                commentBody += `✅ **Successfully vetted and installed:** ${installedDeps.split(' ').map(d => `\`${d}\``).join(', ')}\nChanges have been pushed. Validation checks will re-run.\n`;
-              } else if (!unsafeDetails && !manualReviewDetails && !installedDeps && !changesWereMadeByVetInstall) {
-                commentBody += "✅ All declared dependencies (if any) were present or none required action. No changes made.\n";
-              } else if (!changesWereMadeByVetInstall && installedDeps && !unsafeDetails && !manualReviewDetails){
-                 commentBody += `✅ Dependencies (${installedDeps.split(' ').map(d => `\`${d}\``).join(', ')}) were vetted safe, but already in package.json. No changes pushed.\n`;
-              } else if (!changesWereMadeByVetInstall && !installedDeps && !unsafeDetails && !manualReviewDetails ){
-                  commentBody += "✅ Dependency artifact processed. No new dependencies required installation.\n";
+            const npmDepsFulfilledState = process.env.NPM_DEPS_FULFILLED_STATE_ENV;
+            const artifactIsActionable = process.env.ARTIFACT_IS_ACTIONABLE_ENV === 'true';
+            const allDepsResolvedSuccessfully = process.env.ALL_DEPS_RESOLVED_SUCCESSFULLY_ENV === 'true';
+            const pushedSuccessWithPat = process.env.SUCCESS_PUSH_PAT_ENV === 'true';
+            const pushedFailureWithGithubToken = process.env.FAILURE_PUSH_GITHUB_TOKEN_ENV === 'success'; // Check outcome
+
+            const unsafeDetails = process.env.UNSAFE_DEPS_DETAILS_ENV || "";
+            const manualReviewDetails = process.env.MANUAL_REVIEW_DEPS_DETAILS_ENV || "";
+            const installedDeps = process.env.INSTALLED_DEPS_LIST_ENV || "";
+            const unsafeCount = parseInt(process.env.UNSAFE_DEPS_COUNT_ENV || "0");
+            const manualReviewCount = parseInt(process.env.MANUAL_REVIEW_DEPS_COUNT_ENV || "0");
+
+            if (npmDepsFulfilledState === 'true') {
+              commentBody += "✅ NPM dependencies were already marked as fulfilled in `tool-generation-info.json`. No new processing by ADM.\n";
+            } else if (npmDepsFulfilledState === 'false') {
+              commentBody += "⚠️ NPM dependencies were previously marked as FAILED to fulfill in `tool-generation-info.json`. No new attempt by ADM for this commit. Manual intervention likely needed if dependencies are still problematic.\n";
+            } else if (!artifactIsActionable) { // npmDepsFulfilledState was 'absent' but no actionable artifact
+              commentBody += "ℹ️ No actionable pending dependency artifact found for ADM. This VPR failure might be for other reasons (e.g., lint, assets). No dependency changes made.\n";
+            } else { // Artifact was actionable, and fulfillment state was 'absent'
+              if (allDepsResolvedSuccessfully) {
+                if (pushedSuccessWithPat) {
+                  commentBody += `✅ Dependencies successfully processed. Status updated in \`tool-generation-info.json\` and changes pushed.\n`;
+                  if (installedDeps) commentBody += `   Installed: \`${installedDeps}\`\n`;
+                } else {
+                  commentBody += `✅ Dependencies appear resolved, but no changes were pushed (e.g., all already in package.json and status file up-to-date).\n`;
+                }
+              } else { // allDepsResolvedSuccessfully was false
+                commentBody += `🚨 **Dependency Resolution Failed or Requires Manual Review:**\n`;
+                if (unsafeCount > 0 && unsafeDetails) commentBody += `  - Unsafe/Failed Vetting or Install:\n${unsafeDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
+                if (manualReviewCount > 0 && manualReviewDetails) commentBody += `  - Needs Manual Vetting Review:\n${manualReviewDetails.split('\n').map(d => `    - ${d.trim()}`).join('\n')}\n`;
+                
+                if (pushedFailureWithGithubToken) {
+                  commentBody += `   The \`tool-generation-info.json\` file has been updated to mark \`npmDependenciesFulfilled: false\`. This commit (by GITHUB_TOKEN) will not re-trigger CI. Manual intervention may be needed for these dependencies.\n`;
+                } else {
+                  commentBody += `   An error occurred, and the failure status might not have been committed back. Please check workflow logs.\n`;
+                }
               }
             }
             commentBody += `\n---\n*This is an automated update by AI Dependency Manager.*`;
-            try {
-              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: commentBody });
-            } catch (e) { core.warning(`Failed to post PR comment: ${e.message}`); }
-            if (artifactDownloadSucceeded && artifactWasValid) {
-                if (unsafeCount > 0 || manualReviewDetails) { 
-                    core.setFailed("One or more dependencies failed vetting or require manual review.");
-                }
+            try { await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber, body: commentBody }); }
+            catch (e) { core.warning(`Failed to post PR comment: ${e.message}`); }
+
+            // Job failure condition
+            if (npmDepsFulfilledState === 'absent' && artifactIsActionable && !allDepsResolvedSuccessfully) {
+              core.setFailed("ADM: Failed to resolve all dependencies or manual review needed.");
             }
+      
       - name: Add 'needs-dependency-review' label
-        if: steps.vet_and_install.outputs.MANUAL_REVIEW_DEPS_DETAILS != '' && steps.vet_and_install.outputs.MANUAL_REVIEW_DEPS_DETAILS != null
+        if: steps.vet_and_install.outcome == 'success' && (env.manual_review_deps_count_val > 0 || env.unsafe_deps_count_val > 0) && steps.read_tool_gen_info.outputs.npm_deps_fulfilled_state == 'absent' && steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.AI_LINT_FIXER_PAT }} 
