@@ -771,14 +771,18 @@ jobs:
             }
 
             // --- Set overall workflow outcome ---
-            if ((depActionRequired && analyzeDepsJobResult !== 'failure') || (lintErrorsCaptured && buildDouglasJobResult !== 'failure' && !depActionRequired )) {
-              if ((depActionRequired && analyzeDepsJobResult === 'failure') || (lintErrorsCaptured && buildDouglasJobResult === 'failure')){
-                 core.setFailed("A corrective workflow is needed, but its preparatory job failed. Manual review required.");
-              } else {
-                 core.notice("Corrective AI workflows (Dependencies or Linting) are expected. This validation is handing off.");
-              }
+            if (!initialChecksPassed) { // initialChecksPassed is from process.env.CRITICAL_INITIAL_CHECKS_PASSED_VAL
+                 core.setFailed("Critical initial checks failed. See details in '1. Initial PR Validations'.");
+            } else if (depActionRequired && analyzeDepsJobResult !== 'failure') {
+                 core.notice("AI Dependency Manager is expected to run. This validation is handing off.");
+                 // Workflow can still be 'success' or 'neutral' here to allow ADM to run
+            } else if (lintErrorsCaptured && buildDouglasJobResult !== 'failure' && !depActionRequired) {
+                 // This is the case for your lint-only test.
+                 // We WANT VPR to fail here to trigger ALF.
+                 core.setFailed("Build failed due to lint/build issues. AI Lint Fixer is expected to run.");
             } else if (!allLocalChecksConsideredForThisRunPassed) {
-                core.setFailed("One or more critical local OET checks failed, and no automated correctors were triggered by this run.");
+                 // This catches other failures if no specific hand-off occurred
+                 core.setFailed("One or more critical local OET checks failed, and no automated correctors were triggered by this run.");
             } else {
-                core.info("All local OET checks passed, and no corrective AI workflows triggered by this run.");
+                 core.info("All local OET checks passed, and no corrective AI workflows triggered by this run.");
             }
