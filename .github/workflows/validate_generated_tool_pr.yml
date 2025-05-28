@@ -186,14 +186,23 @@ jobs:
         id: check_tool_info
         env:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
-          TOOL_DESCRIPTION_FOR_ARTIFACT: ${{ needs.initial_checks.outputs.tool_description }} 
+          TOOL_DESCRIPTION_FOR_ARTIFACT: ${{ needs.initial_checks.outputs.tool_description }}
         run: |
-          set -e 
+          set -e
           DEPS_ACTION_REQUIRED="false"
           ASSET_ACTION_REQUIRED="false"
           DEPS_ARTIFACT_UPLOAD_PATH=""
           ASSET_ARTIFACT_UPLOAD_PATH=""
           TOOL_INFO_FILE_PATH="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+
+          echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} ---"
+          echo "Tool Info File Path: ${TOOL_INFO_FILE_PATH}"
+          echo "Current directory: $(pwd)"
+          echo "Listing files in current directory:"
+          ls -la
+          echo "Contents of package.json (first 20 lines):"
+          if [ -f "package.json" ]; then head -n 20 package.json; else echo "package.json not found in $(pwd)"; fi
+          echo "---------------------------------------------"
 
           if [ ! -f "$TOOL_INFO_FILE_PATH" ]; then
             echo "::notice::'$TOOL_INFO_FILE_PATH' not found. No dependencies or assets to process from it."
@@ -204,15 +213,34 @@ jobs:
               IDENTIFIED_DEPS_JSON_STR=$(jq -r '.identifiedDependencies | tojson' "$TOOL_INFO_FILE_PATH")
               NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]"
               FOUND_NEW_DEP="false"
+              echo "Identified Dependencies JSON from tool-info: $IDENTIFIED_DEPS_JSON_STR"
+
               echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
                 packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
-                if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then continue; fi
-                if ! jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' package.json > /dev/null; then
+                echo "  Processing identified dependency: '$packageName'"
+                if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then
+                  echo "    Skipping null or empty package name."
+                  continue
+                fi
+
+                echo "    Checking if '$packageName' exists in package.json..."
+                # Store jq exit code to debug
+                set +e # Allow jq to fail without exiting the script here
+                jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' package.json > /dev/null 2>&1
+                JQ_EXIT_CODE=$?
+                set -e
+
+                if [ $JQ_EXIT_CODE -ne 0 ]; then # If jq exited non-zero, package is NOT found
+                  echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE). Adding to new deps list."
                   NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR=$(echo "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
                   FOUND_NEW_DEP="true"
+                else # If jq exited zero, package IS found
+                  echo "    '$packageName' IS ALREADY in package.json (jq exit code: $JQ_EXIT_CODE)."
                 fi
-              done
+              done # End of while loop
+
               if [ "$FOUND_NEW_DEP" = "true" ]; then
+                echo "Found new dependencies. Preparing artifact."
                 DEPS_ACTION_REQUIRED="true"
                 DEPS_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/pending_dependencies_payload.json"
                 ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
@@ -221,30 +249,35 @@ jobs:
                   --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
                   --arg assetInst "$ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT" \
                   '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
-                echo "Pending NPM dependencies identified that are not in package.json."
+                echo "Pending NPM dependencies identified that are not in package.json. Artifact payload:"
+                cat "$DEPS_ARTIFACT_UPLOAD_PATH"
               else
-                echo "All identifiedDependencies (if any) already in package.json."
+                echo "All identifiedDependencies (if any) already in package.json. (FOUND_NEW_DEP is false)"
               fi
             else
               echo "No 'identifiedDependencies' array or it's empty in '$TOOL_INFO_FILE_PATH'."
             fi
-            
+
             ASSET_INSTRUCTIONS_STR=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
             if [ -n "$ASSET_INSTRUCTIONS_STR" ] && [ "$ASSET_INSTRUCTIONS_STR" != "null" ]; then
+              echo "Asset instructions found. Preparing artifact."
               ASSET_ACTION_REQUIRED="true"
               ASSET_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/asset_instructions_payload.json"
               jq -n \
                 --arg directive "$TOOL_DIRECTIVE" --arg instructions "$ASSET_INSTRUCTIONS_STR" \
                 '{toolDirective: $directive, assetInstructions: $instructions}' > "$ASSET_ARTIFACT_UPLOAD_PATH"
-              echo "Asset instructions found."
+              echo "Asset instructions artifact payload:"
+              cat "$ASSET_ARTIFACT_UPLOAD_PATH"
             else
               echo "No 'assetInstructions' in '$TOOL_INFO_FILE_PATH'."
             fi
           fi
+          echo "Final decision: DEPS_ACTION_REQUIRED=${DEPS_ACTION_REQUIRED}, ASSET_ACTION_REQUIRED=${ASSET_ACTION_REQUIRED}"
           echo "action_required_for_npm_deps=${DEPS_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
           echo "action_required_for_assets=${ASSET_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
           echo "deps_artifact_upload_path=$DEPS_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "asset_artifact_upload_path=$ASSET_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
+          echo "--- End: check_tool_info ---"
 
       - name: Upload Pending Dependencies Artifact
         if: steps.check_tool_info.outputs.action_required_for_npm_deps == 'true' && steps.check_tool_info.outputs.deps_artifact_upload_path != ''
