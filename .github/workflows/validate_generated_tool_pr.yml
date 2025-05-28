@@ -14,7 +14,8 @@ jobs:
     if: >
       (
         github.event_name == 'pull_request' &&
-        github.actor != 'dependabot[bot]'
+        github.actor != 'dependabot[bot]' &&
+        startsWith(github.head_ref, 'feat/gen-') 
       ) ||
       (
         github.event_name == 'issue_comment' &&
@@ -728,7 +729,7 @@ jobs:
       - initial_checks
       - analyze_dependencies
       - build_and_run_douglas_checker
-    if: always() && github.actor != 'dependabot[bot]'
+    if: always() && github.actor != 'dependabot[bot]' && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' 
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
