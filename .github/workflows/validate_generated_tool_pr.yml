@@ -258,7 +258,7 @@ jobs:
                 # Validate NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR before using it
                 if ! echo "${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}" | jq -e 'type == "array"' > /dev/null 2>&1; then
                     echo "::error::NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR is not a valid JSON array. Value: '${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
-                    echo "Skipping creation of pending_dependencies_payload.json due to invalid newDeps content."
+                    echo "Skipping creation of pending_dependencies.json due to invalid newDeps content."
                     # This will lead to an empty artifact if not handled, or we can prevent upload
                     DEPS_ACTION_REQUIRED="false" # Prevent upload of potentially empty/invalid file
                 else
