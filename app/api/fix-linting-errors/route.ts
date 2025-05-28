@@ -231,18 +231,30 @@ export async function POST(request: NextRequest) {
           `AI analysis failed for ${file.path}: No response object received from Gemini.`
         );
       }
-      const rawResponseText = result.response.text().trim();
-      console.log(
-        `[API fix-linting-errors] Raw AI response for ${file.path} (length ${rawResponseText.length}):\n---START RAW---\n${rawResponseText}\n---END RAW---`
-      );
+
+      const rawResponseText = result.response.text(); // REMOVE .trim() for now to see raw output
+
+      // --- DETAILED LOGGING FOR TRUNCATION ---
+      console.log(`[API fix-linting-errors] --- START DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
+      console.log(`[API fix-linting-errors] rawResponseText length: ${rawResponseText.length}`);
+      console.log(`[API fix-linting-errors] rawResponseText (first 500 chars):\n${rawResponseText.substring(0, 500)}`);
+      console.log(`[API fix-linting-errors] rawResponseText (last 500 chars):\n${rawResponseText.slice(-500)}`);
+      // Check for common truncation indicators if your model/API provides them
+      const finishReason = result.response.candidates?.[0]?.finishReason;
+      const safetyRatings = result.response.candidates?.[0]?.safetyRatings;
+      console.log(`[API fix-linting-errors] Finish Reason: ${finishReason || 'N/A'}`);
+      console.log(`[API fix-linting-errors] Safety Ratings: ${JSON.stringify(safetyRatings)}`);
+      console.log(`[API fix-linting-errors] --- END DEBUGGING RAW AI RESPONSE for ${file.path} ---`);
+      
+      const trimmedRawResponseText = rawResponseText.trim(); // Now trim for fence stripping
 
       const markdownFenceRegex =
         /^```(?:typescript|javascript|tsx|jsx)?\s*[\r\n]?|\s*[\r\n]?```$/g;
-      const strippedResponseText = rawResponseText
+      const strippedResponseText = trimmedRawResponseText
         .replace(markdownFenceRegex, '')
         .trim();
 
-      if (rawResponseText !== strippedResponseText) {
+      if (trimmedRawResponseText !== strippedResponseText) {
         console.log(
           `[API fix-linting-errors] Markdown fences stripped from AI response for ${file.path}. New length: ${strippedResponseText.length}`
         );
