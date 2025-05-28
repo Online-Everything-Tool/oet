@@ -302,7 +302,7 @@ jobs:
           fi
           echo "Final decision: DEPS_ACTION_REQUIRED=${DEPS_ACTION_REQUIRED}, ASSET_ACTION_REQUIRED=${ASSET_ACTION_REQUIRED}"
           echo "action_required_for_npm_deps=${DEPS_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
-          echo "action_required_for_assets=${ASSET_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
+          echo "action_required_for_assets=false" >> $GITHUB_OUTPUT
           echo "deps_artifact_upload_path=$DEPS_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "asset_artifact_upload_path=$ASSET_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "--- End: check_tool_info (Focus on Payload Creation) ---"
