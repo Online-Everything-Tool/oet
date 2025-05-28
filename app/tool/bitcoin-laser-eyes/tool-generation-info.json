@@ -5,5 +5,6 @@
       "reason": "For client-side face detection and landmark prediction.",
       "importUsed": "import * as faceapi from 'face-api.js';"
     }
-  ]
+  ],
+  "npmDependenciesFulfilled": true
 }
