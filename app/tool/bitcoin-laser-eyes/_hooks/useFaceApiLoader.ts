@@ -14,8 +14,8 @@ interface UseFaceApiLoaderReturn {
   errorLoadingModels: string | null;
   loadModels: () => Promise<void>;
   detectFaces: (
-    imageElement: HTMLImageElement | HTMLCanvasElement // HTMLVideoElement also possible if needed
-  ) => Promise<faceapi.WithFaceLandmarks<faceapi.WithFaceDetection<{}>>[]>;
+    imageElement: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement
+  ) => Promise<faceapi.WithFaceLandmarks<faceapi.WithFaceDetection<unknown>>[]>;
 }
 
 export default function useFaceApiLoader(): UseFaceApiLoaderReturn {

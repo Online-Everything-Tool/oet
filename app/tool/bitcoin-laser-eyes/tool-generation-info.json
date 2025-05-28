@@ -7,5 +7,6 @@
     }
   ],
   "assetInstructions": "This tool uses face-api.js and requires its pre-trained models for face detection and landmarks to be available locally at /data/bitcoin-laser-eyes/models/. The client code must load models from this path.",
-  "npmDependenciesFulfilled": true
+  "npmDependenciesFulfilled": true,
+  "lintFixesAttempted": true
 }
