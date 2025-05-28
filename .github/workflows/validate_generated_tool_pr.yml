@@ -392,8 +392,8 @@ jobs:
             echo "::error::Tool directive not received. Cannot prune."
             exit 1
           fi
-          # Minimal pruning to speed up build: remove other tools if many exist.
-          # More aggressive pruning (like removing app/api) might break build if interdependencies exist.
+          echo "Removing app/api to prevent issues with 'output: export' during this validation build..."
+          rm -rf app/api || echo "No app/api directory to remove or removal failed (continuing)."
           if [ -d "app/tool" ]; then
             echo "Pruning other tool directories from app/tool/ ..."
             cd app/tool
