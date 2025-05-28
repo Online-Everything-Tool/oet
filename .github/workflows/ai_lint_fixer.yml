@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Log Effective Context
-        id: log_context
+        id: log_context 
         run: |
           echo "--- ALF Context from workflow_run event ---"
           echo "Attempting fix for PR #${{ env.PR_NUMBER }} on branch ${{ env.PR_HEAD_BRANCH }} (SHA: ${{ env.PR_HEAD_SHA }})"
@@ -36,60 +36,14 @@ jobs:
           echo "-------------------------------------------"
           if [ -z "${{ env.PR_HEAD_SHA }}" ]; then
             echo "::error::ALF: PR_HEAD_SHA is empty. Cannot proceed."
-            # Set an output to skip subsequent steps
             echo "setup_failed=true" >> $GITHUB_OUTPUT 
             exit 1 
           fi
           echo "setup_failed=false" >> $GITHUB_OUTPUT
 
-      - name: Checkout PR Code (early for reading tool-generation-info.json)
-        id: checkout_code_early
-        if: steps.log_context.outputs.setup_failed != 'true'
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.PR_HEAD_SHA }} 
-          token: ${{ secrets.AI_LINT_FIXER_PAT }} 
-          fetch-depth: 0 # For git log if needed later
-
-      - name: Read tool-generation-info.json to check lintFixesAttempted
-        id: read_tool_gen_info
-        if: steps.log_context.outputs.setup_failed != 'true' && steps.checkout_code_early.outcome == 'success'
-        run: |
-          # Extract tool directive from PR_HEAD_BRANCH (e.g., feat/gen-tool-name-123 -> tool-name)
-          # This assumes PR_HEAD_BRANCH is like 'feat/gen-actual-directive-timestamp'
-          # A more robust way if PR_HEAD_BRANCH could be just 'actual-directive' would be to adjust sed.
-          # For now, this matches the 'feat/gen-' prefix.
-          RAW_BRANCH_NAME="${{ env.PR_HEAD_BRANCH }}"
-          if [[ "$RAW_BRANCH_NAME" == feat/gen-* ]]; then
-            TOOL_DIRECTIVE_FROM_BRANCH=$(echo "$RAW_BRANCH_NAME" | sed 's|feat/gen-||' | sed 's/-[0-9]*$//')
-          else
-            # Fallback or error if branch naming convention changes - adapt as needed
-            echo "::warning::Branch name '${RAW_BRANCH_NAME}' does not match 'feat/gen-' pattern. Cannot reliably determine tool directive for tool-generation-info.json path."
-            TOOL_DIRECTIVE_FROM_BRANCH="unknown-tool-directive" # Placeholder to avoid path errors, but file likely won't exist
-          fi
-          
-          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FROM_BRANCH}/tool-generation-info.json"
-          LINT_FIXES_ATTEMPTED="false" 
-          if [ -f "$TOOL_GEN_INFO_FILE" ]; then
-            if jq -e '.lintFixesAttempted' "$TOOL_GEN_INFO_FILE" > /dev/null 2>&1; then # Check key exists
-              LINT_FIXES_ATTEMPTED=$(jq -r '.lintFixesAttempted // "false"' "$TOOL_GEN_INFO_FILE") # Default to "false" string if null
-            fi
-            echo "Read '$TOOL_GEN_INFO_FILE'. Raw lintFixesAttempted: $LINT_FIXES_ATTEMPTED"
-            # Ensure it's a strict boolean true
-            if [ "$LINT_FIXES_ATTEMPTED" == "true" ]; then
-              LINT_FIXES_ATTEMPTED="true"
-            else
-              LINT_FIXES_ATTEMPTED="false"
-            fi
-          else
-            echo "::notice::ALF: '$TOOL_GEN_INFO_FILE' not found. Assuming lint fixes have not been attempted."
-          fi
-          echo "lint_fixes_already_attempted=$LINT_FIXES_ATTEMPTED" >> $GITHUB_OUTPUT
-          echo "Derived tool directive for path: $TOOL_DIRECTIVE_FROM_BRANCH"
-
       - name: Download Lint Failure Artifact
         id: download_artifact
-        if: steps.log_context.outputs.setup_failed != 'true' && steps.read_tool_gen_info.outputs.lint_fixes_already_attempted != 'true'
+        if: steps.log_context.outputs.setup_failed != 'true'
         uses: actions/download-artifact@v4
         with:
           name: lint-failure-data-${{ env.PR_HEAD_SHA }}
@@ -100,10 +54,10 @@ jobs:
 
       - name: Check if Artifact Is Valid and Actionable
         id: check_artifact
-        if: steps.log_context.outputs.setup_failed != 'true' && steps.read_tool_gen_info.outputs.lint_fixes_already_attempted != 'true'
+        if: steps.log_context.outputs.setup_failed != 'true'
         run: |
           if [ "${{ steps.download_artifact.outcome }}" != "success" ]; then
-            echo "::notice::ALF: Lint failure artifact 'lint-failure-data-${{ env.PR_HEAD_SHA }}' not found or download failed. No lint fixing action will be taken by ALF."
+            echo "::notice::ALF: Lint failure artifact 'lint-failure-data-${{ env.PR_HEAD_SHA }}' not found or download failed. No lint fixing action will be taken by ALF for this VPR failure."
             echo "artifact_is_valid_and_actionable=false" >> $GITHUB_OUTPUT
           else
             LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
@@ -113,37 +67,67 @@ jobs:
               echo "ALF: Lint failure artifact found and appears valid."
               echo "artifact_is_valid_and_actionable=true" >> $GITHUB_OUTPUT
             else
-              echo "::warning::ALF: Lint failure artifact downloaded, but 'lint_errors.txt' or 'files_to_check.txt' is missing or empty. No lint fixing action will be taken."
+              echo "::notice::ALF: Lint failure artifact downloaded, but 'lint_errors.txt' or 'files_to_check.txt' is missing or empty. No lint fixing action will be taken."
               echo "artifact_is_valid_and_actionable=false" >> $GITHUB_OUTPUT
             fi
           fi
 
+      # Subsequent steps only run if artifact was valid & actionable
+      - name: Checkout PR Code
+        id: checkout_code
+        if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.PR_HEAD_SHA }} 
+          token: ${{ secrets.AI_LINT_FIXER_PAT }} 
+          fetch-depth: 0 
+
+      - name: Read tool-generation-info.json to check lintFixesAttempted
+        id: read_tool_gen_info
+        if: steps.checkout_code.outcome == 'success' # Implies artifact_is_valid_and_actionable was true
+        run: |
+          RAW_BRANCH_NAME="${{ env.PR_HEAD_BRANCH }}"
+          TOOL_DIRECTIVE_FROM_BRANCH=""
+          if [[ "$RAW_BRANCH_NAME" == feat/gen-* ]]; then
+            TOOL_DIRECTIVE_FROM_BRANCH=$(echo "$RAW_BRANCH_NAME" | sed 's|feat/gen-||' | sed 's/-[0-9]*$//')
+          else
+            echo "::warning::Branch name '${RAW_BRANCH_NAME}' does not match 'feat/gen-' pattern for tool-gen-info path."
+            TOOL_DIRECTIVE_FROM_BRANCH="unknown-tool-directive" 
+          fi
+          
+          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FROM_BRANCH}/tool-generation-info.json"
+          LINT_FIXES_ATTEMPTED="false" 
+          if [ -f "$TOOL_GEN_INFO_FILE" ]; then
+            if jq -e '.lintFixesAttempted' "$TOOL_GEN_INFO_FILE" > /dev/null 2>&1; then
+              LINT_FIXES_ATTEMPTED_RAW=$(jq -r '.lintFixesAttempted // "false"' "$TOOL_GEN_INFO_FILE")
+              if [ "$LINT_FIXES_ATTEMPTED_RAW" == "true" ]; then LINT_FIXES_ATTEMPTED="true"; fi
+            fi
+            echo "Read '$TOOL_GEN_INFO_FILE'. lintFixesAttempted: $LINT_FIXES_ATTEMPTED"
+          else
+            echo "::notice::ALF: '$TOOL_GEN_INFO_FILE' not found. Assuming lint fixes have not been attempted."
+          fi
+          echo "lint_fixes_already_attempted=$LINT_FIXES_ATTEMPTED" >> $GITHUB_OUTPUT
+          echo "derived_tool_directive_for_path=$TOOL_DIRECTIVE_FROM_BRANCH" >> $GITHUB_OUTPUT
+
       - name: Prepare Data for AI Lint Fix API
         id: prepare_fix_data
-        if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
+        if: steps.read_tool_gen_info.outcome == 'success' && steps.read_tool_gen_info.outputs.lint_fixes_already_attempted != 'true'
         run: |
-          # ... (script content remains the same)
           LINT_ERRORS_FILE="${{ runner.temp }}/lint-data/lint_errors.txt"
           FILES_TO_CHECK_FILE="${{ runner.temp }}/lint-data/files_to_check.txt"
           PR_FILES_JSON_PATH="${{ runner.temp }}/pr_files_for_lint_fix.json"
-          echo '[' > $PR_FILES_JSON_PATH
-          FIRST_FILE=true
+          echo '[' > $PR_FILES_JSON_PATH; FIRST_FILE=true
           while IFS= read -r filepath; do
             if [ -z "$filepath" ]; then continue; fi;
-            if [ -f "$filepath" ]; then # Assumes checkout_code_early succeeded
+            if [ -f "$filepath" ]; then
               if [ "$FIRST_FILE" = "false" ]; then echo ',' >> $PR_FILES_JSON_PATH; fi
-              FILE_CONTENT_RAW=$(cat "$filepath")
-              jq -n --arg path "$filepath" --arg content "$FILE_CONTENT_RAW" \
+              jq -n --arg path "$filepath" --arg content "$(cat "$filepath")" \
                 '{path: $path, currentContent: $content}' >> $PR_FILES_JSON_PATH
               FIRST_FILE=false
-            else
-              echo "::warning::File path '$filepath' from artifact not found in checkout (this is unexpected if checkout_code_early ran)."
-            fi
-          done < "$FILES_TO_CHECK_FILE"
-          echo ']' >> $PR_FILES_JSON_PATH
-          jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > temp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
+            else echo "::warning::File path '$filepath' from artifact not found in checkout."; fi
+          done < "$FILES_TO_CHECK_FILE"; echo ']' >> $PR_FILES_JSON_PATH
+          jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' $PR_FILES_JSON_PATH > tmp_final.json && mv temp_final.json $PR_FILES_JSON_PATH
           echo "Prepared pr_files_for_lint_fix.json"
-
 
       - name: Call AI Lint Fix API
         id: call_fix_api
@@ -151,52 +135,31 @@ jobs:
         env:
           LINT_FIX_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/fix-linting-errors
         run: |
-          # ... (script content remains largely the same, but ensure exit 0 for "api_call_skipped=true")
           LINT_ERRORS_CONTENT=$(cat "${{ runner.temp }}/lint-data/lint_errors.txt")
           LINT_ERRORS_JSON_ESCAPED=$(echo "$LINT_ERRORS_CONTENT" | jq -R -s '.')
           FILES_TO_FIX_JSON_CONTENT=$(cat "${{ runner.temp }}/pr_files_for_lint_fix.json")
-
           if ! echo "$FILES_TO_FIX_JSON_CONTENT" | jq -e 'type == "array" and length > 0' > /dev/null; then
-            echo "::warning::No valid files to fix. Skipping API call."
-            echo "api_call_skipped=true" >> $GITHUB_OUTPUT
-            exit 0 
-          fi
-          echo "api_call_skipped=false" >> $GITHUB_OUTPUT
-
-          API_PAYLOAD=$(jq -n \
-            --argjson filesToFix "$FILES_TO_FIX_JSON_CONTENT" \
-            --argjson lintErrors "$LINT_ERRORS_JSON_ESCAPED" \
-            --arg modelName "models/gemini-1.5-pro-latest" \
-            '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
-
-          HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" \
-            -H "Content-Type: application/json" \
-            -d "$API_PAYLOAD" \
-            -o "${{ runner.temp }}/fix_response.json")
-          echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
-          cat "${{ runner.temp }}/fix_response.json"
-
+            echo "::warning::No valid files to fix. Skipping API call."; echo "api_call_skipped=true" >> $GITHUB_OUTPUT; exit 0 
+          fi; echo "api_call_skipped=false" >> $GITHUB_OUTPUT
+          API_PAYLOAD=$(jq -n --argjson filesToFix "$FILES_TO_FIX_JSON_CONTENT" --argjson lintErrors "$LINT_ERRORS_JSON_ESCAPED" --arg modelName "models/gemini-1.5-pro-latest" '{filesToFix: $filesToFix, lintErrors: $lintErrors, modelName: $modelName}')
+          HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" -H "Content-Type: application/json" -d "$API_PAYLOAD" -o "${{ runner.temp }}/fix_response.json")
+          echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"; cat "${{ runner.temp }}/fix_response.json"
           if [ "$HTTP_RESPONSE_CODE" -ne 200 ] || ! jq -e . "${{ runner.temp }}/fix_response.json" > /dev/null 2>&1; then
-             echo "::error::AI Lint Fix API call failed or returned invalid JSON."
-             exit 1 
+             echo "::error::AI Lint Fix API call failed or returned invalid JSON."; exit 1 
           fi
           echo "api_response_success=$(jq -r .success "${{ runner.temp }}/fix_response.json")" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
-
+          
       - name: Apply AI Fixes and Update Tool Gen Info
         if: steps.call_fix_api.outcome == 'success' && steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true'
         id: apply_fixes
         run: |
-          # ... (script content for applying fixes and updating tool-generation-info.json remains the same)
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
           echo "false" > changes_made.txt 
-          
           LAST_COMMIT_MSG_ON_BRANCH=$(git log -1 --pretty=%B)
           if [[ "$LAST_COMMIT_MSG_ON_BRANCH" == "chore: AI-assisted lint fixes" ]]; then
-            echo "::warning::ALF: Latest commit is already an AI lint fix. Skipping apply/commit/push."
-            exit 0 
+            echo "::warning::ALF: Latest commit is already an AI lint fix. Skipping apply/commit/push."; exit 0 
           fi
-
           ANY_CONTENT_CHANGED_BY_AI="false"
           FILE_PATHS_TO_PROCESS=$(jq -r '.fixedFiles | to_entries[] | select(.value != null) | .key' "$FIX_RESPONSE_FILE" 2>/dev/null || echo "")
           if [ -n "$FILE_PATHS_TO_PROCESS" ]; then
@@ -205,48 +168,29 @@ jobs:
               fixedcontent=$(jq -r --arg pathkey "$filepath" '.fixedFiles[$pathkey]' "$FIX_RESPONSE_FILE")
               if [ "$fixedcontent" = "null" ] || [ -z "$fixedcontent" ] || [ ! -f "$filepath" ]; then continue; fi
               if [ "$(cat "$filepath" | tr -d '\r')" != "$(echo "$fixedcontent" | tr -d '\r')" ]; then
-                echo "Applying fix to '$filepath'."
-                echo "$fixedcontent" > "$filepath"; ANY_CONTENT_CHANGED_BY_AI="true"
-              fi
-            done
+                echo "Applying fix to '$filepath'."; echo "$fixedcontent" > "$filepath"; ANY_CONTENT_CHANGED_BY_AI="true"
+              fi; done
           fi
-
-          TOOL_DIRECTIVE_FOR_PATH="${{ steps.read_tool_gen_info.outputs.Derived_tool_directive_for_path }}" # Get from read_tool_gen_info
-          # Fallback if the output wasn't set (e.g. read_tool_gen_info was skipped, though it shouldn't if we reach here)
+          TOOL_DIRECTIVE_FOR_PATH="${{ steps.read_tool_gen_info.outputs.derived_tool_directive_for_path }}"
           if [ -z "$TOOL_DIRECTIVE_FOR_PATH" ] || [ "$TOOL_DIRECTIVE_FOR_PATH" == "unknown-tool-directive" ]; then
-             RAW_BRANCH_NAME_FOR_PATH="${{ env.PR_HEAD_BRANCH }}"
-             if [[ "$RAW_BRANCH_NAME_FOR_PATH" == feat/gen-* ]]; then
-                TOOL_DIRECTIVE_FOR_PATH=$(echo "$RAW_BRANCH_NAME_FOR_PATH" | sed 's|feat/gen-||' | sed 's/-[0-9]*$//')
-             else
-                TOOL_DIRECTIVE_FOR_PATH="directive-not-found" # This would be an error state
-             fi
-             echo "::warning:: TOOL_DIRECTIVE_FOR_PATH was not available from read_tool_gen_info, re-derived as $TOOL_DIRECTIVE_FOR_PATH"
+             RAW_BRANCH_NAME_FOR_PATH="${{ env.PR_HEAD_BRANCH }}";
+             if [[ "$RAW_BRANCH_NAME_FOR_PATH" == feat/gen-* ]]; then TOOL_DIRECTIVE_FOR_PATH=$(echo "$RAW_BRANCH_NAME_FOR_PATH" | sed 's|feat/gen-||' | sed 's/-[0-9]*$//'); else TOOL_DIRECTIVE_FOR_PATH="directive-not-found"; fi
+             echo "::warning:: TOOL_DIRECTIVE_FOR_PATH re-derived as $TOOL_DIRECTIVE_FOR_PATH in apply_fixes"
           fi
-
-          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FOR_PATH}/tool-generation-info.json"
-          CHANGES_TO_TOOL_GEN_INFO="false"
+          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE_FOR_PATH}/tool-generation-info.json"; CHANGES_TO_TOOL_GEN_INFO="false"
           if [ -f "$TOOL_GEN_INFO_FILE" ]; then
             if ! jq -e '.lintFixesAttempted == true' "$TOOL_GEN_INFO_FILE" > /dev/null 2>&1; then
                 jq '.lintFixesAttempted = true' "$TOOL_GEN_INFO_FILE" > tmp_tool_gen_info.json && mv tmp_tool_gen_info.json "$TOOL_GEN_INFO_FILE"
-                echo "Updated '$TOOL_GEN_INFO_FILE': set lintFixesAttempted=true."
-                CHANGES_TO_TOOL_GEN_INFO="true"
+                echo "Updated '$TOOL_GEN_INFO_FILE': set lintFixesAttempted=true."; CHANGES_TO_TOOL_GEN_INFO="true"
             fi
-          else
-            echo "::warning::ALF: '$TOOL_GEN_INFO_FILE' not found. Cannot mark lintFixesAttempted."
-          fi
-          
-          if [ "$ANY_CONTENT_CHANGED_BY_AI" == "true" ] || [ "$CHANGES_TO_TOOL_GEN_INFO" == "true" ]; then
-             echo "true" > changes_made.txt
-          fi
-          
+          else echo "::warning::ALF: '$TOOL_GEN_INFO_FILE' not found for update."; fi
+          if [ "$ANY_CONTENT_CHANGED_BY_AI" == "true" ] || [ "$CHANGES_TO_TOOL_GEN_INFO" == "true" ]; then echo "true" > changes_made.txt; fi
           echo "actual_code_changes_by_ai=$ANY_CONTENT_CHANGED_BY_AI" >> $GITHUB_OUTPUT
-          echo "overall_commit_made=$(cat changes_made.txt)" >> $GITHUB_OUTPUT
-          rm changes_made.txt
+          echo "overall_commit_made=$(cat changes_made.txt)" >> $GITHUB_OUTPUT; rm changes_made.txt
 
       - name: Commit files
         if: steps.apply_fixes.outputs.overall_commit_made == 'true'
         run: |
-          # ... (same commit script)
           git config --global user.email "ai-fixer-bot@online-everything-tool.com"
           git config --global user.name "OET AI Fixer Bot"
           git add -A 
@@ -263,19 +207,17 @@ jobs:
       - name: Final Status Log
         if: always() 
         run: |
-          # ... (same final status log script)
           echo "--- ALF Final Status ---"
           if [ "${{ steps.log_context.outputs.setup_failed }}" == "true" ]; then
             echo "ALF concluded: Initial setup failed (e.g. PR_HEAD_SHA missing)."
+          elif [ "${{ steps.check_artifact.outputs.artifact_is_valid_and_actionable }}" != "true" ]; then
+            echo "ALF concluded: No actionable lint artifact found or it was invalid for this VPR failure."
           elif [ "${{ steps.read_tool_gen_info.outputs.lint_fixes_already_attempted }}" == "true" ]; then
             echo "ALF concluded: Lint fixes were already attempted for this tool version. No new attempt made."
-          elif [ "${{ steps.check_artifact.outputs.artifact_is_valid_and_actionable }}" != "true" ]; then
-            # This covers cases where download failed OR artifact was invalid after download
-            echo "ALF concluded: No actionable lint artifact found or it was invalid for this VPR failure."
           elif [ "${{ steps.call_fix_api.outputs.api_call_skipped }}" == "true" ]; then
             echo "ALF concluded: AI API call skipped (e.g., no files to fix after preparation)."
           elif [ "${{ steps.call_fix_api.outcome }}" != "success" ] || [ "${{ steps.call_fix_api.outputs.api_response_success }}" != "true" ]; then
-            echo "ALF Warning: AI API call step failed or API did not report success. Check API call logs."
+            echo "ALF Warning: AI API call step failed or API did not report success. Job may have failed if API call exited with error."
           elif [ "${{ steps.apply_fixes.outputs.overall_commit_made }}" == "true" ]; then
             if [ "${{ steps.apply_fixes.outputs.actual_code_changes_by_ai }}" == "true" ]; then
               echo "ALF concluded: AI fixes applied to code, tool-generation-info.json updated, changes pushed."
