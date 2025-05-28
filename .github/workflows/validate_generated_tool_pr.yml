@@ -188,76 +188,100 @@ jobs:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
           TOOL_DESCRIPTION_FOR_ARTIFACT: ${{ needs.initial_checks.outputs.tool_description }}
         run: |
-          set -e
+          set -e # Keep this, but we'll manage errors around jq specifically
           DEPS_ACTION_REQUIRED="false"
           ASSET_ACTION_REQUIRED="false"
           DEPS_ARTIFACT_UPLOAD_PATH=""
           ASSET_ARTIFACT_UPLOAD_PATH=""
           TOOL_INFO_FILE_PATH="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
 
-          echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} ---"
+          echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} (Verbose Logging V2) ---"
           echo "Tool Info File Path: ${TOOL_INFO_FILE_PATH}"
-          echo "Current directory: $(pwd)"
-          echo "Listing files in current directory:"
-          ls -la
-          echo "Contents of package.json (first 20 lines):"
-          if [ -f "package.json" ]; then head -n 20 package.json; else echo "package.json not found in $(pwd)"; fi
+          echo "Initial values: FOUND_NEW_DEP='${FOUND_NEW_DEP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
           echo "---------------------------------------------"
 
           if [ ! -f "$TOOL_INFO_FILE_PATH" ]; then
             echo "::notice::'$TOOL_INFO_FILE_PATH' not found. No dependencies or assets to process from it."
           else
             echo "Reading '$TOOL_INFO_FILE_PATH'"
-            # Check for NPM Dependencies
             if jq -e '.identifiedDependencies? | type == "array" and length > 0' "$TOOL_INFO_FILE_PATH" > /dev/null 2>&1; then
               IDENTIFIED_DEPS_JSON_STR=$(jq -r '.identifiedDependencies | tojson' "$TOOL_INFO_FILE_PATH")
-              NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]"
-              FOUND_NEW_DEP="false"
+              # Ensure these are explicitly initialized here for the subshell context if not using process substitution yet
+              NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP="[]"
+              FOUND_NEW_DEP_LOOP="false"
+
               echo "Identified Dependencies JSON from tool-info: $IDENTIFIED_DEPS_JSON_STR"
+              echo "Starting loop. Initial loop vars: FOUND_NEW_DEP_LOOP='${FOUND_NEW_DEP_LOOP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP}'"
 
               echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]' | while IFS= read -r dep_obj_json; do
+                echo "  --- Loop Iteration Start ---"
                 packageName=$(echo "$dep_obj_json" | jq -r '.packageName')
-                echo "  Processing identified dependency: '$packageName'"
+                echo "    Processing identified dependency: '$packageName'"
                 if [ "$packageName" = "null" ] || [ -z "$packageName" ]; then
                   echo "    Skipping null or empty package name."
+                  echo "  --- Loop Iteration End (Skipped) ---"
                   continue
                 fi
 
                 echo "    Checking if '$packageName' exists in package.json..."
-                # Store jq exit code to debug
                 set +e # Allow jq to fail without exiting the script here
                 jq -e --arg pkg "$packageName" '((.dependencies // {})[$pkg]) or ((.devDependencies // {})[$pkg])' package.json > /dev/null 2>&1
                 JQ_EXIT_CODE=$?
                 set -e
 
                 if [ $JQ_EXIT_CODE -ne 0 ]; then # If jq exited non-zero, package is NOT found
-                  echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE). Adding to new deps list."
-                  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR=$(echo "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
-                  FOUND_NEW_DEP="true"
+                  echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE)."
+                  echo "    BEFORE update: FOUND_NEW_DEP_LOOP='${FOUND_NEW_DEP_LOOP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP}'"
+                  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP=$(echo "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
+                  FOUND_NEW_DEP_LOOP="true"
+                  echo "    AFTER update:  FOUND_NEW_DEP_LOOP='${FOUND_NEW_DEP_LOOP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP}'"
                 else # If jq exited zero, package IS found
                   echo "    '$packageName' IS ALREADY in package.json (jq exit code: $JQ_EXIT_CODE)."
+                  echo "    NO update to loop vars: FOUND_NEW_DEP_LOOP='${FOUND_NEW_DEP_LOOP}', NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP}'"
                 fi
+                echo "  --- Loop Iteration End ---"
               done # End of while loop
 
-              if [ "$FOUND_NEW_DEP" = "true" ]; then
-                echo "Found new dependencies. Preparing artifact."
+              echo "Loop finished."
+              # These are the critical values *after* the loop but *before* they are potentially reassigned from the loop's context (if the loop was in a subshell)
+              # However, with the pipe, FOUND_NEW_DEP and NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR are from the parent shell,
+              # while FOUND_NEW_DEP_LOOP and NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP were modified in the subshell.
+              # To show the subshell's final state (which is tricky without writing to temp files), we rely on the last iteration's log.
+              # The key is to compare the *parent shell's* variables after the loop.
+              # We'll reassign from loop-specific variables IF we weren't in a subshell.
+              # If we WERE in a subshell, this assignment doesn't really happen correctly anyway.
+              # The real test is comparing FOUND_NEW_DEP (parent) to the expected "true" from loop logs.
+
+              # For the current piped version, these assignments from _LOOP variables won't reflect outside the subshell
+              # So we'll just use the parent shell's variables for the next check.
+              # FOUND_NEW_DEP="${FOUND_NEW_DEP_LOOP}"
+              # NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR_LOOP}"
+              # This is where the problem lies. Let's log the parent shell's value.
+              echo "After loop, PARENT shell's FOUND_NEW_DEP is: '${FOUND_NEW_DEP}'"
+              echo "After loop, PARENT shell's NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR is: '${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
+
+
+              if [ "$FOUND_NEW_DEP" = "true" ]; then # This uses the PARENT shell's FOUND_NEW_DEP
+                echo "Found new dependencies. Preparing artifact. (Based on PARENT FOUND_NEW_DEP)"
                 DEPS_ACTION_REQUIRED="true"
                 DEPS_ARTIFACT_UPLOAD_PATH="${{ runner.temp }}/pending_dependencies_payload.json"
                 ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
+                # Use NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR from parent shell for consistency with FOUND_NEW_DEP check
                 jq -n \
                   --arg directive "$TOOL_DIRECTIVE" --arg description "$TOOL_DESCRIPTION_FOR_ARTIFACT" \
                   --argjson newDeps "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" \
                   --arg assetInst "$ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT" \
                   '{toolDirective: $directive, toolDescription: $description, newDependencies: $newDeps, assetInstructions: $assetInst}' > "$DEPS_ARTIFACT_UPLOAD_PATH"
-                echo "Pending NPM dependencies identified that are not in package.json. Artifact payload:"
+                echo "Pending NPM dependencies identified. Artifact payload (using PARENT NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR):"
                 cat "$DEPS_ARTIFACT_UPLOAD_PATH"
               else
-                echo "All identifiedDependencies (if any) already in package.json. (FOUND_NEW_DEP is false)"
+                echo "All identifiedDependencies (if any) already in package.json. (PARENT FOUND_NEW_DEP is '${FOUND_NEW_DEP}')"
               fi
             else
               echo "No 'identifiedDependencies' array or it's empty in '$TOOL_INFO_FILE_PATH'."
             fi
 
+            # Asset processing (should be unaffected by the above scope issue)
             ASSET_INSTRUCTIONS_STR=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
             if [ -n "$ASSET_INSTRUCTIONS_STR" ] && [ "$ASSET_INSTRUCTIONS_STR" != "null" ]; then
               echo "Asset instructions found. Preparing artifact."
@@ -277,7 +301,7 @@ jobs:
           echo "action_required_for_assets=${ASSET_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
           echo "deps_artifact_upload_path=$DEPS_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "asset_artifact_upload_path=$ASSET_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
-          echo "--- End: check_tool_info ---"
+          echo "--- End: check_tool_info (Verbose Logging V2) ---"
 
       - name: Upload Pending Dependencies Artifact
         if: steps.check_tool_info.outputs.action_required_for_npm_deps == 'true' && steps.check_tool_info.outputs.deps_artifact_upload_path != ''
