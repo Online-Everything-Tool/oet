@@ -36,7 +36,6 @@ jobs:
           # Use the head SHA and ref from the pull_requests array in the workflow_run event,
           # as this is more reliable for PR context than workflow_run.head_sha/head_branch.
           ref: ${{ github.event.workflow_run.pull_requests[0].head.ref }} 
-          token: ${{ secrets.AI_LINT_FIXER_PAT }} # Your PAT
           fetch-depth: 0 # To be able to push back
 
       - name: Make a dummy change and commit
