@@ -1,0 +1,7 @@
+{
+  "toolDirective": "image-resizer",
+  "generatorModel": "models/gemini-1.5-flash-latest",
+  "generationTimestamp": "2025-05-29T05:36:33.035Z",
+  "identifiedDependencies": [],
+  "assetInstructions": null
+}
