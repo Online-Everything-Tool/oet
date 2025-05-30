@@ -1,0 +1,24 @@
+{
+  "title": "Songbook",
+  "directive": "songbook",
+  "description": "Create, manage, and view your personal collection of songs with lyrics and chords. Upload existing files or add songs manually.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "application/vnd.oet.songdata+json",
+      "text/plain",
+      "application/x-chordpro"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "selectedItemIds"
+      }
+    ]
+  },
+  "tags": ["music", "lyrics", "chords", "song", "viewer", "player", "storage"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
