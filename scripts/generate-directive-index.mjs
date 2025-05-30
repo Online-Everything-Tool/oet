@@ -7,7 +7,7 @@ const indexFile = path.join(directivesDir, 'index.ts');
 
 async function generateIndex() {
   try {
-    const files = await fs.readdir(directivesDir);
+    const dirs = await fs.readdir(directivesDir);
     const directiveModules = [];
     const imports = [
       `import type { ToolMetadata } from '@/src/types/tools';`,
@@ -20,22 +20,18 @@ async function generateIndex() {
     ];
     const mapEntries = [];
 
-    for (const file of files) {
-      if (
-        file.endsWith('.ts') &&
-        file !== 'index.ts' &&
-        !file.endsWith('.d.ts')
-      ) {
-        const directiveNameFromFile = file.replace(/\.ts$/, ''); // e.g., "password-generator"
-        // Assuming the exported function is always getRecentActivityPreview
-        // And we create an alias for it based on the directive name for clarity in the map
-        const importAlias = `${directiveNameFromFile.replace(/-/g, '_')}Preview`;
-
-        imports.push(
-          `import { getRecentActivityPreview as ${importAlias} } from './${directiveNameFromFile}';`
-        );
-        mapEntries.push(`  '${directiveNameFromFile}': ${importAlias},`);
-        directiveModules.push(directiveNameFromFile);
+    for (const dir of dirs) {
+      const stats = await fs.stat(path.join(process.cwd(), 'app', 'lib', 'directives', dir))
+      if ( stats.isDirectory() ) {
+        const exists = await fs.access(path.join(process.cwd(), 'app', 'lib', 'directives', dir, 'RecentActivityPreview.tsx')).then(() => true).catch(() => false)
+        if ( exists ) {
+          const importAlias = `${dir.replace(/-/g, '_')}Preview`;
+          imports.push(
+            `import { getRecentActivityPreview as ${importAlias} } from './${dir}/RecentActivityPreview.tsx';`
+          );
+          mapEntries.push(`  '${dir}': ${importAlias},`);
+          directiveModules.push(dir);
+        }
       }
     }
 
