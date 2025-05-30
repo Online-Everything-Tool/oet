@@ -28,8 +28,8 @@ jobs:
       VET_DEPENDENCY_API_ENDPOINT: ${{ secrets.BACKEND_APP_URL }}/api/vet-dependency
 
     outputs:
-        adm_action_taken: ${{ steps.final_status_log.outputs.adm_action_taken_final }}
-        adm_pushed_changes: ${{ steps.final_status_log.outputs.adm_pushed_changes_final }}
+      adm_action_taken: ${{ steps.final_status_log.outputs.adm_action_taken_final }}
+      adm_pushed_changes: ${{ steps.final_status_log.outputs.adm_pushed_changes_final }}
 
     steps:
       - name: Log Effective Context
@@ -223,11 +223,11 @@ jobs:
         uses: actions/github-script@v7
         if: always() && steps.log_context.outputs.setup_failed != 'true'
         env:
-            UNSAFE_DEPS_DETAILS_FOR_COMMENT: ${{ env.UNSAFE_DEPS_DETAILS }}
-            MANUAL_REVIEW_DEPS_DETAILS_FOR_COMMENT: ${{ env.MANUAL_REVIEW_DEPS_DETAILS }}
-            INSTALLED_DEPS_LIST_FOR_COMMENT: ${{ env.INSTALLED_DEPS_LIST }}
-            UNSAFE_DEPS_COUNT_FOR_COMMENT: ${{ env.unsafe_deps_count_val }}
-            MANUAL_REVIEW_DEPS_COUNT_FOR_COMMENT: ${{ env.manual_review_deps_count_val }}
+          UNSAFE_DEPS_DETAILS_FOR_COMMENT: ${{ env.UNSAFE_DEPS_DETAILS }}
+          MANUAL_REVIEW_DEPS_DETAILS_FOR_COMMENT: ${{ env.MANUAL_REVIEW_DEPS_DETAILS }}
+          INSTALLED_DEPS_LIST_FOR_COMMENT: ${{ env.INSTALLED_DEPS_LIST }}
+          UNSAFE_DEPS_COUNT_FOR_COMMENT: ${{ env.unsafe_deps_count_val }}
+          MANUAL_REVIEW_DEPS_COUNT_FOR_COMMENT: ${{ env.manual_review_deps_count_val }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |

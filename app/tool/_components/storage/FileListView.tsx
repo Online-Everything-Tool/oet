@@ -12,20 +12,25 @@ import {
   TrashIcon,
 } from '@heroicons/react/20/solid';
 import Checkbox from '../form/Checkbox';
+import type {
+  FeedbackStateEntry,
+
+} from './GenericStorageClient';
 
 interface FileListViewProps {
   files: StoredFile[];
   isLoading: boolean;
   isBulkDeleting: boolean;
   selectedIds: Set<string>;
-  feedbackState: Record<
-    string,
-    { type: 'copy' | 'download' | 'error'; message: string } | null
-  >;
-  onCopy: (fileId: string) => void;
-  onDownload: (fileId: string) => void;
-  onDelete: (fileId: string) => void;
+  feedbackState: Record<string, FeedbackStateEntry | null>;
   onToggleSelection: (fileId: string) => void;
+
+  renderItemActions?: (file: StoredFile) => React.ReactNode[];
+
+  onCopy?: (fileId: string) => void;
+  onDownload?: (fileId: string) => void;
+  onDelete?: (fileId: string) => void;
+  canCopyFile?: (file: StoredFile) => boolean;
 }
 
 export default function FileListView({
@@ -34,10 +39,12 @@ export default function FileListView({
   isBulkDeleting,
   selectedIds,
   feedbackState,
+  onToggleSelection,
+  renderItemActions,
   onCopy,
   onDownload,
   onDelete,
-  onToggleSelection,
+  canCopyFile = (file: StoredFile) => isTextBasedMimeType(file.type),
 }: FileListViewProps) {
   const handleRowClick = (
     e: React.MouseEvent<HTMLTableRowElement>,
@@ -47,7 +54,8 @@ export default function FileListView({
     if (
       target.closest('[data-cell="actions"]') ||
       target.tagName === 'BUTTON' ||
-      target.tagName === 'A'
+      target.tagName === 'A' ||
+      target.closest('button')
     ) {
       return;
     }
@@ -62,6 +70,69 @@ export default function FileListView({
 
   const handleActionClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
+  };
+
+  const renderDefaultActions = (file: StoredFile) => {
+    const currentFeedback = feedbackState[file.id];
+    const itemIsText = canCopyFile(file);
+
+    return (
+      <>
+        {onCopy && (
+          <button
+            onClick={(e) => {
+              handleActionClick(e);
+              onCopy(file.id);
+            }}
+            disabled={
+              !itemIsText || isLoading || currentFeedback?.type === 'copy'
+            }
+            title={itemIsText ? 'Copy file content' : 'Cannot copy content'}
+            className={`${!itemIsText && 'invisible'} p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
+          >
+            {currentFeedback?.type === 'copy' ? (
+              <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
+            ) : (
+              <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+            )}
+          </button>
+        )}
+        {onDownload && (
+          <button
+            onClick={(e) => {
+              handleActionClick(e);
+              onDownload(file.id);
+            }}
+            disabled={isLoading || currentFeedback?.type === 'download'}
+            title="Download this file"
+            className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
+          >
+            {currentFeedback?.type === 'download' ? (
+              <CheckIcon className="h-5 w-5 text-indigo-600" />
+            ) : (
+              <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
+            )}
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              handleActionClick(e);
+              onDelete(file.id);
+            }}
+            disabled={isLoading || selectedIds.has(file.id)}
+            title={
+              selectedIds.has(file.id)
+                ? "Use 'Delete' button"
+                : 'Delete this file'
+            }
+            className="p-1 text-red-600 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
+          </button>
+        )}
+      </>
+    );
   };
 
   return (
@@ -107,10 +178,14 @@ export default function FileListView({
         <tbody className="bg-white divide-y divide-gray-200">
           {files.map((file) => {
             const isSelected = selectedIds.has(file.id);
-            const isProcessing = isLoading || isBulkDeleting;
+            const isProcessingItem =
+              isLoading || (isBulkDeleting && isSelected);
             const currentFeedback = feedbackState[file.id];
-            const isTextFile = isTextBasedMimeType(file.type);
             const showBulkDeleteOpacity = isBulkDeleting && isSelected;
+
+            const actionsToRender = renderItemActions
+              ? renderItemActions(file)
+              : renderDefaultActions(file);
 
             return (
               <tr
@@ -119,7 +194,7 @@ export default function FileListView({
                   isSelected
                     ? 'bg-blue-50 hover:bg-blue-100'
                     : 'hover:bg-gray-50'
-                } ${isProcessing ? 'cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-50' : ''}`}
+                } ${isProcessingItem ? 'cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-50' : ''}`}
                 onClick={(e) => handleRowClick(e, file.id)}
                 aria-selected={isSelected}
               >
@@ -131,12 +206,11 @@ export default function FileListView({
                     checked={isSelected}
                     onChange={() => onToggleSelection(file.id)}
                     onClick={(e) => e.stopPropagation()}
-                    disabled={isProcessing}
+                    disabled={isProcessingItem}
                     aria-label={`Select file ${file.filename}`}
                     inputClassName="cursor-pointer"
                   />
                 </td>
-                {/* Data Cells */}
                 <td
                   className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-xs"
                   title={file.filename}
@@ -163,62 +237,14 @@ export default function FileListView({
                   data-cell="actions"
                 >
                   <div className="flex items-center justify-end gap-1.5">
-                    <button
-                      onClick={(e) => {
-                        handleActionClick(e);
-                        onCopy(file.id);
-                      }}
-                      disabled={
-                        !isTextFile ||
-                        isProcessing ||
-                        currentFeedback?.type === 'copy'
-                      }
-                      title={
-                        isTextFile ? 'Copy file content' : 'Cannot copy content'
-                      }
-                      className={`${!isTextFile && 'invisible'} p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
-                    >
-                      {currentFeedback?.type === 'copy' ? (
-                        <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        handleActionClick(e);
-                        onDownload(file.id);
-                      }}
-                      disabled={
-                        isProcessing || currentFeedback?.type === 'download'
-                      }
-                      title="Download this file"
-                      className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
-                    >
-                      {currentFeedback?.type === 'download' ? (
-                        <CheckIcon className="h-5 w-5 text-indigo-600" />
-                      ) : (
-                        <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        handleActionClick(e);
-                        onDelete(file.id);
-                      }}
-                      disabled={isProcessing || isSelected}
-                      title={
-                        isSelected
-                          ? "Use 'Delete Selected' button"
-                          : 'Delete this file'
-                      }
-                      className="p-1 text-red-600 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
-                    </button>
+                    {/* Iterate over actionsToRender if it's an array */}
+                    {Array.isArray(actionsToRender)
+                      ? actionsToRender.map((action, index) => (
+                          <React.Fragment key={index}>{action}</React.Fragment>
+                        ))
+                      : actionsToRender}
                   </div>
                 </td>
-                {/* Error Feedback Overlay */}
                 {currentFeedback?.type === 'error' && (
                   <tr
                     className="absolute inset-0 pointer-events-none"

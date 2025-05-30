@@ -6,6 +6,10 @@ import Button from '@/app/tool/_components/form/Button';
 import SendToToolButton from '../shared/SendToToolButton';
 import type { OutputConfig } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
+import type {
+  CustomPrimaryCreateConfig,
+  CustomBulkActionConfig,
+} from './GenericStorageClient';
 
 import {
   PlusIcon,
@@ -13,6 +17,7 @@ import {
   ViewColumnsIcon,
   Bars3Icon,
   FunnelIcon,
+  ArrowUpOnSquareIcon,
 } from '@heroicons/react/20/solid';
 
 interface StorageControlsProps {
@@ -26,7 +31,7 @@ interface StorageControlsProps {
   isFilterSelectedActive: boolean;
   onToggleFilterSelected: () => void;
 
-  onAddClick: () => void;
+  onAddViaUploadClick: () => void;
   onClearAllClick: () => void;
   onLayoutChange: (newLayout: 'list' | 'grid') => void;
   onDeleteSelectedClick: () => void;
@@ -34,6 +39,10 @@ interface StorageControlsProps {
   directiveName: string;
   outputConfig: OutputConfig;
   selectedStoredFilesForItde: StoredFile[];
+
+  customPrimaryCreateConfig?: CustomPrimaryCreateConfig | null;
+  customFilterControls?: React.ReactNode;
+  customBulkActions?: CustomBulkActionConfig[];
 }
 
 export default function StorageControls({
@@ -43,103 +52,169 @@ export default function StorageControls({
   itemNameSingular,
   itemNamePlural,
   currentLayout,
-
   isFilterSelectedActive,
   onToggleFilterSelected,
-
-  onAddClick,
+  onAddViaUploadClick,
   onClearAllClick,
   onLayoutChange,
   onDeleteSelectedClick,
-
   directiveName,
   outputConfig,
   selectedStoredFilesForItde,
+  customPrimaryCreateConfig,
+  customFilterControls,
+  customBulkActions = [],
 }: StorageControlsProps) {
   const hasSelection = selectedStoredFilesForItde.length > 0;
 
+  const primaryAddButton = customPrimaryCreateConfig ? (
+    <Button
+      variant={customPrimaryCreateConfig.buttonVariant || 'accent2'}
+      onClick={customPrimaryCreateConfig.onClick}
+      disabled={isLoading}
+      isLoading={isLoading && !isDeleting}
+      loadingText="Processing..."
+      iconLeft={
+        customPrimaryCreateConfig.icon || <PlusIcon className="h-5 w-5" />
+      }
+    >
+      {customPrimaryCreateConfig.label}
+    </Button>
+  ) : (
+    <Button
+      variant="accent2"
+      onClick={onAddViaUploadClick}
+      disabled={isLoading}
+      isLoading={isLoading && !isDeleting}
+      loadingText="Processing..."
+      iconLeft={<PlusIcon className="h-5 w-5" />}
+    >
+      Add {itemNameSingular}(s)
+    </Button>
+  );
+
+  const uploadExistingButton = customPrimaryCreateConfig ? (
+    <Button
+      variant="primary-outline"
+      onClick={onAddViaUploadClick}
+      disabled={isLoading}
+      isLoading={isLoading && !isDeleting}
+      loadingText="Loading..."
+      iconLeft={<ArrowUpOnSquareIcon className="h-5 w-5" />}
+      title={`Upload existing ${itemNamePlural.toLowerCase()} from your device`}
+    >
+      Upload Existing
+    </Button>
+  ) : null;
+
   return (
     <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-      {/* Top row: Add, ITDE Send, Delete Selected, Clear All */}
       <div className="flex flex-wrap gap-3 items-center justify-between">
-        <Button
-          variant="accent2"
-          onClick={onAddClick}
-          disabled={isLoading}
-          isLoading={isLoading && !isDeleting}
-          loadingText="Processing..."
-          iconLeft={<PlusIcon className="h-5 w-5" />}
-        >
-          Add {itemNameSingular}(s)
-        </Button>
+        <div className="flex flex-wrap gap-3 items-center">
+          {primaryAddButton}
+          {uploadExistingButton}
+        </div>
 
-        {hasSelection && (
-          <SendToToolButton
-            currentToolDirective={directiveName}
-            currentToolOutputConfig={outputConfig}
-            selectedOutputItems={selectedStoredFilesForItde}
-            buttonText={`Send Selected (${selectedStoredFilesForItde.length})`}
-            className={
-              isLoading || isDeleting ? 'opacity-50 cursor-not-allowed' : ''
-            }
-          />
-        )}
+        <div className="flex flex-wrap gap-3 items-center">
+          {hasSelection && (
+            <SendToToolButton
+              currentToolDirective={directiveName}
+              currentToolOutputConfig={outputConfig}
+              selectedOutputItems={selectedStoredFilesForItde}
+              buttonText={`Send (${selectedStoredFilesForItde.length})`}
+              className={
+                isLoading || isDeleting ? 'opacity-50 cursor-not-allowed' : ''
+              }
+            />
+          )}
 
-        {hasSelection && (
+          {customBulkActions.map((action) => (
+            <Button
+              key={action.key}
+              variant={action.buttonVariant || 'neutral'}
+              onClick={() => action.onClick(selectedStoredFilesForItde)}
+              disabled={
+                isLoading ||
+                isDeleting ||
+                (action.disabled
+                  ? action.disabled(selectedStoredFilesForItde)
+                  : !hasSelection)
+              }
+              iconLeft={action.icon}
+              title={action.label}
+            >
+              {action.label}
+              {hasSelection && ` (${selectedStoredFilesForItde.length})`}
+            </Button>
+          ))}
+
+          {hasSelection && (
+            <Button
+              variant="danger"
+              onClick={onDeleteSelectedClick}
+              disabled={isLoading || isDeleting}
+              isLoading={isDeleting}
+              loadingText="Deleting..."
+              iconLeft={<TrashIcon className="h-5 w-5" />}
+            >
+              Delete ({selectedStoredFilesForItde.length})
+            </Button>
+          )}
+        </div>
+        <div className="flex-grow sm:flex-grow-0">
+          {' '}
+          {/* Adjusted for better wrapping */}
           <Button
-            variant="danger"
-            onClick={onDeleteSelectedClick}
-            disabled={isLoading || isDeleting}
-            isLoading={isDeleting}
-            loadingText="Deleting..."
+            variant="neutral"
+            onClick={onClearAllClick}
+            disabled={itemCount === 0 || isLoading || hasSelection}
+            title={
+              hasSelection
+                ? 'Clear selection before using Clear All'
+                : `Delete all ${itemCount} ${itemCount === 1 ? itemNameSingular : itemNamePlural} from library`
+            }
             iconLeft={<TrashIcon className="h-5 w-5" />}
+            className="w-full sm:w-auto"
           >
-            Delete Selected ({selectedStoredFilesForItde.length})
+            Clear All ({itemCount})
           </Button>
-        )}
-        <div className="flex-grow"></div>
-        <Button
-          variant="neutral"
-          onClick={onClearAllClick}
-          disabled={itemCount === 0 || isLoading || hasSelection}
-          title={
-            hasSelection
-              ? 'Clear selection before using Clear All'
-              : `Delete all ${itemCount} ${itemCount === 1 ? itemNameSingular : itemNamePlural} from library`
-          }
-          iconLeft={<TrashIcon className="h-5 w-5" />}
-        >
-          Clear All ({itemCount})
-        </Button>
+        </div>
       </div>
+
+      {/* Custom Filter Controls Area */}
+      {customFilterControls && (
+        <div className="border-t border-gray-200 pt-3 mt-2">
+          {customFilterControls}
+        </div>
+      )}
 
       {/* Bottom row: Layout, Filter Toggle, Count */}
       <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
         <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
           <Button
             variant={
-              currentLayout === 'list' ? 'primary-outline' : 'neutral-outline'
+              currentLayout === 'list' ? 'primary' : 'neutral'
             }
             size="sm"
             onClick={() => onLayoutChange('list')}
             disabled={isLoading}
             title="List View"
             className={
-              currentLayout === 'list' ? 'shadow' : 'hover:bg-gray-200'
+              currentLayout === 'list' ? 'shadow-md' : 'hover:bg-gray-200'
             }
           >
             <Bars3Icon className="h-4 w-4" />
           </Button>
           <Button
             variant={
-              currentLayout === 'grid' ? 'primary-outline' : 'neutral-outline'
+              currentLayout === 'grid' ? 'primary' : 'neutral'
             }
             size="sm"
             onClick={() => onLayoutChange('grid')}
             disabled={isLoading}
             title="Grid View"
             className={
-              currentLayout === 'grid' ? 'shadow' : 'hover:bg-gray-200'
+              currentLayout === 'grid' ? 'shadow-md' : 'hover:bg-gray-200'
             }
           >
             <ViewColumnsIcon className="h-4 w-4" />
@@ -149,7 +224,7 @@ export default function StorageControls({
         <div className="border-l pl-3 ml-1">
           <Button
             variant={
-              isFilterSelectedActive ? 'accent-outline' : 'neutral-outline'
+              isFilterSelectedActive ? 'accent' : 'neutral'
             }
             size="sm"
             onClick={onToggleFilterSelected}
@@ -160,7 +235,7 @@ export default function StorageControls({
                 : 'Show only selected files'
             }
             iconLeft={<FunnelIcon className="h-4 w-4" />}
-            className={`${isFilterSelectedActive ? 'shadow' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
+            className={`${isFilterSelectedActive ? 'shadow-md' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
           >
             {isFilterSelectedActive
               ? `Filtered (${selectedStoredFilesForItde.length})`

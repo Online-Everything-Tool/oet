@@ -20,7 +20,7 @@ jobs:
     outputs:
       pr_number: ${{ steps.set_pr_info.outputs.pr_number }}
       pr_sha: ${{ steps.set_pr_info.outputs.pr_sha }}
-      head_ref: ${{ steps.set_pr_info.outputs.head_ref }} 
+      head_ref: ${{ steps.set_pr_info.outputs.head_ref }}
       tool_directive: ${{ steps.extract_directive_and_metadata.outputs.tool_directive }}
       tool_description: ${{ steps.extract_directive_and_metadata.outputs.tool_description }}
       critical_initial_checks_passed: ${{ steps.set_pr_info.outputs.should_run == 'true' && (steps.validate_paths.outputs.validation_passed == 'true' || steps.validate_paths.outcome == 'skipped') && steps.extract_directive_and_metadata.outputs.metadata_ok == 'true' }}
@@ -33,7 +33,7 @@ jobs:
       ai_analysis_reasoning_output: ${{ steps.analyze_name.outputs.reasoning }}
 
     steps:
-      - name: Set PR Info 
+      - name: Set PR Info
         id: set_pr_info
         run: |
           echo "::group::Set PR Info"
@@ -53,7 +53,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.set_pr_info.outputs.pr_sha }} 
+          ref: ${{ steps.set_pr_info.outputs.pr_sha }}
           fetch-depth: 0
 
       - name: Extract Tool Directive & Read Metadata Description
@@ -163,7 +163,7 @@ jobs:
             INVALID_FILES_ESCAPED="${INVALID_FILES_FOUND//'%'/'%25'}"; INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\n'/'%0A'}"; INVALID_FILES_ESCAPED="${INVALID_FILES_ESCAPED//$'\r'/'%0D'}"
             echo "invalid_files_list=${INVALID_FILES_ESCAPED}" >> $GITHUB_OUTPUT
           fi
-  
+
   analyze_state_and_dependencies: # Renamed job
     name: 2. Analyze Tool State & Dependencies
     needs: initial_checks
@@ -171,10 +171,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       dependency_action_required: ${{ steps.check_tool_info.outputs.action_required_for_npm_deps }}
-      asset_action_required: ${{ steps.check_tool_info.outputs.action_required_for_assets }} 
+      asset_action_required: ${{ steps.check_tool_info.outputs.action_required_for_assets }}
     permissions:
-      contents: read 
-      actions: write 
+      contents: read
+      actions: write
 
     steps:
       - name: Checkout PR Code
@@ -313,7 +313,7 @@ jobs:
         with:
           name: pending-dependencies-${{ needs.initial_checks.outputs.pr_sha }}
           path: ${{ steps.check_tool_info.outputs.deps_artifact_upload_path }}
-          if-no-files-found: error 
+          if-no-files-found: error
 
       - name: Upload Asset Instructions Artifact
         if: steps.check_tool_info.outputs.action_required_for_assets == 'true' && steps.check_tool_info.outputs.asset_artifact_upload_path != ''
@@ -338,15 +338,15 @@ jobs:
     outputs:
       build_command_failed_output: ${{ steps.build_oet.outputs.build_command_failed }}
       lint_errors_captured_for_ai_output: ${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}
-      douglas_check_step_outcome_output: ${{ steps.douglas_checker_run.outcome }} 
-      imgur_screenshot_url_output: ${{ steps.upload_to_imgur.outputs.image_url }} 
+      douglas_check_step_outcome_output: ${{ steps.douglas_checker_run.outcome }}
+      imgur_screenshot_url_output: ${{ steps.upload_to_imgur.outputs.image_url }}
 
     steps:
       - name: Checkout OET Code (PR branch)
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.initial_checks.outputs.pr_sha }}
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -374,8 +374,8 @@ jobs:
 
       - name: Build OET for Static Export (and check for lint issues)
         id: build_oet
-        env: 
-          NEXT_OUTPUT_MODE: export 
+        env:
+          NEXT_OUTPUT_MODE: export
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
           BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
@@ -448,8 +448,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lint-failure-data-${{ needs.initial_checks.outputs.pr_sha }}
-          path: ${{ runner.temp }}/lint-data-artifact/ 
-          if-no-files-found: error 
+          path: ${{ runner.temp }}/lint-data-artifact/
+          if-no-files-found: error
 
       - name: Serve Static Output Locally
         id: serve_static
@@ -509,7 +509,7 @@ jobs:
 
       - name: Upload Screenshot to Imgur
         id: upload_to_imgur
-        if: always() && steps.douglas_checker_run.outcome == 'success' 
+        if: always() && steps.douglas_checker_run.outcome == 'success'
         env:
           IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
         run: |
@@ -532,9 +532,9 @@ jobs:
           elif [ -z "$IMGUR_CLIENT_ID" ]; then echo "::warning::IMGUR_CLIENT_ID secret not set."; fi
           echo "image_url=$IMAGE_URL" >> $GITHUB_OUTPUT
         continue-on-error: true
-      
+
       - name: Upload Douglas Artifacts
-        if: always() && steps.serve_static.outcome == 'success' 
+        if: always() && steps.serve_static.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: douglas-artifacts-${{ github.run_id }} # One artifact for both
@@ -557,7 +557,12 @@ jobs:
 
   report_pr_status:
     name: 4. Report PR Validation Status & Outcome
-    needs: [initial_checks, analyze_state_and_dependencies, build_and_run_douglas_checker]
+    needs:
+      [
+        initial_checks,
+        analyze_state_and_dependencies,
+        build_and_run_douglas_checker,
+      ]
     if: always() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions: { pull-requests: write, actions: read }
@@ -576,11 +581,11 @@ jobs:
           echo "AI_SCORE_FOR_COMMENT=${{ needs.initial_checks.outputs.ai_analysis_score_output }}" >> $GITHUB_ENV
           echo "AI_IS_TYPO_FOR_COMMENT=${{ needs.initial_checks.outputs.ai_analysis_is_typo_output }}" >> $GITHUB_ENV
           echo "AI_SUGGESTIONS_JSON_FOR_COMMENT=${{ needs.initial_checks.outputs.ai_analysis_suggestions_json_output }}" >> $GITHUB_ENV
-          
+
           echo "ANALYZE_DEPS_RESULT_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.result }}" >> $GITHUB_ENV
           echo "DEP_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
           echo "ASSET_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV
-          
+
           echo "BUILD_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
           echo "BUILD_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV
           echo "LINT_ERRORS_CAPTURED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
@@ -622,7 +627,7 @@ jobs:
             const assetActionRequired = process.env.ASSET_ACTION_REQUIRED_FOR_COMMENT === 'true';
             const buildFailed = process.env.BUILD_FAILED_FOR_COMMENT === 'true';
             const lintErrorsCaptured = process.env.LINT_ERRORS_CAPTURED_FOR_COMMENT === 'true';
-            
+
             const initialChecksJobResult = process.env.INITIAL_CHECKS_RESULT_FOR_COMMENT;
             const analyzeDepsJobResult = process.env.ANALYZE_DEPS_RESULT_FOR_COMMENT;
             const buildJobResult = process.env.BUILD_JOB_RESULT_FOR_COMMENT;
@@ -684,7 +689,7 @@ jobs:
               }
             }
             commentBody += "\n---\n";
-            
+
             // Section 4: Overall Workflow Conclusion
             commentBody += `### 4. VPR Workflow Outcome & Next Steps\n`;
             let vprFailedOverall = false; // Assume success unless a fail condition is met
@@ -706,7 +711,7 @@ jobs:
             } else { 
               commentBody += `✅ **VPR Succeeded:** All checks passed! Tool is ready for Netlify deployment and further review.`;
             }
-            
+
             commentBody += `\n\n---\n*OET CI Bot Report for commit \`${prHeadShaShort}\`*`;
             await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
 

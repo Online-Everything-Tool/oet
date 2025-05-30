@@ -12,6 +12,7 @@ import Header from './_components/Header';
 import { MetadataProvider } from './context/MetadataContext';
 import { RecentlyUsedProvider } from './context/RecentlyUsedContext';
 import Footer from './_components/Footer';
+import { FullscreenFocusProvider } from './context/FullscreenFocusContext';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
@@ -101,11 +102,13 @@ export default function RootLayout({
           <FileLibraryProvider>
             <FavoritesProvider>
               <RecentlyUsedProvider>
-                <Header />
-                <main className="flex-grow container mx-auto max-w-6xl px-4 py-4">
-                  {children}
-                </main>
-                <Footer />
+                <FullscreenFocusProvider>
+                  <Header />
+                  <main className="flex-grow container mx-auto max-w-6xl px-4 py-4">
+                    {children}
+                  </main>
+                  <Footer />
+                </FullscreenFocusProvider>
               </RecentlyUsedProvider>
             </FavoritesProvider>
           </FileLibraryProvider>

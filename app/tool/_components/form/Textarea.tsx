@@ -1,7 +1,7 @@
 // FILE: app/tool/_components/form/Textarea.tsx
 'use client';
 
-import React, { useId } from 'react';
+import React, { useId, forwardRef } from 'react';
 
 interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -15,21 +15,27 @@ interface TextareaProps
   textareaClassName?: string;
 }
 
-const Textarea: React.FC<TextareaProps> = ({
-  label,
-  id: providedId,
-  value,
-  onChange,
-  error = null,
-  rows = 6,
-  disabled = false,
-  containerClassName = '',
-  labelClassName = '',
-  textareaClassName = '',
-  placeholder,
-  name,
-  ...rest
-}) => {
+const Textarea: React.ForwardRefRenderFunction<
+  HTMLTextAreaElement,
+  TextareaProps
+> = (
+  {
+    label,
+    id: providedId,
+    value,
+    onChange,
+    error = null,
+    rows = 6,
+    disabled = false,
+    containerClassName = '',
+    labelClassName = '',
+    textareaClassName = '',
+    placeholder,
+    name,
+    ...rest
+  },
+  ref
+) => {
   const autoId = useId();
   const effectiveId = providedId || autoId;
 
@@ -62,6 +68,7 @@ const Textarea: React.FC<TextareaProps> = ({
         </label>
       )}
       <textarea
+        ref={ref}
         id={effectiveId}
         name={name}
         rows={rows}
@@ -72,7 +79,7 @@ const Textarea: React.FC<TextareaProps> = ({
         className={`
           ${baseTextareaStyles}
           ${hasError ? errorBorder : normalBorder}
-          ${!isDisabled ? focusBorder : ''}
+          ${!isDisabled ? `${focusBorder} focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))]` : ''}
           ${disabledStyles}
           ${textareaClassName}
         `}
@@ -92,4 +99,4 @@ const Textarea: React.FC<TextareaProps> = ({
   );
 };
 
-export default Textarea;
+export default forwardRef(Textarea);

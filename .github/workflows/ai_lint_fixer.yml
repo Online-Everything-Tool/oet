@@ -16,18 +16,18 @@ jobs:
       github.event.workflow_run.pull_requests[0].head.ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     permissions:
-      contents: write 
-      actions: read 
-      pull-requests: write 
+      contents: write
+      actions: read
+      pull-requests: write
     env:
       PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
       PR_HEAD_SHA: ${{ github.event.workflow_run.pull_requests[0].head.sha }}
       PR_HEAD_BRANCH: ${{ github.event.workflow_run.pull_requests[0].head.ref }}
-      TRIGGERING_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }} 
+      TRIGGERING_WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
 
     steps:
       - name: Log Effective Context
-        id: log_context 
+        id: log_context
         run: |
           echo "--- ALF Context from workflow_run event ---"
           echo "Attempting fix for PR #${{ env.PR_NUMBER }} on branch ${{ env.PR_HEAD_BRANCH }} (SHA: ${{ env.PR_HEAD_SHA }})"
@@ -48,7 +48,7 @@ jobs:
         with:
           name: lint-failure-data-${{ env.PR_HEAD_SHA }}
           path: ${{ runner.temp }}/lint-data
-          github-token: ${{ secrets.GITHUB_TOKEN }} 
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ env.TRIGGERING_WORKFLOW_RUN_ID }}
         continue-on-error: true
 
@@ -79,9 +79,9 @@ jobs:
         if: steps.check_artifact.outputs.artifact_is_valid_and_actionable == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.PR_HEAD_SHA }} 
-          token: ${{ secrets.AI_LINT_FIXER_PAT }} 
-          fetch-depth: 0 
+          ref: ${{ env.PR_HEAD_SHA }}
+          token: ${{ secrets.AI_LINT_FIXER_PAT }}
+          fetch-depth: 0
 
       - name: Read tool-generation-info.json to check lintFixesAttempted
         id: read_tool_gen_info
@@ -95,7 +95,7 @@ jobs:
             echo "::warning::Branch name '${RAW_BRANCH_NAME}' does not match 'feat/gen-' pattern for tool-gen-info path."
             TOOL_DIRECTIVE_FROM_BRANCH="unknown-tool-directive" 
           fi
-          
+
           TOOL_GEN_INFO_FILE_PATH_OUTPUT="" # Initialize
           LINT_FIXES_ATTEMPTED="false" 
           if [ "$TOOL_DIRECTIVE_FROM_BRANCH" != "unknown-tool-directive" ] && [ -n "$TOOL_DIRECTIVE_FROM_BRANCH" ]; then
@@ -116,7 +116,6 @@ jobs:
           echo "lint_fixes_already_attempted=$LINT_FIXES_ATTEMPTED" >> $GITHUB_OUTPUT
           echo "derived_tool_directive_for_path=$TOOL_DIRECTIVE_FROM_BRANCH" >> $GITHUB_OUTPUT
           echo "tool_gen_info_file_path_for_update=$TOOL_GEN_INFO_FILE_PATH_OUTPUT" >> $GITHUB_OUTPUT
-
 
       - name: Prepare Data for AI Lint Fix API
         id: prepare_fix_data
@@ -149,7 +148,7 @@ jobs:
             else echo "::warning::File path '$trimmed_filepath' from artifact not found in checkout."; fi
           done < "$FILES_TO_CHECK_FILE"
           echo ']' >> "$PR_FILES_JSON_PATH"
-          
+
           if jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' "$PR_FILES_JSON_PATH" > "$JQ_TEMP_OUTPUT_FILE"; then
             if [ -s "$JQ_TEMP_OUTPUT_FILE" ]; then mv "$JQ_TEMP_OUTPUT_FILE" "$PR_FILES_JSON_PATH"; fi
           else
@@ -175,11 +174,11 @@ jobs:
           fi; echo "api_call_skipped=false" >> $GITHUB_OUTPUT
 
           API_PAYLOAD=$(jq -n --argjson filesToFix "$FILES_TO_FIX_JSON_CONTENT" --argjson lintErrors "$LINT_ERRORS_JSON_ESCAPED" '{filesToFix: $filesToFix, lintErrors: $lintErrors}')
-          
+
           echo "Size of API_PAYLOAD: $(echo -n "$API_PAYLOAD" | wc -c) bytes"; echo "API_PAYLOAD (first 1k/last 1k chars):"; echo "$API_PAYLOAD" | head -c 1000; echo; echo "$API_PAYLOAD" | tail -c 1000; echo
-          
+
           HTTP_RESPONSE_CODE=$(curl -s -w "%{http_code}" -X POST "$LINT_FIX_API_ENDPOINT" -H "Content-Type: application/json" -d "$API_PAYLOAD" -o "${{ runner.temp }}/fix_response.json")
-          
+
           echo "AI Lint Fix API HTTP Status: $HTTP_RESPONSE_CODE"
           echo "--- Full AI API Response (fix_response.json) ---"
           if [ -f "${{ runner.temp }}/fix_response.json" ]; then echo "Size: $(wc -c < "${{ runner.temp }}/fix_response.json") bytes"; cat "${{ runner.temp }}/fix_response.json"; echo; else echo "fix_response.json not created."; fi
@@ -191,17 +190,17 @@ jobs:
           fi
           echo "api_response_success=$(jq -r .success "${{ runner.temp }}/fix_response.json")" >> $GITHUB_OUTPUT
           echo "api_response_path=${{ runner.temp }}/fix_response.json" >> $GITHUB_OUTPUT
-          
+
       - name: Apply AI Fixes and Update Status File
         if: steps.call_fix_api.outcome == 'success' && steps.call_fix_api.outputs.api_call_skipped != 'true' && steps.call_fix_api.outputs.api_response_success == 'true'
         id: apply_fixes
         run: |
           FIX_RESPONSE_FILE="${{ steps.call_fix_api.outputs.api_response_path }}"
-          
+
           ANY_ACTUAL_CODE_CHANGES_BY_AI="false"
           TOOL_GEN_INFO_UPDATED_THIS_RUN="false"
           COMMIT_NEEDED="false" # Will be true if code changes OR (tool-gen-info changes AND code did NOT change, requiring [ci skip]) -- Wait, simpler: only if code changes.
-          
+
           # Path to tool-generation-info.json, passed from read_tool_gen_info step
           TOOL_GEN_INFO_FILE_TO_UPDATE="${{ steps.read_tool_gen_info.outputs.tool_gen_info_file_path_for_update }}"
 
@@ -249,7 +248,7 @@ jobs:
             echo "ALF: No actual code changes made by AI. 'tool-generation-info.json' will not be updated, and no commit will be made by this ALF run."
             # COMMIT_NEEDED remains false
           fi
-          
+
           echo "actual_code_changes_by_ai_output=$ANY_ACTUAL_CODE_CHANGES_BY_AI" >> $GITHUB_OUTPUT
           echo "tool_gen_info_updated_output=$TOOL_GEN_INFO_UPDATED_THIS_RUN" >> $GITHUB_OUTPUT
           echo "overall_commit_needed_output=$COMMIT_NEEDED" >> $GITHUB_OUTPUT
@@ -261,7 +260,7 @@ jobs:
         run: |
           git config --global user.email "ai-fixer-bot@online-everything-tool.com"
           git config --global user.name "OET AI Fixer Bot"
-          
+
           # Add changed code files. Since apply_fixes overwrites, 'git add -A' or specific adds are needed.
           # If apply_fixes outputted a list of changed files, we'd use that. For now, assume -A in this context is okay.
           git add -A # This will stage all modified files that ALF touched (code + tool-gen-info)
@@ -270,7 +269,7 @@ jobs:
           if [ "${{ steps.apply_fixes.outputs.tool_gen_info_updated_output }}" == "true" ]; then
             COMMIT_MESSAGE="chore: AI-assisted lint fixes & update status"
           fi
-          
+
           # Check if there are any staged changes before committing
           if ! git diff --cached --quiet; then
             git commit -m "$COMMIT_MESSAGE"
@@ -288,7 +287,7 @@ jobs:
           branch: ${{ env.PR_HEAD_BRANCH }}
           github_token: ${{ secrets.AI_LINT_FIXER_PAT }}
           force: false
-      
+
       - name: Prepare Outputs for ALF Comment
         id: prepare_alf_comment_data
         if: always() && steps.log_context.outputs.setup_failed != 'true'
@@ -367,4 +366,3 @@ jobs:
             if (alfJobShouldFail) {
               core.setFailed("ALF: Process either encountered an API error or resulted in no effective code changes where an attempt was warranted.");
             }
-            

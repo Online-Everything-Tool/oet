@@ -1,4 +1,4 @@
-// --- FILE: app/_components/Header.tsx ---
+// FILE: app/_components/Header.tsx
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -8,6 +8,7 @@ import { useFavorites } from '@/app/context/FavoritesContext';
 import { useRecentlyUsed } from '@/app/context/RecentlyUsedContext';
 import RecentlyUsedToolsWidget from './RecentlyUsedToolsWidget';
 import RecentBuildsWidget from './RecentBuildsWidget';
+import { useFullscreenFocus } from '@/app/context/FullscreenFocusContext';
 
 import {
   ListBulletIcon,
@@ -15,10 +16,11 @@ import {
   WrenchIcon,
   BellAlertIcon,
 } from '@heroicons/react/24/solid';
-
 import Button from '@/app/tool/_components/form/Button';
 
 export default function Header() {
+  const { isFocusMode } = useFullscreenFocus();
+
   const router = useRouter();
   const pathname = usePathname();
 
@@ -35,9 +37,7 @@ export default function Header() {
   const recentBuildsDropdownRef = useRef<HTMLDivElement>(null);
 
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
-
   const isBuildPage = pathname.startsWith('/build-tool');
-
   const isToolPage = pathname.startsWith('/tool/');
 
   const currentToolDirective = useMemo(() => {
@@ -75,9 +75,16 @@ export default function Header() {
         setShowRecentBuildsDropdown(false);
       }
     }
-    document.addEventListener('mousedown', handleClickOutside);
+
+    if (!isFocusMode) {
+
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+
+      closeAllDropdowns();
+    }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isFocusMode]);
 
   const closeAllDropdowns = () => {
     setShowFavoritesDropdown(false);
@@ -92,39 +99,63 @@ export default function Header() {
   };
 
   const toggleFavoritesDropdown = () => {
+    if (isFocusMode) return;
     setShowFavoritesDropdown((prev) => !prev);
     if (showRecentsDropdown) setShowRecentsDropdown(false);
     if (showRecentBuildsDropdown) setShowRecentBuildsDropdown(false);
   };
 
   const toggleRecentsDropdown = () => {
+    if (isFocusMode) return;
     setShowRecentsDropdown((prev) => !prev);
     if (showFavoritesDropdown) setShowFavoritesDropdown(false);
     if (showRecentBuildsDropdown) setShowRecentBuildsDropdown(false);
   };
 
   const toggleRecentBuildsDropdown = () => {
+    if (isFocusMode) return;
     setShowRecentBuildsDropdown((prev) => !prev);
     if (showFavoritesDropdown) setShowFavoritesDropdown(false);
     if (showRecentsDropdown) setShowRecentsDropdown(false);
   };
 
+  const headerBaseClasses =
+    'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] shadow-md transition-all duration-300 ease-in-out';
+  const stickyClasses = 'sticky top-0 z-50';
+  const focusModeClasses = 'relative';
+
   return (
-    <header className="bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] shadow-md sticky top-0 z-50">
-      <nav className="container mx-auto max-w-6xl px-4 py-3 flex justify-between items-center">
+    <header
+      className={`${headerBaseClasses} ${!isFocusMode ? stickyClasses : focusModeClasses}`}
+    >
+      {/* 
+        If !isFocusMode, the full nav is shown. 
+        If isFocusMode is true, you could opt to show nothing, or a minimal bar.
+        For now, we render the nav but its stickiness is controlled by the outer header's class.
+        If you want the NAV ITSELF to disappear, you'd do:
+        {!isFocusMode && ( <nav> ... </nav> )}
+      */}
+      <nav
+        className={`container mx-auto max-w-6xl px-4 py-3 flex justify-between items-center ${isFocusMode ? 'opacity-50 pointer-events-none' : ''}`}
+      >
+        {/* Added opacity and pointer-events none to nav content in focus mode for a softer effect than fully hiding */}
         <Link
           href="/"
-          className="text-xl font-bold hover:text-indigo-200 transition-colors duration-200"
-          onClick={closeAllDropdowns}
+          className={`text-xl font-bold hover:text-indigo-200 transition-colors duration-200 ${isFocusMode ? 'cursor-default' : ''}`}
+          onClick={(e) => {
+            if (isFocusMode)
+              e.preventDefault();
+            else closeAllDropdowns();
+          }}
         >
           OET
         </Link>
-
         <div className="flex items-center space-x-1 md:space-x-2">
-          {/* Recent Builds Dropdown - Always Visible */}
+          {/* Recent Builds Dropdown */}
           <div className="relative inline-block" ref={recentBuildsDropdownRef}>
             <Button
               onClick={toggleRecentBuildsDropdown}
+              disabled={isFocusMode}
               className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.4)] text-white"
               aria-label="View Recent Tool Builds"
               title="View Recent Tool Builds & Merges"
@@ -134,24 +165,24 @@ export default function Header() {
             >
               <span className="hidden sm:inline ml-1">Recent</span>
             </Button>
-
-            <div
-              className={`${
-                showRecentBuildsDropdown ? 'block' : 'hidden'
-              } absolute right-0 mt-2 w-64 md:w-72 origin-top-right rounded-md bg-white text-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <RecentBuildsWidget
-                onItemClick={closeAllDropdowns}
-                variant="headerDropdown"
-              />
-            </div>
+            {!isFocusMode &&
+              showRecentBuildsDropdown && (
+                <div
+                  className="absolute right-0 mt-2 w-64 md:w-72 origin-top-right rounded-md bg-white text-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <RecentBuildsWidget
+                    onItemClick={closeAllDropdowns}
+                    variant="headerDropdown"
+                  />
+                </div>
+              )}
           </div>
 
-          {/* Build Tool Button - Always Visible, Disabled on /build-tool page */}
+          {/* Build Tool Button */}
           <Button
             onClick={buildTool}
-            disabled={isBuildPage}
+            disabled={isBuildPage || isFocusMode}
             className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.4)] text-white"
             aria-label="Build Tool"
             title={
@@ -164,11 +195,13 @@ export default function Header() {
             <span className="hidden sm:inline ml-1">Build Tool</span>
           </Button>
 
-          {/* Recently Used Tools Dropdown - Always Visible */}
+          {/* Recently Used Tools Dropdown */}
           <div className="relative inline-block" ref={recentsDropdownRef}>
             <Button
               onClick={toggleRecentsDropdown}
-              disabled={!recentsLoaded || headerRecentTools.length === 0}
+              disabled={
+                !recentsLoaded || headerRecentTools.length === 0 || isFocusMode
+              }
               className="rounded bg-[rgba(255,255,255,0.2)] relative hover:!bg-[rgba(255,255,255,0.4)] text-white"
               aria-label="View Recently Used Tools"
               title="View Recently Used Tools"
@@ -189,26 +222,28 @@ export default function Header() {
                 Recently Used ({headerRecentTools.length} items)
               </span>
             </Button>
-            {showRecentsDropdown && headerRecentTools.length > 0 && (
-              <div
-                className="absolute right-0 mt-2 w-auto origin-top-right z-50"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <RecentlyUsedToolsWidget
-                  variant="header"
-                  currentToolDirectiveToExclude={currentToolDirective}
-                  onItemClick={closeAllDropdowns}
-                />
-              </div>
-            )}
+            {!isFocusMode &&
+              showRecentsDropdown &&
+              headerRecentTools.length > 0 && (
+                <div
+                  className="absolute right-0 mt-2 w-auto origin-top-right z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <RecentlyUsedToolsWidget
+                    variant="header"
+                    currentToolDirectiveToExclude={currentToolDirective}
+                    onItemClick={closeAllDropdowns}
+                  />
+                </div>
+              )}
           </div>
 
-          {/* Favorites Dropdown - Always Visible */}
+          {/* Favorites Dropdown */}
           <div className="relative inline-block" ref={favoritesDropdownRef}>
             <Button
               onClick={toggleFavoritesDropdown}
-              disabled={!favoritesLoaded}
-              className="rounded bg-[rgba(255,255,255,0.2)]  hover:!bg-[rgba(255,255,255,0.4)] relative text-white"
+              disabled={!favoritesLoaded || isFocusMode}
+              className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.4)] relative text-white"
               aria-label="View Favorites"
               title="View Favorites"
               aria-haspopup="true"
@@ -230,37 +265,39 @@ export default function Header() {
                 Favorites ({favoritesCount} items)
               </span>
             </Button>
-            {showFavoritesDropdown && (
-              <div
-                className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 py-1 text-gray-800"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div role="menu" aria-orientation="vertical" tabIndex={-1}>
-                  {favoritesLoaded && favorites.length > 0 ? (
-                    favorites.map((directive) => (
-                      <Link
-                        key={directive}
-                        href={`/tool/${directive}/`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate"
-                        role="menuitem"
-                        tabIndex={-1}
-                        onClick={closeAllDropdowns}
-                      >
-                        {directive
-                          .replace(/-/g, ' ')
-                          .replace(/\b\w/g, (l) => l.toUpperCase())}
-                      </Link>
-                    ))
-                  ) : (
-                    <p className="px-4 py-2 text-sm text-gray-500 italic">
-                      No favorites yet.
-                    </p>
-                  )}
+            {!isFocusMode &&
+              showFavoritesDropdown && (
+                <div
+                  className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 py-1 text-gray-800"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div role="menu" aria-orientation="vertical" tabIndex={-1}>
+                    {favoritesLoaded && favorites.length > 0 ? (
+                      favorites.map((directive) => (
+                        <Link
+                          key={directive}
+                          href={`/tool/${directive}/`}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate"
+                          role="menuitem"
+                          tabIndex={-1}
+                          onClick={closeAllDropdowns}
+                        >
+                          {directive
+                            .replace(/-/g, ' ')
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </Link>
+                      ))
+                    ) : (
+                      <p className="px-4 py-2 text-sm text-gray-500 italic">
+                        No favorites yet.
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
-        </div>
+        </div>{' '}
+        {/* End of flex items-center space-x-1 md:space-x-2 */}
       </nav>
     </header>
   );

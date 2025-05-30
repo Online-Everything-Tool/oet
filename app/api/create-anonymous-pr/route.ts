@@ -238,14 +238,14 @@ export async function POST(request: Request) {
     identifiedDependencies: identifiedDependencies,
     assetInstructions: assetInstructions || null,
   };
-  
+
   const toolGenerationInfoPath = `app/tool/${toolDirective}/tool-generation-info.json`;
   filesToCommit[toolGenerationInfoPath] = JSON.stringify(
     toolGenerationInfoFileContent,
     null,
     2
   );
-  
+
   console.log(
     `[API create-anonymous-pr] Files to commit: ${Object.keys(filesToCommit).join(',')}`
   );

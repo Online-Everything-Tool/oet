@@ -12,12 +12,12 @@
 ## **NEW PRIORITY** I. Deployment, Preview Strategy & PR Status Visibility
 
 - 🟡 **Gated Netlify Deploy Previews & Build Log Review:**
-    - ⬜ CI (`validate_generated_tool_pr.yml`): Implement conditional Netlify deploy previews (e.g., via GitHub Deployments or PR labels) to trigger only after _all_ internal CI checks and _all_ AI corrective workflows pass.
-    - 🟡 Review Netlify Build Logs & Function Logs Post-Launch (ongoing operational task).
+  - ⬜ CI (`validate_generated_tool_pr.yml`): Implement conditional Netlify deploy previews (e.g., via GitHub Deployments or PR labels) to trigger only after _all_ internal CI checks and _all_ AI corrective workflows pass.
+  - 🟡 Review Netlify Build Logs & Function Logs Post-Launch (ongoing operational task).
 - 🟡 **Enhance PR Status Reporting (`/api/pr-status` & `get_pr-ci-summary.mjs`):**
-    - ⬜ Integrate details from ADM & ALF runs into the status reported by `/api/pr-status`. This might involve ADM/ALF posting a final status artifact or a small status update to a discoverable location (e.g., a check run, a specific comment tag).
-    - ⬜ Align `get_pr-ci-summary.mjs` to fetch and display this enhanced status, including ADM/ALF outcomes (e.g., "ADM: Installed 2 deps", "ALF: Fixed 1 file", "ALF: No changes made, attempt already flagged").
-    - 🟡 `/api/pr-status` refactor for Netlify independence & AI Fixer status integration **(Deferred from original placement, now part of this larger item)**. UI for these aspects also deferred.
+  - ⬜ Integrate details from ADM & ALF runs into the status reported by `/api/pr-status`. This might involve ADM/ALF posting a final status artifact or a small status update to a discoverable location (e.g., a check run, a specific comment tag).
+  - ⬜ Align `get_pr-ci-summary.mjs` to fetch and display this enhanced status, including ADM/ALF outcomes (e.g., "ADM: Installed 2 deps", "ALF: Fixed 1 file", "ALF: No changes made, attempt already flagged").
+  - 🟡 `/api/pr-status` refactor for Netlify independence & AI Fixer status integration **(Deferred from original placement, now part of this larger item)**. UI for these aspects also deferred.
 
 ## II. Inter-Tool Data Exchange (ITDE) - Finalization & Testing (Original Section I)
 
@@ -63,17 +63,17 @@
 ## V. AI Asset Provisioner (AAP) - Workflow & CI Integration (Replaces "Static Asset Handling" from original Section IX)
 
 - ⬜ **(New CI Workflow - `ai-asset-provisioner.yml` - Conceptual):**
-    - ⬜ Design and implement workflow to trigger on `validate_generated_tool_pr.yml` if `assetInstructions` are present in `tool-generation-info.json`.
-    - ⬜ AAP would download an `asset-instructions-${SHA}.json` artifact.
-    - ⬜ AAP calls a new backend API (e.g., `/api/provision-assets`) with these instructions.
-    - ⬜ The backend API uses an AI to interpret instructions, find/generate assets (placeholder for now, could be complex), or provide structured data for manual placement.
-    - ⬜ AAP commits any new assets (if directly generatable/fetchable by AI) to `public/data/<directive>/` or provides clear instructions/placeholders for manual addition.
+  - ⬜ Design and implement workflow to trigger on `validate_generated_tool_pr.yml` if `assetInstructions` are present in `tool-generation-info.json`.
+  - ⬜ AAP would download an `asset-instructions-${SHA}.json` artifact.
+  - ⬜ AAP calls a new backend API (e.g., `/api/provision-assets`) with these instructions.
+  - ⬜ The backend API uses an AI to interpret instructions, find/generate assets (placeholder for now, could be complex), or provide structured data for manual placement.
+  - ⬜ AAP commits any new assets (if directly generatable/fetchable by AI) to `public/data/<directive>/` or provides clear instructions/placeholders for manual addition.
 - ⬜ **(CI - `validate_generated_tool_pr.yml` - AAP Integration):**
-    - ⬜ Update `analyze_state_and_dependencies` job to correctly set `action_required_for_assets: true` if `assetInstructions` are present and non-trivial (revisit the override).
-    - ⬜ Upload `asset-instructions-${SHA}.json` artifact.
-    - ⬜ Update PR comment logic for hand-off to AAP.
-    - ⬜ Conditionally skip build jobs if AAP is expected to run first (if asset presence is critical for build).
-- ⬜ **(CI - `validate_generated_tool_pr.yml` - Future Enhancement for Asset Checking):** Check for presence of required static assets in `public/data/<directive>/` based on `tool-generation-info.json` *after* AAP has run or assets are manually added.
+  - ⬜ Update `analyze_state_and_dependencies` job to correctly set `action_required_for_assets: true` if `assetInstructions` are present and non-trivial (revisit the override).
+  - ⬜ Upload `asset-instructions-${SHA}.json` artifact.
+  - ⬜ Update PR comment logic for hand-off to AAP.
+  - ⬜ Conditionally skip build jobs if AAP is expected to run first (if asset presence is critical for build).
+- ⬜ **(CI - `validate_generated_tool_pr.yml` - Future Enhancement for Asset Checking):** Check for presence of required static assets in `public/data/<directive>/` based on `tool-generation-info.json` _after_ AAP has run or assets are manually added.
 
 ## VI. UI/UX Enhancements, Polish & Tool Generation Quality (Original Section IV)
 
@@ -87,7 +87,7 @@
   - ⬜ Design data structure and implement modal-based entry for lyrics/chords.
 - ⬜ **(Mental Note)** Re-evaluate `/api/list-models` usage for build tool; consider "class-of-model" resolution strategy.
 - ✅ **(Mental Note - API side DONE)** `/api/fix-linting-errors` API now only returns file content in `fixedFiles` if actually changed by AI (or `null` for errors).
-    - 🟡 Verify ALF's `apply_fixes` step correctly iterates only over keys present in the API's `fixedFiles` response and handles `null` values gracefully (it should with the current `jq ... select(.value != null and .value != "") ...` filter).
+  - 🟡 Verify ALF's `apply_fixes` step correctly iterates only over keys present in the API's `fixedFiles` response and handles `null` values gracefully (it should with the current `jq ... select(.value != null and .value != "") ...` filter).
 - ✅ **(Mental Note - DONE)** `ai_lint_fixer.yml`: ALF job success/failure logic reviewed and updated to "succeed if asked to do nothing, fail if tried but made no code changes or API error."
 
 ## VIII. Deployment & Operations (Original Section VII - some items moved to new Section I)

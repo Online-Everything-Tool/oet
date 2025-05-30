@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from 'react';
 
+import type { ButtonVariant } from '../form/Button';
 import type { StoredFile } from '@/src/types/storage';
 import type { ToolMetadata, OutputConfig } from '@/src/types/tools';
 import useToolState from '../../_hooks/useToolState';
@@ -43,6 +44,34 @@ export interface StorageHookReturnType {
   ) => Promise<{ deletedCount: number; candidatesChecked: number }>;
 }
 
+export interface FeedbackStateEntry {
+  type: 'copy' | 'download' | 'error';
+  message: string;
+}
+
+export interface DefaultItemActionHandlers {
+  onCopy: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
+  canCopy: boolean;
+}
+
+export interface CustomPrimaryCreateConfig {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  buttonVariant?: ButtonVariant;
+}
+
+export interface CustomBulkActionConfig {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: (selectedItems: StoredFile[]) => void;
+  disabled?: (selectedItems: StoredFile[]) => boolean;
+  buttonVariant?: ButtonVariant;
+  key: string;
+}
+
 interface GenericStorageClientProps {
   toolRoute: string;
   itemTypeSingular: string;
@@ -57,12 +86,24 @@ interface GenericStorageClientProps {
     previewUrl?: string
   ) => React.ReactNode;
   enableCopyContent?: (file: StoredFile) => boolean;
+
+  customPrimaryCreateConfig?: CustomPrimaryCreateConfig | null;
+  customFilterControls?: React.ReactNode;
+  renderItemActions?: (
+    file: StoredFile,
+    defaultActionHandlers: DefaultItemActionHandlers,
+    isProcessingItem: boolean,
+    feedbackForItem: FeedbackStateEntry | null
+  ) => React.ReactNode[];
+  customBulkActions?: CustomBulkActionConfig[];
+  externalRefreshTrigger?: number;
 }
 
 interface PersistedStorageState {
   selectedItemIds: string[];
   layout: 'list' | 'grid';
   isFilterSelectedActive: boolean;
+
 }
 
 export default function GenericStorageClient({
@@ -76,6 +117,11 @@ export default function GenericStorageClient({
   metadata,
   renderGridItemPreview,
   enableCopyContent = (file: StoredFile) => isTextBasedMimeType(file.type),
+  customPrimaryCreateConfig = null,
+  customFilterControls = null,
+  renderItemActions,
+  customBulkActions = [],
+  externalRefreshTrigger,
 }: GenericStorageClientProps) {
   const {
     listFiles,
@@ -97,10 +143,7 @@ export default function GenericStorageClient({
   const [error, setError] = useState<string | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
   const [feedbackState, setFeedbackState] = useState<
-    Record<
-      string,
-      { type: 'copy' | 'download' | 'error'; message: string } | null
-    >
+    Record<string, FeedbackStateEntry | null>
   >({});
   const [previewUrls, setPreviewUrls] = useState<Map<string, string>>(
     new Map()
@@ -187,25 +230,29 @@ export default function GenericStorageClient({
 
   useEffect(() => () => revokeManagedUrls(), [revokeManagedUrls]);
 
-  useEffect(() => {
-    updatePreviewUrlsForItems(displayedItems);
-    const currentIdsInDisplay = new Set(displayedItems.map((f) => f.id));
-    const toRevoke = new Map<string, string>();
-    managedUrlsRef.current.forEach((url, id) => {
-      if (!currentIdsInDisplay.has(id)) toRevoke.set(id, url);
-    });
-    if (toRevoke.size > 0) {
-      setPreviewUrls((prev) => {
-        const newMap = new Map(prev);
-        toRevoke.forEach((_, id) => newMap.delete(id));
-        return newMap;
-      });
-      toRevoke.forEach((url, id) => {
-        URL.revokeObjectURL(url);
-        managedUrlsRef.current.delete(id);
-      });
+  const loadAndDisplayItems = useCallback(async () => {
+    setError(null);
+    setClientIsLoading(true);
+    try {
+      const items = await listFiles(500, false);
+      setDisplayedItems(items);
+      updatePreviewUrlsForItems(items);
+    } catch (err) {
+      setError(
+        `Failed to load stored ${itemTypePlural.toLowerCase()}: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
+      setDisplayedItems([]);
+      updatePreviewUrlsForItems([]);
+    } finally {
+      setClientIsLoading(false);
     }
-  }, [displayedItems, updatePreviewUrlsForItems]);
+  }, [listFiles, itemTypePlural, updatePreviewUrlsForItems]);
+
+  useEffect(() => {
+    if (!isLoadingToolState) {
+      loadAndDisplayItems();
+    }
+  }, [loadAndDisplayItems, isLoadingToolState, externalRefreshTrigger]);
 
   const setItemFeedback = useCallback(
     (
@@ -230,29 +277,7 @@ export default function GenericStorageClient({
     []
   );
 
-  const loadAndDisplayItems = useCallback(async () => {
-    setError(null);
-    setClientIsLoading(true);
-    try {
-      const items = await listFiles(500, false);
-      setDisplayedItems(items);
-    } catch (err) {
-      setError(
-        `Failed to load stored ${itemTypePlural.toLowerCase()}: ${err instanceof Error ? err.message : 'Unknown error'}`
-      );
-      setDisplayedItems([]);
-    } finally {
-      setClientIsLoading(false);
-    }
-  }, [listFiles, itemTypePlural]);
-
-  useEffect(() => {
-    if (!isLoadingToolState) {
-      loadAndDisplayItems();
-    }
-  }, [loadAndDisplayItems, isLoadingToolState]);
-
-  const handleAddClick = () => setIsAddModalOpen(true);
+  const handleAddViaUploadClick = () => setIsAddModalOpen(true);
 
   const handleLayoutChange = useCallback(
     (newLayout: 'list' | 'grid') => {
@@ -269,7 +294,6 @@ export default function GenericStorageClient({
       ...persistentState,
       isFilterSelectedActive: nextIsFilterSelectedActive,
     };
-
     setPersistentState(newState);
     saveStateNow(newState);
   }, [persistentState, setPersistentState, saveStateNow]);
@@ -303,7 +327,6 @@ export default function GenericStorageClient({
               finalSelectedIds = newFileIds;
               finalFilterActiveState = false;
             }
-
             const newState: PersistedStorageState = {
               ...prevState,
               selectedItemIds: finalSelectedIds,
@@ -333,13 +356,15 @@ export default function GenericStorageClient({
         }
         await loadAndDisplayItems();
 
-        const newSelectedIds = persistentState.selectedItemIds.filter(
+        const newSelectedIdsArray = persistentState.selectedItemIds.filter(
           (id) => id !== itemId
         );
-        if (newSelectedIds.length !== persistentState.selectedItemIds.length) {
+        if (
+          newSelectedIdsArray.length !== persistentState.selectedItemIds.length
+        ) {
           const newState = {
             ...persistentState,
-            selectedItemIds: newSelectedIds,
+            selectedItemIds: newSelectedIdsArray,
           };
           setPersistentState(newState);
           await saveStateNow(newState);
@@ -378,6 +403,7 @@ export default function GenericStorageClient({
       selectedItemIds.size > 0
     )
       return;
+
     setError(null);
     setIsProcessing(true);
     try {
@@ -410,7 +436,7 @@ export default function GenericStorageClient({
     isProcessing,
     isBulkDeleting,
     displayedItems,
-    selectedItemIds,
+    selectedItemIds.size,
     markAllFilesAsTemporary,
     cleanupOrphanedTemporaryFiles,
     loadAndDisplayItems,
@@ -487,18 +513,15 @@ export default function GenericStorageClient({
       } else {
         newSelectedSet.add(itemId);
       }
-
       const newFilterActiveState =
         newSelectedSet.size > 0
           ? persistentState.isFilterSelectedActive
           : false;
-
       const newState = {
         ...persistentState,
         selectedItemIds: Array.from(newSelectedSet),
         isFilterSelectedActive: newFilterActiveState,
       };
-
       setPersistentState(newState);
       await saveStateNow(newState);
     },
@@ -514,6 +537,7 @@ export default function GenericStorageClient({
       isBulkDeleting
     )
       return;
+
     setIsBulkDeleting(true);
     setError(null);
     const idsToDelete = Array.from(selectedItemIds);
@@ -531,6 +555,7 @@ export default function GenericStorageClient({
         );
       }
     }
+
     if (idsToDelete.length > 0) {
       await cleanupOrphanedTemporaryFiles(idsToDelete);
     }
@@ -581,6 +606,21 @@ export default function GenericStorageClient({
     !controlsAreLoadingOverall;
   const currentError = error || toolStateError;
 
+  const createDefaultItemActionHandlers = useCallback(
+    (file: StoredFile): DefaultItemActionHandlers => ({
+      onCopy: () => handleCopyItemContent(file.id),
+      onDownload: () => handleDownloadItem(file.id),
+      onDelete: () => handleDeleteSingleItem(file.id),
+      canCopy: enableCopyContent(file),
+    }),
+    [
+      handleCopyItemContent,
+      handleDownloadItem,
+      handleDeleteSingleItem,
+      enableCopyContent,
+    ]
+  );
+
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
       <StorageControls
@@ -590,7 +630,7 @@ export default function GenericStorageClient({
         currentLayout={layout}
         isFilterSelectedActive={isFilterSelectedActive}
         onToggleFilterSelected={handleToggleFilterSelected}
-        onAddClick={handleAddClick}
+        onAddViaUploadClick={handleAddViaUploadClick}
         onClearAllClick={handleClearAllItems}
         onLayoutChange={handleLayoutChange}
         onDeleteSelectedClick={handleDeleteSelectedItems}
@@ -599,6 +639,10 @@ export default function GenericStorageClient({
         directiveName={directiveName}
         outputConfig={metadata.outputConfig as OutputConfig}
         selectedStoredFilesForItde={selectedStoredItemsForItde}
+
+        customPrimaryCreateConfig={customPrimaryCreateConfig}
+        customFilterControls={customFilterControls}
+        customBulkActions={customBulkActions}
       />
       {currentError && (
         <div
@@ -634,29 +678,60 @@ export default function GenericStorageClient({
           (layout === 'list' ? (
             <FileListView
               files={itemsToDisplayInView}
-              isLoading={controlsAreLoadingOverall && !isBulkDeleting}
+              isLoading={
+                isProcessing || (isLoadingToolState && !isBulkDeleting)
+              }
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedItemIds}
               feedbackState={feedbackState}
-              onCopy={handleCopyItemContent}
-              onDownload={handleDownloadItem}
-              onDelete={handleDeleteSingleItem}
               onToggleSelection={handleToggleSelection}
+
+              renderItemActions={
+                renderItemActions
+                  ? (file) =>
+                      renderItemActions(
+                        file,
+                        createDefaultItemActionHandlers(file),
+                        isProcessing || isBulkDeleting,
+                        feedbackState[file.id] ?? null
+                      )
+                  : undefined
+              }
+
+              onCopy={!renderItemActions ? handleCopyItemContent : undefined}
+              onDownload={!renderItemActions ? handleDownloadItem : undefined}
+              onDelete={!renderItemActions ? handleDeleteSingleItem : undefined}
+              canCopyFile={!renderItemActions ? enableCopyContent : undefined}
             />
           ) : (
             <FileGridView
               files={itemsToDisplayInView}
-              isLoading={controlsAreLoadingOverall && !isBulkDeleting}
+              isLoading={
+                isProcessing || (isLoadingToolState && !isBulkDeleting)
+              }
               isBulkDeleting={isBulkDeleting}
               selectedIds={selectedItemIds}
               feedbackState={feedbackState}
-              onCopy={handleCopyItemContent}
-              onDownload={handleDownloadItem}
-              onDelete={handleDeleteSingleItem}
               renderPreview={(file) =>
                 renderGridItemPreview(file, previewUrls.get(file.id))
               }
               onToggleSelection={handleToggleSelection}
+
+              renderItemActions={
+                renderItemActions
+                  ? (file) =>
+                      renderItemActions(
+                        file,
+                        createDefaultItemActionHandlers(file),
+                        isProcessing || isBulkDeleting,
+                        feedbackState[file.id] ?? null
+                      )
+                  : undefined
+              }
+              onCopy={!renderItemActions ? handleCopyItemContent : undefined}
+              onDownload={!renderItemActions ? handleDownloadItem : undefined}
+              onDelete={!renderItemActions ? handleDeleteSingleItem : undefined}
+              canCopyFile={!renderItemActions ? enableCopyContent : undefined}
             />
           ))}
       </div>
@@ -669,7 +744,7 @@ export default function GenericStorageClient({
         accept={fileInputAccept}
         selectionMode="multiple"
         libraryFilter={libraryFilterForModal}
-        initialTab="upload"
+        initialTab={customPrimaryCreateConfig ? 'library' : 'upload'}
         showFilterAfterUploadCheckbox={true}
       />
     </div>

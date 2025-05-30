@@ -1,7 +1,7 @@
 // FILE: app/tool/_components/form/Input.tsx
 'use client';
 
-import React, { useId } from 'react';
+import React, { useId, forwardRef } from 'react';
 
 type InputType =
   | 'text'
@@ -31,23 +31,26 @@ interface InputProps
   iconRight?: React.ReactNode;
 }
 
-const Input: React.FC<InputProps> = ({
-  label,
-  id: providedId,
-  type = 'text',
-  value,
-  onChange,
-  error = null,
-  disabled = false,
-  containerClassName = '',
-  labelClassName = '',
-  inputClassName = '',
-  iconLeft,
-  iconRight,
-  placeholder,
-  name,
-  ...rest
-}) => {
+const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
+  {
+    label,
+    id: providedId,
+    type = 'text',
+    value,
+    onChange,
+    error = null,
+    disabled = false,
+    containerClassName = '',
+    labelClassName = '',
+    inputClassName = '',
+    iconLeft,
+    iconRight,
+    placeholder,
+    name,
+    ...rest
+  },
+  ref
+) => {
   const autoId = useId();
   const effectiveId = providedId || autoId;
 
@@ -98,6 +101,7 @@ const Input: React.FC<InputProps> = ({
           </div>
         )}
         <input
+          ref={ref}
           type={type}
           id={effectiveId}
           name={name}
@@ -143,4 +147,4 @@ const Input: React.FC<InputProps> = ({
   );
 };
 
-export default Input;
+export default forwardRef(Input);

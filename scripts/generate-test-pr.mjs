@@ -140,13 +140,12 @@ async function createDummyToolFiles(toolDirective, includeLintError = false) {
 
   const pascalCaseName = toPascalCase(toolDirective);
 
-  const toolGenerationInfo = JSON.stringify(
-    {},
-    null,
-    2
-  );  
+  const toolGenerationInfo = JSON.stringify({}, null, 2);
 
-  await fs.writeFile(path.join(toolDir, 'tool-generation-info.json'), toolGenerationInfo);
+  await fs.writeFile(
+    path.join(toolDir, 'tool-generation-info.json'),
+    toolGenerationInfo
+  );
 
   const metadataContent = JSON.stringify(
     {

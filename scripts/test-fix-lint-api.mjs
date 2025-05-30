@@ -35,18 +35,25 @@ async function callFixLintingApi(testCaseName, apiUrl, dataPayload) {
     console.log(JSON.stringify(responseBody, null, 2));
 
     if (!response.ok) {
-      console.error(`[${testCaseName}] API call FAILED with status: ${response.status}`);
+      console.error(
+        `[${testCaseName}] API call FAILED with status: ${response.status}`
+      );
     } else {
       console.log(`[${testCaseName}] API call SUCCEEDED.`);
       if (responseBody.success && responseBody.fixedFiles) {
         console.log(`\n[${testCaseName}] Fixed Files Output:`);
-        for (const [filePath, content] of Object.entries(responseBody.fixedFiles)) {
+        for (const [filePath, content] of Object.entries(
+          responseBody.fixedFiles
+        )) {
           console.log(`\n--- File: ${filePath} ---`);
           if (content === null) {
             console.log('(AI processing failed or safety block for this file)');
           } else {
             // To keep logs cleaner, optionally truncate long content
-            const displayContent = content.length > 300 ? content.substring(0, 297) + '...' : content;
+            const displayContent =
+              content.length > 300
+                ? content.substring(0, 297) + '...'
+                : content;
             console.log(displayContent);
           }
         }
@@ -74,7 +81,7 @@ async function runAllTests() {
     return;
   }
 
-  const jsonTestFiles = testFiles.filter(file => file.endsWith('.json'));
+  const jsonTestFiles = testFiles.filter((file) => file.endsWith('.json'));
 
   if (jsonTestFiles.length === 0) {
     console.warn(`No JSON test files found in ${TEST_DATA_DIR}`);
@@ -94,11 +101,15 @@ async function runAllTests() {
       if (testData && testData.payload) {
         // Optional: Log description from the test file
         if (testData.description) {
-          console.log(`\nDescription for ${testCaseName}: ${testData.description}`);
+          console.log(
+            `\nDescription for ${testCaseName}: ${testData.description}`
+          );
         }
         await callFixLintingApi(testCaseName, apiUrl, testData.payload);
       } else {
-        console.warn(`Skipping ${testFile}: does not contain a 'payload' property or is invalid JSON.`);
+        console.warn(
+          `Skipping ${testFile}: does not contain a 'payload' property or is invalid JSON.`
+        );
       }
     } catch (error) {
       console.error(`Error processing test file ${testFile}:`, error);

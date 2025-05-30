@@ -91,14 +91,18 @@ async function main() {
         path: repoPath, // Use the relative path from project root, as API expects
         currentContent: content,
       });
-      console.log(`Successfully read and added to payload: ${repoPath} (${content.length} chars)`);
+      console.log(
+        `Successfully read and added to payload: ${repoPath} (${content.length} chars)`
+      );
     } catch (error) {
-      console.warn(`Could not read file ${fullPath}. It will not be included in the test. Error: ${error.message}`);
+      console.warn(
+        `Could not read file ${fullPath}. It will not be included in the test. Error: ${error.message}`
+      );
     }
   }
 
   if (filesToFix.length === 0) {
-    console.error("No files could be read for the test. Exiting.");
+    console.error('No files could be read for the test. Exiting.');
     process.exit(1);
   }
 
@@ -109,8 +113,12 @@ async function main() {
 
   console.log(`\nSending payload to: ${API_ENDPOINT}`);
   console.log(`  Number of files in payload: ${payload.filesToFix.length}`);
-  console.log(`  Total length of global lintErrors string: ${payload.lintErrors.length} chars`);
-  console.log(`  Global lintErrors (first 300 chars):\n---\n${payload.lintErrors.substring(0,300)}\n---\n`);
+  console.log(
+    `  Total length of global lintErrors string: ${payload.lintErrors.length} chars`
+  );
+  console.log(
+    `  Global lintErrors (first 300 chars):\n---\n${payload.lintErrors.substring(0, 300)}\n---\n`
+  );
 
   try {
     const startTime = Date.now();
@@ -126,7 +134,7 @@ async function main() {
     console.log(`\n--- API Response ---`);
     console.log(`Status: ${response.status} ${response.statusText}`);
     console.log(`Duration: ${duration}ms`);
-    
+
     const responseBody = await response.json();
 
     if (!response.ok) {
@@ -139,27 +147,42 @@ async function main() {
     console.log('Message from API:', responseBody.message);
 
     if (responseBody.fixedFiles) {
-      console.log("\n--- Fixed Files Summary ---");
+      console.log('\n--- Fixed Files Summary ---');
       for (const filePath in responseBody.fixedFiles) {
         const fixedContentOrNull = responseBody.fixedFiles[filePath];
         if (fixedContentOrNull === null) {
           console.log(`\nFile: ${filePath}`);
           console.log(`  Status: AI processing failed for this file.`);
         } else {
-          const originalFileObj = filesToFix.find(f => f.path === filePath);
-          const originalLength = originalFileObj ? originalFileObj.currentContent.length : 'N/A';
-          
+          const originalFileObj = filesToFix.find((f) => f.path === filePath);
+          const originalLength = originalFileObj
+            ? originalFileObj.currentContent.length
+            : 'N/A';
+
           console.log(`\nFile: ${filePath}`);
           console.log(`  Original length: ${originalLength} chars`);
-          console.log(`  Fixed content length: ${fixedContentOrNull.length} chars`);
-          
-          if (typeof originalLength === 'number' && fixedContentOrNull.length < originalLength * 0.9 && originalLength > 0) {
-            console.warn("  WARNING: Fixed content is significantly shorter than original. Possible truncation.");
+          console.log(
+            `  Fixed content length: ${fixedContentOrNull.length} chars`
+          );
+
+          if (
+            typeof originalLength === 'number' &&
+            fixedContentOrNull.length < originalLength * 0.9 &&
+            originalLength > 0
+          ) {
+            console.warn(
+              '  WARNING: Fixed content is significantly shorter than original. Possible truncation.'
+            );
           }
-          if (originalFileObj && fixedContentOrNull === originalFileObj.currentContent) {
-            console.log("  NOTE: Fixed content is identical to original content (no changes made or needed).");
+          if (
+            originalFileObj &&
+            fixedContentOrNull === originalFileObj.currentContent
+          ) {
+            console.log(
+              '  NOTE: Fixed content is identical to original content (no changes made or needed).'
+            );
           } else {
-            console.log("  NOTE: Fixed content DIFFERS from original content.");
+            console.log('  NOTE: Fixed content DIFFERS from original content.');
           }
           // console.log(`  Fixed content (last 100 chars for ${filePath}):\n  ${fixedContentOrNull.slice(-100).replace(/\n/g, '\n  ')}`);
         }
@@ -167,7 +190,6 @@ async function main() {
     } else {
       console.log(`No 'fixedFiles' object returned in the response.`);
     }
-
   } catch (error) {
     console.error('\nError during fetch or processing:', error);
   }

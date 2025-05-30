@@ -20,7 +20,7 @@ export type ButtonVariant =
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   variant?: ButtonVariant;
   size?: ButtonSize;
   isLoading?: boolean;
@@ -48,7 +48,7 @@ const Button: React.FC<ButtonProps> = ({
   const isDisabled = disabled || isLoading;
 
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-md shadow-sm transition-colors duration-150 ease-in-out';
+    'inline-flex items-center justify-center font-medium rounded-md shadow-sm transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-1';
 
   const sizeStyles: Record<ButtonSize, string> = {
     sm: 'px-3 py-1.5 text-xs',
@@ -58,33 +58,46 @@ const Button: React.FC<ButtonProps> = ({
 
   const variantStyles: Record<ButtonVariant, string> = {
     primary:
-      'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))]',
+      'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:ring-[rgb(var(--color-button-primary-bg))]',
     secondary:
-      'bg-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-text))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))]',
+      'bg-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-text))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:ring-[rgb(var(--color-button-secondary-bg))]',
     accent:
-      'bg-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-text))] hover:bg-[rgb(var(--color-button-accent-hover-bg))]',
+      'bg-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-text))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:ring-[rgb(var(--color-button-accent-bg))]',
     accent2:
-      'bg-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-text))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))]',
+      'bg-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-text))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:ring-[rgb(var(--color-button-accent2-bg))]',
     danger:
-      'bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))]',
+      'bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:ring-[rgb(var(--color-button-danger-bg))]',
     neutral:
-      'bg-[rgb(var(--color-button-neutral-bg))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-transparent',
+      'bg-[rgb(var(--color-button-neutral-bg))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-transparent focus:ring-gray-400',
 
     'primary-outline':
-      'bg-transparent border border-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-bg))] hover:bg-[rgba(var(--color-button-primary-bg)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-bg))] hover:bg-[rgba(var(--color-button-primary-bg)/0.1)] focus:ring-[rgb(var(--color-button-primary-bg))]',
     'secondary-outline':
-      'bg-transparent border border-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgba(var(--color-button-secondary-bg)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgba(var(--color-button-secondary-bg)/0.1)] focus:ring-[rgb(var(--color-button-secondary-bg))]',
     'accent-outline':
-      'bg-transparent border border-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-bg))] hover:bg-[rgba(var(--color-button-accent-bg)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-bg))] hover:bg-[rgba(var(--color-button-accent-bg)/0.1)] focus:ring-[rgb(var(--color-button-accent-bg))]',
     'accent2-outline':
-      'bg-transparent border border-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgba(var(--color-button-accent2-bg)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgba(var(--color-button-accent2-bg)/0.1)] focus:ring-[rgb(var(--color-button-accent2-bg))]',
     'danger-outline':
-      'bg-transparent border border-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-bg))] hover:bg-[rgba(var(--color-button-danger-bg)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-bg))] hover:bg-[rgba(var(--color-button-danger-bg)/0.1)] focus:ring-[rgb(var(--color-button-danger-bg))]',
     'neutral-outline':
-      'bg-transparent border border-[rgb(var(--color-button-neutral-text))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgba(var(--color-button-neutral-text)/0.1)]',
+      'bg-transparent border border-[rgb(var(--color-button-neutral-text))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgba(var(--color-button-neutral-text)/0.1)] focus:ring-gray-400',
 
-    link: 'bg-transparent text-[rgb(var(--color-text-link))] hover:underline shadow-none px-1 py-0.5',
+    link: 'bg-transparent text-[rgb(var(--color-text-link))] hover:underline shadow-none px-1 py-0.5 focus:ring-transparent',
   };
+
+  const hasOnlyIcon =
+    (iconLeft && !iconRight && !children && !loadingText) ||
+    (iconRight && !iconLeft && !children && !loadingText);
+  const iconOnlyPadding: Record<ButtonSize, string> = {
+    sm: 'p-1.5',
+    md: 'p-2',
+    lg: 'p-2.5',
+  };
+
+  const currentSizeStyles = hasOnlyIcon
+    ? iconOnlyPadding[size]
+    : sizeStyles[size];
 
   const disabledStyles = isDisabled ? 'opacity-50 cursor-not-allowed' : '';
   const fullWidthStyles = fullWidth ? 'w-full' : '';
@@ -96,12 +109,16 @@ const Button: React.FC<ButtonProps> = ({
     );
   }
 
+  const iconLeftMargin =
+    (children || (isLoading && loadingText)) && !hasOnlyIcon ? 'mr-2' : '';
+  const iconRightMargin = children && !isLoading && !hasOnlyIcon ? 'ml-2' : '';
+
   return (
     <button
       type={type}
       className={`
         ${baseStyles}
-        ${sizeStyles[size]}
+        ${currentSizeStyles}
         ${variantStyles[variant]}
         ${disabledStyles}
         ${fullWidthStyles}
@@ -112,13 +129,11 @@ const Button: React.FC<ButtonProps> = ({
       {...rest}
     >
       {currentIconLeft && (
-        <span className={children || loadingText ? 'mr-2' : ''}>
-          {currentIconLeft}
-        </span>
+        <span className={iconLeftMargin}>{currentIconLeft}</span>
       )}
       {isLoading && loadingText ? loadingText : children}
       {!isLoading && iconRight && (
-        <span className={children ? 'ml-2' : ''}>{iconRight}</span>
+        <span className={iconRightMargin}>{iconRight}</span>
       )}
     </button>
   );

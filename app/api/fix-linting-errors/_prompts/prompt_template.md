@@ -15,13 +15,15 @@ Lint/Compiler Warnings/Errors for {{FILE_PATH}}:
 **Correction Instructions (Apply in Order where logical, aiming for a complete pass):**
 
 1.  **(`@typescript-eslint/no-unused-vars`):**
+
     - **Unused Imports:** Remove imported modules or named imports that are not used.
     - **Unused Top-Level Functions/Classes/Variables:** If a top-level function, class, or variable (declared with `function`, `class`, `const`, `let`, or `var` at the module scope or within a class) is reported as unused and is not exported, it **must be completely removed**.
-    - **Unused Local Functions/Variables (within other functions):** If a function or variable declared *inside* another function is reported as unused, it **must be completely removed**.
+    - **Unused Local Functions/Variables (within other functions):** If a function or variable declared _inside_ another function is reported as unused, it **must be completely removed**.
     - **Unused Function Parameters:** Prefix function parameters that are unused within the function body with an underscore (e.g., `_unusedParam`). Do **not** remove the parameter itself.
     - **Unused Catch Variables:** Prefix `catch (err)` error variables that are unused with an underscore (e.g., `catch (_err)`). Do **not** remove the variable itself.
 
 2.  **(`@typescript-eslint/no-explicit-any` and Implicit `any`):**
+
     - **Infer Specific Types:** `any` type (explicit or implicit) should be replaced with the most specific and correct TypeScript type possible, based on the variable's initialization, usage, and context within the file.
     - **`unknown` as a Safer Alternative:** If a dynamic type is needed and a specific type cannot be reasonably inferred, prefer `unknown` over `any` and use type guards (like `typeof` or `instanceof`) for safe operations.
     - **`eslint-disable-next-line`:** If a specific type cannot be inferred after careful consideration, you may add an `eslint-disable-next-line @typescript-eslint/no-explicit-any` comment on the line immediately preceding the line causing the `no-explicit-any` error. For example:
@@ -29,9 +31,11 @@ Lint/Compiler Warnings/Errors for {{FILE_PATH}}:
       let myVar: any = someLegacyFunction();
 
 3.  **(`prefer-const`):**
+
     - **Change Declaration:** If a variable is declared with `let` but is never reassigned after its initial declaration, change its declaration to `const`.
 
 4.  **Strict Adherence to Rules:**
+
     - **No Logical Changes:** Do not alter the program's logic, functionality, or intended behavior.
     - **No New Functionality:** Do not add new features, variables, or functions.
     - **Completeness:** Review all lint/compiler errors provided for `{{FILE_PATH}}`. Apply fixes according to these rules for every error that can be confidently addressed. If an error cannot be fixed by these rules, leave that specific part of the code as-is regarding that error.
