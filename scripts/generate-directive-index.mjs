@@ -27,7 +27,7 @@ async function generateIndex() {
         if ( exists ) {
           const importAlias = `${dir.replace(/-/g, '_')}Preview`;
           imports.push(
-            `import { getRecentActivityPreview as ${importAlias} } from './${dir}/RecentActivityPreview.tsx';`
+            `import { getRecentActivityPreview as ${importAlias} } from './${dir}/RecentActivityPreview';`
           );
           mapEntries.push(`  '${dir}': ${importAlias},`);
           directiveModules.push(dir);
