@@ -6,5 +6,6 @@
       "importUsed": "pako"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
