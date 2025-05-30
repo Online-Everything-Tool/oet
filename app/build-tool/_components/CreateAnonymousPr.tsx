@@ -334,7 +334,8 @@ export default function CreateAnonymousPr({
     setIsSubmittingPr(true);
     setPrCreationFeedback('Submitting Pull Request to GitHub (anonymously)...');
     try {
-      const response = await fetch('/api/create-anonymous-pr', {
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+      const response = await fetch(`${apiUrl}/api/create-anonymous-pr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
