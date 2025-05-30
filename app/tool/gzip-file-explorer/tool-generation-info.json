@@ -1,0 +1,11 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "pako",
+      "reason": "For GZIP decompression client-side",
+      "importUsed": "pako"
+    }
+  ],
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
+}
