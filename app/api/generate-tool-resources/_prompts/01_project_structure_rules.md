@@ -12,7 +12,7 @@
 4.  **UI:**
     - Use standard HTML elements and where possible use components from `app/tool/_components/form` and from `app/tool/_components/shared`. Use CSS using the project's CSS variables from `app/globals.css` (e.g., `rgb(var(--color-text-base))`). Keep UI clean and functional.
     - For components or input fields that trigger frequent updates or re-computations (e.g., live text input processing, range sliders), you SHOULD consider using the `use-debounce` hook (e.g., from the `use-debounce` npm package) or implement a simple debounce utility to optimize performance and prevent excessive processing.
-    - Leverage existing project dependencies listed in `package.json` (like `uuid`, `pako`, etc.) when their functionality is applicable, rather than re-implementing standard solutions. If a new external library is essential, identify it in the `---START_DEPS---` block.
+    - Leverage existing project dependencies listed in `package.json` (like `uuid`, `date-fns`, `use-debounce`, `swipper`, etc.) when their functionality is applicable, rather than re-implementing standard solutions. If a new external library is essential, identify it in the `---START_DEPS---` block.
 5.  **State Management:**
     - Primary tool state (inputs, outputs that need to persist, user settings for the tool) MUST use the `useToolState` hook for persistence in Dexie. Structure the state object logically.
     - Simple state that represents a meaningful input, configuration, or result that could be shared between users via a URL link can use the `useToolUrlState` hook. Define corresponding `urlStateParams` in `metadata.json` for such cases. For most other internal tool state and primary input/output references, prefer `useToolState`.
