@@ -15,9 +15,7 @@ import type {
 } from '@/src/types/build';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const NARRATIVE_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_NARRATIVE_MODEL_NAME ||
-  'models/gemini-1.5-flash-latest';
+const NARRATIVE_MODEL_NAME = 'models/gemini-1.5-pro-latest';
 
 if (!API_KEY) {
   console.error(
@@ -117,14 +115,6 @@ async function loadPromptAndInjectExample(
         const content = await fs.readFile(filePath, 'utf-8');
         exampleNarrativeTemplatesCache.push(content.trim());
       }
-      console.log(
-        `[Narrative API] Loaded ${exampleNarrativeTemplatesCache.length} templates into cache.`
-      );
-      if (exampleNarrativeTemplatesCache.length === 0) {
-        console.warn(
-          '[API generate-modal-narrative] No example templates found in _data directory (e.g., 01_template.md).'
-        );
-      }
     } catch (error) {
       console.warn(
         '[API generate-modal-narrative] Error reading example templates:',
@@ -133,61 +123,13 @@ async function loadPromptAndInjectExample(
     }
   }
 
-  let exampleContentToSubstitute = `EPIC_COMPANY_NAME::Default Example Co.
-EPIC_COMPANY_EMOJI::📝
-EPIC_COMPANY_EMPLOYEE_NAME::N. A. Example
-EPIC_COMPANY_JOB_TITLE::Placeholder
-EPIC_COMPANY_EMPLOYEE_EMOJI::🧑‍🔬
---START_CHAPTER--
-CHAPTER_EMOJI::🤔
-CHAPTER_STORY::OET is building '{{TOOL_DIRECTIVE}}'. Interesting...
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::🧐
-CHAPTER_STORY::Description: '{{TOOL_DESCRIPTION}}'. Hmm.
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::😅
-CHAPTER_STORY::Model '{{GENERATION_MODEL_NAME}}', eh?
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::😬
-CHAPTER_STORY::User refined: '{{USER_ADDITIONAL_DESCRIPTION}}'.
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::💦
-CHAPTER_STORY::Examples like '{{AI_REQUESTED_EXAMPLES_LIST}}' and '{{USER_SELECTED_EXAMPLES_LIST}}'.
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::😨
-CHAPTER_STORY::This '{{TOOL_DIRECTIVE}}' is almost ready!
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::😰
-CHAPTER_STORY::Our market share!
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::😱
-CHAPTER_STORY::It's probably done!
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::🔥
-CHAPTER_STORY::We need a plan!
---END_CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::💀
-CHAPTER_STORY::Maybe OET is hiring?
---END_CHAPTER--`;
-
-  if (exampleNarrativeTemplatesCache.length > 0) {
-    const randomIndex = Math.floor(
-      Math.random() * exampleNarrativeTemplatesCache.length
-    );
-    console.log(
-      `[Narrative API] Picked random example template index: ${randomIndex} (out of ${exampleNarrativeTemplatesCache.length})`
-    );
-    exampleContentToSubstitute = exampleNarrativeTemplatesCache[randomIndex];
-  }
+  const randomIndex = Math.floor(
+    Math.random() * exampleNarrativeTemplatesCache.length
+  );
+  console.log(
+    `[Narrative API] Picked random example template index: ${randomIndex} (out of ${exampleNarrativeTemplatesCache.length})`
+  );
+  const exampleContentToSubstitute = exampleNarrativeTemplatesCache[randomIndex];
 
   const {
     toolDirective,
@@ -241,13 +183,19 @@ CHAPTER_STORY::Maybe OET is hiring?
       userSelectedExamplesListString
     );
 
+  console.log(finalPrompt)
+  console.log('')
+  console.log('')
+  console.log('')
+  console.log('')
+  console.log('')
+
   return finalPrompt;
 }
 
 function parseDelimitedNarrative(
   responseText: string
 ): ResouceGenerationEpic | null {
-  console.log(responseText);
   try {
     const lines = responseText.split('\n');
     const result: Partial<ResouceGenerationEpic> = { epicNarrative: [] };
@@ -377,182 +325,48 @@ function parseDelimitedNarrative(
   }
 }
 
-const defaultFallbackEpic: ResouceGenerationEpic = {
-  epicCompanyName: "Cogsworth's Calculators & Curios",
-  epicCompanyEmoji: '⚙️',
-  epicCompanyEmployeeName: "Barnaby 'Bytes' Buttons",
-  epicCompanyJobTitle: 'Chief Innovation Quasher',
-  epicCompanyEmployeeEmoji: '🧑‍🔧',
-  epicNarrative: [
-    {
-      chapterEmoji: '🧐',
-      chapterStory:
-        'Hmph. Another blip on the disrupto-meter. Probably nothing.',
-    },
-    {
-      chapterEmoji: '🤔',
-      chapterStory:
-        'User seems rather... determined. Are they... building something?',
-    },
-    {
-      chapterEmoji: '😬',
-      chapterStory:
-        "Wait, that description sounds suspiciously like our top-secret 'Project UtilityMax'!",
-    },
-    {
-      chapterEmoji: '😅',
-      chapterStory:
-        "Okay, okay, deep breaths. It's just a free tool. How good can it *really* be?",
-    },
-    {
-      chapterEmoji: '💦',
-      chapterStory:
-        "The progress bar... it's... progressing! This wasn't in the quarterly forecast!",
-    },
-    {
-      chapterEmoji: '😨',
-      chapterStory:
-        "They're using *that* much AI power?! For FREE?! My quarterly bonus just whimpered.",
-    },
-    {
-      chapterEmoji: '😰',
-      chapterStory:
-        "Quick, someone unplug the internet! No, wait, that's where our revenue comes from...",
-    },
-    {
-      chapterEmoji: '😱',
-      chapterStory:
-        "It's... it's actually working! The market! Our carefully crafted walled garden!",
-    },
-    {
-      chapterEmoji: '🔥',
-      chapterStory:
-        'THIS IS FINE. EVERYTHING IS FINE. *shreds TPS reports with vigor*',
-    },
-    {
-      chapterEmoji: '💀',
-      chapterStory:
-        "So, hypothetically, what's OET's dental plan like? Asking for... research.",
-    },
-  ],
-};
-
 export async function POST(request: NextRequest) {
   console.log('[API generate-modal-narrative] Received POST request');
 
-  if (!genAI) {
-    console.error(
-      '[API generate-modal-narrative] AI service not configured (GEMINI_API_KEY missing). Returning fallback epic.'
-    );
-    return NextResponse.json(defaultFallbackEpic, { status: 200 });
-  }
+  if (genAI) {
+    let processedRequestDataForPrompt: ProcessedRequestData;
+    try {
+      const body: RequestBody = await request.json();
+      const toolDirective = body.toolDirective?.trim();
+      const toolDescription = body.toolDescription?.trim();
 
-  let processedRequestDataForPrompt: ProcessedRequestData;
+      processedRequestDataForPrompt = {
+        toolDirective,
+        toolDescription,
+        generationModelName:
+          body.generationModelName?.trim() || 'an unspecified AI model',
+        userAdditionalDescription:
+          body.userAdditionalDescription?.trim() || 'None provided.',
+        aiRequestedExamples: body.aiRequestedExamples,
+        userSelectedExamples: body.userSelectedExamples,
+      };
 
-  try {
-    const body: RequestBody = await request.json();
-    const toolDirective = body.toolDirective?.trim();
-    const toolDescription = body.toolDescription?.trim();
+      const prompt = await loadPromptAndInjectExample(processedRequestDataForPrompt);
 
-    if (!toolDirective || !toolDescription) {
-      console.warn(
-        '[API generate-modal-narrative] Missing toolDirective or toolDescription. Returning fallback epic.'
-      );
-      return NextResponse.json(defaultFallbackEpic, { status: 200 });
-    }
+      const model = genAI.getGenerativeModel({ model: NARRATIVE_MODEL_NAME });
 
-    processedRequestDataForPrompt = {
-      toolDirective,
-      toolDescription,
-      generationModelName:
-        body.generationModelName?.trim() || 'an unspecified AI model',
-      userAdditionalDescription:
-        body.userAdditionalDescription?.trim() || 'None provided.',
-      aiRequestedExamples: body.aiRequestedExamples,
-      userSelectedExamples: body.userSelectedExamples,
-    };
-  } catch (error) {
-    console.warn(
-      '[API generate-modal-narrative] Invalid request body. Returning fallback epic.',
-      error
-    );
-    return NextResponse.json(defaultFallbackEpic, { status: 200 });
-  }
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig,
+        safetySettings,
+      });
 
-  let prompt: string;
-  try {
-    prompt = await loadPromptAndInjectExample(processedRequestDataForPrompt);
-  } catch (templateError) {
-    console.error(
-      '[API generate-modal-narrative] Prompt template load error. Returning fallback epic.',
-      templateError
-    );
-    return NextResponse.json(defaultFallbackEpic, { status: 200 });
-  }
+      const responseText = result.response.text();
 
-  try {
-    console.log(
-      `[API generate-modal-narrative] Calling Gemini (${NARRATIVE_MODEL_NAME}) for narrative for tool: ${processedRequestDataForPrompt.toolDirective}. Prompt length: ~${prompt.length}`
-    );
+      const narrativeResult = parseDelimitedNarrative(responseText);
 
-    const model = genAI.getGenerativeModel({ model: NARRATIVE_MODEL_NAME });
-
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig,
-      safetySettings,
-    });
-
-    if (!result.response) {
-      console.warn(
-        '[API generate-modal-narrative] AI analysis failed: No response object. Returning fallback epic.'
-      );
-      return NextResponse.json(defaultFallbackEpic, { status: 200 });
-    }
-
-    const responseText = result.response.text();
-    if (!responseText || responseText.trim() === '') {
-      console.warn(
-        '[API generate-modal-narrative] AI returned empty response. Returning fallback epic.'
-      );
-      return NextResponse.json(defaultFallbackEpic, { status: 200 });
-    }
-
-    const narrativeResult = parseDelimitedNarrative(responseText);
-
-    if (narrativeResult) {
-      console.log(
-        `[API generate-modal-narrative] Narrative generation and parsing successful for ${processedRequestDataForPrompt.toolDirective}`
-      );
       return NextResponse.json(narrativeResult, { status: 200 });
-    } else {
+
+    } catch (error) {
       console.warn(
-        '[API generate-modal-narrative] Failed to parse delimited narrative from AI. Returning fallback epic. Raw text:',
-        responseText
-      );
-      return NextResponse.json(defaultFallbackEpic, { status: 200 });
-    }
-  } catch (error: unknown) {
-    console.error(
-      '[API generate-modal-narrative] Error during AI narrative generation. Returning fallback epic:',
-      error
-    );
-    let isSafetyBlock = false;
-    if (
-      error &&
-      typeof error === 'object' &&
-      'message' in error &&
-      typeof (error as { message: string }).message === 'string'
-    ) {
-      isSafetyBlock = (error as { message: string }).message
-        .toLowerCase()
-        .includes('safety');
-    }
-    if (isSafetyBlock) {
-      console.warn(
-        '[API generate-modal-narrative] Narrative generation blocked by safety settings. Returning fallback.'
+        '[API generate-modal-narrative] Invalid request body. Returning fallback epic.',
+        error
       );
     }
-    return NextResponse.json(defaultFallbackEpic, { status: 200 });
   }
 }

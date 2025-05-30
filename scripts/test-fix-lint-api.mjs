@@ -50,11 +50,7 @@ async function callFixLintingApi(testCaseName, apiUrl, dataPayload) {
             console.log('(AI processing failed or safety block for this file)');
           } else {
             // To keep logs cleaner, optionally truncate long content
-            const displayContent =
-              content.length > 300
-                ? content.substring(0, 297) + '...'
-                : content;
-            console.log(displayContent);
+            console.log(content);
           }
         }
       }

@@ -16,42 +16,42 @@ async function testNarrativeEndpoint() {
     userSelectedExamples: ['text-counter'],
   };
 
-  const testPayloadMinimal = {
-    toolDirective: 'quick-qr-generator',
-    toolDescription:
-      'Generates a QR code instantly from user-provided text or URL.',
-    // Optional fields: generationModelName, userAdditionalDescription, aiRequestedExamples, userSelectedExamples
-    // These will be handled by defaults or undefined in the API.
-  };
+  // const testPayloadMinimal = {
+  //   toolDirective: 'quick-qr-generator',
+  //   toolDescription:
+  //     'Generates a QR code instantly from user-provided text or URL.',
+  //   // Optional fields: generationModelName, userAdditionalDescription, aiRequestedExamples, userSelectedExamples
+  //   // These will be handled by defaults or undefined in the API.
+  // };
 
-  const testPayloadEmptyExamples = {
-    toolDirective: 'color-palette-extractor',
-    toolDescription:
-      'Extracts the dominant colors from an uploaded image to create a color palette.',
-    generationModelName: 'models/gemini-1.5-flash-latest',
-    userAdditionalDescription: 'I want at least 5 colors, and their hex codes.',
-    aiRequestedExamples: [], // Empty AI examples
-    userSelectedExamples: null, // Testing null for user examples
-  };
+  // const testPayloadEmptyExamples = {
+  //   toolDirective: 'color-palette-extractor',
+  //   toolDescription:
+  //     'Extracts the dominant colors from an uploaded image to create a color palette.',
+  //   generationModelName: 'models/gemini-1.5-flash-latest',
+  //   userAdditionalDescription: 'I want at least 5 colors, and their hex codes.',
+  //   aiRequestedExamples: [], // Empty AI examples
+  //   userSelectedExamples: null, // Testing null for user examples
+  // };
 
-  const testPayloadNoOptionalFields = {
-    toolDirective: 'text-case-randomizer',
-    toolDescription: 'Randomly alters the casing of input text for fun.',
-  };
+  // const testPayloadNoOptionalFields = {
+  //   toolDirective: 'text-case-randomizer',
+  //   toolDescription: 'Randomly alters the casing of input text for fun.',
+  // };
 
   console.log(`\n--- TESTING NARRATIVE ENDPOINT: ${API_ENDPOINT} ---\n`);
 
   const payloadsToTest = [
     { name: 'Full Payload', data: testPayload },
-    { name: 'Minimal Payload (API defaults tested)', data: testPayloadMinimal },
-    {
-      name: 'Payload with Empty/Null Examples',
-      data: testPayloadEmptyExamples,
-    },
-    {
-      name: 'Payload with No Optional Fields',
-      data: testPayloadNoOptionalFields,
-    },
+    // { name: 'Minimal Payload (API defaults tested)', data: testPayloadMinimal },
+    // {
+    //   name: 'Payload with Empty/Null Examples',
+    //   data: testPayloadEmptyExamples,
+    // },
+    // {
+    //   name: 'Payload with No Optional Fields',
+    //   data: testPayloadNoOptionalFields,
+    // },
   ];
 
   for (const { name, data } of payloadsToTest) {
@@ -81,9 +81,7 @@ async function testNarrativeEndpoint() {
         continue;
       }
 
-      const responseBody = await response.json(); // Removed type annotation ': any'
-      console.log('\nResponse Body:');
-      console.log(JSON.stringify(responseBody, null, 2));
+      const responseBody = await response.json();
 
       if (
         !responseBody ||
