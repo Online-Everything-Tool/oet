@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
@@ -299,6 +299,8 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
     toolState.processedFileId,
     getFile,
     isLoadingToolSettings,
+    originalImageSrcForUI,
+    processedImageSrcForUI,
   ]);
 
   const resizeDrawFunction = useCallback(
@@ -622,7 +624,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
     }
   };
 
-  const imageFilter = useMemo(() => ({ category: 'image' as const }), []);
+
   const displayError = processingErrorHook || uiError;
 
   const canPerformActions =
@@ -667,6 +669,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
         <div className="flex flex-wrap gap-4 items-center">
           <Button
             variant="accent2"
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
             iconLeft={<PhotoIcon className="h-5 w-5" />}
             onClick={() => setIsLibraryModalOpen(true)}
             disabled={isProcessingImage || isManuallySaving}
@@ -705,6 +708,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
           </div>
         </div>
         <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-gray-200 mt-2">
+          {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion */}
           <Checkbox
             label="Auto-save resized image to Library"
             checked={toolState.autoSaveProcessed}
