@@ -192,23 +192,17 @@ export async function POST(request: NextRequest) {
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
     const lines = globalLintErrors.split('\n');
-    const messagesForThisFileArray: string[] = [];
+    const rawMessagesBlockForThisFileArray: string[] = [];
     const currentFilePathNormalized = path.normalize(file.path);
 
     const pathHeaderRegex =
       /^(?:\.\/)?((?:app|src|node_modules)[\w/\-.]+\.(tsx|ts|js|jsx|mjs|cjs))$/i;
-
-    const actualMessagePattern =
-      /^\s*(?:\d+:\d+\s+(?:Error|Warning)|(?:error|warning)\s+TS\d+:)/i;
-
-    const continuationMessagePattern = /^\s*-\s+/;
 
     let collectingForCurrentFileTarget = false;
 
     for (const line of lines) {
       const trimmedLineStart = line.trimStart();
       const trimmedLineFull = line.trim();
-
       let lineIsPathHeaderForTargetFile = false;
       let lineIsDifferentPathHeader = false;
 
@@ -225,47 +219,52 @@ export async function POST(request: NextRequest) {
       if (lineIsPathHeaderForTargetFile) {
         collectingForCurrentFileTarget = true;
       } else if (lineIsDifferentPathHeader) {
-        collectingForCurrentFileTarget = false;
-      } else if (collectingForCurrentFileTarget && trimmedLineFull) {
-
-        if (
-          actualMessagePattern.test(trimmedLineStart) ||
-          continuationMessagePattern.test(trimmedLineStart)
-        ) {
-          messagesForThisFileArray.push(line);
-        } else {
-
+        if (collectingForCurrentFileTarget) {
+          collectingForCurrentFileTarget = false;
+          break;
         }
+      } else if (collectingForCurrentFileTarget && trimmedLineFull) {
+        rawMessagesBlockForThisFileArray.push(line);
       }
     }
-    const specificLintMessagesForThisFile = messagesForThisFileArray.join('\n');
+    const rawErrorBlockForFile = rawMessagesBlockForThisFileArray.join('\n');
 
     console.log(
-      `[API fix-linting-errors] For file ${file.path}, specificLintMessagesForThisFile (TARGETED EXTRACTION Attempt 6) (trimmed length ${specificLintMessagesForThisFile.trim().length}):\n---\n${specificLintMessagesForThisFile.trim()}\n---`
+      `[API fix-linting-errors] For file ${file.path}, RAW extracted error block (length ${rawErrorBlockForFile.length}):\n---\n${rawErrorBlockForFile}\n---`
     );
 
-    let hasActualErrors = false;
-    if (specificLintMessagesForThisFile.trim()) {
-      const errorIndicatorRegex = /(?:^|\s|-|\d+:\d+\s+)(error|error ts\d+)/i;
-      const buildFailureIndicators = /(module not found|failed to compile)/i;
-      for (const line of messagesForThisFileArray) {
+    let blockContainsActualError = false;
+    const structuredErrorPattern = /^\s*\d+:\d+\s+error\b/i;
+    const prefixErrorPattern = /^\s*(Error:|Type error:)/i;
+    const toolOutputErrorPattern =
+      /-\s*(?:ESLint|TypeScript|eslint|typescript).*\(error\)/i;
+    const tsErrorCodePattern = /^\s*error\s+TS\d+:/i;
+
+    if (rawErrorBlockForFile.trim()) {
+      for (const lineInBlock of rawMessagesBlockForThisFileArray) {
+        const trimmedLineStart = lineInBlock.trimStart();
+        const trimmedLineFull = lineInBlock.trim(); // Use full trim for patterns not anchored to start
+
         if (
-          errorIndicatorRegex.test(line.toLowerCase()) &&
-          !buildFailureIndicators.test(line.toLowerCase())
+          structuredErrorPattern.test(trimmedLineStart) ||
+          prefixErrorPattern.test(trimmedLineStart) ||
+          toolOutputErrorPattern.test(trimmedLineFull) ||
+          tsErrorCodePattern.test(trimmedLineStart)
         ) {
-          hasActualErrors = true;
+          blockContainsActualError = true;
           break;
         }
       }
     }
+
     console.log(
-      `[API fix-linting-errors] File ${file.path}: Has actual errors (for AI fixing)? ${hasActualErrors}`
+      `[API fix-linting-errors] File ${file.path}: Block contains actual error for AI fixing? ${blockContainsActualError}`
     );
 
-    if (!specificLintMessagesForThisFile.trim() || !hasActualErrors) {
-      const skipReason = !specificLintMessagesForThisFile.trim()
-        ? 'No specific lint/type error messages found for this file'
-        : 'Only warnings found (or messages not identified as fixable errors), no critical errors detected for AI fixing';
+    if (!rawErrorBlockForFile.trim() || !blockContainsActualError) {
+      const skipReason = !rawErrorBlockForFile.trim()
+        ? 'No error messages found for this file in the lint output'
+        : "The error block for this file does not contain any lines matching critical error patterns.";
       console.log(
         `[API fix-linting-errors] ${skipReason} for ${file.path}. Skipping AI processing.`
       );
@@ -279,11 +278,11 @@ export async function POST(request: NextRequest) {
     const populatedPrompt = promptTemplate
       .replace(/{{FILE_PATH}}/g, file.path)
       .replace(/{{FILE_CONTENT}}/g, file.currentContent)
-      .replace(/{{LINT_ERRORS}}/g, specificLintMessagesForThisFile);
+      .replace(/{{LINT_ERRORS}}/g, rawErrorBlockForFile);
 
     try {
       console.log(
-        `[API fix-linting-errors] Sending to AI for ${file.path} with ${messagesForThisFileArray.length} specific lint message line(s). Prompt length: ~${populatedPrompt.length}`
+        `[API fix-linting-errors] Sending to AI for ${file.path} with ${rawMessagesBlockForThisFileArray.length} specific lint message line(s). Prompt length: ~${populatedPrompt.length}`
       );
       const result = await model.generateContent({
         contents: [{ role: 'user', parts: [{ text: populatedPrompt }] }],
@@ -421,9 +420,9 @@ export async function POST(request: NextRequest) {
   );
   return NextResponse.json(
     {
-      success: allAttemptedAiCallsSucceeded,
+      success: allAttemptedAiCallsSucceeded, // This reflects if all *attempted* AI calls were successful
       message: determinedOverallMessage,
-      fixedFiles: fixedFilesResults,
+      fixedFiles: fixedFilesResults, // Contains results only for files AI processed
     } as ApiResponse,
     { status: 200 }
   );
