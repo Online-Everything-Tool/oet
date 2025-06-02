@@ -101,7 +101,7 @@ export default function ImageConverterClient({
 
   const directiveName = metadata.directive;
 
-  const { getFile, addFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } = useFileLibrary();
+  const { getFile, addFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles, updateFileBlob } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
     isConverting,
@@ -248,7 +248,7 @@ export default function ImageConverterClient({
       mounted = false;
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
     };
-  }, [toolState.selectedFileId, getFile, isLoadingToolSettings]);
+  }, [toolState.selectedFileId, getFile, isLoadingToolSettings, originalImageSrcForUI]);
 
 
   // Trigger conversion
