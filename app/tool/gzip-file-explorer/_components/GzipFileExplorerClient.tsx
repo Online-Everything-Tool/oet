@@ -124,7 +124,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
 
     setToolState(prev => ({
       ...prev,
-      decompressedDataArrayBuffer: result.content ? result.content.buffer.slice(0) : null, // Ensure new ArrayBuffer instance
+      decompressedDataArrayBuffer: result.content ? new Uint8Array(result.content.buffer).buffer : null, // Ensure new ArrayBuffer instance
       decompressedOriginalFileName: result.originalFilename,
       derivedOutputFileName: newDerivedName,
       decompressedFileId: null, // New .gz file, so old decompressed file ID is invalid
@@ -156,7 +156,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
         handleClear(false);
       });
     }
-  }, [toolState.selectedGzFileId, isLoadingToolState, isDecompressing, getFile, processSelectedGzFile]);
+  }, [toolState.selectedGzFileId, isLoadingToolState, isDecompressing, getFile, processSelectedGzFile, handleClear]);
 
 
   const handleFileSelectedFromModal = useCallback(async (files: StoredFile[]) => {
