@@ -1,0 +1,20 @@
+{
+  "title": "Gzip File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Allows users to explore the contents of gzip compressed files without needing any server-side assistance. Decompresses .gz files and displays their content.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip", "application/x-gzip", ".gz"],
+    "stateFiles": [{ "stateKey": "selectedGzFileId" }]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "decompressedFileId"
+      }
+    ]
+  },
+  "tags": ["file", "compression", "gzip", "decompress", "archive", "viewer"],
+  "includeInSitemap": true,
+  "status": "stable"
+}

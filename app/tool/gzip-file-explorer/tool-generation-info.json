@@ -1,0 +1,10 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "pako",
+      "reason": "For client-side gzip/gunzip operations.",
+      "importUsed": "import pako from 'pako';"
+    }
+  ],
+  "assetInstructions": null
+}
