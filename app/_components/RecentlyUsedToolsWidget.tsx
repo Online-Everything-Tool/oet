@@ -153,7 +153,6 @@ const RecentToolItem: React.FC<{
             <span className="text-xs text-gray-400 ml-auto whitespace-nowrap pl-2">
               {formatDistanceToNowStrict(new Date(entry.lastModified), {
                 addSuffix: true,
-
               })}
             </span>
           </div>

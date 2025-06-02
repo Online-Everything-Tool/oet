@@ -89,3 +89,19 @@ export interface ApiListDirectivesResponse {
   directives: string[];
   error?: string;
 }
+
+export interface ApiStatusResponse {
+  globalStatus: 'operational' | 'degraded' | 'maintenance';
+  featureFlags: {
+    favoritesEnabled: boolean;
+    recentlyUsedEnabled: boolean;
+    recentBuildsEnabled: boolean;
+    buildToolEnabled: boolean;
+  };
+  services?: {
+    githubApi?: 'operational' | 'degraded' | 'down';
+    aiServices?: 'operational' | 'degraded' | 'down';
+  };
+  message?: string;
+  timestamp: string;
+}

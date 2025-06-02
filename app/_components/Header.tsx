@@ -5,7 +5,6 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { useFullscreenFocus } from '@/app/context/FullscreenFocusContext';
 import type { OfficerDisplayState } from './header/StatusOfficerDisplay';
-import type { ApiStatusResponse } from '@/app/api/status/route';
 
 import HeaderDynamicTitle from './header/HeaderDynamicTitle';
 import StatusOfficerDisplay from './header/StatusOfficerDisplay';
@@ -13,6 +12,7 @@ import HeaderFavorites from './header/HeaderFavorites';
 import HeaderRecentlyUsed from './header/HeaderRecentlyUsed';
 import HeaderBuildToolButton from './header/HeaderBuildToolButton';
 import HeaderRecentBuilds from './header/HeaderRecentBuilds';
+import { ApiStatusResponse } from '@/src/types/build';
 
 const IS_STATIC_BUILD_VALIDATION =
   process.env.NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION === 'true';

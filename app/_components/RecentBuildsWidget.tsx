@@ -37,7 +37,6 @@ interface RecentBuildsApiResponse {
 
 interface RecentBuildsWidgetProps {
   onItemClick?: () => void;
-
 }
 
 const CACHE_DURATION_MS = 5 * 60 * 1000;

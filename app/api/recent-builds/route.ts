@@ -184,7 +184,6 @@ export async function GET() {
     );
 
     const sortedPrs = Array.from(allQualifyingPrsMap.values()).sort((a, b) => {
-
       const aTime = new Date(
         a.status === 'open' ? a.createdAt : a.mergedAt
       ).getTime();
@@ -193,10 +192,8 @@ export async function GET() {
       ).getTime();
 
       if (a.status === 'open' && b.status === 'merged') {
-
       }
       if (a.status === 'merged' && b.status === 'open') {
-
       }
 
       return bTime - aTime;

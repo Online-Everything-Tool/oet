@@ -59,13 +59,11 @@ export default function HeaderBuildToolButton() {
   };
 
   const goToSuggestions = () => {
-
     router.push('/build/tool?tab=suggestions');
     closeDropdown();
   };
 
   const goToUploadTool = () => {
-
     router.push('/build/tool?tab=upload');
     closeDropdown();
   };

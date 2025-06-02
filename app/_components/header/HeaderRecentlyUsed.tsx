@@ -34,7 +34,6 @@ export default function HeaderRecentlyUsed() {
   }, [recentTools, recentsLoaded, currentToolDirective]);
 
   const toggleDropdown = useCallback(() => {
-
     if (!recentsLoaded) return;
     setIsDropdownOpen((prev) => !prev);
   }, [recentsLoaded]);
@@ -87,10 +86,7 @@ export default function HeaderRecentlyUsed() {
         aria-haspopup="true"
         aria-expanded={isDropdownOpen}
         iconLeft={<ListBulletIcon className="h-5 w-5" />}
-        iconRight={
-
-          <ChevronDownIcon className="h-4 w-4 ml-1 text-indigo-200" />
-        }
+        iconRight={<ChevronDownIcon className="h-4 w-4 ml-1 text-indigo-200" />}
       >
         {recentsLoaded && headerRecentToolsCount > 0 && (
           <span
