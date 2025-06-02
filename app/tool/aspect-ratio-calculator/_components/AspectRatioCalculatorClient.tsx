@@ -148,6 +148,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
                 value={calculatedValues.heightFromTargetWidth}
                 readOnly
                 inputClassName="bg-[rgb(var(--color-bg-subtle))] cursor-default"
+                onChange={() => {}} // Added onChange to satisfy InputProps
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
@@ -167,6 +168,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
                 value={calculatedValues.widthFromTargetHeight}
                 readOnly
                 inputClassName="bg-[rgb(var(--color-bg-subtle))] cursor-default"
+                onChange={() => {}} // Added onChange to satisfy InputProps
               />
             </div>
           </div>
@@ -191,7 +193,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
               { value: 'height', label: 'Height' },
             ]}
             selectedValue={state.commonRatioGivenDimensionType}
-            onChange={(value) => handleRadioChange('commonRatioDimensionType', value as 'width' | 'height')}
+            onChange={(value) => handleRadioChange('commonRatioGivenDimensionType', value as 'width' | 'height')}
             layout="horizontal"
           />
           <Input
@@ -211,6 +213,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
               value={calculatedValues.commonRatioCalculatedHeight}
               readOnly
               inputClassName="bg-[rgb(var(--color-bg-subtle))] cursor-default"
+              onChange={() => {}} // Added onChange to satisfy InputProps
             />
           )}
           {state.commonRatioGivenDimensionType === 'height' && (
@@ -221,6 +224,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
               value={calculatedValues.commonRatioCalculatedWidth}
               readOnly
               inputClassName="bg-[rgb(var(--color-bg-subtle))] cursor-default"
+              onChange={() => {}} // Added onChange to satisfy InputProps
             />
           )}
         </fieldset>
