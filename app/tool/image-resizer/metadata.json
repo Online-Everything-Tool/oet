@@ -1,0 +1,41 @@
+{
+  "title": "Image Resizer",
+  "directive": "image-resizer",
+  "description": "Resizes images to specified dimensions while maintaining aspect ratio.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "urlStateParams": [
+    {
+      "paramName": "width",
+      "type": "number",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "height",
+      "type": "number",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "aspect",
+      "type": "boolean",
+      "defaultValue": true
+    }
+  ],
+  "tags": ["image", "resize", "dimensions", "utility", "scaler"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
