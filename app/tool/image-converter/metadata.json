@@ -1,0 +1,24 @@
+{
+  "title": "Image Converter",
+  "directive": "image-converter",
+  "description": "Converts images between various formats like PNG, JPEG, WEBP, GIF, and BMP.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "converter", "format", "transform", "png", "jpeg", "webp", "gif", "bmp"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
