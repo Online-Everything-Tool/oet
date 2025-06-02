@@ -1,0 +1,23 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "Calculates and displays different aspect ratios based on provided dimensions.",
+  "inputConfig": [],
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "urlStateParams": [
+    {
+      "paramName": "width",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "height",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],
+  "includeInSitemap": true,
+  "status": "stable"
+}
