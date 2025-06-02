@@ -205,12 +205,11 @@ export default function ImageEyeDropperClient({
           throw new Error('Selected file or its blob not found.');
         }
         newObjectUrl = URL.createObjectURL(file.blob);
-        setImageObjectUrl(newObjectUrl); // For potential direct img display or other uses
+        setImageObjectUrl(newObjectUrl);
 
         const img = new Image();
         img.onload = () => {
           imageElementRef.current = img;
-          // Setup offscreen canvas
           if (!offscreenCanvasRef.current) {
             offscreenCanvasRef.current = document.createElement('canvas');
           }
@@ -219,26 +218,63 @@ export default function ImageEyeDropperClient({
           const offscreenCtx = offscreenCanvasRef.current.getContext('2d');
           offscreenCtx?.drawImage(img, 0, 0);
 
-          // Draw on visible canvas (scaled)
-          if (visibleCanvasRef.current) {
-            const canvas = visibleCanvasRef.current;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              const aspectRatio = img.naturalWidth / img.naturalHeight;
-              let newWidth = canvas.parentElement?.clientWidth || 300;
-              let newHeight = newWidth / aspectRatio;
+          const drawVisibleCanvas = () => {
+            if (visibleCanvasRef.current && imageElementRef.current) {
 
-              if (newHeight > (canvas.parentElement?.clientHeight || 400)) {
-                newHeight = canvas.parentElement?.clientHeight || 400;
-                newWidth = newHeight * aspectRatio;
+              const canvas = visibleCanvasRef.current;
+              const parent = canvas.parentElement;
+              const imgElement = imageElementRef.current;
+
+              if (!parent) {
+                console.warn('Canvas parent element not found for sizing.');
+                setIsImageLoading(false);
+                return;
               }
-              canvas.width = newWidth;
-              canvas.height = newHeight;
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+              const availableWidth = parent.clientWidth;
+              let availableHeight = (availableWidth * 3) / 4;
+              if (availableWidth === 0) {
+                console.warn('Parent width is 0, cannot size canvas yet.');
+                setIsImageLoading(false);
+                return;
+              }
+
+              const imageAspectRatio =
+                imgElement.naturalWidth / imgElement.naturalHeight;
+
+              let canvasWidth = availableWidth;
+              let canvasHeight = canvasWidth / imageAspectRatio;
+
+              if (canvasHeight > availableHeight) {
+                canvasHeight = availableHeight;
+                canvasWidth = canvasHeight * imageAspectRatio;
+              }
+
+              if (canvasWidth > availableWidth) {
+                canvasWidth = availableWidth;
+                canvasHeight = canvasWidth / imageAspectRatio;
+              }
+
+              canvas.width = Math.max(1, Math.floor(canvasWidth));
+              canvas.height = Math.max(1, Math.floor(canvasHeight));
+
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+                console.log(
+                  `Canvas drawn: ${canvas.width}x${canvas.height}. Image: ${imgElement.naturalWidth}x${imgElement.naturalHeight}. Parent: ${parent.clientWidth}x${parent.clientHeight}`
+                );
+              } else {
+                console.error(
+                  'Failed to get visible canvas context after sizing.'
+                );
+              }
             }
-          }
-          setIsImageLoading(false);
+            setIsImageLoading(false);
+          };
+
+          drawVisibleCanvas();
         };
         img.onerror = () => {
           throw new Error('Failed to load image.');
@@ -259,14 +295,13 @@ export default function ImageEyeDropperClient({
       if (newObjectUrl) {
         URL.revokeObjectURL(newObjectUrl);
       }
-      // If the current imageObjectUrl is different, it means this effect might be cleaning up an old one
-      // while a new one (newObjectUrl) is being set. This check prevents premature revocation.
+
       if (imageObjectUrl && imageObjectUrl !== newObjectUrl) {
         URL.revokeObjectURL(imageObjectUrl);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolState.selectedFileId, getFile]); // imageObjectUrl removed to prevent re-run loop
+  }, [toolState.selectedFileId, getFile]);
 
   const handleFilesSelectedFromModal = useCallback(
     async (files: StoredFile[]) => {
@@ -292,12 +327,7 @@ export default function ImageEyeDropperClient({
         );
       }
     },
-    [
-      toolState,
-      setState,
-      saveStateNow,
-      cleanupOrphanedTemporaryFiles,
-    ]
+    [toolState, setState, saveStateNow, cleanupOrphanedTemporaryFiles]
   );
 
   const handleCanvasClick = useCallback(
@@ -314,7 +344,6 @@ export default function ImageEyeDropperClient({
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
 
-      // Calculate proportional coordinates on the original image
       const imgCoordX = Math.floor(
         (x / canvas.clientWidth) * imageElementRef.current.naturalWidth
       );
@@ -410,8 +439,7 @@ export default function ImageEyeDropperClient({
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);
 
   const itdeSendableItems = useMemo(() => {
-    // This tool doesn't output files, it outputs color data.
-    // The SendToToolButton relies on outputConfig and current tool state.
+
     return [];
   }, []);
 
@@ -509,9 +537,7 @@ export default function ImageEyeDropperClient({
               <p className="text-sm italic text-gray-500">Loading image...</p>
             )}
             {!toolState.selectedFileId && !isImageLoading && (
-              <p className="text-sm italic text-gray-500">
-                No image selected
-              </p>
+              <p className="text-sm italic text-gray-500">No image selected</p>
             )}
             <canvas
               ref={visibleCanvasRef}
@@ -600,7 +626,10 @@ export default function ImageEyeDropperClient({
                 <p className="text-xs text-gray-500">Alpha</p>
                 <p className="font-mono text-sm">
                   {toolState.pickedColorFullDetails.rgba.a} (
-                  {((toolState.pickedColorFullDetails.rgba.a / 255) * 100).toFixed(0)}
+                  {(
+                    (toolState.pickedColorFullDetails.rgba.a / 255) *
+                    100
+                  ).toFixed(0)}
                   %)
                 </p>
               </div>
