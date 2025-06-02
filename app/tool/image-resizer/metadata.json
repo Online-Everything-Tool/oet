@@ -1,0 +1,24 @@
+{
+  "title": "Image Resizer",
+  "directive": "image-resizer",
+  "description": "Resizes images to specified dimensions while maintaining aspect ratio. Supports PNG, JPEG, and WEBP output formats.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "resize", "dimensions", "aspect ratio", "converter"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
