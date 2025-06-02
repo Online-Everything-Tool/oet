@@ -1,0 +1,24 @@
+{
+  "title": "Gzip/Tar.gz File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Explore contents and extract files from Gzip compressed files or Tar archives (.gz, .tar.gz, .tgz).",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip", "application/x-gzip", "application/octet-stream"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "extractedFileIds"
+      }
+    ]
+  },
+  "tags": ["gzip", "tar", "archive", "decompress", "explorer", "gz", "tgz", "untar", "ungzip"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
