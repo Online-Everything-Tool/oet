@@ -238,7 +238,7 @@ async function main() {
 
   const branchSuffix = Date.now().toString().slice(-6); // Slightly longer suffix
   const newBranchName = `feat/gen-${toolDirective}-${branchSuffix}`;
-  const defaultPrTitle = `feat: Add New Tool - ${toolDirective}`;
+  const defaultPrTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
   const prTitle = prTitleArg || defaultPrTitle;
 
   // Construct PR Body (enhanced)

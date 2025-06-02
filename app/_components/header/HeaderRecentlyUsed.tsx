@@ -34,9 +34,10 @@ export default function HeaderRecentlyUsed() {
   }, [recentTools, recentsLoaded, currentToolDirective]);
 
   const toggleDropdown = useCallback(() => {
-    if (!recentsLoaded || headerRecentToolsCount === 0) return;
+
+    if (!recentsLoaded) return;
     setIsDropdownOpen((prev) => !prev);
-  }, [recentsLoaded, headerRecentToolsCount]);
+  }, [recentsLoaded]);
 
   const closeDropdown = useCallback(() => {
     setIsDropdownOpen(false);
@@ -51,6 +52,12 @@ export default function HeaderRecentlyUsed() {
         closeDropdown();
       }
     }
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDropdown();
+      }
+    };
+
     if (isDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscKey);
@@ -61,38 +68,28 @@ export default function HeaderRecentlyUsed() {
     };
   }, [isDropdownOpen, closeDropdown]);
 
-  const handleEscKey = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeDropdown();
-      }
-    },
-    [closeDropdown]
-  );
-
   const isLoading = !recentsLoaded;
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>
       <Button
         onClick={toggleDropdown}
-        disabled={isLoading || headerRecentToolsCount === 0}
+        disabled={isLoading}
         className="rounded bg-[rgba(255,255,255,0.2)] relative hover:!bg-[rgba(255,255,255,0.4)] text-white disabled:opacity-70 px-2.5 py-1.5"
         aria-label="View Recently Used Tools"
         title={
           isLoading
             ? 'Loading Recent Tools...'
             : headerRecentToolsCount === 0
-              ? 'No other recent tools'
+              ? 'No other recent tools to show'
               : 'View Recently Used Tools'
         }
         aria-haspopup="true"
         aria-expanded={isDropdownOpen}
         iconLeft={<ListBulletIcon className="h-5 w-5" />}
         iconRight={
-          headerRecentToolsCount > 0 ? undefined : (
-            <ChevronDownIcon className="h-4 w-4 ml-1 text-indigo-200" />
-          )
+
+          <ChevronDownIcon className="h-4 w-4 ml-1 text-indigo-200" />
         }
       >
         {recentsLoaded && headerRecentToolsCount > 0 && (
@@ -109,14 +106,15 @@ export default function HeaderRecentlyUsed() {
         </span>
       </Button>
 
-      {isDropdownOpen && !isLoading && headerRecentToolsCount > 0 && (
+      {recentsLoaded && (
         <div
-          className="absolute right-0 mt-2 w-72 md:w-80 origin-top-right z-[60] animate-slide-down"
+          className={`absolute right-0 mt-2 w-72 md:w-80 origin-top-right z-[60] 
+                     ${isDropdownOpen ? 'block animate-slide-down' : 'hidden'}`}
           onClick={(e) => e.stopPropagation()}
+          aria-hidden={!isDropdownOpen}
         >
-          {/* RecentlyUsedToolsWidget handles its own styling for the dropdown content */}
           <RecentlyUsedToolsWidget
-            variant="header"
+            key="recent-builds-dropdown-widget"
             currentToolDirectiveToExclude={currentToolDirective}
             onItemClick={closeDropdown}
           />

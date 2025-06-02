@@ -4,8 +4,6 @@
 import React, { useEffect, useState } from 'react';
 import useToolState from '@/app/tool/_hooks/useToolState';
 
-import FavoriteToolsWidget from '@/app/_components/FavoriteToolsWidget';
-import RecentlyUsedToolsWidget from '@/app/_components/RecentlyUsedToolsWidget';
 import BuildToolWidget from '@/app/_components/BuildToolWidget';
 import RecentBuildsWidget from '@/app/_components/RecentBuildsWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
@@ -65,14 +63,11 @@ export default function HomeClient({ initialTools }: HomeClientProps) {
 
   return (
     <div className="space-y-10">
-      <FavoriteToolsWidget />
-      <RecentlyUsedToolsWidget />
       <ToolListWidget initialTools={initialTools} />
       <BuildToolWidget
         suggestedDirectives={projectAnalysis?.suggestedDirectives || []}
         modelNameUsed={projectAnalysis?.modelNameUsed}
       />
-      <RecentBuildsWidget />
     </div>
   );
 }

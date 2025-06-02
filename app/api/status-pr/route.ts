@@ -1,4 +1,4 @@
-// FILE: app/api/pr-status/route.ts
+// FILE: app/api/status-pr/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
@@ -28,7 +28,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
   if (octokitInstance) return octokitInstance;
 
   if (!appId || !privateKeyBase64) {
-    console.error('[api/pr-status] GitHub App credentials missing on server.');
+    console.error('[api/status-pr] GitHub App credentials missing on server.');
     throw new Error(
       'Server configuration error: GitHub App credentials missing.'
     );
@@ -55,7 +55,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
   } catch (e: unknown) {
     const err = e as { status?: number };
     console.error(
-      `[api/pr-status] Failed to get repo installation. Status: ${err?.status}`
+      `[api/status-pr] Failed to get repo installation. Status: ${err?.status}`
     );
     throw new Error(
       `App installation not found or accessible for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}.`
@@ -69,7 +69,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   const { token } = await appAuth({ type: 'installation', installationId });
   octokitInstance = new Octokit({ auth: token });
-  console.log('[api/pr-status] GitHub App authentication successful.');
+  console.log('[api/status-pr] GitHub App authentication successful.');
   return octokitInstance;
 }
 
@@ -139,7 +139,7 @@ async function getToolGenerationInfo(
   };
   if (!toolDirective) {
     console.log(
-      '[api/pr-status] No tool directive provided to getToolGenerationInfo, returning not_found status.'
+      '[api/status-pr] No tool directive provided to getToolGenerationInfo, returning not_found status.'
     );
     return defaultStatus;
   }
@@ -147,7 +147,7 @@ async function getToolGenerationInfo(
   const filePath = `app/tool/${toolDirective}/tool-generation-info.json`;
   try {
     console.log(
-      `[api/pr-status] Fetching tool-generation-info.json from: ${filePath} on branch ${branchName}`
+      `[api/status-pr] Fetching tool-generation-info.json from: ${filePath} on branch ${branchName}`
     );
     const { data: fileContentResponse } = await octokit.rest.repos.getContent({
       owner: GITHUB_REPO_OWNER,
@@ -187,18 +187,18 @@ async function getToolGenerationInfo(
       };
     }
     console.log(
-      `[api/pr-status] tool-generation-info.json found but no base64 content field at ${filePath}`
+      `[api/status-pr] tool-generation-info.json found but no base64 content field at ${filePath}`
     );
     return defaultStatus;
   } catch (error: unknown) {
     const err = error as { status?: number; message?: string };
     if (err.status === 404) {
       console.log(
-        `[api/pr-status] tool-generation-info.json not found at ${filePath} on branch ${branchName}.`
+        `[api/status-pr] tool-generation-info.json not found at ${filePath} on branch ${branchName}.`
       );
     } else {
       console.warn(
-        `[api/pr-status] Error fetching tool-generation-info.json:`,
+        `[api/status-pr] Error fetching tool-generation-info.json:`,
         err.message || String(error)
       );
     }
@@ -274,7 +274,7 @@ function parseLastBotComment(
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const prNumberStr = searchParams.get('prNumber');
-  console.log(`[api/pr-status] GET request. PR#: ${prNumberStr}`);
+  console.log(`[api/status-pr] GET request. PR#: ${prNumberStr}`);
 
   if (!prNumberStr)
     return NextResponse.json(
@@ -287,7 +287,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const octokit = await getAuthenticatedOctokit();
-    console.log(`[api/pr-status] Fetching PR data for PR #${actualPrNumber}`);
+    console.log(`[api/status-pr] Fetching PR data for PR #${actualPrNumber}`);
     const { data: prData } = await octokit.rest.pulls.get({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
@@ -298,7 +298,7 @@ export async function GET(request: NextRequest) {
     const toolDirective = extractToolDirectiveFromBranchName(prHeadBranchName);
 
     console.log(
-      `[api/pr-status] Head SHA: ${headShaToUse}, Branch: ${prHeadBranchName}, Tool: ${toolDirective || 'N/A'}`
+      `[api/status-pr] Head SHA: ${headShaToUse}, Branch: ${prHeadBranchName}, Tool: ${toolDirective || 'N/A'}`
     );
 
     const [checkRunsResponse, toolGenInfo, commentsResponse] =
@@ -411,7 +411,7 @@ export async function GET(request: NextRequest) {
     }
     if (netlifyPreviewUrl && !netlifySuccess) {
       console.log(
-        '[api/pr-status] Netlify URL found in comment, marking Netlify as successful for display.'
+        '[api/status-pr] Netlify URL found in comment, marking Netlify as successful for display.'
       );
       netlifySuccess = true;
     }
@@ -533,7 +533,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(responsePayload, { status: 200 });
   } catch (error: unknown) {
     const err = error as Error & { status?: number };
-    console.error('[api/pr-status] Error in handler:', err.message, err.stack);
+    console.error('[api/status-pr] Error in handler:', err.message, err.stack);
     let errorMessage = 'Failed to fetch PR CI status.';
     if (err.message) errorMessage = err.message;
 

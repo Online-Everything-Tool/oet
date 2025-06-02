@@ -12,19 +12,16 @@ import { useFileLibrary } from '../context/FileLibraryContext';
 import { getFileIconClassName } from '@/app/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
 
-const MAX_DISPLAY_ITEMS_DEFAULT = 5;
 const MAX_DISPLAY_ITEMS_HEADER = 5;
 
 interface RecentlyUsedToolsWidgetProps {
-  variant?: 'default' | 'header';
   currentToolDirectiveToExclude?: string;
   onItemClick?: () => void;
 }
 
 const RecentToolItem: React.FC<{
   entry: RecentToolEntry;
-  variant: 'default' | 'header';
-}> = React.memo(({ entry, variant }) => {
+}> = React.memo(({ entry }) => {
   const { getFile } = useFileLibrary();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false);
@@ -36,7 +33,6 @@ const RecentToolItem: React.FC<{
     if (entry.previewType === 'image' && entry.previewImageId) {
       if (entry.previewImageId !== activeImageUrlIdRef.current || !imageUrl) {
         setIsLoadingImage(true);
-
         setImageUrl(null);
         activeImageUrlIdRef.current = entry.previewImageId;
 
@@ -85,7 +81,7 @@ const RecentToolItem: React.FC<{
         URL.revokeObjectURL(objectUrlCreatedInThisEffectRun);
       }
     };
-  }, [entry.previewType, entry.previewImageId, getFile]);
+  }, [entry.previewType, entry.previewImageId, getFile, imageUrl]);
 
   useEffect(() => {
     const urlInStateWhenEffectRan = imageUrl;
@@ -95,33 +91,6 @@ const RecentToolItem: React.FC<{
       }
     };
   }, [imageUrl]);
-
-  const itemLinkClasses =
-    variant === 'header'
-      ? 'block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-      : 'block p-3 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-subtle))] hover:bg-[rgba(var(--color-border-base)/0.1)] hover:border-[rgb(var(--color-text-link))] transition-colors duration-150';
-
-  const toolTitleClasses =
-    variant === 'header'
-      ? 'text-sm font-medium text-gray-900 truncate'
-      : 'text-base font-semibold text-[rgb(var(--color-text-link))] truncate';
-
-  const previewOuterContainerClasses =
-    variant === 'header'
-      ? 'flex-shrink-0 h-6 w-6 mr-3 bg-gray-100 rounded flex items-center justify-center overflow-hidden'
-      : 'w-full h-24 mb-2 bg-gray-100 rounded flex items-center justify-center overflow-hidden';
-
-  const iconFontClasses = variant === 'header' ? 'text-base' : 'text-3xl';
-
-  const displayableNameClasses =
-    variant === 'header'
-      ? 'text-xs text-gray-500 truncate'
-      : 'text-xs text-center text-[rgb(var(--color-text-muted))] truncate mt-1';
-
-  const timeAgoClasses =
-    variant === 'header'
-      ? 'text-xs text-gray-400 ml-auto whitespace-nowrap pl-2'
-      : 'text-xs text-[rgb(var(--color-text-muted))] mt-0.5';
 
   const renderPreview = () => {
     if (isLoadingImage && entry.previewType === 'image') {
@@ -143,21 +112,21 @@ const RecentToolItem: React.FC<{
           </div>
         ) : (
           <span
-            className={`recent-tool-preview-icon ${variant === 'header' ? 'icon-size-header' : 'icon-size-default'} ${getFileIconClassName('image.png')} ${iconFontClasses}`}
+            className={`recent-tool-preview-icon icon-size-header ${getFileIconClassName('image.png')} text-base`}
             aria-label="Image icon placeholder"
           ></span>
         );
       case 'icon':
         return (
           <span
-            className={`recent-tool-preview-icon ${variant === 'header' ? 'icon-size-header' : 'icon-size-default'} ${getFileIconClassName(entry.previewIconClassContent || 'unknown.txt')} ${iconFontClasses}`}
+            className={`recent-tool-preview-icon icon-size-header ${getFileIconClassName(entry.previewIconClassContent || 'unknown.txt')} text-base`}
             aria-label="File icon"
           ></span>
         );
       default:
         return (
           <span
-            className={`recent-tool-preview-icon ${variant === 'header' ? 'icon-size-header' : 'icon-size-default'} ${getFileIconClassName('file.txt')} ${iconFontClasses} opacity-60`}
+            className={`recent-tool-preview-icon icon-size-header ${getFileIconClassName('file.txt')} text-base opacity-60`}
             aria-label="Generic file icon"
           ></span>
         );
@@ -165,42 +134,35 @@ const RecentToolItem: React.FC<{
   };
 
   return (
-    <Link href={`/tool/${entry.directive}/`} className={itemLinkClasses}>
-      <div
-        className={`flex ${variant === 'header' ? 'items-center' : 'flex-col'}`}
-      >
-        <div className={previewOuterContainerClasses}>{renderPreview()}</div>
-        <div
-          className={`flex-grow ${variant === 'header' ? 'min-w-0' : 'w-full text-center'}`}
-        >
-          <div
-            className={`${variant === 'header' ? 'flex items-baseline justify-between w-full' : ''}`}
-          >
-            <h3 className={toolTitleClasses} title={entry.title}>
+    <Link
+      href={`/tool/${entry.directive}/`}
+      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+    >
+      <div className="flex items-center">
+        <div className="flex-shrink-0 h-6 w-6 mr-3 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+          {renderPreview()}
+        </div>
+        <div className="flex-grow min-w-0">
+          <div className="flex items-baseline justify-between w-full">
+            <h3
+              className="text-sm font-medium text-gray-900 truncate"
+              title={entry.title}
+            >
               {entry.title}
             </h3>
-            {variant === 'header' && (
-              <span className={timeAgoClasses}>
-                {formatDistanceToNowStrict(new Date(entry.lastModified), {
-                  addSuffix: true,
-                  unit: 'second',
-                })}
-              </span>
-            )}
+            <span className="text-xs text-gray-400 ml-auto whitespace-nowrap pl-2">
+              {formatDistanceToNowStrict(new Date(entry.lastModified), {
+                addSuffix: true,
+
+              })}
+            </span>
           </div>
           {entry.displayableItemName && (
             <p
-              className={displayableNameClasses}
+              className="text-xs text-gray-500 truncate"
               title={entry.displayableItemName}
             >
               {entry.displayableItemName}
-            </p>
-          )}
-          {variant === 'default' && (
-            <p className={timeAgoClasses}>
-              {formatDistanceToNowStrict(new Date(entry.lastModified), {
-                addSuffix: true,
-              })}
             </p>
           )}
         </div>
@@ -211,8 +173,8 @@ const RecentToolItem: React.FC<{
 RecentToolItem.displayName = 'RecentToolItem';
 
 export default function RecentlyUsedToolsWidget({
-  variant = 'default',
   currentToolDirectiveToExclude,
+  onItemClick,
 }: RecentlyUsedToolsWidgetProps) {
   const { recentTools, isLoaded } = useRecentlyUsed();
 
@@ -226,35 +188,22 @@ export default function RecentlyUsedToolsWidget({
     return tools;
   }, [recentTools, currentToolDirectiveToExclude]);
 
-  const maxItems =
-    variant === 'header' ? MAX_DISPLAY_ITEMS_HEADER : MAX_DISPLAY_ITEMS_DEFAULT;
-  const toolsToDisplay = filteredAndSortedTools.slice(0, maxItems);
+  const toolsToDisplay = filteredAndSortedTools.slice(
+    0,
+    MAX_DISPLAY_ITEMS_HEADER
+  );
 
   const containerClasses =
-    variant === 'header'
-      ? 'py-1 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none min-w-[300px] max-w-sm'
-      : 'p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))] mb-8';
-
+    'py-1 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none min-w-[300px] max-w-sm';
   const titleClasses =
-    variant === 'header'
-      ? 'px-4 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider'
-      : 'text-lg font-semibold text-[rgb(var(--color-text-base))]';
-
-  const listClasses =
-    variant === 'header'
-      ? 'max-h-[400px] overflow-y-auto'
-      : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3';
+    'px-4 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
+  const listClasses = 'max-h-[400px] overflow-y-auto custom-scrollbar';
 
   if (!isLoaded) {
-    const loadingTitleMargin = variant === 'default' ? 'mb-3' : '';
     return (
       <div className={containerClasses}>
-        <h2 className={`${titleClasses} ${loadingTitleMargin}`}>
-          Recently Used
-        </h2>
-        <p
-          className={`italic animate-pulse ${variant === 'header' ? 'text-xs px-4 py-2 text-gray-500' : 'text-sm text-center p-4 text-[rgb(var(--color-text-muted))]'}`}
-        >
+        <h2 className={titleClasses}>Recently Used</h2>
+        <p className="italic animate-pulse text-xs px-4 py-2 text-gray-500">
           Loading...
         </p>
       </div>
@@ -262,13 +211,11 @@ export default function RecentlyUsedToolsWidget({
   }
 
   if (toolsToDisplay.length === 0) {
-    if (variant === 'header') return null;
     return (
       <div className={containerClasses}>
-        <h2 className={`${titleClasses} mb-3`}>Recently Used</h2>{' '}
-        {/* Corrected: always mb-3 here */}
-        <p className="text-sm text-[rgb(var(--color-text-muted))] italic text-center py-4">
-          No tools with recent activity to display.
+        <h2 className={titleClasses}>Recently Used Tools</h2>
+        <p className="text-sm text-gray-500 italic text-center px-4 py-3">
+          No other recent tools.
         </p>
       </div>
     );
@@ -276,22 +223,17 @@ export default function RecentlyUsedToolsWidget({
 
   return (
     <div className={containerClasses}>
-      <div
-        className={`flex justify-between items-center ${variant === 'default' ? 'mb-3' : ''}`}
-      >
+      <div className="flex justify-between items-center">
         <h2 className={titleClasses}>Recently Used Tools</h2>
       </div>
       <ul className={listClasses}>
         {toolsToDisplay.map((entry) => (
           <li
             key={entry.directive}
-            className={
-              variant === 'header'
-                ? 'border-b border-gray-100 last:border-b-0'
-                : ''
-            }
+            className="border-b border-gray-100 last:border-b-0"
+            onClick={onItemClick}
           >
-            <RecentToolItem entry={entry} variant={variant} />
+            <RecentToolItem entry={entry} />
           </li>
         ))}
       </ul>

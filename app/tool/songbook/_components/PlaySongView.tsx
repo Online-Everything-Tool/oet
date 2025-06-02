@@ -413,7 +413,7 @@ export default function PlaySongView({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-2 md:p-4"
+      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -423,7 +423,7 @@ export default function PlaySongView({
         className="bg-gray-900 text-gray-100 rounded-lg shadow-xl w-full h-full flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 md:p-4 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
+        <div className="p-2 md:p-3 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
           <div className="min-w-0">
             <h2
               id="play-song-title"

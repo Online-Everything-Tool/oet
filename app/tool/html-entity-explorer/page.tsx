@@ -140,7 +140,6 @@ async function loadAndProcessEntities(): Promise<{
 export default async function HtmlEntityPage() {
   const typedMetadata = metadata as ToolMetadata;
   const { entities, categories } = await loadAndProcessEntities();
-  const toolTitle = metadata.title || 'Html Entity Explorer';
 
   if (entities.length === 0) {
     console.warn(

@@ -2,58 +2,6 @@
 @import 'tailwindcss';
 @import 'file-icons-js/css/style.css';
 
-@keyframes fadeInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px); /* Or your desired starting offset */
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-fadeInRight {
-  opacity: 0; /* Start hidden if animation doesn't run immediately */
-  animation-name: fadeInRight;
-  animation-duration: 0.3s; /* Or your desired duration */
-  animation-timing-function: ease-out;
-  animation-fill-mode: forwards;
-}
-
-/* For the Header Dropdowns (and potentially other slide-down elements) */
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px); /* Start slightly above */
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-slide-down {
-  animation: slideDown 0.2s ease-out forwards; /* Adjust duration as needed */
-}
-
-/* Custom scrollbar (already present in your HomeClient, good to have globally) */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgb(var(--color-bg-subtle));
-  border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-border-base));
-  border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--color-text-muted));
-}
-
 /* Dark scrollbar variant (if needed for dark backgrounds) */
 .custom-scrollbar-dark::-webkit-scrollbar {
   width: 8px;

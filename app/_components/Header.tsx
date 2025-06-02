@@ -1,4 +1,4 @@
-// FILE: app/_components/Header.tsx (R-L Unfurl for CTAs)
+// FILE: app/_components/Header.tsx
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
@@ -13,6 +13,9 @@ import HeaderFavorites from './header/HeaderFavorites';
 import HeaderRecentlyUsed from './header/HeaderRecentlyUsed';
 import HeaderBuildToolButton from './header/HeaderBuildToolButton';
 import HeaderRecentBuilds from './header/HeaderRecentBuilds';
+
+const IS_STATIC_BUILD_VALIDATION =
+  process.env.NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION === 'true';
 
 const HeaderTitleFallback = () => (
   <div className="h-7 w-24 bg-white/10 rounded animate-pulse"></div>
@@ -37,9 +40,13 @@ const ANIMATION_SPEED_MULTIPLIER = 1;
 export default function Header() {
   const { isFocusMode } = useFullscreenFocus();
   const [officerDisplayState, setOfficerDisplayState] =
-    useState<OfficerDisplayState>('hidden');
+    useState<OfficerDisplayState>(
+      IS_STATIC_BUILD_VALIDATION ? 'operational' : 'hidden'
+    );
   const [apiStatus, setApiStatus] = useState<ApiStatusResponse | null>(null);
-  const [isLoadingApiStatus, setIsLoadingApiStatus] = useState(true);
+  const [isLoadingApiStatus, setIsLoadingApiStatus] = useState(
+    !IS_STATIC_BUILD_VALIDATION
+  );
 
   const titleControls = useAnimationControls();
   const kevinWrapperControls = useAnimationControls();
@@ -86,89 +93,106 @@ export default function Header() {
 
   useEffect(() => {
     const initialSequence = async () => {
-      console.log(
-        'Header (Step 1 - Settle): Title and KevinWrapper appearing.'
-      );
-      setOfficerDisplayState('pending');
+      if (!IS_STATIC_BUILD_VALIDATION) {
+        setOfficerDisplayState('pending');
+      }
 
       const titleSettlePromise = titleControls.start('visible');
       const kevinWrapperSettlePromise = kevinWrapperControls.start('visible', {
         delay: 0.1 * ANIMATION_SPEED_MULTIPLIER,
       });
 
-      setIsLoadingApiStatus(true);
-      fetch('/api/status')
-        .then((res) => (res.ok ? res.json() : Promise.reject('API Error')))
-        .then((data) => setApiStatus(data as ApiStatusResponse))
-        .catch((err) => {
-          console.error('API Status Fetch Error:', err);
-          setApiStatus({
-            globalStatus: 'degraded',
-            featureFlags: {
-              favoritesEnabled: true,
-              recentlyUsedEnabled: true,
-              recentBuildsEnabled: false,
-              buildToolEnabled: false,
-            },
-            timestamp: new Date().toISOString(),
-          });
-        })
-        .finally(() => setIsLoadingApiStatus(false));
-
+      if (IS_STATIC_BUILD_VALIDATION) {
+        console.log(
+          '[Header] Static build validation mode: Mocking API status as operational.'
+        );
+        const mockStatus: ApiStatusResponse = {
+          globalStatus: 'operational',
+          featureFlags: {
+            favoritesEnabled: true,
+            recentlyUsedEnabled: true,
+            recentBuildsEnabled: true,
+            buildToolEnabled: true,
+          },
+          services: { githubApi: 'operational', aiServices: 'operational' },
+          message: 'All systems operational (Static Build Mode)',
+          timestamp: new Date().toISOString(),
+        };
+        setApiStatus(mockStatus);
+      } else {
+        fetch('/api/status')
+          .then((res) =>
+            res.ok
+              ? res.json()
+              : Promise.reject(new Error(`API Error: ${res.status}`))
+          )
+          .then((data: ApiStatusResponse) => setApiStatus(data))
+          .catch((err) => {
+            console.error('API Status Fetch Error:', err);
+            setApiStatus({
+              globalStatus: 'degraded',
+              featureFlags: {
+                favoritesEnabled: true,
+                recentlyUsedEnabled: true,
+                recentBuildsEnabled: false,
+                buildToolEnabled: false,
+              },
+              timestamp: new Date().toISOString(),
+              message: `Error fetching status: ${err.message}`,
+            });
+          })
+          .finally(() => setIsLoadingApiStatus(false));
+      }
       await Promise.all([titleSettlePromise, kevinWrapperSettlePromise]);
-      console.log(
-        'Header (Step 1 - Settle): Title and KevinWrapper in final L/R positions.'
-      );
     };
     initialSequence();
   }, [titleControls, kevinWrapperControls]);
 
   useEffect(() => {
-    if (!isLoadingApiStatus && apiStatus) {
-      console.log(
-        'Header (Step 2 - Unfurl & Status): API status received.',
-        apiStatus
-      );
+    if (!IS_STATIC_BUILD_VALIDATION && !isLoadingApiStatus && apiStatus) {
       setOfficerDisplayState(
         apiStatus.globalStatus === 'operational' ? 'operational' : 'error'
       );
+    }
+  }, [isLoadingApiStatus, apiStatus]);
 
-      const canShowAnyCTA =
+  useEffect(() => {
+    let canShowAnyCTA = false;
+
+    if (IS_STATIC_BUILD_VALIDATION) {
+      canShowAnyCTA = true;
+    } else if (!isLoadingApiStatus && apiStatus) {
+      canShowAnyCTA =
         apiStatus.featureFlags.favoritesEnabled ||
         apiStatus.featureFlags.recentlyUsedEnabled ||
         (apiStatus.globalStatus === 'operational' &&
           (apiStatus.featureFlags.recentBuildsEnabled ||
             apiStatus.featureFlags.buildToolEnabled));
-
-      if (canShowAnyCTA) {
-        console.log(
-          'Header (Step 2 - Unfurl & Status): Triggering CTA group visibility.'
-        );
-        setTimeout(
-          () => {
-            ctaGroupControls.start('visible');
-          },
-          0.2 * ANIMATION_SPEED_MULTIPLIER * 1000
-        );
-      } else {
-        console.log(
-          'Header (Step 2 - Unfurl & Status): No CTAs to show based on API status.'
-        );
-      }
     }
-  }, [isLoadingApiStatus, apiStatus, ctaGroupControls, officerDisplayState]);
+
+    if (canShowAnyCTA && !isFocusMode) {
+      setTimeout(
+        () => {
+          ctaGroupControls.start('visible');
+        },
+        (IS_STATIC_BUILD_VALIDATION ? 0.05 : 0.2) *
+          ANIMATION_SPEED_MULTIPLIER *
+          1000
+      );
+    } else {
+      ctaGroupControls.start('hidden');
+    }
+  }, [isLoadingApiStatus, apiStatus, ctaGroupControls, isFocusMode]);
 
   const headerBaseClasses =
     'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] shadow-md';
   const stickyClasses = 'sticky top-0 z-50';
 
-  if (isFocusMode) return null;
-
   return (
     <header
-      className={`${headerBaseClasses} ${stickyClasses} flex items-center`}
+      className={`${headerBaseClasses} ${stickyClasses} flex items-center ${isFocusMode ? 'invisible' : ''}`}
     >
-      <nav className="container mx-auto max-w-6xl px-4 min-h-[68px] flex justify-between items-center overflow-hidden relative">
+      <nav className="container mx-auto max-w-6xl px-4 min-h-[68px] flex justify-between items-center relative">
         <motion.div
           className="flex-none"
           variants={mainItemSettleVariant}
@@ -197,8 +221,8 @@ export default function Header() {
             >
               {!isLoadingApiStatus && apiStatus && (
                 <>
-                  {apiStatus.globalStatus === 'operational' &&
-                    apiStatus.featureFlags.buildToolEnabled && (
+                  {apiStatus?.globalStatus === 'operational' &&
+                    apiStatus?.featureFlags.buildToolEnabled && (
                       <motion.div variants={ctaItemVariant}>
                         <Suspense
                           fallback={<GenericButtonFallback width="w-[88px]" />}
@@ -207,8 +231,8 @@ export default function Header() {
                         </Suspense>
                       </motion.div>
                     )}
-                  {apiStatus.globalStatus === 'operational' &&
-                    apiStatus.featureFlags.recentBuildsEnabled && (
+                  {apiStatus?.globalStatus === 'operational' &&
+                    apiStatus?.featureFlags.recentBuildsEnabled && (
                       <motion.div variants={ctaItemVariant}>
                         <Suspense
                           fallback={<GenericButtonFallback width="w-[100px]" />}
@@ -217,7 +241,7 @@ export default function Header() {
                         </Suspense>
                       </motion.div>
                     )}
-                  {apiStatus.featureFlags.recentlyUsedEnabled && (
+                  {apiStatus?.featureFlags.recentlyUsedEnabled && (
                     <motion.div variants={ctaItemVariant}>
                       <Suspense
                         fallback={<GenericButtonFallback width="w-10" />}
@@ -226,7 +250,7 @@ export default function Header() {
                       </Suspense>
                     </motion.div>
                   )}
-                  {apiStatus.featureFlags.favoritesEnabled && (
+                  {apiStatus?.featureFlags.favoritesEnabled && (
                     <motion.div variants={ctaItemVariant}>
                       <Suspense
                         fallback={<GenericButtonFallback width="w-10" />}
@@ -237,19 +261,6 @@ export default function Header() {
                   )}
                 </>
               )}
-              {!isLoadingApiStatus &&
-                apiStatus &&
-                !apiStatus.featureFlags.favoritesEnabled &&
-                !apiStatus.featureFlags.recentlyUsedEnabled &&
-                !(
-                  apiStatus.globalStatus === 'operational' &&
-                  (apiStatus.featureFlags.buildToolEnabled ||
-                    apiStatus.featureFlags.recentBuildsEnabled)
-                ) && (
-                  <div className="text-xs text-indigo-200 italic mr-2">
-                    (No actions available)
-                  </div>
-                )}
             </motion.div>
 
             {officerDisplayState !== 'hidden' && (

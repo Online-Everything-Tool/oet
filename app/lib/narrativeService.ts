@@ -31,7 +31,7 @@ async function fetchAndCacheNarrative(
     const narrative = narrativeModule.default as ResourceGenerationEpic;
     narrativeCache.set(directive, narrative);
     return narrative;
-  } catch (error) {
+  } catch (_error) {
     narrativeCache.set(directive, null);
     return null;
   }

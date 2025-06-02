@@ -1,9 +1,24 @@
 // FILE: app/_components/header/StatusOfficerDisplay.tsx
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from 'react';
 import { motion, useAnimationControls } from 'framer-motion';
 import { getDefaultHomeNarrativeSync } from '@/app/lib/narrativeService';
+import {
+  Cog6ToothIcon,
+  ArrowLeftStartOnRectangleIcon,
+  CubeTransparentIcon,
+  ShieldCheckIcon,
+  EyeSlashIcon,
+  CodeBracketSquareIcon,
+  ArrowRightEndOnRectangleIcon,
+} from '@heroicons/react/24/outline';
 
 export type OfficerDisplayState =
   | 'hidden'
@@ -32,6 +47,42 @@ export default function StatusOfficerDisplay({
 }: StatusOfficerDisplayProps) {
   const officerNarrative = useMemo(() => getDefaultHomeNarrativeSync(), []);
   const dotControls = useAnimationControls();
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const toggleDropdown = useCallback(() => {
+    setIsDropdownOpen((prev) => !prev);
+  }, []);
+
+  const closeDropdown = useCallback(() => {
+    setIsDropdownOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        closeDropdown();
+      }
+    };
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDropdown();
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscKey);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isDropdownOpen, closeDropdown]);
 
   useEffect(() => {
     const flickerSequence = [
@@ -97,7 +148,7 @@ export default function StatusOfficerDisplay({
           await dotControls.start(step);
         }
         const finalColor =
-          displayState === 'operational' ? '#10B981' : '#EF4444';
+          displayState === 'operational' ? '#16a34a' : '#dc2626';
         await dotControls.start({
           backgroundColor: finalColor,
           scale: 1,
@@ -161,33 +212,99 @@ export default function StatusOfficerDisplay({
     ? `View ${statusOfficerName} (${statusOfficerJobTitle || 'Status'}) on GitHub`
     : `${statusOfficerName} (${statusOfficerJobTitle || 'Status'})`;
 
-  const handleClick = () => {
-    if (statusOfficerGithub && typeof window !== 'undefined') {
-      window.open(
-        `https://github.com/${statusOfficerGithub}`,
-        '_blank',
-        'noopener,noreferrer'
-      );
-    }
+  const handleContainerClick = () => {
+    toggleDropdown();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      handleClick();
+      handleContainerClick();
     }
   };
 
+  const principles = [
+    { text: 'Client-Side First', Icon: CubeTransparentIcon, key: 'client' },
+    { text: 'Privacy Focused', Icon: ShieldCheckIcon, key: 'privacy' },
+    { text: 'No Ads, No Tracking', Icon: EyeSlashIcon, key: 'no-ads' },
+    {
+      text: 'Free & Open Source',
+      Icon: CodeBracketSquareIcon,
+      key: 'open-source',
+    },
+  ];
+
   return (
-    <div
-      className={`flex items-center p-1.5 bg-black bg-opacity-20 rounded-lg shadow hover:bg-opacity-30 transition-colors group ${statusOfficerGithub || true ? 'cursor-pointer' : 'cursor-default'}`}
-      title={baseTitle}
-      onClick={handleClick}
-      role={statusOfficerGithub ? 'link' : 'button'}
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-    >
-      {officerContent}
+    <div className="relative" ref={dropdownRef}>
+      <div
+        className={`flex items-center p-1.5 bg-black bg-opacity-20 rounded-lg shadow hover:bg-opacity-30 transition-colors group cursor-pointer`}
+        title={baseTitle}
+        onClick={handleContainerClick}
+        role={'button'}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        aria-haspopup="true"
+        aria-expanded={isDropdownOpen}
+      >
+        {officerContent}
+      </div>
+      {isDropdownOpen && (
+        <div
+          className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] animate-slide-down"
+          role="menu"
+          aria-orientation="vertical"
+          tabIndex={-1}
+        >
+          <div className="py-1 divide-y divide-gray-100" role="none">
+            <div className="px-4 py-3">
+              <p className="text-sm font-semibold text-gray-900">OET Ethos</p>
+            </div>
+            {principles.map((principle) => (
+              <div
+                key={principle.key}
+                className="px-4 py-3 flex items-center text-sm text-gray-700"
+                role="menuitem"
+                aria-disabled="true"
+              >
+                <principle.Icon className="h-5 w-5 mr-3 text-indigo-500 flex-shrink-0" />
+                <span>{principle.text}</span>
+              </div>
+            ))}
+
+            <div className="border-t border-gray-200 my-1"></div>
+            <div className="flex flex-col gap-2">
+              <a
+                href={`https://github.com/Online-Everything-Tool`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-end flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                role="menuitem"
+                tabIndex={-1}
+                onClick={closeDropdown}
+              >
+                <span className="text-sm">OET on GitHub</span>
+                <ArrowRightEndOnRectangleIcon className="h-4 w-4 ml-1 text-gray-500" />
+              </a>
+              {statusOfficerGithub && (
+                <a
+                  href={`https://github.com/${statusOfficerGithub}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="self-end flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={closeDropdown}
+                >
+                  <span className="text-sm">
+                    {statusOfficerGithub} on GitHub
+                  </span>
+                  <ArrowRightEndOnRectangleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

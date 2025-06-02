@@ -214,7 +214,7 @@ export default function CreateAnonymousPr({
     pollingAttemptsRef.current += 1;
     try {
       const response = await fetch(
-        `/api/pr-status?prNumber=${prNumberToMonitor}`
+        `/api/status-pr?prNumber=${prNumberToMonitor}`
       );
       if (!response.ok) {
         const errData = await response.json().catch(() => ({

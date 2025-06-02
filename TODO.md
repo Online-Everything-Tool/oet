@@ -14,10 +14,10 @@
 - 🟡 **Gated Netlify Deploy Previews & Build Log Review:**
   - ⬜ CI (`validate_generated_tool_pr.yml`): Implement conditional Netlify deploy previews (e.g., via GitHub Deployments or PR labels) to trigger only after _all_ internal CI checks and _all_ AI corrective workflows pass.
   - 🟡 Review Netlify Build Logs & Function Logs Post-Launch (ongoing operational task).
-- 🟡 **Enhance PR Status Reporting (`/api/pr-status` & `get_pr-ci-summary.mjs`):**
-  - ⬜ Integrate details from ADM & ALF runs into the status reported by `/api/pr-status`. This might involve ADM/ALF posting a final status artifact or a small status update to a discoverable location (e.g., a check run, a specific comment tag).
+- 🟡 **Enhance PR Status Reporting (`/api/status-pr` & `get_pr-ci-summary.mjs`):**
+  - ⬜ Integrate details from ADM & ALF runs into the status reported by `/api/status-pr`. This might involve ADM/ALF posting a final status artifact or a small status update to a discoverable location (e.g., a check run, a specific comment tag).
   - ⬜ Align `get_pr-ci-summary.mjs` to fetch and display this enhanced status, including ADM/ALF outcomes (e.g., "ADM: Installed 2 deps", "ALF: Fixed 1 file", "ALF: No changes made, attempt already flagged").
-  - 🟡 `/api/pr-status` refactor for Netlify independence & AI Fixer status integration **(Deferred from original placement, now part of this larger item)**. UI for these aspects also deferred.
+  - 🟡 `/api/status-pr` refactor for Netlify independence & AI Fixer status integration **(Deferred from original placement, now part of this larger item)**. UI for these aspects also deferred.
 
 ## II. Inter-Tool Data Exchange (ITDE) - Finalization & Testing (Original Section I)
 

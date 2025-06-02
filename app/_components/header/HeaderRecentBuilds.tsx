@@ -30,6 +30,12 @@ export default function HeaderRecentBuilds() {
         closeDropdown();
       }
     }
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDropdown();
+      }
+    };
+
     if (isDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('keydown', handleEscKey);
@@ -39,15 +45,6 @@ export default function HeaderRecentBuilds() {
       document.removeEventListener('keydown', handleEscKey);
     };
   }, [isDropdownOpen, closeDropdown]);
-
-  const handleEscKey = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeDropdown();
-      }
-    },
-    [closeDropdown]
-  );
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>
@@ -67,18 +64,14 @@ export default function HeaderRecentBuilds() {
       >
         <span className="hidden sm:inline ml-1">Pipeline</span>
       </Button>
-
-      {isDropdownOpen && (
-        <div
-          className="absolute right-0 mt-2 w-72 md:w-80 origin-top-right rounded-md bg-white text-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] animate-slide-down"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <RecentBuildsWidget
-            onItemClick={closeDropdown}
-            variant="headerDropdown"
-          />
-        </div>
-      )}
+      <div
+        className={`absolute px-2 right-0 mt-2 w-72 md:w-80 origin-top-right rounded-md bg-white text-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] 
+                   ${isDropdownOpen ? 'block animate-slide-down' : 'hidden'}`}
+        onClick={(e) => e.stopPropagation()}
+        aria-hidden={!isDropdownOpen}
+      >
+        <RecentBuildsWidget onItemClick={closeDropdown} />
+      </div>
     </div>
   );
 }

@@ -141,56 +141,65 @@ export async function GET() {
       }
     }
     console.log(
-      `[api/recent-builds] Found ${allQualifyingPrsMap.size} initial open qualifying PRs.`
+      `[api/recent-builds] Found ${allQualifyingPrsMap.size} open qualifying PRs.`
     );
 
-    if (allQualifyingPrsMap.size < MAX_PRS_TO_RETURN) {
-      console.log('[api/recent-builds] Fetching recent MERGED tool PRs...');
-      const { data: closedPrs } = await octokit.rest.pulls.list({
-        owner: GITHUB_REPO_OWNER,
-        repo: GITHUB_REPO_NAME,
-        state: 'closed',
-        sort: 'updated',
-        direction: 'desc',
-        per_page: MAX_MERGED_PRS_TO_FETCH_CANDIDATES,
-      });
+    console.log(
+      '[api/recent-builds] Fetching recent CLOSED (for MERGED) tool PRs...'
+    );
+    const { data: closedPrs } = await octokit.rest.pulls.list({
+      owner: GITHUB_REPO_OWNER,
+      repo: GITHUB_REPO_NAME,
+      state: 'closed',
+      sort: 'updated',
+      direction: 'desc',
+      per_page: MAX_MERGED_PRS_TO_FETCH_CANDIDATES,
+    });
 
-      for (const pr of closedPrs) {
-        if (allQualifyingPrsMap.size >= MAX_PRS_TO_RETURN * 2) break;
+    let mergedAddedCount = 0;
+    for (const pr of closedPrs) {
+      if (pr.merged_at && isQualifyingToolPr(pr)) {
+        const toolDirective = extractToolDirectiveFromBranch(pr.head.ref);
 
-        if (pr.merged_at && isQualifyingToolPr(pr)) {
-          const toolDirective = extractToolDirectiveFromBranch(pr.head.ref);
-          if (toolDirective && !allQualifyingPrsMap.has(pr.number)) {
-            allQualifyingPrsMap.set(pr.number, {
-              status: 'merged',
-              prNumber: pr.number,
-              prUrl: pr.html_url,
-              title: pr.title,
-              toolDirective: toolDirective,
-              branchName: pr.head.ref,
-              mergedAt: pr.merged_at,
-            });
-          }
+        if (
+          toolDirective &&
+          !allQualifyingPrsMap.has(pr.number) &&
+          mergedAddedCount < MAX_PRS_TO_RETURN * 2
+        ) {
+          allQualifyingPrsMap.set(pr.number, {
+            status: 'merged',
+            prNumber: pr.number,
+            prUrl: pr.html_url,
+            title: pr.title,
+            toolDirective: toolDirective,
+            branchName: pr.head.ref,
+            mergedAt: pr.merged_at,
+          });
+          mergedAddedCount++;
         }
       }
-      console.log(
-        `[api/recent-builds] Total qualifying PRs after adding merged: ${allQualifyingPrsMap.size}.`
-      );
     }
+    console.log(
+      `[api/recent-builds] Added ${mergedAddedCount} merged qualifying PRs. Total candidates: ${allQualifyingPrsMap.size}.`
+    );
 
     const sortedPrs = Array.from(allQualifyingPrsMap.values()).sort((a, b) => {
-      if (a.status === 'open' && b.status === 'merged') return -1;
-      if (a.status === 'merged' && b.status === 'open') return 1;
 
-      if (a.status === 'open' && b.status === 'open') {
-        return (
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+      const aTime = new Date(
+        a.status === 'open' ? a.createdAt : a.mergedAt
+      ).getTime();
+      const bTime = new Date(
+        b.status === 'open' ? b.createdAt : b.mergedAt
+      ).getTime();
+
+      if (a.status === 'open' && b.status === 'merged') {
+
       }
-      if (a.status === 'merged' && b.status === 'merged') {
-        return new Date(b.mergedAt).getTime() - new Date(a.mergedAt).getTime();
+      if (a.status === 'merged' && b.status === 'open') {
+
       }
-      return 0;
+
+      return bTime - aTime;
     });
 
     const finalPrsToReturn = sortedPrs.slice(0, MAX_PRS_TO_RETURN);

@@ -5,10 +5,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { formatDistanceToNowStrict } from 'date-fns';
 import {
-  TagIcon,
   ArrowPathIcon,
   ExclamationCircleIcon,
-  ChevronRightIcon,
   CheckCircleIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/react/20/solid';
@@ -39,40 +37,45 @@ interface RecentBuildsApiResponse {
 
 interface RecentBuildsWidgetProps {
   onItemClick?: () => void;
-  variant?: 'default' | 'headerDropdown';
+
 }
 
-const CACHE_DURATION_MS = 2 * 60 * 1000;
+const CACHE_DURATION_MS = 5 * 60 * 1000;
+const WIDGET_INSTANCE_ID = Math.random().toString(36).substring(2, 7);
 
 export default function RecentBuildsWidget({
   onItemClick,
-  variant = 'default',
 }: RecentBuildsWidgetProps) {
   const [recentBuildPrs, setRecentBuildPrs] = useState<
     RecentBuildPrInfoClient[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const lastFetchTimestampRef = useRef<number>(0);
   const fetchedDataRef = useRef<RecentBuildPrInfoClient[] | null>(null);
-  const isMountedRef = useRef(false);
+  const hasAttemptedFetchRef = useRef(false);
 
   useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+    if (hasAttemptedFetchRef.current) {
+      if (!isLoading && fetchedDataRef.current) {
+        setRecentBuildPrs(fetchedDataRef.current);
+      }
+      return;
+    }
 
-  useEffect(() => {
     const fetchRecentBuilds = async () => {
+      if (isLoading && hasAttemptedFetchRef.current && fetchedDataRef.current) {
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
+      hasAttemptedFetchRef.current = true;
+
       try {
         const response = await fetch('/api/recent-builds');
         const data: RecentBuildsApiResponse = await response.json();
-
-        if (!isMountedRef.current) return;
 
         if (response.ok && data.recentBuilds) {
           setRecentBuildPrs(data.recentBuilds);
@@ -81,31 +84,31 @@ export default function RecentBuildsWidget({
         } else {
           const errorMessage =
             data.error || `Failed to fetch recent builds (${response.status})`;
-          console.error('[RecentBuildsWidget] API Error:', errorMessage);
           setError(errorMessage);
           if (!fetchedDataRef.current) setRecentBuildPrs([]);
         }
       } catch (e) {
-        if (!isMountedRef.current) return;
         const errorMessage =
           e instanceof Error ? e.message : 'Unknown error occurred';
-        console.error('[RecentBuildsWidget] Fetch Error:', errorMessage, e);
+        console.error(
+          `[RecentBuildsWidget ${WIDGET_INSTANCE_ID}] Fetch Error:`,
+          errorMessage,
+          e
+        );
         setError(errorMessage);
         if (!fetchedDataRef.current) setRecentBuildPrs([]);
       } finally {
-        if (isMountedRef.current) setIsLoading(false);
+        setIsLoading(false);
       }
     };
 
     const now = Date.now();
     if (
-      now - lastFetchTimestampRef.current > CACHE_DURATION_MS ||
-      !fetchedDataRef.current
+      !hasAttemptedFetchRef.current ||
+      now - lastFetchTimestampRef.current > CACHE_DURATION_MS
     ) {
-      console.log('[RecentBuildsWidget] Cache expired or no data, fetching...');
       fetchRecentBuilds();
     } else {
-      console.log('[RecentBuildsWidget] Using cached data.');
       if (fetchedDataRef.current) {
         setRecentBuildPrs(fetchedDataRef.current);
       }
@@ -113,90 +116,47 @@ export default function RecentBuildsWidget({
     }
   }, []);
 
-  const getItemClasses = () => {
-    if (variant === 'headerDropdown') {
-      return 'block px-3 py-2.5 text-sm hover:bg-gray-100 transition-colors duration-150';
-    }
-    return 'p-3 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-subtle))] hover:bg-[rgba(var(--color-border-base)/0.1)] hover:border-[rgb(var(--color-text-link))] transition-colors duration-150';
-  };
-
   const renderItemContent = (pr: RecentBuildPrInfoClient) => {
     const timeAgo =
       pr.status === 'open'
         ? formatDistanceToNowStrict(new Date(pr.createdAt), { addSuffix: true })
         : formatDistanceToNowStrict(new Date(pr.mergedAt), { addSuffix: true });
 
-    const iconContainerClasses =
-      variant === 'headerDropdown' ? 'flex-shrink-0 mr-2.5' : 'flex-shrink-0';
-    const iconClasses = variant === 'headerDropdown' ? 'h-5 w-5' : 'h-6 w-6';
-
-    const titleClasses =
-      variant === 'headerDropdown'
-        ? 'font-medium text-gray-800 truncate'
-        : 'text-base font-semibold mb-0.5 text-[rgb(var(--color-text-link))] truncate';
-
-    const directiveClasses =
-      variant === 'headerDropdown'
-        ? 'text-xs text-gray-500 truncate'
-        : 'text-xs text-[rgb(var(--color-text-muted))] truncate';
-
-    const timeClasses =
-      variant === 'headerDropdown'
-        ? 'text-xs text-gray-400 ml-auto pl-2 whitespace-nowrap'
-        : 'text-xs text-[rgb(var(--color-text-muted))] mt-0.5';
-
     const statusIconColor =
-      pr.status === 'open'
-        ? variant === 'headerDropdown'
-          ? 'text-blue-500'
-          : 'text-[rgb(var(--color-text-link))]'
-        : variant === 'headerDropdown'
-          ? 'text-green-500'
-          : 'text-green-600';
+      pr.status === 'open' ? 'text-blue-500' : 'text-green-500';
 
     return (
-      <div
-        className={`flex items-center ${variant === 'headerDropdown' ? 'justify-between' : 'gap-3'}`}
-      >
-        <div className={iconContainerClasses}>
+      <div className="flex items-center justify-between">
+        <div className="flex-shrink-0 mr-2.5">
           {pr.status === 'open' ? (
-            <WrenchScrewdriverIcon
-              className={`${iconClasses} ${statusIconColor}`}
-            />
+            <WrenchScrewdriverIcon className={`h-5 w-5 ${statusIconColor}`} />
           ) : (
-            <CheckCircleIcon className={`${iconClasses} ${statusIconColor}`} />
+            <CheckCircleIcon className={`h-5 w-5 ${statusIconColor}`} />
           )}
         </div>
         <div className="flex-grow min-w-0">
-          <p className={titleClasses} title={pr.title}>
+          <p className="font-medium text-gray-800 truncate" title={pr.title}>
             {pr.toolDirective}
           </p>
-          <p className={directiveClasses} title={`PR #${pr.prNumber}`}>
+          <p
+            className="text-xs text-gray-500 truncate"
+            title={`PR #${pr.prNumber}`}
+          >
             PR #{pr.prNumber}
           </p>
         </div>
-        {variant === 'default' && (
-          <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-        )}
-        {variant === 'headerDropdown' && (
-          <span className={timeClasses}>{timeAgo}</span>
-        )}
+        <span className="text-xs text-gray-400 ml-auto pl-2 whitespace-nowrap">
+          {timeAgo}
+        </span>
       </div>
     );
   };
 
-  if (isLoading && recentBuildPrs.length === 0 && !fetchedDataRef.current) {
+  if (isLoading) {
     return (
-      <div
-        className={`p-4 ${variant === 'default' ? 'border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))]' : ''}`}
-      >
-        {variant === 'default' && (
-          <h3 className="text-md font-semibold text-[rgb(var(--color-text-muted))] mb-2">
-            Recent Activity
-          </h3>
-        )}
-        <div className="flex items-center justify-center py-3">
-          <ArrowPathIcon className="h-6 w-6 text-gray-400 animate-spin mr-2" />
+      <div className="py-1 bg-white text-gray-800">
+        <div className="flex items-center justify-center px-4 py-3">
+          <ArrowPathIcon className="h-5 w-5 text-gray-400 animate-spin mr-2" />
           <span className="text-sm text-gray-500 italic">
             Loading recent builds...
           </span>
@@ -205,70 +165,30 @@ export default function RecentBuildsWidget({
     );
   }
 
-  if (error && recentBuildPrs.length === 0) {
+  if (error) {
     return (
-      <div
-        className={`p-4 ${variant === 'default' ? 'border rounded-lg shadow-sm bg-red-50 border-red-200' : 'bg-red-50'}`}
-      >
-        {variant === 'default' && (
-          <h3 className="text-md font-semibold text-red-700 mb-2">
-            Recent Activity
-          </h3>
-        )}
-        <div className="flex items-center text-red-600 py-3">
-          <ExclamationCircleIcon className="h-6 w-6 mr-2" />
+      <div className="py-1 bg-white text-gray-800 bg-red-50">
+        <div className="flex items-center text-red-600 px-4 py-3">
+          <ExclamationCircleIcon className="h-5 w-5 mr-2" />
           <span className="text-sm">Error: {error}</span>
         </div>
       </div>
     );
   }
 
-  if (recentBuildPrs.length === 0 && !isLoading) {
-    if (variant === 'headerDropdown')
-      return (
-        <p className="px-4 py-3 text-sm text-gray-500 italic">
-          No recent build activity.
-        </p>
-      );
+  if (recentBuildPrs.length === 0) {
     return (
-      <div className="p-4 border rounded-lg shadow-sm bg-[rgb(var(--color-bg-component))]">
-        <h3 className="text-md font-semibold text-[rgb(var(--color-text-muted))] mb-2">
-          Recent Activity
-        </h3>
-        <p className="text-sm text-center text-[rgb(var(--color-text-muted))] italic py-4">
-          No recent AI-assisted tool builds found.
+      <div className="py-1 bg-white text-gray-800">
+        <p className="px-4 py-3 text-sm text-gray-500 italic text-center">
+          No recent build activity.
         </p>
       </div>
     );
   }
 
-  const containerClasses =
-    variant === 'default'
-      ? 'p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm space-y-3'
-      : 'py-1';
-
   return (
-    <div className={containerClasses}>
-      {variant === 'default' && (
-        <div className="flex items-center gap-2 mb-3">
-          <TagIcon className="h-6 w-6 text-[rgb(var(--color-text-base))]" />
-          <h2 className="text-lg font-semibold text-[rgb(var(--color-text-base))]">
-            Recent Build Activity
-            {isLoading && (
-              <ArrowPathIcon className="h-4 w-4 text-gray-400 animate-spin inline-block ml-2" />
-            )}
-            {error && !isLoading && (
-              <ExclamationCircleIcon
-                className="h-4 w-4 text-red-400 inline-block ml-2"
-                title={error}
-              />
-            )}
-          </h2>
-        </div>
-      )}
-      <ul
-        className={`${variant === 'default' ? 'space-y-3' : 'divide-y divide-gray-100'}`}
-      >
+    <div className="py-1 bg-white text-gray-800">
+      <ul className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-gray-100">
         {recentBuildPrs.map((pr) => {
           const targetUrl =
             pr.status === 'open'
@@ -279,7 +199,7 @@ export default function RecentBuildsWidget({
             <li key={pr.prNumber}>
               <Link
                 href={targetUrl}
-                className={getItemClasses()}
+                className="block px-3 py-2.5 text-sm hover:bg-gray-100 transition-colors duration-150"
                 onClick={onItemClick}
               >
                 {renderItemContent(pr)}

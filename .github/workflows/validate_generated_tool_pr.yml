@@ -1,3 +1,4 @@
+# .github/workflows/validate_generated_tool_pr.yml
 name: Validate Generated Tool PR
 
 on:
@@ -89,7 +90,7 @@ jobs:
           TOOL_DESCRIPTION="${{ steps.extract_directive_and_metadata.outputs.tool_description }}"
           CLEANED_APP_URL=$(echo "${APP_URL}" | sed 's:/*$::')
           API_ENDPOINT="${CLEANED_APP_URL}/api/analyze-directive-name" 
-          EXISTING_DIRECTIVES_JSON='[]' # In a real scenario, fetch this or read from a file
+          EXISTING_DIRECTIVES_JSON='[]' 
           echo "Attempting AI Analysis API call to: $API_ENDPOINT for directive: $TOOL_DIRECTIVE"
           HTTP_STATUS=$(curl -L --max-redirs 3 -s -w "%{http_code}" -X POST "$API_ENDPOINT" \
             -H "Content-Type: application/json" \
@@ -164,7 +165,7 @@ jobs:
             echo "invalid_files_list=${INVALID_FILES_ESCAPED}" >> $GITHUB_OUTPUT
           fi
 
-  analyze_state_and_dependencies: # Renamed job
+  analyze_state_and_dependencies:
     name: 2. Analyze Tool State & Dependencies
     needs: initial_checks
     if: success() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true'
@@ -196,7 +197,7 @@ jobs:
           TOOL_INFO_FILE_PATH="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
 
           FOUND_NEW_DEP="false"
-          NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]" # Must be initialized as a valid JSON array string
+          NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR="[]"
 
           echo "--- Start: check_tool_info for ${TOOL_DIRECTIVE} (Focus on Payload Creation) ---"
           echo "Tool Info File Path: ${TOOL_INFO_FILE_PATH}"
@@ -225,19 +226,17 @@ jobs:
                 JQ_EXIT_CODE=$?
                 set -e
 
-                if [ $JQ_EXIT_CODE -ne 0 ]; then # Package NOT found
+                if [ $JQ_EXIT_CODE -ne 0 ]; then 
                   echo "    '$packageName' NOT found in package.json (jq exit code: $JQ_EXIT_CODE)."
                   echo "    BEFORE append: NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
-                  # Ensure that dep_obj_json is valid JSON before trying to use it with --argjson
                   if ! echo "$dep_obj_json" | jq -e . > /dev/null 2>&1; then
                       echo "::error::Invalid JSON for dep_obj_json: $dep_obj_json"
-                      # Decide how to handle: skip this dep or fail the step
-                      continue # Skip this problematic dependency object
+                      continue 
                   fi
                   NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR=$(echo "$NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR" | jq --argjson obj "$dep_obj_json" '. + [$obj]')
                   FOUND_NEW_DEP="true"
                   echo "    AFTER append:  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}' (FOUND_NEW_DEP='${FOUND_NEW_DEP}')"
-                else # Package IS found
+                else 
                   echo "    '$packageName' IS ALREADY in package.json (jq exit code: $JQ_EXIT_CODE)."
                 fi
               done < <(echo "$IDENTIFIED_DEPS_JSON_STR" | jq -c '.[]')
@@ -255,12 +254,10 @@ jobs:
                 echo "  NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR='${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}' (This must be valid JSON array string)"
                 echo "  ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT='${ASSET_INSTRUCTIONS_STR_FOR_DEPS_ARTIFACT}'"
 
-                # Validate NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR before using it
                 if ! echo "${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}" | jq -e 'type == "array"' > /dev/null 2>&1; then
                     echo "::error::NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR is not a valid JSON array. Value: '${NEW_DEPS_FOR_ARTIFACT_CONTENT_JSON_STR}'"
                     echo "Skipping creation of pending_dependencies.json due to invalid newDeps content."
-                    # This will lead to an empty artifact if not handled, or we can prevent upload
-                    DEPS_ACTION_REQUIRED="false" # Prevent upload of potentially empty/invalid file
+                    DEPS_ACTION_REQUIRED="false" 
                 else
                     jq -n \
                       --arg directive "$TOOL_DIRECTIVE" \
@@ -272,10 +269,9 @@ jobs:
                     echo "Pending NPM dependencies artifact payload file created at: $DEPS_ARTIFACT_UPLOAD_PATH"
                     echo "Contents of $DEPS_ARTIFACT_UPLOAD_PATH:"
                     cat "$DEPS_ARTIFACT_UPLOAD_PATH"
-                    # Verify it's not empty
                     if [ ! -s "$DEPS_ARTIFACT_UPLOAD_PATH" ]; then
                         echo "::error:: $DEPS_ARTIFACT_UPLOAD_PATH is empty after jq command!"
-                        DEPS_ACTION_REQUIRED="false" # Prevent upload of empty file
+                        DEPS_ACTION_REQUIRED="false" 
                     fi
                 fi
               else
@@ -285,7 +281,6 @@ jobs:
               echo "No 'identifiedDependencies' array or it's empty in '$TOOL_INFO_FILE_PATH'."
             fi
 
-            # ... (Asset processing remains the same) ...
             ASSET_INSTRUCTIONS_STR=$(jq -r '.assetInstructions // ""' "$TOOL_INFO_FILE_PATH")
             if [ -n "$ASSET_INSTRUCTIONS_STR" ] && [ "$ASSET_INSTRUCTIONS_STR" != "null" ]; then
               echo "Asset instructions found. Preparing artifact."
@@ -302,7 +297,7 @@ jobs:
           fi
           echo "Final decision: DEPS_ACTION_REQUIRED=${DEPS_ACTION_REQUIRED}, ASSET_ACTION_REQUIRED=${ASSET_ACTION_REQUIRED}"
           echo "action_required_for_npm_deps=${DEPS_ACTION_REQUIRED}" >> $GITHUB_OUTPUT
-          echo "action_required_for_assets=false" >> $GITHUB_OUTPUT
+          echo "action_required_for_assets=false" >> $GITHUB_OUTPUT 
           echo "deps_artifact_upload_path=$DEPS_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "asset_artifact_upload_path=$ASSET_ARTIFACT_UPLOAD_PATH" >> $GITHUB_OUTPUT
           echo "--- End: check_tool_info (Focus on Payload Creation) ---"
@@ -364,11 +359,19 @@ jobs:
         run: |
           echo "Isolating tool: $TOOL_DIRECTIVE for static check"
           if [ -z "$TOOL_DIRECTIVE" ]; then echo "::error::Tool directive not received."; exit 1; fi
-          echo "Removing app/api to prevent 'output: export' issues during this validation build..."
+
+          echo "Removing app/api to prevent 'output: export' issues and to allow header to use static build mode..."
           rm -rf app/api || echo "No app/api to remove."
+
+          echo "Removing app/page.tsx (homepage) as its dependencies might be pruned..."
+          rm -f app/page.tsx || echo "No app/page.tsx to remove."
+
           if [ -d "app/tool" ]; then
             echo "Pruning other tool directories from app/tool/ ..."
-            cd app/tool; ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf; cd ../.. 
+            cd app/tool
+            # Prune all tools except the current one, _components, and _hooks
+            ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
+            cd ../.. 
           fi
           echo "Project structure pruned for static check."
 
@@ -376,8 +379,9 @@ jobs:
         id: build_oet
         env:
           NEXT_OUTPUT_MODE: export
+          NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION: true
         run: |
-          echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE}..."
+          echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE} and NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION=${NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION}..."
           BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
           set +e 
           npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
@@ -416,7 +420,7 @@ jobs:
         run: |
           echo "--- Start of capture_for_ai_fix step ---"
           BUILD_LOG_FILE="${{ steps.build_oet.outputs.build_log_path }}"
-          LINT_DATA_DIR="${{ runner.temp }}/lint-data-artifact" # Changed dir name slightly for uniqueness
+          LINT_DATA_DIR="${{ runner.temp }}/lint-data-artifact" 
           mkdir -p "$LINT_DATA_DIR"
           LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
           FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt"
@@ -499,7 +503,7 @@ jobs:
           TARGET_URL="http://localhost:3001/tool/$TOOL_DIRECTIVE/"
           SUMMARY_FILE_PATH="$RUNNER_TEMP/douglas_summary.md"
           SCREENSHOT_FILE_PATH="$RUNNER_TEMP/douglas_screenshot.png"
-          if [ ! -f "./dist/check-tool.js" ]; then # Adjust if entry point or compile step is different
+          if [ ! -f "./dist/check-tool.js" ]; then 
             echo "Douglas checker not compiled. Attempting to compile..."
             npx tsc || (echo "::error::Failed to compile Douglas checker." && exit 1)
             if [ ! -f "./dist/check-tool.js" ]; then echo "::error::Douglas checker still not found after compile." && exit 1; fi
@@ -537,14 +541,14 @@ jobs:
         if: always() && steps.serve_static.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: douglas-artifacts-${{ github.run_id }} # One artifact for both
+          name: douglas-artifacts-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/douglas_summary.md
             ${{ runner.temp }}/douglas_screenshot.png
           if-no-files-found: warn
 
       - name: Kill Static Server
-        if: always() && steps.serve_static.outputs.server_pid # Only if server_pid was set
+        if: always() && steps.serve_static.outputs.server_pid
         run: |
           echo "Attempting to kill static server PID: ${{ steps.serve_static.outputs.server_pid }}..."
           (sudo kill -9 ${{ steps.serve_static.outputs.server_pid }} || echo "Kill failed or server already stopped.")
@@ -609,7 +613,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const fs = require('fs').promises;
-            const path = require('path'); // Required for path.join
+            const path = require('path'); 
             const { repo, owner } = context.repo; 
             const issue_number = parseInt(process.env.PR_NUMBER_FOR_COMMENT, 10);
 
@@ -633,7 +637,6 @@ jobs:
             const buildJobResult = process.env.BUILD_JOB_RESULT_FOR_COMMENT;
             const douglasOutcome = process.env.DOUGLAS_OUTCOME_FOR_COMMENT;
 
-            // Section 1: Initial Validations
             commentBody += `### 1. Initial PR Validations (Job: ${initialChecksJobResult || 'N/A'})\n`;
             if (initialChecksJobResult === 'success' && initialChecksOk) {
               commentBody += `✅ Passed.\n`;
@@ -655,7 +658,6 @@ jobs:
             }
             commentBody += "\n---\n";
 
-            // Section 2: Dependency & Asset Analysis
             commentBody += `### 2. Dependency & Asset Analysis (Job: ${analyzeDepsJobResult || 'N/A'})\n`;
             if (analyzeDepsJobResult === 'skipped') commentBody += `🟡 Skipped.\n`;
             else if (depActionRequired) commentBody += `⏳ **NPM Dependencies Pending:** ADM will run.\n`;
@@ -664,7 +666,6 @@ jobs:
             else commentBody += `✅ No pending asset instructions.\n`;
             commentBody += "\n---\n";
 
-            // Section 3: Build, Lint & Douglas Check
             commentBody += `### 3. Build, Lint & Douglas Check (Job: ${buildJobResult || 'N/A'})\n`;
             if (buildJobResult === 'skipped') commentBody += `🟡 Skipped (due to pending dependencies/assets).\n`;
             else if (buildFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
@@ -690,9 +691,8 @@ jobs:
             }
             commentBody += "\n---\n";
 
-            // Section 4: Overall Workflow Conclusion
             commentBody += `### 4. VPR Workflow Outcome & Next Steps\n`;
-            let vprFailedOverall = false; // Assume success unless a fail condition is met
+            let vprFailedOverall = false; 
             if (!initialChecksOk) {
               commentBody += `‼️ **VPR Failed:** Critical initial checks did not pass. Manual review required.`;
               vprFailedOverall = true;
