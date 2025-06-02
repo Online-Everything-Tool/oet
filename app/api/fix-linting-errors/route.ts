@@ -11,9 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_LINT_FIX_MODEL_NAME ||
-  'models/gemini-1.5-flash-latest';
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-flash-latest';
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -39,7 +37,6 @@ interface AiFixedFileResult {
 interface ApiResponse {
   success: boolean;
   message: string;
-
   fixedFileResults?: Record<string, Omit<AiFixedFileResult, 'filePath'>>;
   error?: string;
 }
@@ -116,7 +113,7 @@ function parseNewAIResponseFormat(
   }
 
   const descRegex =
-    /---START_FIX_DESCRIPTION---([\s\S]*?)---END_FIX_DESCRIPTION---/;
+    /---START_FIX_DESCRIPTION---([\s\\S]*?)---END_FIX_DESCRIPTION---/;
   const descMatch = responseText.match(descRegex);
   if (descMatch && descMatch[1]) {
     fixDescription = descMatch[1].trim();
@@ -139,6 +136,11 @@ function parseNewAIResponseFormat(
 function escapeRegex(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+const errorLinePathRegex =
+  /^(?:\.\/)?([a-zA-Z0-9_/-]+\.(?:[jt]sx?|[cm]js))[:(]?/i;
+const eslintHeaderPathRegex =
+  /^(?:\.\/)?([a-zA-Z0-9_/-]+\.(?:[jt]sx?|[cm]js))$/i;
 
 export async function POST(request: NextRequest) {
   const requestStartTime = Date.now();
@@ -213,7 +215,9 @@ export async function POST(request: NextRequest) {
   let allAttemptedAiCallsSucceeded = true;
   let anyFileActuallyChangedByAI = false;
   let promptTemplate: string;
-  const globalLintErrors = (globalLintErrorsInput || '').replace(/\r\n/g, '\n');
+  const globalLintErrorLines = (globalLintErrorsInput || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n');
 
   try {
     promptTemplate = await getPromptTemplate();
@@ -241,41 +245,43 @@ export async function POST(request: NextRequest) {
     const fileProcessStartTime = Date.now();
     console.log(`[API fix-linting-errors] Processing file: ${file.path}`);
 
-    const lines = globalLintErrors.split('\n');
-    const rawMessagesBlockForThisFileArray: string[] = [];
     const currentFilePathNormalized = path.normalize(file.path);
-    const pathHeaderRegex =
-      /^(?:\.\/)?((?:app|src|node_modules)[\w/\-.]+\.(tsx|ts|js|jsx|mjs|cjs))$/i;
-    let collectingForCurrentFileTarget = false;
+    const errorsForThisFileArray: string[] = [];
+    let currentSectionHeaderNormalized: string | null = null;
 
-    for (const line of lines) {
-      const trimmedLineStart = line.trimStart();
-      const trimmedLineFull = line.trim();
-      let lineIsPathHeaderForTargetFile = false;
-      let lineIsDifferentPathHeader = false;
+    for (const line of globalLintErrorLines) {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) continue;
 
-      const pathMatch = trimmedLineStart.match(pathHeaderRegex);
-      if (pathMatch && pathMatch[0] === trimmedLineStart) {
-        const matchedPathNormalized = path.normalize(pathMatch[1]);
-        if (matchedPathNormalized === currentFilePathNormalized) {
-          lineIsPathHeaderForTargetFile = true;
-        } else {
-          lineIsDifferentPathHeader = true;
-        }
+      const eslintHeaderMatch = trimmedLine.match(eslintHeaderPathRegex);
+      if (
+        eslintHeaderMatch &&
+        path.normalize(eslintHeaderMatch[1]) === currentFilePathNormalized
+      ) {
+        currentSectionHeaderNormalized = currentFilePathNormalized;
+        continue;
+      }
+      if (
+        eslintHeaderMatch &&
+        path.normalize(eslintHeaderMatch[1]) !== currentFilePathNormalized
+      ) {
+        currentSectionHeaderNormalized = path.normalize(eslintHeaderMatch[1]);
+        continue;
       }
 
-      if (lineIsPathHeaderForTargetFile) {
-        collectingForCurrentFileTarget = true;
-      } else if (lineIsDifferentPathHeader) {
-        if (collectingForCurrentFileTarget) {
-          collectingForCurrentFileTarget = false;
-          break;
-        }
-      } else if (collectingForCurrentFileTarget && trimmedLineFull) {
-        rawMessagesBlockForThisFileArray.push(line);
+      const errorLinePathMatch = line.match(errorLinePathRegex);
+      if (
+        errorLinePathMatch &&
+        path.normalize(errorLinePathMatch[1]) === currentFilePathNormalized
+      ) {
+        errorsForThisFileArray.push(line);
+        currentSectionHeaderNormalized = currentFilePathNormalized;
+      } else if (currentSectionHeaderNormalized === currentFilePathNormalized) {
+        errorsForThisFileArray.push(line);
       }
     }
-    const rawErrorBlockForFile = rawMessagesBlockForThisFileArray.join('\n');
+
+    const rawErrorBlockForFile = errorsForThisFileArray.join('\n');
     console.log(
       `[API fix-linting-errors] For file ${file.path}, RAW extracted error block (length ${rawErrorBlockForFile.length}):\n---\n${rawErrorBlockForFile}\n---`
     );
@@ -288,7 +294,7 @@ export async function POST(request: NextRequest) {
     const tsErrorCodePattern = /^\s*error\s+TS\d+:/i;
 
     if (rawErrorBlockForFile.trim()) {
-      for (const lineInBlock of rawMessagesBlockForThisFileArray) {
+      for (const lineInBlock of errorsForThisFileArray) {
         const trimmedLineStart = lineInBlock.trimStart();
         const trimmedLineFull = lineInBlock.trim();
         if (
@@ -384,6 +390,11 @@ export async function POST(request: NextRequest) {
         error
       );
       allAttemptedAiCallsSucceeded = false;
+
+      fixedFileResultsAccumulator[file.path] = {
+        fixedContent: null,
+        fixDescription: `AI call failed for this file: ${extractedMessage}`,
+      };
     }
     console.log(
       `[API fix-linting-errors] Finished processing ${file.path} in ${Date.now() - fileProcessStartTime}ms.`
@@ -411,13 +422,17 @@ export async function POST(request: NextRequest) {
   console.log(
     `[API fix-linting-errors] Overall outcome: ${determinedOverallMessage}`
   );
+
+  const finalSuccess =
+    allAttemptedAiCallsSucceeded ||
+    (anyAiCallAttempted &&
+      Object.keys(fixedFileResultsAccumulator).some(
+        (key) => fixedFileResultsAccumulator[key]?.fixedContent !== null
+      ));
+
   return NextResponse.json(
     {
-      success:
-        allAttemptedAiCallsSucceeded &&
-        Object.keys(fixedFileResultsAccumulator).length > 0
-          ? anyFileActuallyChangedByAI
-          : allAttemptedAiCallsSucceeded,
+      success: finalSuccess,
       message: determinedOverallMessage,
       fixedFileResults: fixedFileResultsAccumulator,
     } as ApiResponse,

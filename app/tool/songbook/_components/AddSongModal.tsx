@@ -11,6 +11,8 @@ import {
   CloudArrowDownIcon,
   ArrowPathIcon,
   ArrowsPointingInIcon,
+  WifiIcon,
+  NoSymbolIcon,
 } from '@heroicons/react/24/outline';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { SongData } from './SongbookClient';
@@ -53,6 +55,7 @@ export default function AddSongModal({
   const [activeTab, setActiveTabInternal] = useState<'manual' | 'url'>(
     initialActiveTab
   );
+  const [isOnline, setIsOnline] = useState(true);
 
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -76,6 +79,32 @@ export default function AddSongModal({
     () => !!existingSongData && !!existingFileId,
     [existingSongData, existingFileId]
   );
+
+  useEffect(() => {
+    const updateOnlineStatus = () => {
+      setIsOnline(navigator.onLine);
+    };
+
+    if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('online', updateOnlineStatus);
+        window.removeEventListener('offline', updateOnlineStatus);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOnline && activeTab === 'url' && !isEditing) {
+      handleInternalTabChange('manual');
+      setFetchError('Offline: Import from URL is unavailable.');
+    }
+  }, [isOnline, activeTab, isEditing]);
 
   const resetFormFields = (songDataToLoad?: Partial<SongData> | null) => {
     setTitle(songDataToLoad?.title || '');
@@ -104,7 +133,12 @@ export default function AddSongModal({
       setIsSaving(false);
       setSaveError(null);
 
-      const currentInitialTab = isEditing ? 'manual' : initialActiveTab;
+      let currentInitialTab = isEditing ? 'manual' : initialActiveTab;
+
+      if (!isOnline && currentInitialTab === 'url' && !isEditing) {
+        currentInitialTab = 'manual';
+      }
+
       if (activeTab !== currentInitialTab) {
         setActiveTabInternal(currentInitialTab);
       }
@@ -118,9 +152,15 @@ export default function AddSongModal({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, existingSongData, initialActiveTab, isEditing]);
+  }, [isOpen, existingSongData, initialActiveTab, isEditing, isOnline]);
 
   const handleInternalTabChange = (newTab: 'manual' | 'url') => {
+    if (newTab === 'url' && !isOnline) {
+      setFetchError('Offline: Import from URL is unavailable.');
+
+      return;
+    }
+    setFetchError(null);
     setActiveTabInternal(newTab);
     if (onTabChange) {
       onTabChange(newTab);
@@ -202,6 +242,10 @@ export default function AddSongModal({
   };
 
   const handleFetchFromUrl = async () => {
+    if (!isOnline) {
+      setFetchError('Cannot fetch from URL: You are currently offline.');
+      return;
+    }
     const trimmedUrl = importUrl.trim();
     if (!trimmedUrl) {
       setFetchError('Please enter a URL.');
@@ -223,7 +267,7 @@ export default function AddSongModal({
     try {
       const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
       console.log(
-        `[AddSongModal] Calling /api/scrape-ug for URL: ${trimmedUrl}`
+        `[AddSongModal] Calling /api/songbook for URL: ${trimmedUrl}`
       );
       const response = await fetch(`${apiUrl}/api/songbook`, {
         method: 'POST',
@@ -343,14 +387,25 @@ export default function AddSongModal({
             >
               Enter Manually
             </Button>
-            <Button
-              variant={activeTab === 'url' ? 'primary' : 'neutral-outline'}
-              onClick={() => handleInternalTabChange('url')}
-              className={`flex-1 rounded-l-none -ml-px ${activeTab === 'url' ? 'z-10' : 'hover:bg-gray-100'}`}
-              size="sm"
-            >
-              Import from URL
-            </Button>
+            {isOnline && (
+              <Button
+                variant={activeTab === 'url' ? 'primary' : 'neutral-outline'}
+                onClick={() => handleInternalTabChange('url')}
+                className={`flex-1 rounded-l-none -ml-px ${activeTab === 'url' ? 'z-10' : 'hover:bg-gray-100'}`}
+                size="sm"
+              >
+                Import from URL
+              </Button>
+            )}
+            {!isOnline && (
+              <div
+                className="flex-1 rounded-l-none -ml-px px-3 py-1.5 text-sm text-center text-gray-400 bg-gray-100 border border-gray-300 border-l-transparent cursor-not-allowed flex items-center justify-center"
+                title="Import from URL is unavailable offline"
+              >
+                <NoSymbolIcon className="h-4 w-4 mr-1.5 text-gray-400" />
+                Import from URL
+              </div>
+            )}
           </div>
         )}
 
@@ -430,7 +485,7 @@ export default function AddSongModal({
             </>
           )}
 
-          {activeTab === 'url' && !isEditing && (
+          {activeTab === 'url' && !isEditing && isOnline && (
             <div className="space-y-4 py-4">
               <p className="text-sm text-gray-600">
                 Enter a URL from Ultimate Guitar to attempt to import song data.
@@ -469,6 +524,15 @@ export default function AddSongModal({
               >
                 Fetch Song Data
               </Button>
+            </div>
+          )}
+          {activeTab === 'url' && !isEditing && !isOnline && (
+            <div className="py-4 text-center text-gray-500">
+              <NoSymbolIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+              <p className="font-semibold">Import from URL is Offline</p>
+              <p className="text-sm">
+                This feature requires an internet connection.
+              </p>
             </div>
           )}
         </div>

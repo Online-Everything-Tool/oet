@@ -296,7 +296,6 @@ function parseDelimitedNarrative(
       typeof result.epicCompanyEmployeeEmoji !== 'string' ||
       result.epicCompanyEmployeeEmoji.trim() === '' ||
       !result.epicNarrative ||
-      result.epicNarrative.length !== 10 ||
       !result.epicNarrative.every(
         (ch) =>
           ch.chapterEmoji &&
