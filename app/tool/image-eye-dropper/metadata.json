@@ -1,0 +1,30 @@
+{
+  "title": "Image Eye Dropper",
+  "directive": "image-eye-dropper",
+  "description": "Allows users to select a color from an image by clicking on it.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "pickedColorHex",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "pickedColorFullDetails",
+        "mimeType": "application/json"
+      }
+    ]
+  },
+  "tags": ["image", "color", "picker", "developer", "design", "utility"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
