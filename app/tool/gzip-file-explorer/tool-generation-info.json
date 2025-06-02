@@ -10,5 +10,6 @@
       "reason": "TypeScript definitions for pako"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
