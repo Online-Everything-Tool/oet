@@ -1,0 +1,24 @@
+{
+  "title": "Image Converter",
+  "directive": "image-converter",
+  "description": "Converts images between PNG, JPEG, and WEBP formats. Adjust quality for JPEG and WEBP.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "tags": ["image", "converter", "format", "png", "jpeg", "webp", "graphics"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
