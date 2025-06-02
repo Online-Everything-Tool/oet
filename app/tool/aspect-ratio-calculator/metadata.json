@@ -1,0 +1,42 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "Calculate and display different aspect ratios based on user-provided dimensions. Maintain aspect ratio when resizing, or calculate dimensions from a common aspect ratio.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "output.width",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "output.height",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "output.aspectRatio",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "urlStateParams": [
+    { "paramName": "ow", "type": "string", "defaultValue": "" },
+    { "paramName": "oh", "type": "string", "defaultValue": "" },
+    { "paramName": "nw", "type": "string", "defaultValue": "" },
+    { "paramName": "nh", "type": "string", "defaultValue": "" },
+    { "paramName": "sr", "type": "string", "defaultValue": "16:9" },
+    { "paramName": "crw", "type": "string", "defaultValue": "" },
+    { "paramName": "crh", "type": "string", "defaultValue": "" },
+    { "paramName": "rtd", "type": "enum", "defaultValue": "width" },
+    { "paramName": "rtv", "type": "string", "defaultValue": "" }
+  ],
+  "tags": ["aspect ratio", "calculator", "dimensions", "resize", "video", "image", "design"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
