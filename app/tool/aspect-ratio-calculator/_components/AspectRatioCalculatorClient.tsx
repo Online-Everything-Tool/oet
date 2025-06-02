@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Input from '../../_components/form/Input';
 import Button from '../../_components/form/Button';
 import { useToolUrlState } from '@/app/tool/_hooks/useToolUrlState';
@@ -74,7 +74,7 @@ export default function AspectRatioCalculatorClient({
         });
       }
     }
-  }, [urlState, setToolState]);
+  }, [urlState, setToolState, isLoadingUrlState]);
 
   const handleWidthChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -91,7 +91,7 @@ export default function AspectRatioCalculatorClient({
       setUiError(null);
       setCopySuccess(false);
     },
-    []
+    [setToolState]
   );
 
   const handleHeightChange = useCallback(
@@ -109,14 +109,14 @@ export default function AspectRatioCalculatorClient({
       setUiError(null);
       setCopySuccess(false);
     },
-    []
+    [setToolState]
   );
 
   const handleClear = useCallback(() => {
     setToolState(DEFAULT_ASPECT_RATIO_STATE);
     setUiError(null);
     setCopySuccess(false);
-  }, []);
+  }, [setToolState]);
 
   const handleCopy = useCallback(async () => {
     if (!toolState.ratio) {
@@ -133,7 +133,7 @@ export default function AspectRatioCalculatorClient({
         err instanceof Error ? err.message : 'Failed to copy to clipboard.'
       );
     }
-  }, [toolState.ratio]);
+  }, [toolState.ratio, setUiError, setCopySuccess]);
 
   const isLoading = isLoadingState || isLoadingUrlState;
 
