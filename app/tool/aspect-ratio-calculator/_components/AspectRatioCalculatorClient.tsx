@@ -1,10 +1,11 @@
+```typescript
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import Input from '../../_components/form/Input';
 import Select from '../../_components/form/Select';
 import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
-import { ToolMetadata, OutputConfig } from '@/src/types/tools';
+import { ToolMetadata } from '@/src/types/tools';
 import importedMetadata from '../metadata.json';
 
 const metadata = importedMetadata as ToolMetadata;
@@ -42,7 +43,7 @@ const commonAspectRatios = [
 export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCalculatorClientProps) {
   const [state, setState] = useState<AspectRatioCalculatorState>(DEFAULT_STATE);
   const directiveName = metadata.directive;
-  const outputConfig = metadata.outputConfig;
+  //const outputConfig = metadata.outputConfig;
 
 
   const calculateAspectRatio = useCallback(() => {
@@ -130,7 +131,7 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
 
   const hasOutputs = useMemo(() => state.aspectRatio !== '', [state.aspectRatio]);
 
-  const itdeSendableItems = useMemo<StoredFile[]>(() => [], []);
+  const itdeSendableItems = useMemo(() => [], []);
 
   return (
     <div className="flex flex-col gap-4 text-[rgb(var(--color-text-base))]">
@@ -200,9 +201,10 @@ export default function AspectRatioCalculatorClient({ toolRoute }: AspectRatioCa
         onInitiateDownload={() => { }}
         onClear={handleClear}
         directiveName={directiveName}
-        outputConfig={outputConfig}
+        //outputConfig={outputConfig}
         selectedOutputItems={itdeSendableItems}
       />
     </div>
   );
 }
+```
