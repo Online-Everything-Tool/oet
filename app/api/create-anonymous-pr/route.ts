@@ -339,7 +339,9 @@ export async function POST(request: Request) {
       `[API create-anonymous-pr] Branch ${newBranchName} updated to new commit.`
     );
 
-    const prTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
+    const basePrTitle = `feat: Add AI Generated Tool - ${toolDirective}`;
+    const prTitle = `${basePrTitle} - [skip netlify]`;
+
     const formatList = (
       items: string[],
       noneMessage: string,

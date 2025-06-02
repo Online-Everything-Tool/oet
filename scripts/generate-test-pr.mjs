@@ -293,7 +293,8 @@ async function main() {
   }
 
   const newBranchName = `feat/gen-${toolName}-${Date.now().toString().slice(-5)}`;
-  let prTitle = prTitleArg || `feat(CI): Add Test Tool - ${toolName}`;
+  let prTitle =
+    prTitleArg || `feat: Add AI Generated Tool - ${toolName} - [skip netlify]`;
   if (includeLintErrorFlag) {
     prTitle += ' (with lint errors)';
   }

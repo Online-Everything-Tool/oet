@@ -65,7 +65,9 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   const { token } = await appAuth({ type: 'installation', installationId });
   octokitInstance = new Octokit({ auth: token });
-  console.log('[api/status-recent-builds] GitHub App authentication successful.');
+  console.log(
+    '[api/status-recent-builds] GitHub App authentication successful.'
+  );
   return octokitInstance;
 }
 
@@ -108,7 +110,9 @@ function isQualifyingToolPr(pr: {
 }
 
 export async function GET() {
-  console.log('[api/status-recent-builds] Received request to list recent build PRs.');
+  console.log(
+    '[api/status-recent-builds] Received request to list recent build PRs.'
+  );
 
   try {
     const octokit = await getAuthenticatedOctokit();
