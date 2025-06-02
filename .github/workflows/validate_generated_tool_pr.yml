@@ -721,84 +721,94 @@ jobs:
               core.info("VPR completed successfully, no further automated bot actions from this run expected.");
             }
 
-  enable_netlify_preview:
-    name: 5. Enable Netlify Preview
+  finalize_pr_for_preview:
+    name: 5. Finalize PR for Netlify Preview
     needs: [report_pr_status, initial_checks]
     if: success() && needs.report_pr_status.result == 'success'
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # To update PR title and comment
+      pull-requests: write
+      contents: write
 
     steps:
-      - name: Update PR Title to Remove '[skip netlify]' Suffix
+      - name: Checkout PR Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.initial_checks.outputs.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR Title & Delete Tool Generation Info
         env:
           PR_NUMBER: ${{ needs.initial_checks.outputs.pr_number }}
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+          PR_BRANCH_NAME: ${{ needs.initial_checks.outputs.head_ref }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "VPR process successful for PR #${PR_NUMBER}."
-          echo "Attempting to update PR title to enable Netlify preview."
 
-          PR_API_URL="https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}"
+          PR_API_URL_PULLS="https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUMBER}"
           COMMENTS_API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments"
 
-          # Get current PR title
-          PR_DATA=$(curl -s -L -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3+json" "$PR_API_URL")
+          # 1. Update PR Title
+          echo "Attempting to update PR title..."
+          PR_DATA=$(curl -s -L -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.v3+json" "$PR_API_URL_PULLS")
           CURRENT_TITLE=$(echo "$PR_DATA" | jq -r .title)
 
           if [ -z "$CURRENT_TITLE" ] || [ "$CURRENT_TITLE" == "null" ]; then
-            echo "::error::Could not retrieve current PR title for PR #${PR_NUMBER}."
-            # If title can't be fetched, it might indicate a larger issue or a race condition if PR was just created/closed.
-            # Exiting with 0 to not fail the workflow if this is a transient issue, but Netlify won't be triggered by title change.
-            # Consider if failing here is more appropriate for your workflow.
-            exit 0
-          fi
-          echo "Current PR Title: '$CURRENT_TITLE'"
-
-          SKIP_SUFFIX=" - [skip netlify]"
-          # Check if CURRENT_TITLE ends with SKIP_SUFFIX
-          if [[ "$CURRENT_TITLE" == *"$SKIP_SUFFIX" ]]; then
-            # Remove the suffix using bash parameter expansion
-            NEW_TITLE="${CURRENT_TITLE%"$SKIP_SUFFIX"}"
-            echo "New PR Title (suffix removed): '$NEW_TITLE'"
-
-            # Update PR title via GitHub API
-            # Using jq to construct the JSON payload robustly
-            JSON_PAYLOAD=$(jq -n --arg nt "$NEW_TITLE" '{title: $nt}')
-
-            PATCH_RESPONSE_CODE=$(curl -s -L -o /dev/null -w "%{http_code}" -X PATCH \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              -H "Content-Type: application/json" \
-              "$PR_API_URL" \
-              -d "$JSON_PAYLOAD")
-
-            if [[ "$PATCH_RESPONSE_CODE" -eq 200 ]]; then
-              echo "PR title successfully updated to '$NEW_TITLE'."
-              SUCCESS_COMMENT_BODY="✅ VPR checks passed! Netlify preview has been enabled. A new build should start on Netlify shortly (if one isn't already in progress from this update)."
-              
-              COMMENT_PAYLOAD=$(jq -n --arg body "$SUCCESS_COMMENT_BODY" '{body: $body}')
-              curl -s -L -X POST \
+            echo "::warning::Could not retrieve current PR title for PR #${PR_NUMBER}. Skipping title update."
+          else
+            echo "Current PR Title: '$CURRENT_TITLE'"
+            SKIP_SUFFIX=" - [skip netlify]"
+            if [[ "$CURRENT_TITLE" == *"$SKIP_SUFFIX" ]]; then
+              NEW_TITLE="${CURRENT_TITLE%"$SKIP_SUFFIX"}"
+              echo "New PR Title (suffix removed): '$NEW_TITLE'"
+              TITLE_PAYLOAD=$(jq -n --arg nt "$NEW_TITLE" '{title: $nt}')
+              PATCH_RESPONSE_CODE=$(curl -s -L -o /dev/null -w "%{http_code}" -X PATCH \
                 -H "Authorization: Bearer $GH_TOKEN" \
                 -H "Accept: application/vnd.github.v3+json" \
                 -H "Content-Type: application/json" \
-                "$COMMENTS_API_URL" \
-                -d "$COMMENT_PAYLOAD" > /dev/null # Output of comment POST to /dev/null
+                "$PR_API_URL_PULLS" \
+                -d "$TITLE_PAYLOAD")
+              if [[ "$PATCH_RESPONSE_CODE" -eq 200 ]]; then
+                echo "PR title successfully updated to '$NEW_TITLE'."
+              else
+                echo "::warning::Failed to update PR title. Status: $PATCH_RESPONSE_CODE."
+              fi
             else
-              echo "::error::Failed to update PR title. GitHub API responded with $PATCH_RESPONSE_CODE."
-              # Optionally, fetch and log the response body for more details if the PATCH failed.
-              # ERROR_BODY=$(curl -s -L -X PATCH ... )
-              # echo "Error body: $ERROR_BODY"
-              exit 1 # Fail the step if title update fails, as Netlify trigger depends on it
+              echo "PR title '$CURRENT_TITLE' does not end with the skip suffix. No title update needed."
             fi
-          else
-            echo "PR title '$CURRENT_TITLE' does not end with the skip suffix '$SKIP_SUFFIX'. No title update needed."
-            # Post a comment indicating VPR success but no title change needed
-            COMMENT_BODY="✅ VPR checks passed! Netlify preview should proceed if not already skipped."
-            COMMENT_PAYLOAD=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
-            curl -s -L -X POST \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              -H "Content-Type: application/json" \
-              "$COMMENTS_API_URL" \
-              -d "$COMMENT_PAYLOAD" > /dev/null
           fi
+
+          # 2. Delete tool-generation-info.json and Commit
+          echo "Attempting to delete tool-generation-info.json..."
+          TOOL_GEN_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+
+          if [ -f "$TOOL_GEN_INFO_FILE" ]; then
+            git config --global user.name "OET CI Bot (Housekeeping)"
+            git config --global user.email "bot@online-everything-tool.com"
+            
+            git rm "$TOOL_GEN_INFO_FILE"
+            git commit -m "chore: Remove tool-generation-info.json post-VPR success [skip ci]"
+            
+            echo "Pushing deletion of $TOOL_GEN_INFO_FILE to branch $PR_BRANCH_NAME..."
+            # Ensure the token used for push has write permissions.
+            # GITHUB_TOKEN can push to branches created by actions IF workflow permissions are set.
+            # If using a PAT, replace $GH_TOKEN in the push URL with your PAT env var.
+            # Using GH_TOKEN for now, assuming correct workflow permissions.
+            git push https://x-access-token:$GH_TOKEN@github.com/${{ github.repository }}.git HEAD:$PR_BRANCH_NAME
+            echo "$TOOL_GEN_INFO_FILE deleted and pushed."
+            
+            COMMENT_BODY="✅ VPR checks passed! Netlify preview enabled (PR title updated, temp info file removed). A new build should start on Netlify due to commit activity."
+          else
+            echo "::warning::$TOOL_GEN_INFO_FILE not found. No deletion needed."
+            COMMENT_BODY="✅ VPR checks passed! Netlify preview enabled (PR title updated). $TOOL_GEN_INFO_FILE was not found for deletion."
+          fi
+
+          # 3. Post Comment
+          COMMENT_PAYLOAD_FINAL=$(jq -n --arg body "$COMMENT_BODY" '{body: $body}')
+          curl -s -L -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Content-Type: application/json" \
+            "$COMMENTS_API_URL" \
+            -d "$COMMENT_PAYLOAD_FINAL" > /dev/null

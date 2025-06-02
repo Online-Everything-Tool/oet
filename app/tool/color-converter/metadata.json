@@ -16,13 +16,7 @@
     "stateFiles": "none"
   },
   "outputConfig": {
-    "transferableContent": [
-      {
-        "dataType": "inline",
-        "stateKey": "validColorValues",
-        "mimeType": "application/json"
-      }
-    ]
+    "transferableContent": "none"
   },
   "tags": ["color", "converter", "developer", "css", "design"],
   "includeInSitemap": true,

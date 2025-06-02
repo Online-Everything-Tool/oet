@@ -25,20 +25,34 @@ const RecentToolItem: React.FC<{
   const { getFile } = useFileLibrary();
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false);
-  const activeImageUrlIdRef = useRef<string | null>(null);
+
+  const currentImageIdForUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     let objectUrlCreatedInThisEffectRun: string | null = null;
 
     if (entry.previewType === 'image' && entry.previewImageId) {
-      if (entry.previewImageId !== activeImageUrlIdRef.current || !imageUrl) {
+      if (
+        currentImageIdForUrlRef.current !== entry.previewImageId ||
+        !imageUrl
+      ) {
         setIsLoadingImage(true);
+
+        if (
+          imageUrl &&
+          currentImageIdForUrlRef.current &&
+          currentImageIdForUrlRef.current !== entry.previewImageId
+        ) {
+          URL.revokeObjectURL(imageUrl);
+        }
         setImageUrl(null);
-        activeImageUrlIdRef.current = entry.previewImageId;
+        currentImageIdForUrlRef.current = entry.previewImageId;
 
         getFile(entry.previewImageId)
           .then((storedFile) => {
-            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
+            if (currentImageIdForUrlRef.current !== entry.previewImageId) {
+              return;
+            }
             if (storedFile) {
               const blobToUse = storedFile.thumbnailBlob || storedFile.blob;
               if (blobToUse) {
@@ -47,32 +61,36 @@ const RecentToolItem: React.FC<{
                 setImageUrl(objectUrlCreatedInThisEffectRun);
               } else {
                 setImageUrl(null);
-                activeImageUrlIdRef.current = null;
               }
             } else {
               setImageUrl(null);
-              activeImageUrlIdRef.current = null;
             }
           })
           .catch((err) => {
-            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
+            if (currentImageIdForUrlRef.current !== entry.previewImageId) {
+              return;
+            }
             console.error(
               `[RecentToolItem] Error fetching image ${entry.previewImageId}:`,
               err
             );
             setImageUrl(null);
-            activeImageUrlIdRef.current = null;
           })
           .finally(() => {
-            if (activeImageUrlIdRef.current !== entry.previewImageId) return;
+            if (currentImageIdForUrlRef.current !== entry.previewImageId) {
+              return;
+            }
             setIsLoadingImage(false);
           });
       } else {
         setIsLoadingImage(false);
       }
     } else {
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
       setImageUrl(null);
-      activeImageUrlIdRef.current = null;
+      currentImageIdForUrlRef.current = null;
       setIsLoadingImage(false);
     }
 
@@ -81,16 +99,7 @@ const RecentToolItem: React.FC<{
         URL.revokeObjectURL(objectUrlCreatedInThisEffectRun);
       }
     };
-  }, [entry.previewType, entry.previewImageId, getFile, imageUrl]);
-
-  useEffect(() => {
-    const urlInStateWhenEffectRan = imageUrl;
-    return () => {
-      if (urlInStateWhenEffectRan) {
-        URL.revokeObjectURL(urlInStateWhenEffectRan);
-      }
-    };
-  }, [imageUrl]);
+  }, [entry.previewType, entry.previewImageId, getFile]);
 
   const renderPreview = () => {
     if (isLoadingImage && entry.previewType === 'image') {
@@ -139,7 +148,7 @@ const RecentToolItem: React.FC<{
       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
     >
       <div className="flex items-center">
-        <div className="flex-shrink-0 h-6 w-6 mr-3 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+        <div className="flex-shrink-0 h-10 w-10 mr-3 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
           {renderPreview()}
         </div>
         <div className="flex-grow min-w-0">

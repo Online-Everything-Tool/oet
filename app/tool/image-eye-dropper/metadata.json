@@ -11,18 +11,7 @@
     "acceptsMimeTypes": ["image/*"]
   },
   "outputConfig": {
-    "transferableContent": [
-      {
-        "dataType": "inline",
-        "stateKey": "pickedColorHex",
-        "mimeType": "text/plain"
-      },
-      {
-        "dataType": "inline",
-        "stateKey": "pickedColorFullDetails",
-        "mimeType": "application/json"
-      }
-    ]
+    "transferableContent": "none"
   },
   "tags": ["image", "color", "picker", "developer", "design", "utility"],
   "includeInSitemap": true,

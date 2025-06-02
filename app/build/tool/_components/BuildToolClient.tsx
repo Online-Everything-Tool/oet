@@ -13,7 +13,9 @@ import type { Swiper as SwiperCore } from 'swiper/types';
 
 import ValidateDirective from './ValidateDirective';
 import GenerateToolResources from './GenerateToolResources';
-import CreateAnonymousPr from './CreateAnonymousPr';
+// import CreateAnonymousPr from './CreateAnonymousPr'; // OLD COMPONENT - REMOVE/REPLACE
+import CreatePrForm from './CreatePrForm'; // NEW COMPONENT
+import ViewPrStatus from './ViewPrStatus'; // NEW COMPONENT
 import BuildToolInfoCarousel from './BuildToolInfoCarousel';
 import Button from '@/app/tool/_components/form/Button';
 
@@ -77,17 +79,25 @@ export default function BuildToolClient() {
 
   const getInitialModeAndPr = useCallback(() => {
     const prNumberFromUrlStr = searchParams.get('prNumber');
+    const initialDirective = searchParams.get('directive'); // Get directive for monitoring mode
     if (prNumberFromUrlStr) {
       const prNum = parseInt(prNumberFromUrlStr, 10);
       if (!isNaN(prNum) && prNum > 0) {
-        return { mode: 'monitoring' as BuildMode, pr: prNum };
+        return {
+          mode: 'monitoring' as BuildMode,
+          pr: prNum,
+          directive: initialDirective,
+        };
       }
     }
-    return { mode: 'building' as BuildMode, pr: null };
+    return {
+      mode: 'building' as BuildMode,
+      pr: null,
+      directive: initialDirective,
+    };
   }, [searchParams]);
 
   const initialDataRef = useRef(getInitialModeAndPr());
-  const initialDirectiveFromUrlRef = useRef(getInitialToolDirectiveFromUrl());
 
   const [currentStep, setCurrentStep] = useState<BuildStep>(
     initialDataRef.current.mode === 'monitoring' ? 'submission' : 'validation'
@@ -98,9 +108,24 @@ export default function BuildToolClient() {
   const [monitoredPrNumber, setMonitoredPrNumber] = useState<number | null>(
     initialDataRef.current.pr
   );
+  // State to hold the directive name specifically for monitoring mode,
+  // potentially derived from URL or PR data.
+  const [toolDirectiveForMonitoring, setToolDirectiveForMonitoring] = useState<
+    string | null
+  >(
+    initialDataRef.current.mode === 'monitoring'
+      ? initialDataRef.current.directive
+      : null
+  );
+  const [prUrlForMonitoring, setPrUrlForMonitoring] = useState<string | null>(
+    null
+  );
 
   const [toolDirective, setToolDirective] = useState(
-    initialDirectiveFromUrlRef.current
+    // For 'building' mode
+    initialDataRef.current.mode === 'building'
+      ? initialDataRef.current.directive || ''
+      : ''
   );
 
   const [selectedGenerationModel, setSelectedGenerationModel] =
@@ -177,55 +202,36 @@ export default function BuildToolClient() {
     }
   }, [generationModelOptions, selectedGenerationModel, defaultModelName]);
 
+  // Effect to initialize mode and PR number from URL on first load
   useEffect(() => {
-    let isMounted = true;
-    const { mode: initialMode, pr: initialPr } = getInitialModeAndPr();
+    const {
+      mode: initialMode,
+      pr: initialPr,
+      directive: initialDirectiveFromUrl,
+    } = getInitialModeAndPr();
 
-    if (isMounted) {
-      setCurrentMode(initialMode);
-      if (initialMode === 'monitoring' && initialPr) {
-        setMonitoredPrNumber(initialPr);
-        setCurrentStep('submission');
-        if (!validationResult)
-          setValidationResult({
-            generativeDescription: `Details for PR #${initialPr}`,
-            generativeRequestedDirectives: [],
-          });
-        if (!generationResult)
-          setGenerationResult({
-            message: `Monitoring PR #${initialPr}`,
-            generatedFiles: {},
-            identifiedDependencies: [],
-          });
-        if (searchParams.get('directive')) {
-          const newSearchParams = new URLSearchParams(searchParams.toString());
-          newSearchParams.delete('directive');
-          router.replace(`${pathname}?${newSearchParams.toString()}`, {
-            scroll: false,
-          });
-        }
-      } else {
-        setCurrentMode('building');
-        setCurrentStep('validation');
-        setMonitoredPrNumber(null);
-        if (searchParams.get('prNumber')) {
-          const newSearchParams = new URLSearchParams(searchParams.toString());
-          newSearchParams.delete('prNumber');
-          router.replace(`${pathname}?${newSearchParams.toString()}`, {
-            scroll: false,
-          });
-        }
-        const directiveFromUrl = searchParams.get('directive');
-        if (directiveFromUrl) {
-          setToolDirective(directiveFromUrl);
-        }
-      }
+    setCurrentMode(initialMode);
+    setMonitoredPrNumber(initialPr);
+
+    if (initialMode === 'monitoring' && initialPr) {
+      setCurrentStep('submission'); // To show the monitoring view
+      setToolDirectiveForMonitoring(
+        initialDirectiveFromUrl || `pr-${initialPr}-tool`
+      ); // Set directive for monitoring display
+      // Reset building states
+      setToolDirective('');
+      setValidationResult(null);
+      setGenerationResult(null);
+      setAdditionalDescription('');
+      setUserSelectedDirectives([]);
+    } else {
+      // Building mode
+      setCurrentStep('validation');
+      setToolDirective(initialDirectiveFromUrl || '');
+      setToolDirectiveForMonitoring(null); // Clear monitoring directive
     }
-    return () => {
-      isMounted = false;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Run once on mount to capture initial URL state
 
   useEffect(() => {
     if (!metadataLoadingHook) {
@@ -258,6 +264,7 @@ export default function BuildToolClient() {
     defaultModelName,
   ]);
 
+  // Effect to handle URL changes after initial load
   useEffect(() => {
     if (!componentInitializationStateDone) return;
 
@@ -269,51 +276,37 @@ export default function BuildToolClient() {
 
     if (prNumInUrl && !isNaN(prNumInUrl) && prNumInUrl > 0) {
       if (currentMode !== 'monitoring' || monitoredPrNumber !== prNumInUrl) {
+        console.log(`Switching to monitoring mode for PR #${prNumInUrl}`);
+        // Reset building states
         setToolDirective('');
-        setValidationResult({
-          generativeDescription: `Details for PR #${prNumInUrl}`,
-          generativeRequestedDirectives: [],
-        });
-        setGenerationResult({
-          message: `Monitoring PR #${prNumInUrl}`,
-          generatedFiles: {},
-          identifiedDependencies: [],
-        });
+        setValidationResult(null);
+        setGenerationResult(null);
         setAdditionalDescription('');
         setUserSelectedDirectives([]);
+
         setCurrentMode('monitoring');
         setMonitoredPrNumber(prNumInUrl);
-        setCurrentStep('submission');
-        if (directiveFromUrl) {
-          const newSearchParams = new URLSearchParams(searchParams.toString());
-          newSearchParams.delete('directive');
-          router.replace(`${pathname}?${newSearchParams.toString()}`, {
-            scroll: false,
-          });
-        }
+        setToolDirectiveForMonitoring(
+          directiveFromUrl || `pr-${prNumInUrl}-tool`
+        );
+        setCurrentStep('submission'); // Ensure monitor view is shown
       }
     } else {
+      // No PR number in URL
       if (currentMode === 'monitoring') {
-        handleReset(false);
-      }
-      if (
+        console.log('Switching to building mode (no PR in URL)');
+        handleReset(false); // Reset to building mode, keep ?directive if present
+      } else if (
         directiveFromUrl &&
         directiveFromUrl !== toolDirective &&
-        currentMode === 'building' &&
         currentStep === 'validation'
       ) {
+        // If in building mode and directive URL param changes, update state
         setToolDirective(directiveFromUrl);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    searchParams,
-    componentInitializationStateDone,
-    currentMode,
-    monitoredPrNumber,
-    pathname,
-    router,
-  ]);
+  }, [searchParams, componentInitializationStateDone]); // currentMode, monitoredPrNumber, toolDirective removed to avoid loops on their own state changes
 
   useEffect(() => {
     if (swiperInstance && !swiperInstance.destroyed) {
@@ -325,7 +318,7 @@ export default function BuildToolClient() {
           targetSlideIndex = 2;
         }
       } else if (currentMode === 'monitoring') {
-        targetSlideIndex = 2;
+        targetSlideIndex = 2; // submission step index for monitoring view
       }
 
       if (swiperInstance.activeIndex !== targetSlideIndex) {
@@ -337,9 +330,10 @@ export default function BuildToolClient() {
   const handleReset = useCallback(
     (clearUrlParams = true) => {
       if (clearUrlParams) {
-        const currentPrNumber = searchParams.get('prNumber');
-        const currentDirective = searchParams.get('directive');
-        if (router && (currentPrNumber || currentDirective)) {
+        if (
+          router &&
+          (searchParams.get('prNumber') || searchParams.get('directive'))
+        ) {
           router.replace(pathname, { scroll: false });
         }
       }
@@ -353,6 +347,9 @@ export default function BuildToolClient() {
       setUserSelectedDirectives([]);
       setGenerationResult(null);
       setMonitoredPrNumber(null);
+      setToolDirectiveForMonitoring(null);
+      setPrUrlForMonitoring(null);
+
       if (generationModelOptions.length > 0) {
         setSelectedGenerationModel(generationModelOptions[0]);
       } else if (defaultModelName) {
@@ -380,57 +377,40 @@ export default function BuildToolClient() {
   const handleValidationSuccess = useCallback(
     (result: ValidationResult) => {
       setValidationResult(result);
-      setUserSelectedDirectives([]);
+      setUserSelectedDirectives([]); // Reset user examples when validation changes
       setCurrentStep('generation');
-      setCurrentMode('building');
-      const currentDirective = searchParams.get('directive');
-      if (currentDirective && router) {
-        const newSearchParams = new URLSearchParams(searchParams.toString());
-        newSearchParams.delete('directive');
-
-        const prNum = newSearchParams.get('prNumber');
-        if (prNum) {
-          router.replace(`${pathname}?${newSearchParams.toString()}`, {
-            scroll: false,
-          });
-        } else {
-          router.replace(pathname, { scroll: false });
-        }
-      }
+      setCurrentMode('building'); // Ensure mode is building
+      // No need to clear ?directive from URL here, let it persist if user wants to share that starting point
     },
-    [searchParams, router, pathname]
+    [] // Removed router, searchParams, pathname as they are not directly used for this action's core logic
   );
 
   const handleGenerationSuccess = useCallback((result: GenerationResult) => {
     setGenerationResult(result);
     setCurrentStep('submission');
-    setCurrentMode('building');
+    setCurrentMode('building'); // Ensure mode is building
   }, []);
 
-  const effectiveGenerationResultForMonitoring = useMemo(() => {
-    if (currentMode === 'monitoring') {
-      return (
-        generationResult || {
-          message: `Monitoring PR #${monitoredPrNumber || '...'}`,
-          generatedFiles: {},
-          identifiedDependencies: [],
-        }
-      );
-    }
-    return generationResult;
-  }, [currentMode, generationResult, monitoredPrNumber]);
+  const handlePrCreated = useCallback(
+    (prNumber: number, prUrl: string, createdToolDirective: string) => {
+      setMonitoredPrNumber(prNumber);
+      setPrUrlForMonitoring(prUrl);
+      setToolDirectiveForMonitoring(createdToolDirective); // Store the directive that was actually submitted
+      setCurrentMode('monitoring');
+      setCurrentStep('submission'); // This step will now show ViewPrStatus due to mode change
 
-  const effectiveValidationResultForMonitoring = useMemo(() => {
-    if (currentMode === 'monitoring') {
-      return (
-        validationResult || {
-          generativeDescription: `Details for PR #${monitoredPrNumber || '...'}`,
-          generativeRequestedDirectives: [],
-        }
-      );
-    }
-    return validationResult;
-  }, [currentMode, validationResult, monitoredPrNumber]);
+      if (router) {
+        const newSearchParams = new URLSearchParams(); // Start with clean params for monitoring view
+        newSearchParams.set('prNumber', String(prNumber));
+        // Optionally pass the directive if ViewPrStatus needs it before its API confirms
+        // newSearchParams.set('directive', createdToolDirective);
+        router.replace(`${pathname}?${newSearchParams.toString()}`, {
+          scroll: false,
+        });
+      }
+    },
+    [router, pathname]
+  );
 
   const formatSlug = useCallback((value: string): string => {
     if (typeof value !== 'string') return '';
@@ -476,49 +456,51 @@ export default function BuildToolClient() {
       );
     }
 
-    if (currentMode === 'building') {
-      if (metadataLoadingHook && allAvailableToolDirectives.length === 0) {
-        return (
-          <p className="text-center p-4 italic text-gray-500 animate-pulse">
-            Loading Tool Metadata...
-          </p>
-        );
-      }
-      if (metadataErrorHook && allAvailableToolDirectives.length === 0) {
-        return (
-          <p className="text-center text-red-500 p-4">
-            Error loading existing tools list: {metadataErrorHook}
-          </p>
-        );
-      }
-    }
-
     if (currentMode === 'monitoring') {
       if (!monitoredPrNumber) {
-        handleReset();
+        // This case should ideally be handled by useEffect redirecting to building mode
+        // or by handleReset, but as a fallback:
+        handleReset(true); // Force reset to building mode if somehow in monitoring without PR number
         return (
-          <p className="text-center p-4 italic">Resetting to build mode...</p>
+          <p className="text-center p-4 italic">
+            Invalid state. Resetting to build mode...
+          </p>
         );
       }
-      const modelForMonitoringDisplay =
-        selectedGenerationModel || defaultModelName;
-
       return (
-        <CreateAnonymousPr
-          toolDirective={toolDirective || `tool-for-pr-${monitoredPrNumber}`}
-          generationResult={effectiveGenerationResultForMonitoring!}
-          validationResult={effectiveValidationResultForMonitoring!}
-          additionalDescription={''}
-          userSelectedDirectives={[]}
-          selectedModel={modelForMonitoringDisplay}
-          onBack={() => handleReset(true)}
-          initialPrNumber={monitoredPrNumber}
-          currentMode="monitoring"
-          monitoredPrNumberForPolling={monitoredPrNumber}
-          onFlowComplete={() => {
-            /* Flow complete */
+        <ViewPrStatus
+          prNumberToMonitor={monitoredPrNumber}
+          initialPrUrl={prUrlForMonitoring}
+          toolDirectiveForDisplay={toolDirectiveForMonitoring} // Pass the directive of the PR being monitored
+          onPollingStopped={() => {
+            console.log(`Polling stopped for PR #${monitoredPrNumber}`);
+            // Optionally, update UI or offer to build another tool
           }}
         />
+      );
+    }
+
+    // Building Mode
+    if (
+      metadataLoadingHook &&
+      allAvailableToolDirectives.length === 0 &&
+      currentStep === 'generation'
+    ) {
+      return (
+        <p className="text-center p-4 italic text-gray-500 animate-pulse">
+          Loading Tool Metadata for examples...
+        </p>
+      );
+    }
+    if (
+      metadataErrorHook &&
+      allAvailableToolDirectives.length === 0 &&
+      currentStep === 'generation'
+    ) {
+      return (
+        <p className="text-center text-red-500 p-4">
+          Error loading existing tools list for examples: {metadataErrorHook}
+        </p>
       );
     }
 
@@ -539,12 +521,17 @@ export default function BuildToolClient() {
         );
       case 'generation':
         if (!validationResult) {
-          handleReset(true);
-          return null;
+          // Should not happen if flow is correct, but handle defensively
+          setCurrentStep('validation'); // Go back to validation
+          return (
+            <p className="text-center text-red-500">
+              Error: Validation data missing. Please start over.
+            </p>
+          );
         }
         return (
           <GenerateToolResources
-            toolDirective={toolDirective}
+            toolDirective={toolDirective} // toolDirective from 'building' mode state
             validationResult={validationResult}
             additionalDescription={additionalDescription}
             setAdditionalDescription={setAdditionalDescription}
@@ -567,29 +554,31 @@ export default function BuildToolClient() {
         if (
           !generationResult ||
           !validationResult ||
-          !toolDirective ||
+          !toolDirective || // toolDirective from 'building' mode state
           !selectedGenerationModel
         ) {
-          handleReset(true);
-          return null;
+          // Should not happen, but handle defensively
+          setCurrentStep('generation'); // Go back
+          return (
+            <p className="text-center text-red-500">
+              Error: Generation data missing. Please go back.
+            </p>
+          );
         }
         return (
-          <CreateAnonymousPr
-            toolDirective={toolDirective}
+          <CreatePrForm
+            toolDirective={toolDirective} // toolDirective from 'building' mode state
             generationResult={generationResult}
             validationResult={validationResult}
             additionalDescription={additionalDescription}
             userSelectedDirectives={userSelectedDirectives}
             selectedModel={selectedGenerationModel}
             onBack={() => setCurrentStep('generation')}
-            currentMode="building"
-            onFlowComplete={() => {
-              /* Flow complete */
-            }}
+            onPrCreated={handlePrCreated} // New callback
           />
         );
       default:
-        handleReset(true);
+        handleReset(true); // Should not happen
         return (
           <p className="text-center text-red-500">
             Error: Invalid build step: {currentStep}. Resetting...
@@ -601,12 +590,12 @@ export default function BuildToolClient() {
   const showStartOverButton = useMemo(() => {
     if (isApiUnavailable) return false;
     if (!componentInitializationStateDone) return false;
-    if (currentMode === 'monitoring') return true;
+    if (currentMode === 'monitoring') return true; // Always allow starting over from monitoring
     if (currentMode === 'building' && currentStep !== 'validation') return true;
     if (
       currentMode === 'building' &&
       currentStep === 'validation' &&
-      toolDirective !== initialDirectiveFromUrlRef.current &&
+      toolDirective !== (searchParams.get('directive') || '') && // Compare with URL param if present
       toolDirective !== ''
     )
       return true;
@@ -614,7 +603,7 @@ export default function BuildToolClient() {
       currentMode === 'building' &&
       currentStep === 'validation' &&
       toolDirective === '' &&
-      initialDirectiveFromUrlRef.current !== ''
+      (searchParams.get('directive') || '') !== ''
     )
       return true;
 
@@ -625,6 +614,7 @@ export default function BuildToolClient() {
     isApiUnavailable,
     componentInitializationStateDone,
     toolDirective,
+    searchParams,
   ]);
 
   return (
@@ -634,7 +624,7 @@ export default function BuildToolClient() {
           Build a New Tool (AI Assisted)
           {currentMode === 'monitoring' &&
             monitoredPrNumber &&
-            ` - Monitoring PR #${monitoredPrNumber}`}
+            ` - Monitoring PR #${monitoredPrNumber}${toolDirectiveForMonitoring ? ` (${toolDirectiveForMonitoring})` : ''}`}
         </h1>
         {showStartOverButton && (
           <Button
@@ -652,7 +642,7 @@ export default function BuildToolClient() {
         <BuildToolInfoCarousel
           onSwiperReady={setSwiperInstance}
           formatSlug={formatSlug}
-          toolDirective={toolDirective}
+          toolDirective={toolDirective} // Pass the 'building' mode toolDirective
         />
       )}
       {renderCurrentStep()}
