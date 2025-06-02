@@ -2,7 +2,7 @@ import ToolHeader from '../../_components/ToolHeader';
 import ToolSettings from '../../_components/ToolSettings';
 import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
-import AspectRatioCalculatorClient from './_components/AspectRatioCalculatorClient.tsx';
+import AspectRatioCalculatorClient from './_components/AspectRatioCalculatorClient';
 import { ToolMetadata } from '@/src/types/tools';
 import { toolRoute } from '@/app/lib/utils';
 
