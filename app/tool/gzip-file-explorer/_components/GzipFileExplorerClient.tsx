@@ -32,6 +32,14 @@ import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrig
 import toolSpecificMetadata from '../metadata.json';
 import type { ToolMetadata as AppToolMetadata } from '@/src/types/tools';
 
+declare module 'pako' {
+    export function inflate(data: Uint8Array, options: { to: 'Uint8Array', gzip: true }): { result: Uint8Array; header?: pako.Header; err?: any; msg?: any } | Uint8Array;
+    export interface Header {
+        name?: string;
+    }
+}
+
+
 const ownMetadata = toolSpecificMetadata as AppToolMetadata;
 const MAX_TEXT_PREVIEW_SIZE = 1024 * 256; // 256KB
 
@@ -231,7 +239,7 @@ export default function GzipFileExplorerClient({
         } else {
           setPreviewType('binary');
         }
-      } catch (err) {
+      } catch (err: any) {
         const errorMsg =
           err instanceof Error ? err.message : 'Failed to decompress Gzip file.';
         setError(errorMsg);
@@ -325,7 +333,7 @@ export default function GzipFileExplorerClient({
         setIsProcessing(false);
       };
 
-      loadInitialData().catch(e => {
+      loadInitialData().catch((e) => {
         setError(`Error loading initial state: ${e.message}`);
         setIsProcessing(false);
       });
@@ -341,7 +349,7 @@ export default function GzipFileExplorerClient({
   ]);
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload') => {
+    async (files: StoredFile[], _source: 'library' | 'upload') => {
       setIsSelectFileModalOpen(false);
       if (files.length === 0) return;
 
@@ -379,7 +387,7 @@ export default function GzipFileExplorerClient({
       };
       setToolState(newState);
       // saveStateNow will be called by decompressAndPreview after it updates decompressedFileId
-      
+
       await decompressAndPreview(file);
       setUserDeferredAutoPopup(false); // Reset ITDE deferral
     },
@@ -572,7 +580,7 @@ export default function GzipFileExplorerClient({
           URL.revokeObjectURL(url);
           setDownloadSuccess(true);
           setTimeout(() => setDownloadSuccess(false), 2000);
-        } catch (err) {
+        } catch (err: any) {
           setError(
             `Download failed: ${err instanceof Error ? err.message : 'Unknown error'}`
           );
@@ -588,7 +596,7 @@ export default function GzipFileExplorerClient({
           if (updatedFile) setCurrentDecompressedFile(updatedFile);
           setSaveSuccess(true);
           setTimeout(() => setSaveSuccess(false), 2000);
-        } catch (err) {
+        } catch (err: any) {
           setError(
             `Failed to save to library: ${err instanceof Error ? err.message : 'Unknown error'}`
           );
@@ -620,7 +628,7 @@ export default function GzipFileExplorerClient({
         await navigator.clipboard.writeText(previewText);
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2000);
-      } catch (err) {
+      } catch (err: any) {
         setError('Failed to copy text to clipboard.');
       }
     }
@@ -751,13 +759,13 @@ export default function GzipFileExplorerClient({
             </div>
           )}
           {previewType === 'error' && !error && ( // If main error is not set, but preview specific error
-             <div className="my-2 p-3 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-md text-sm">
+            <div className="my-2 p-3 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-md text-sm">
               Preview unavailable for this file.
             </div>
           )}
         </div>
       )}
-      
+
       {!currentGzipFile && !isProcessing && !error && (
         <p className="p-4 text-lg text-center text-gray-400 italic">
           Select a .gz file to begin.
