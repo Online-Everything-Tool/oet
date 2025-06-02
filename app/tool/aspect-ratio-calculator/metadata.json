@@ -1,0 +1,22 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "Calculates and displays different aspect ratios based on user-provided dimensions. Maintain aspect ratio or calculate dimensions from common ratios.",
+  "inputConfig": [],
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "urlStateParams": [
+    { "paramName": "ow", "type": "string", "defaultValue": "" },
+    { "paramName": "oh", "type": "string", "defaultValue": "" },
+    { "paramName": "mode", "type": "enum", "defaultValue": "maintain" },
+    { "paramName": "mtw", "type": "string", "defaultValue": "" },
+    { "paramName": "mth", "type": "string", "defaultValue": "" },
+    { "paramName": "cr_sel", "type": "string", "defaultValue": "16:9" },
+    { "paramName": "cr_val", "type": "string", "defaultValue": "" },
+    { "paramName": "cr_type", "type": "enum", "defaultValue": "width" }
+  ],
+  "tags": ["calculator", "aspect ratio", "dimensions", "video", "image", "design", "resolution"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
