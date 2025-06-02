@@ -1,0 +1,15 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "This tool calculates and displays different aspect ratios based on provided width and height values.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "tags": ["aspect ratio", "image", "video", "calculator", "dimension"],
+  "includeInSitemap": true,
+  "status": "stable"
+}
