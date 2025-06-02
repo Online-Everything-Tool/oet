@@ -1,4 +1,4 @@
-// app/api/recent-builds/route.ts
+// app/api/status-recent-builds/route.ts
 
 import { NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
@@ -22,7 +22,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   if (!appId || !privateKeyBase64) {
     console.error(
-      '[api/recent-builds] GitHub App credentials missing on server.'
+      '[api/status-recent-builds] GitHub App credentials missing on server.'
     );
     throw new Error(
       'Server configuration error: GitHub App credentials missing.'
@@ -50,7 +50,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e: any) {
     console.error(
-      `[api/recent-builds] Failed to get repo installation. Status: ${e?.status}`
+      `[api/status-recent-builds] Failed to get repo installation. Status: ${e?.status}`
     );
     throw new Error(
       `App installation not found for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}.`
@@ -65,7 +65,7 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 
   const { token } = await appAuth({ type: 'installation', installationId });
   octokitInstance = new Octokit({ auth: token });
-  console.log('[api/recent-builds] GitHub App authentication successful.');
+  console.log('[api/status-recent-builds] GitHub App authentication successful.');
   return octokitInstance;
 }
 
@@ -108,13 +108,13 @@ function isQualifyingToolPr(pr: {
 }
 
 export async function GET() {
-  console.log('[api/recent-builds] Received request to list recent build PRs.');
+  console.log('[api/status-recent-builds] Received request to list recent build PRs.');
 
   try {
     const octokit = await getAuthenticatedOctokit();
     const allQualifyingPrsMap = new Map<number, RecentBuildPrInfo>();
 
-    console.log('[api/recent-builds] Fetching recent OPEN tool PRs...');
+    console.log('[api/status-recent-builds] Fetching recent OPEN tool PRs...');
     const { data: openPrs } = await octokit.rest.pulls.list({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
@@ -141,11 +141,11 @@ export async function GET() {
       }
     }
     console.log(
-      `[api/recent-builds] Found ${allQualifyingPrsMap.size} open qualifying PRs.`
+      `[api/status-recent-builds] Found ${allQualifyingPrsMap.size} open qualifying PRs.`
     );
 
     console.log(
-      '[api/recent-builds] Fetching recent CLOSED (for MERGED) tool PRs...'
+      '[api/status-recent-builds] Fetching recent CLOSED (for MERGED) tool PRs...'
     );
     const { data: closedPrs } = await octokit.rest.pulls.list({
       owner: GITHUB_REPO_OWNER,
@@ -180,7 +180,7 @@ export async function GET() {
       }
     }
     console.log(
-      `[api/recent-builds] Added ${mergedAddedCount} merged qualifying PRs. Total candidates: ${allQualifyingPrsMap.size}.`
+      `[api/status-recent-builds] Added ${mergedAddedCount} merged qualifying PRs. Total candidates: ${allQualifyingPrsMap.size}.`
     );
 
     const sortedPrs = Array.from(allQualifyingPrsMap.values()).sort((a, b) => {
@@ -202,7 +202,7 @@ export async function GET() {
     const finalPrsToReturn = sortedPrs.slice(0, MAX_PRS_TO_RETURN);
 
     console.log(
-      `[api/recent-builds] Final list contains ${finalPrsToReturn.length} PRs (returning up to ${MAX_PRS_TO_RETURN}).`
+      `[api/status-recent-builds] Final list contains ${finalPrsToReturn.length} PRs (returning up to ${MAX_PRS_TO_RETURN}).`
     );
     return NextResponse.json(
       { recentBuilds: finalPrsToReturn },
@@ -210,7 +210,7 @@ export async function GET() {
     );
   } catch (error: unknown) {
     console.error(
-      '[api/recent-builds] Error fetching recent build PRs:',
+      '[api/status-recent-builds] Error fetching recent build PRs:',
       error
     );
     let errorMessage = 'Failed to fetch recent build PRs.';

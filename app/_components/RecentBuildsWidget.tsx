@@ -73,7 +73,7 @@ export default function RecentBuildsWidget({
       hasAttemptedFetchRef.current = true;
 
       try {
-        const response = await fetch('/api/recent-builds');
+        const response = await fetch('/api/status-recent-builds');
         const data: RecentBuildsApiResponse = await response.json();
 
         if (response.ok && data.recentBuilds) {

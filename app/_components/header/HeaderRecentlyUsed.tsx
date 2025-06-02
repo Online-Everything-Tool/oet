@@ -109,7 +109,7 @@ export default function HeaderRecentlyUsed() {
           aria-hidden={!isDropdownOpen}
         >
           <RecentlyUsedToolsWidget
-            key="recent-builds-dropdown-widget"
+            key="status-recent-builds-dropdown-widget"
             currentToolDirectiveToExclude={currentToolDirective}
             onItemClick={closeDropdown}
           />
