@@ -88,8 +88,7 @@ export default function ImageEyeDropperClient({ toolRoute }: ImageEyeDropperClie
         pickedColorRgb: null,
       }));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hookPickedColorData]); // Only react to hookPickedColorData, setToolState is stable
+  }, [hookPickedColorData, setToolState]); // Fixed exhaustive-deps warning
 
   const handleFilesSelectedFromModal = useCallback(async (files: StoredFile[]) => {
     setIsLibraryModalOpen(false);
@@ -141,7 +140,7 @@ export default function ImageEyeDropperClient({ toolRoute }: ImageEyeDropperClie
       setUiError(`Failed to copy ${type.toUpperCase()} color.`);
       console.error('Copy failed:', err);
     }
-  }, [toolState.pickedColorHex, toolState.pickedColorRgb]);
+  }, [toolState.pickedColorHex, toolState.pickedColorRgb, setCopiedStatus, setUiError]);
 
   const handleProcessIncomingSignal = useCallback(async (signal: IncomingSignal) => {
     setUiError(null);
@@ -174,7 +173,7 @@ export default function ImageEyeDropperClient({ toolRoute }: ImageEyeDropperClie
       clearHookLogicState();
 
       if (oldSelectedId && oldSelectedId !== newSelectedId) {
-         const oldFile = await getFile(oldSelectedId);
+        const oldFile = await getFile(oldSelectedId);
         if (oldFile?.isTemporary) {
           cleanupOrphanedTemporaryFiles([oldSelectedId]).catch(e => console.error("Cleanup failed:", e));
         }
@@ -183,7 +182,7 @@ export default function ImageEyeDropperClient({ toolRoute }: ImageEyeDropperClie
     } else {
       setUiError('Received data does not contain a usable image file.');
     }
-  }, [getToolMetadata, toolState.selectedFileId, setToolState, saveStateNow, clearHookLogicState, getFile, cleanupOrphanedTemporaryFiles]);
+  }, [getToolMetadata, toolState.selectedFileId, setToolState, saveStateNow, clearHookLogicState, getFile, cleanupOrphanedTemporaryFiles, setUserDeferredAutoPopup, setUiError]);
 
   const itdeTarget = useItdeTargetHandler({
     targetToolDirective: metadata.directive,
@@ -205,9 +204,10 @@ export default function ImageEyeDropperClient({ toolRoute }: ImageEyeDropperClie
     }
     setUiError(null);
     return true;
-  }, [toolState.pickedColorHex]);
+  }, [toolState.pickedColorHex, setUiError]);
 
-  const isLoading = isLoadingToolState || isLoadingHookImage;
+  //Removed unused variable isLoading
+  //const isLoading = isLoadingToolState || isLoadingHookImage;
 
   if (isLoadingToolState && !toolState.selectedFileId) { // Show loading only on initial full state load
      return <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">Loading Image Eye Dropper...</p>;
