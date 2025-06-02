@@ -18,9 +18,6 @@ import {
   QuestionMarkCircleIcon,
 } from '@heroicons/react/20/solid';
 
-// Type definitions (assuming these are now globally available or imported from a central types file)
-// For now, keeping them inline for clarity of this component's needs.
-// Consider moving these to a shared types file if not already there.
 interface CiCheck {
   name: string;
   status: string;
@@ -141,7 +138,7 @@ export default function ViewPrStatus({
 
     try {
       const response = await fetch(
-        `/api/status-pr?prNumber=${prNumberToMonitor}` // Updated API endpoint
+        `/api/status-pr?prNumber=${prNumberToMonitor}`
       );
 
       if (!componentMountedRef.current) return;
@@ -204,7 +201,7 @@ export default function ViewPrStatus({
           );
         }
       }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       if (!componentMountedRef.current) return;
       console.error(

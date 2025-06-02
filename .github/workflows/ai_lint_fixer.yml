@@ -65,7 +65,9 @@ jobs:
             if [ -f "$LINT_ERRORS_FILE" ] && [ -s "$LINT_ERRORS_FILE" ] && \
                [ -f "$FILES_TO_CHECK_FILE" ] && [ -s "$FILES_TO_CHECK_FILE" ]; then
               echo "ALF: Lint failure artifact found and appears valid."
-              echo "Contents of lint_errors.txt (first 500 chars):"; head -c 500 "$LINT_ERRORS_FILE"; echo
+              echo "--- Start: Full Contents of lint_errors.txt ---"
+              cat "$LINT_ERRORS_FILE"
+              echo "--- End: Full Contents of lint_errors.txt ---"
               echo "Contents of files_to_check.txt:"; cat "$FILES_TO_CHECK_FILE"; echo
               echo "artifact_is_valid_and_actionable=true" >> $GITHUB_OUTPUT
             else

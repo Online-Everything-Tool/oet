@@ -7,22 +7,22 @@ import type {
   ValidationResult,
   ApiPrSubmissionResponseData,
 } from '@/src/types/build';
-import Button from '@/app/tool/_components/form/Button'; // Adjusted path
+import Button from '@/app/tool/_components/form/Button';
 import { InformationCircleIcon } from '@heroicons/react/24/outline';
 
 interface CreatePrFormProps {
   toolDirective: string;
-  generationResult: GenerationResult; // Must not be null here
-  validationResult: ValidationResult; // Must not be null here
+  generationResult: GenerationResult;
+  validationResult: ValidationResult;
   additionalDescription: string;
   userSelectedDirectives: string[];
-  selectedModel: string; // AI model used for generation
-  onBack: () => void; // To go back to the generation step
+  selectedModel: string;
+  onBack: () => void;
   onPrCreated: (
     prNumber: number,
     prUrl: string,
     createdToolDirective: string
-  ) => void; // Callback with PR details
+  ) => void;
 }
 
 export default function CreatePrForm({
@@ -40,7 +40,7 @@ export default function CreatePrForm({
     null
   );
   const [prCreationStatus, setPrCreationStatus] = useState<
-    'idle' | 'error' | 'success' // Success here means API call succeeded, parent handles next step
+    'idle' | 'error' | 'success'
   >('idle');
 
   const [expandedFilePath, setExpandedFilePath] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export default function CreatePrForm({
 
     const metadataPath = `app/tool/${toolDirective}/metadata.json`;
     const pagePath = `app/tool/${toolDirective}/page.tsx`;
-    // Client component path might vary if AI named it differently, try to find it
+
     const clientComponentPattern = new RegExp(
       `app/tool/${toolDirective}/_components/.*Client\\.tsx$`
     );
@@ -75,18 +75,16 @@ export default function CreatePrForm({
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
 
-      // Fallback sorting for other files (e.g., hooks, sub-components)
-      if (a.includes('/_hooks/') && !b.includes('/_hooks/')) return -1; // Hooks first
+      if (a.includes('/_hooks/') && !b.includes('/_hooks/')) return -1;
       if (!a.includes('/_hooks/') && b.includes('/_hooks/')) return 1;
       if (a.includes('/_components/') && !b.includes('/_components/'))
-        return -1; // Then components
+        return -1;
       if (!a.includes('/_components/') && b.includes('/_components/')) return 1;
 
       return a.localeCompare(b);
     });
   }, [filesToDisplayInPreview, toolDirective]);
 
-  // Effect to auto-expand the first relevant file for preview
   useEffect(() => {
     if (sortedFilePaths.length > 0 && !expandedFilePath) {
       const metadataPath = `app/tool/${toolDirective}/metadata.json`;
@@ -157,7 +155,7 @@ export default function CreatePrForm({
           data.message || `PR submission failed (${response.status})`
         );
       }
-      setPrCreationFeedback(data.message + ' Transitioning to monitoring...'); // Updated feedback
+      setPrCreationFeedback(data.message + ' Transitioning to monitoring...');
       setPrCreationStatus('success');
 
       const match = data.url.match(/\/pull\/(\d+)/);
@@ -167,9 +165,9 @@ export default function CreatePrForm({
       } else {
         throw new Error('Could not parse PR number from URL: ' + data.url);
       }
-      // Notify parent (BuildToolClient) about the created PR
+
       onPrCreated(createdPrNumber, data.url, toolDirective);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       setPrCreationStatus('error');
       setPrCreationFeedback(
@@ -307,20 +305,18 @@ export default function CreatePrForm({
           Submit Anonymous PR to GitHub
         </Button>
       </div>
-      {prCreationFeedback &&
-        prCreationStatus !== 'success' && ( // Don't show non-success feedback if API call succeeded
-          <div
-            className={`mt-4 text-sm p-3 rounded ${prCreationStatus === 'error' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
-          >
-            {prCreationFeedback}
-          </div>
-        )}
-      {prCreationFeedback &&
-        prCreationStatus === 'success' && ( // Show success feedback briefly
-          <div className="mt-4 text-sm p-3 rounded bg-green-100 text-green-700 border-green-200">
-            {prCreationFeedback}
-          </div>
-        )}
+      {prCreationFeedback && prCreationStatus !== 'success' && (
+        <div
+          className={`mt-4 text-sm p-3 rounded ${prCreationStatus === 'error' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
+        >
+          {prCreationFeedback}
+        </div>
+      )}
+      {prCreationFeedback && prCreationStatus === 'success' && (
+        <div className="mt-4 text-sm p-3 rounded bg-green-100 text-green-700 border-green-200">
+          {prCreationFeedback}
+        </div>
+      )}
     </section>
   );
 }
