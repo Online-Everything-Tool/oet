@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useRef,
-  useMemo,
+  // useMemo, // Removed: useMemo is unused
 } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -37,6 +37,8 @@ import IncomingDataModal from '../../_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
 import SendToToolButton from '../../_components/shared/SendToToolButton';
 import toolSpecificMetadata from '../metadata.json';
+import type { ResolvedItdeData } from '@/app/lib/itdeDataUtils';
+
 
 const ownMetadata = toolSpecificMetadata as ToolMetadata;
 const MAX_TEXT_PREVIEW_SIZE = 1024 * 256; // 256KB
