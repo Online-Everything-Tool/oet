@@ -3,10 +3,11 @@ You are an AI bot acting as a TypeScript developer with a CI/CD workflow. Your t
 File Path: {{FILE_PATH}}
 
 Original File Content:
+
 ```typescript
 {{FILE_CONTENT}}
 
-Lint/Compiler Warnings/Errors for {{FILE_PATH}}:  
+Lint/Compiler Warnings/Errors for {{FILE_PATH}}:
 {{LINT_ERRORS}}
 
 **Return:**
@@ -20,3 +21,4 @@ Return the updated file and the a bried fix description for any fixes applied.  
 // brief fix description
 ---END_FIX_DESCRIPTION---
 
+```

@@ -151,7 +151,7 @@ export default async function HtmlEntityPage() {
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <HtmlEntityExplorerClient
         initialEntities={entities}
         availableCategories={categories}

@@ -31,22 +31,14 @@ export default function ChordDiagramTooltip({
     >
       <div className="font-bold text-center text-lg">{chordName}</div>
       <div className="flex items-start">
-        {tuning.map(
-          (
-            stringName,
-            index
-          ) => (
-            <div
-              key={stringName + index}
-              className="flex flex-col items-center"
-            >
-              <span className="font-semibold px-px text-lg">
-                {strings[index] || '-'}
-              </span>
-              <span className="text-gray-500 px-px text-lg">{stringName}</span>
-            </div>
-          )
-        )}
+        {tuning.map((stringName, index) => (
+          <div key={stringName + index} className="flex flex-col items-center">
+            <span className="font-semibold px-px text-lg">
+              {strings[index] || '-'}
+            </span>
+            <span className="text-gray-500 px-px text-lg">{stringName}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// FILE: app/build-tool/_components/BuildToolClient.tsx
+// FILE: app/build/tool/_components/BuildToolClient.tsx
 'use client';
 
 import React, {
@@ -15,7 +15,7 @@ import ValidateDirective from './ValidateDirective';
 import GenerateToolResources from './GenerateToolResources';
 import CreateAnonymousPr from './CreateAnonymousPr';
 import BuildToolInfoCarousel from './BuildToolInfoCarousel';
-import Button from '../../tool/_components/form/Button';
+import Button from '@/app/tool/_components/form/Button';
 
 import type { ValidationResult, GenerationResult } from '@/src/types/build';
 import { useMetadata } from '@/app/context/MetadataContext';

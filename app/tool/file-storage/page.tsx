@@ -6,18 +6,17 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import FileStorageClient from './_components/FileStorageClient';
 import { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function FileStoragePage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = metadata.title || 'File Storage';
-  const toolRoute = '/tool/file-storage';
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <FileStorageClient toolRoute={toolRoute} />
+        <FileStorageClient toolRoute={toolRoute(typedMetadata)} />
       </ToolSuspenseWrapper>
     </div>
   );

@@ -2,6 +2,7 @@
 import { getClassWithColor } from 'file-icons-js';
 import mime from 'mime-types';
 import { StoredFile } from './db';
+import { ToolMetadata } from '@/src/types/tools';
 
 export interface FilePreviewDisplayInfo {
   iconName: string;
@@ -282,4 +283,8 @@ export function safeParseState<T>(
     console.error('[safeParseState] Error parsing JSON:', e);
     return defaultValue;
   }
+}
+
+export function toolRoute(metadata: ToolMetadata) {
+  return `/tool/${metadata.directive}`;
 }

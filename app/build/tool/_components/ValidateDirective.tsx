@@ -1,4 +1,4 @@
-// FILE: app/build-tool/_components/ValidateDirective.tsx
+// FILE: app/build/tool/_components/ValidateDirective.tsx
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';

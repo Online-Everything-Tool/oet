@@ -192,9 +192,7 @@ export default function StorageControls({
       <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
         <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
           <Button
-            variant={
-              currentLayout === 'list' ? 'primary' : 'neutral'
-            }
+            variant={currentLayout === 'list' ? 'primary' : 'neutral'}
             size="sm"
             onClick={() => onLayoutChange('list')}
             disabled={isLoading}
@@ -206,9 +204,7 @@ export default function StorageControls({
             <Bars3Icon className="h-4 w-4" />
           </Button>
           <Button
-            variant={
-              currentLayout === 'grid' ? 'primary' : 'neutral'
-            }
+            variant={currentLayout === 'grid' ? 'primary' : 'neutral'}
             size="sm"
             onClick={() => onLayoutChange('grid')}
             disabled={isLoading}
@@ -223,9 +219,7 @@ export default function StorageControls({
 
         <div className="border-l pl-3 ml-1">
           <Button
-            variant={
-              isFilterSelectedActive ? 'accent' : 'neutral'
-            }
+            variant={isFilterSelectedActive ? 'accent' : 'neutral'}
             size="sm"
             onClick={onToggleFilterSelected}
             disabled={isLoading || !hasSelection}

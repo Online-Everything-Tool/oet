@@ -6,21 +6,20 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import SongbookClient from './_components/SongbookClient';
 import { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function SongbookPage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = typedMetadata.title || 'Songbook';
-  const toolRoute = `/tool/${typedMetadata.directive}`;
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader
-        title={toolTitle}
-        description={typedMetadata.description || ''}
-      />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <SongbookClient toolRoute={toolRoute} metadata={typedMetadata} />
+        <SongbookClient
+          toolRoute={toolRoute(typedMetadata)}
+          metadata={typedMetadata}
+        />
       </ToolSuspenseWrapper>
     </div>
   );

@@ -6,19 +6,17 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import ZipFileExplorerClient from './_components/ZipFileExplorerClient';
 import { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function ZipFileExplorerPage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = metadata.title || 'Zip File Explorer';
-  const toolRoute = '/tool/zip-file-explorer';
 
   return (
     <div className="relative flex flex-col gap-4">
-      {/* Render ToolSettings */}
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <ZipFileExplorerClient toolRoute={toolRoute} />
+        <ZipFileExplorerClient toolRoute={toolRoute(typedMetadata)} />
       </ToolSuspenseWrapper>
     </div>
   );

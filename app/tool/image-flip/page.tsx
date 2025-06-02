@@ -6,18 +6,17 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import ImageFlipClient from './_components/ImageFlipClient';
 import { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function ImageFlipPage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = metadata.title || 'Image Flip';
-  const toolRoute = '/tool/image-flip';
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <ImageFlipClient toolRoute={toolRoute} />
+        <ImageFlipClient toolRoute={toolRoute(typedMetadata)} />
       </ToolSuspenseWrapper>
     </div>
   );

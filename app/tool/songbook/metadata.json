@@ -1,7 +1,7 @@
 {
   "title": "Songbook",
-  "directive": "songbook",
   "description": "Create, manage, and view your personal collection of songs with lyrics and chords. Upload existing files or add songs manually.",
+  "directive": "songbook",
   "inputConfig": {
     "acceptsMimeTypes": [
       "application/vnd.oet.songdata+json",

@@ -24,7 +24,7 @@ export default function BuildToolWidget({
           assistance!
         </p>
         <Link
-          href="/build-tool/"
+          href="/build/tool/"
           className="inline-flex items-center px-5 py-2 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none transition-colors"
         >
           <WrenchIcon className="h-5 w-5 mr-2" /> Build a Tool
@@ -48,7 +48,7 @@ export default function BuildToolWidget({
             {suggestedDirectives.map((directive) => (
               <li key={directive}>
                 <Link
-                  href={`/build-tool?directive=${encodeURIComponent(directive)}`}
+                  href={`/build/tool?directive=${encodeURIComponent(directive)}`}
                   className="inline-block transition-colors text-[rgb(var(--color-text-link))] hover:text-[rgb(var(--color-text-link-hover))]"
                   title={`Start building '${directive}'`}
                 >

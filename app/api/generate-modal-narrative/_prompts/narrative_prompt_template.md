@@ -19,10 +19,9 @@ Be creative and funny! Subtly weave in references to the tool's name, its descri
 Respond ONLY with plain text using the following EXACT format. Each field MUST be on its own line, followed by '::' and then the value.
 For CHAPTER_STORY, the text after 'CHAPTER_STORY::' can span multiple lines until '--END_CHAPTER--' is encountered.
 
-- **FORMAT EXAMPLE:** 
+- **FORMAT EXAMPLE:**
 
 {{FULL_EXAMPLE}}
 
 - **NARRATIVE RULES:**
   - EPIC_COMPANY_NAME, EPIC_COMPANY_EMPLOYEE_NAME, EPIC_COMPANY_JOB_TITLE must be different than the example provided to ensure uniqueness!
-

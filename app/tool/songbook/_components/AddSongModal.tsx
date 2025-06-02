@@ -90,7 +90,9 @@ export default function AddSongModal({
           : ''
     );
     setNotes(songDataToLoad?.notes || DEFAULT_SONG_DATA_FIELDS.notes || '');
-    setSourceUrlState(songDataToLoad?.sourceUrl || DEFAULT_SONG_DATA_FIELDS.sourceUrl || '');
+    setSourceUrlState(
+      songDataToLoad?.sourceUrl || DEFAULT_SONG_DATA_FIELDS.sourceUrl || ''
+    );
   };
 
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function AddSongModal({
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, existingSongData, initialActiveTab, isEditing]);
 
   const handleInternalTabChange = (newTab: 'manual' | 'url') => {
@@ -135,8 +137,14 @@ export default function AddSongModal({
   const generateFilename = (): string => {
     const t = title.trim() || 'untitled';
     const a = artist.trim() || 'unknown_artist';
-    const cleanTitle = t.replace(/[^\w\s.-]/gi, '').replace(/\s+/g, '_').toLowerCase();
-    const cleanArtist = a.replace(/[^\w\s.-]/gi, '').replace(/\s+/g, '_').toLowerCase();
+    const cleanTitle = t
+      .replace(/[^\w\s.-]/gi, '')
+      .replace(/\s+/g, '_')
+      .toLowerCase();
+    const cleanArtist = a
+      .replace(/[^\w\s.-]/gi, '')
+      .replace(/\s+/g, '_')
+      .toLowerCase();
     return `${cleanArtist}_${cleanTitle}.songdata.json`;
   };
 
@@ -153,13 +161,17 @@ export default function AddSongModal({
       title: title.trim() || null,
       artist: artist.trim() || null,
       lyricsAndChords: lyricsAndChords,
-      playbackSpeed: existingSongData?.playbackSpeed || DEFAULT_SONG_DATA_FIELDS.playbackSpeed,
+      playbackSpeed:
+        existingSongData?.playbackSpeed ||
+        DEFAULT_SONG_DATA_FIELDS.playbackSpeed,
       fontSize: existingSongData?.fontSize,
       key: songKey.trim() || undefined,
       capo: capo.trim() ? parseInt(capo, 10) : undefined,
       notes: notes.trim() || undefined,
       sourceUrl: sourceUrlState.trim() || undefined,
-      originalMimeType: existingSongData?.originalMimeType || 'application/vnd.oet.songdata+json',
+      originalMimeType:
+        existingSongData?.originalMimeType ||
+        'application/vnd.oet.songdata+json',
     };
 
     const songBlob = new Blob([JSON.stringify(songDataToSave, null, 2)], {
@@ -171,7 +183,13 @@ export default function AddSongModal({
         await updateFileBlob(existingFileId, songBlob, false);
       } else {
         const filename = generateFilename();
-        await addFile(songBlob, filename, 'application/vnd.oet.songdata+json', false, toolRoute);
+        await addFile(
+          songBlob,
+          filename,
+          'application/vnd.oet.songdata+json',
+          false,
+          toolRoute
+        );
       }
       onSongSaved();
       onClose();
@@ -190,9 +208,12 @@ export default function AddSongModal({
       return;
     }
 
-    const ugDomainPattern = /^(https?:\/\/)?(www\.)?(tabs\.ultimate-guitar\.com|ultimate-guitar\.com)/i;
+    const ugDomainPattern =
+      /^(https?:\/\/)?(www\.)?(tabs\.ultimate-guitar\.com|ultimate-guitar\.com)/i;
     if (!ugDomainPattern.test(trimmedUrl)) {
-      setFetchError('Please enter a valid Ultimate Guitar URL (e.g., tabs.ultimate-guitar.com or ultimate-guitar.com).');
+      setFetchError(
+        'Please enter a valid Ultimate Guitar URL (e.g., tabs.ultimate-guitar.com or ultimate-guitar.com).'
+      );
       return;
     }
 
@@ -201,7 +222,9 @@ export default function AddSongModal({
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
-      console.log(`[AddSongModal] Calling /api/scrape-ug for URL: ${trimmedUrl}`);
+      console.log(
+        `[AddSongModal] Calling /api/scrape-ug for URL: ${trimmedUrl}`
+      );
       const response = await fetch(`${apiUrl}/api/songbook`, {
         method: 'POST',
         headers: {
@@ -214,7 +237,9 @@ export default function AddSongModal({
 
       if (!response.ok) {
         console.error('[AddSongModal] Error from scraping API:', data);
-        setFetchError(data.details || data.error || 'Failed to fetch song data from URL.');
+        setFetchError(
+          data.details || data.error || 'Failed to fetch song data from URL.'
+        );
         setIsFetchingFromUrl(false);
         return;
       }
@@ -227,17 +252,23 @@ export default function AddSongModal({
       setSourceUrlState(data.requestedUrl || trimmedUrl);
 
       setSongKey(DEFAULT_SONG_DATA_FIELDS.key || '');
-      setCapo(DEFAULT_SONG_DATA_FIELDS.capo !== undefined ? String(DEFAULT_SONG_DATA_FIELDS.capo) : '');
+      setCapo(
+        DEFAULT_SONG_DATA_FIELDS.capo !== undefined
+          ? String(DEFAULT_SONG_DATA_FIELDS.capo)
+          : ''
+      );
       setNotes(DEFAULT_SONG_DATA_FIELDS.notes || '');
-      
+
       handleInternalTabChange('manual');
       if (lyricsTextareaRef.current) {
         setTimeout(() => lyricsTextareaRef.current?.focus(), 100);
       }
-
     } catch (error) {
       const err = error as Error;
-      console.error('[AddSongModal] Network or other error fetching from URL:', err);
+      console.error(
+        '[AddSongModal] Network or other error fetching from URL:',
+        err
+      );
       setFetchError(`An error occurred: ${err.message}`);
     } finally {
       setIsFetchingFromUrl(false);
@@ -253,7 +284,7 @@ export default function AddSongModal({
       while (i < text.length) {
         if (text[i] === '\n') {
           resultBuilder.push('\n');
-          if ((i + 1) < text.length && text[i+1] === '\n') {
+          if (i + 1 < text.length && text[i + 1] === '\n') {
             i += 2;
           } else {
             i += 1;
@@ -285,10 +316,19 @@ export default function AddSongModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
-          <h2 id="add-song-modal-title" className="text-xl font-semibold text-gray-800">
+          <h2
+            id="add-song-modal-title"
+            className="text-xl font-semibold text-gray-800"
+          >
             {isEditing ? 'Edit Song' : 'Add New Song'}
           </h2>
-          <Button variant="link" size="sm" onClick={onClose} aria-label="Close modal" className="p-1 text-gray-400 hover:text-gray-600">
+          <Button
+            variant="link"
+            size="sm"
+            onClick={onClose}
+            aria-label="Close modal"
+            className="p-1 text-gray-400 hover:text-gray-600"
+          >
             <XMarkIcon className="h-6 w-6" />
           </Button>
         </div>
@@ -334,7 +374,10 @@ export default function AddSongModal({
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <label htmlFor="lyrics-textarea" className="block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="lyrics-textarea"
+                    className="block text-sm font-medium text-gray-700"
+                  >
                     Lyrics & Chords
                   </label>
                   <Button
@@ -396,7 +439,10 @@ export default function AddSongModal({
               <Input
                 label="Song URL from Ultimate Guitar"
                 value={importUrl}
-                onChange={(e) => { setImportUrl(e.target.value); setFetchError(null); }}
+                onChange={(e) => {
+                  setImportUrl(e.target.value);
+                  setFetchError(null);
+                }}
                 placeholder="https://tabs.ultimate-guitar.com/..."
                 type="url"
                 disabled={isFetchingFromUrl}

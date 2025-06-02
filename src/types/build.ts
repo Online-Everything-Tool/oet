@@ -34,20 +34,6 @@ export interface ApiVetDependencyResponse {
   error?: string;
 }
 
-export interface ResouceGenerationEpicChapter {
-  chapterEmoji: string;
-  chapterStory: string;
-}
-
-export interface ResouceGenerationEpic {
-  epicCompanyName: string;
-  epicCompanyEmoji: string;
-  epicCompanyEmployeeName: string;
-  epicCompanyJobTitle: string;
-  epicCompanyEmployeeEmoji: string;
-  epicNarrative: ResouceGenerationEpicChapter[];
-}
-
 export interface AiModel {
   name: string;
   displayName: string;

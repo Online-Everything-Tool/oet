@@ -148,7 +148,7 @@ jobs:
             else echo "::warning::File path '$trimmed_filepath' from artifact not found in checkout."; fi
           done < "$FILES_TO_CHECK_FILE"
           echo ']' >> "$PR_FILES_JSON_PATH"
-          
+
           # Validate and clean up potential extra array wrapping if jq produced nested arrays by mistake
           if jq -s 'if type == "array" and length > 0 and (.[0] | type) == "array" then .[0] else . end' "$PR_FILES_JSON_PATH" > "$JQ_TEMP_OUTPUT_FILE"; then
             if [ -s "$JQ_TEMP_OUTPUT_FILE" ]; then mv "$JQ_TEMP_OUTPUT_FILE" "$PR_FILES_JSON_PATH"; fi
@@ -307,7 +307,7 @@ jobs:
           echo "API_RESPONSE_SUCCESS_ALF=${{ steps.call_fix_api.outputs.api_response_success }}" >> $GITHUB_ENV
           echo "ACTUAL_CODE_CHANGES_BY_AI_ALF=${{ steps.apply_fixes.outputs.actual_code_changes_by_ai_output }}" >> $GITHUB_ENV
           echo "COMMIT_ACTUALLY_MADE_BY_ALF=${{ steps.commit_step.outputs.commit_actually_made }}" >> $GITHUB_ENV
-          
+
           # Pass the path to the descriptions file
           echo "ALL_FIX_DESCRIPTIONS_FILE_PATH_ALF=${{ steps.apply_fixes.outputs.all_fix_descriptions_file_path }}" >> $GITHUB_ENV
           echo "Comment data preparation complete."

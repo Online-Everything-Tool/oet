@@ -272,7 +272,7 @@ export default function RecentBuildsWidget({
         {recentBuildPrs.map((pr) => {
           const targetUrl =
             pr.status === 'open'
-              ? `/build-tool?prNumber=${pr.prNumber}`
+              ? `/build/tool?prNumber=${pr.prNumber}`
               : `/tool/${pr.toolDirective}/`;
 
           return (

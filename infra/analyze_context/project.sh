@@ -2,7 +2,7 @@
 
 # infra/analyze_context/project.sh
 # Reads .env file for API key, loads the pre-generated base project context
-# (expected to include history/build-tool details), asks Gemini to generate a
+# (expected to include history/build/tool details), asks Gemini to generate a
 # structured analysis (tagline, desc, benefits, suggestions) and adds the
 # model name used, saving the final JSON to public/data/project_analysis.json.
 
@@ -21,12 +21,12 @@ MODEL_NAME="${ANALYSIS_MODEL_NAME:-$DEFAULT_MODEL_NAME}"
 # --- The Analysis Question (Refined v5 - Explicit Naming Rule Reinforcement) ---
 # Note: The final 'modelNameUsed' field is added by *this* script, not requested from the AI.
 ANALYSIS_QUESTION=$(cat <<- 'EOF'
-Analyze the provided project context which includes base configuration, layout, home page (showing existing tools), global styles, HistoryContext, and the build-tool feature.
+Analyze the provided project context which includes base configuration, layout, home page (showing existing tools), global styles, HistoryContext, and the build/tool feature.
 Based *only* on the information given:
 
 1.  Generate a catchy, concise `siteTagline` (string, max 15 words) reflecting the tool's overall value proposition.
 2.  Generate a `siteDescription` (string, exactly **2 sentences**) summarizing the application's purpose ("Online everything tool - largest assortment of free client-based utilities") and target audience.
-3.  Infer a list of user `siteBenefits` (array of strings). Focus on the *value* provided, not just listing features. Examples: "Access a wide variety of utilities in one place", "Transform data quickly using client-side processing", "Track your past operations with the History feature", "Contribute new tools easily via the AI-assisted build process", "Works offline for many tools due to PWA setup". Derive these from the purpose, included tools, PWA config, history, and build-tool features shown in the context.
+3.  Infer a list of user `siteBenefits` (array of strings). Focus on the *value* provided, not just listing features. Examples: "Access a wide variety of utilities in one place", "Transform data quickly using client-side processing", "Track your past operations with the History feature", "Contribute new tools easily via the AI-assisted build process", "Works offline for many tools due to PWA setup". Derive these from the purpose, included tools, PWA config, history, and build/tool features shown in the context.
 4.  **Brainstorm `suggestedNewToolDirectives` (array of strings): Based on the project's goal of being a comprehensive suite of *client-side utilities* and the *types* of tools already present (data transformation, generation, exploration - e.g., 'base64-converter', 'hash-generator', 'json-validator-formatter', 'emoji-explorer'), suggest exactly 5 potential *new* tool directives that would logically fit and expand the suite. Focus on common developer, data manipulation, or text utility tasks suitable for client-side implementation. Return these suggestions as an array of strings, using lowercase kebab-case. **Crucially, ensure the directives strictly follow the `<thing>-<operation>` or `<thing>-<operation>-<operation>` pattern (e.g., "diff-checker", "regex-tester", "color-picker", "jwt-debugger", "markdown-previewer") and explicitly avoid prepositions like 'to', 'for', 'with' or articles like 'a', 'an', 'the' within the directive name itself.**
 
 Respond ONLY with a single JSON object adhering strictly to the following structure (the 'modelNameUsed' field will be added by the calling script, do not generate it):

@@ -12,10 +12,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/20/solid';
 import Checkbox from '../form/Checkbox';
-import type {
-  FeedbackStateEntry,
-
-} from './GenericStorageClient';
+import type { FeedbackStateEntry } from './GenericStorageClient';
 
 interface FileGridViewProps {
   files: StoredFile[];

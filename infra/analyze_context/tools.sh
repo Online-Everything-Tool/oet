@@ -22,7 +22,7 @@ MODEL_NAME="${ANALYSIS_MODEL_NAME:-$DEFAULT_MODEL_NAME}"
 # Note: The final 'modelNameUsed' field is added by *this* script, not requested from the AI.
 TOOL_ANALYSIS_QUESTION=$(cat <<- 'EOF'
 You are provided with two contexts:
-1.  **Project Context:** Contains overall project information like README rules, core configuration, layout, global styles (`globals.css`), potentially HistoryContext, and the build-tool implementation. This represents the project's standards and patterns.
+1.  **Project Context:** Contains overall project information like README rules, core configuration, layout, global styles (`globals.css`), potentially HistoryContext, and the build/tool implementation. This represents the project's standards and patterns.
 2.  **Tool Context:** Contains the actual source code for various tools located under `app/t/`.
 
 Based on *both* contexts provided:

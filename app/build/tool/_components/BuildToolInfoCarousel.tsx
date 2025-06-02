@@ -1,4 +1,4 @@
-// app/build-tool/_components/BuildToolInfoCarousel.tsx
+// app/build/tool/_components/BuildToolInfoCarousel.tsx
 'use client';
 
 import React, { useState } from 'react';

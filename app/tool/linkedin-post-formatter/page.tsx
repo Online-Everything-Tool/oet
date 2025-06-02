@@ -6,21 +6,17 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import LinkedinPostFormatterClient from './_components/LinkedinPostFormatterClient';
 import type { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function LinkedinPostFormatterPage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = typedMetadata.title || 'LinkedIn Post Formatter';
-  const toolRoute = '/tool/linkedin-post-formatter';
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader
-        title={toolTitle}
-        description={typedMetadata.description || ''}
-      />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <LinkedinPostFormatterClient toolRoute={toolRoute} />
+        <LinkedinPostFormatterClient toolRoute={toolRoute(typedMetadata)} />
       </ToolSuspenseWrapper>
     </div>
   );

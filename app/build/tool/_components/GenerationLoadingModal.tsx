@@ -1,12 +1,12 @@
-// FILE: app/build-tool/_components/GenerationLoadingModal.tsx
+// FILE: app/build/tool/_components/GenerationLoadingModal.tsx
 import React from 'react';
 import { XMarkIcon } from '@heroicons/react/24/solid';
-import type { ResouceGenerationEpic } from '@/src/types/build';
+import type { ResourceGenerationEpic } from '@/src/types/tools';
 
 interface GenerationLoadingModalProps {
   isOpen: boolean;
   onClose?: () => void;
-  narrativeData: ResouceGenerationEpic | null;
+  narrativeData: ResourceGenerationEpic | null;
   currentChapterIndex: number;
   toolDirective: string;
 }

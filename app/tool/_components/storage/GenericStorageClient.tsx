@@ -103,7 +103,6 @@ interface PersistedStorageState {
   selectedItemIds: string[];
   layout: 'list' | 'grid';
   isFilterSelectedActive: boolean;
-
 }
 
 export default function GenericStorageClient({
@@ -639,7 +638,6 @@ export default function GenericStorageClient({
         directiveName={directiveName}
         outputConfig={metadata.outputConfig as OutputConfig}
         selectedStoredFilesForItde={selectedStoredItemsForItde}
-
         customPrimaryCreateConfig={customPrimaryCreateConfig}
         customFilterControls={customFilterControls}
         customBulkActions={customBulkActions}
@@ -685,7 +683,6 @@ export default function GenericStorageClient({
               selectedIds={selectedItemIds}
               feedbackState={feedbackState}
               onToggleSelection={handleToggleSelection}
-
               renderItemActions={
                 renderItemActions
                   ? (file) =>
@@ -697,7 +694,6 @@ export default function GenericStorageClient({
                       )
                   : undefined
               }
-
               onCopy={!renderItemActions ? handleCopyItemContent : undefined}
               onDownload={!renderItemActions ? handleDownloadItem : undefined}
               onDelete={!renderItemActions ? handleDeleteSingleItem : undefined}
@@ -716,7 +712,6 @@ export default function GenericStorageClient({
                 renderGridItemPreview(file, previewUrls.get(file.id))
               }
               onToggleSelection={handleToggleSelection}
-
               renderItemActions={
                 renderItemActions
                   ? (file) =>

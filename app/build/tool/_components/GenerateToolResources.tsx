@@ -1,4 +1,4 @@
-// FILE: app/build-tool/_components/GenerateToolResources.tsx
+// FILE: app/build/tool/_components/GenerateToolResources.tsx
 'use client';
 
 import React, {
@@ -16,8 +16,8 @@ import type {
   ValidationResult,
   GenerationResult,
   ApiGenerationResponseData,
-  ResouceGenerationEpic,
 } from '@/src/types/build';
+import { ResourceGenerationEpic } from '@/src/types/tools';
 
 interface GenerateToolResourcesProps {
   toolDirective: string;
@@ -56,7 +56,7 @@ export default function GenerateToolResources({
 
   const [isNarrativeModalOpen, setIsNarrativeModalOpen] = useState(false);
   const [narrativeData, setNarrativeData] =
-    useState<ResouceGenerationEpic | null>(null);
+    useState<ResourceGenerationEpic | null>(null);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [showViewProgressButton, setShowViewProgressButton] = useState(false);
 
@@ -132,7 +132,7 @@ export default function GenerateToolResources({
     };
   }, []);
 
-  const startNarrativeDisplay = (data: ResouceGenerationEpic) => {
+  const startNarrativeDisplay = (data: ResourceGenerationEpic) => {
     setNarrativeData(data);
     setCurrentChapterIndex(0);
     setIsNarrativeModalOpen(true);
@@ -190,7 +190,7 @@ export default function GenerateToolResources({
       }),
     })
       .then((res) => res.json())
-      .then((narrative: ResouceGenerationEpic) => {
+      .then((narrative: ResourceGenerationEpic) => {
         if (
           narrative &&
           narrative.epicNarrative &&

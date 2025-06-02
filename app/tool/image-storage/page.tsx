@@ -6,18 +6,17 @@ import metadata from './metadata.json';
 import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
 import ImageStorageClient from './_components/ImageStorageClient';
 import { ToolMetadata } from '@/src/types/tools';
+import { toolRoute } from '@/app/lib/utils';
 
 export default function ImageStoragePage() {
   const typedMetadata = metadata as ToolMetadata;
-  const toolTitle = metadata.title || 'Image Storage';
-  const toolRoute = '/tool/image-storage';
 
   return (
     <div className="relative flex flex-col gap-4">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <ToolSuspenseWrapper>
-        <ImageStorageClient toolRoute={toolRoute} />
+        <ImageStorageClient toolRoute={toolRoute(typedMetadata)} />
       </ToolSuspenseWrapper>
     </div>
   );

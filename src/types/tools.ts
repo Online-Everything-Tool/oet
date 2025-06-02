@@ -56,3 +56,18 @@ export type CustomRecentActivityPreviewFn = (
   currentState: Record<string, unknown>,
   metadata: ToolMetadata
 ) => Partial<RecentToolEntry> | null;
+
+export interface ResourceGenerationEpicChapter {
+  chapterEmoji: string;
+  chapterStory: string;
+}
+
+export interface ResourceGenerationEpic {
+  epicCompanyName: string;
+  epicCompanyEmoji: string;
+  epicCompanyEmployeeName: string;
+  epicCompanyEmployeeGithub: string | null;
+  epicCompanyJobTitle: string;
+  epicCompanyEmployeeEmoji: string;
+  epicNarrative: ResourceGenerationEpicChapter[];
+}

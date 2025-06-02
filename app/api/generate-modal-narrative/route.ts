@@ -9,10 +9,10 @@ import {
 } from '@google/generative-ai';
 import fs from 'fs/promises';
 import path from 'path';
-import type {
-  ResouceGenerationEpic,
-  ResouceGenerationEpicChapter,
-} from '@/src/types/build';
+import {
+  ResourceGenerationEpic,
+  ResourceGenerationEpicChapter,
+} from '@/src/types/tools';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const NARRATIVE_MODEL_NAME = 'models/gemini-1.5-pro-latest';
@@ -129,7 +129,8 @@ async function loadPromptAndInjectExample(
   console.log(
     `[Narrative API] Picked random example template index: ${randomIndex} (out of ${exampleNarrativeTemplatesCache.length})`
   );
-  const exampleContentToSubstitute = exampleNarrativeTemplatesCache[randomIndex];
+  const exampleContentToSubstitute =
+    exampleNarrativeTemplatesCache[randomIndex];
 
   const {
     toolDirective,
@@ -183,30 +184,30 @@ async function loadPromptAndInjectExample(
       userSelectedExamplesListString
     );
 
-  console.log(finalPrompt)
-  console.log('')
-  console.log('')
-  console.log('')
-  console.log('')
-  console.log('')
+  console.log(finalPrompt);
+  console.log('');
+  console.log('');
+  console.log('');
+  console.log('');
+  console.log('');
 
   return finalPrompt;
 }
 
 function parseDelimitedNarrative(
   responseText: string
-): ResouceGenerationEpic | null {
+): ResourceGenerationEpic | null {
   try {
     const lines = responseText.split('\n');
-    const result: Partial<ResouceGenerationEpic> = { epicNarrative: [] };
-    let currentChapter: Partial<ResouceGenerationEpicChapter> | null = null;
+    const result: Partial<ResourceGenerationEpic> = { epicNarrative: [] };
+    let currentChapter: Partial<ResourceGenerationEpicChapter> | null = null;
     let inChapterStory = false;
 
     for (const line of lines) {
       if (line.startsWith('--START_CHAPTER--')) {
         if (currentChapter) {
-          (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
-            currentChapter as ResouceGenerationEpicChapter
+          (result.epicNarrative as ResourceGenerationEpicChapter[]).push(
+            currentChapter as ResourceGenerationEpicChapter
           );
         }
         currentChapter = {};
@@ -219,8 +220,8 @@ function parseDelimitedNarrative(
           currentChapter.chapterEmoji &&
           currentChapter.chapterStory
         ) {
-          (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
-            currentChapter as ResouceGenerationEpicChapter
+          (result.epicNarrative as ResourceGenerationEpicChapter[]).push(
+            currentChapter as ResourceGenerationEpicChapter
           );
         } else {
           console.warn(
@@ -279,8 +280,8 @@ function parseDelimitedNarrative(
       currentChapter.chapterEmoji &&
       currentChapter.chapterStory
     ) {
-      (result.epicNarrative as ResouceGenerationEpicChapter[]).push(
-        currentChapter as ResouceGenerationEpicChapter
+      (result.epicNarrative as ResourceGenerationEpicChapter[]).push(
+        currentChapter as ResourceGenerationEpicChapter
       );
     }
 
@@ -313,7 +314,7 @@ function parseDelimitedNarrative(
       return null;
     }
 
-    return result as ResouceGenerationEpic;
+    return result as ResourceGenerationEpic;
   } catch (error) {
     console.error(
       '[Narrative Parser] Error parsing delimited text:',
@@ -346,7 +347,9 @@ export async function POST(request: NextRequest) {
         userSelectedExamples: body.userSelectedExamples,
       };
 
-      const prompt = await loadPromptAndInjectExample(processedRequestDataForPrompt);
+      const prompt = await loadPromptAndInjectExample(
+        processedRequestDataForPrompt
+      );
 
       const model = genAI.getGenerativeModel({ model: NARRATIVE_MODEL_NAME });
 
@@ -361,7 +364,6 @@ export async function POST(request: NextRequest) {
       const narrativeResult = parseDelimitedNarrative(responseText);
 
       return NextResponse.json(narrativeResult, { status: 200 });
-
     } catch (error) {
       console.warn(
         '[API generate-modal-narrative] Invalid request body. Returning fallback epic.',

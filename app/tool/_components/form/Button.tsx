@@ -109,10 +109,6 @@ const Button: React.FC<ButtonProps> = ({
     );
   }
 
-  const iconLeftMargin =
-    (children || (isLoading && loadingText)) && !hasOnlyIcon ? 'mr-2' : '';
-  const iconRightMargin = children && !isLoading && !hasOnlyIcon ? 'ml-2' : '';
-
   return (
     <button
       type={type}
@@ -128,13 +124,9 @@ const Button: React.FC<ButtonProps> = ({
       aria-disabled={isDisabled}
       {...rest}
     >
-      {currentIconLeft && (
-        <span className={iconLeftMargin}>{currentIconLeft}</span>
-      )}
+      {currentIconLeft && <span>{currentIconLeft}</span>}
       {isLoading && loadingText ? loadingText : children}
-      {!isLoading && iconRight && (
-        <span className={iconRightMargin}>{iconRight}</span>
-      )}
+      {!isLoading && iconRight && <span>{iconRight}</span>}
     </button>
   );
 };

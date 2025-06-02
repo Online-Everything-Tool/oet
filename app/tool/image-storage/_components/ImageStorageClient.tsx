@@ -204,7 +204,6 @@ export default function ImageStorageClient({
         label: 'Slideshow',
         icon: <PlayCircleIcon className="h-5 w-5" />,
         onClick: (selectedItems: StoredFile[]) => {
-
           const itemsWithBlobs = selectedItems.filter((item) => !!item.blob);
           if (itemsWithBlobs.length < 2) {
             alert(

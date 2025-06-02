@@ -38,10 +38,10 @@ SCAN_DIRS_GENERAL=(
 # --- Build Tool Context Configuration ---
 CONTEXT_BUILD_TOOL_NAME="project_build_tool_context"
 SPECIFIC_FILES_BUILD_TOOL=(
-  # Add any build-tool specific top-level files if needed
+  # Add any build/tool specific top-level files if needed
 )
 SCAN_DIRS_BUILD_TOOL=(
-  "app/build-tool"
+  "app/build/tool"
   "app/api"
   "src/types"
 )

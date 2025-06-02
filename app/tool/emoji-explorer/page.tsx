@@ -11,12 +11,11 @@ import { ToolMetadata } from '@/src/types/tools';
 export default async function EmojiExplorerPage() {
   const typedMetadata = metadata as ToolMetadata;
   const allEmojis: RichEmojiData[] = await getEmojis();
-  const toolTitle = metadata.title || 'Emoji Explorer';
 
   return (
     <div className="relative p-0">
       <ToolSettings toolMetadata={typedMetadata} />
-      <ToolHeader title={toolTitle} description={metadata.description || ''} />
+      <ToolHeader toolMetadata={typedMetadata} />
       <EmojiSearchClient initialEmojis={allEmojis ?? []} />
     </div>
   );
