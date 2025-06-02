@@ -11,8 +11,6 @@ import React, {
 import { motion, useAnimationControls } from 'framer-motion';
 import { getDefaultHomeNarrativeSync } from '@/app/lib/narrativeService';
 import {
-  Cog6ToothIcon,
-  ArrowLeftStartOnRectangleIcon,
   CubeTransparentIcon,
   ShieldCheckIcon,
   EyeSlashIcon,

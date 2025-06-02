@@ -30,6 +30,15 @@ export default function HeaderFavorites() {
     setIsDropdownOpen(false);
   }, []);
 
+  const handleEscKey = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDropdown();
+      }
+    },
+    [closeDropdown]
+  );
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -47,16 +56,7 @@ export default function HeaderFavorites() {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscKey);
     };
-  }, [isDropdownOpen, closeDropdown]);
-
-  const handleEscKey = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeDropdown();
-      }
-    },
-    [closeDropdown]
-  );
+  }, [isDropdownOpen, closeDropdown, handleEscKey]);
 
   const NewToolBanner = () => (
     <div className="px-3 py-2.5 border-t border-gray-200 bg-indigo-50 hover:bg-indigo-100 transition-colors">

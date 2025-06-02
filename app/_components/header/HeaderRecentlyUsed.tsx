@@ -11,7 +11,7 @@ import React, {
 import { usePathname } from 'next/navigation';
 import { useRecentlyUsed } from '@/app/context/RecentlyUsedContext';
 import RecentlyUsedToolsWidget from '@/app/_components/RecentlyUsedToolsWidget';
-import { ListBulletIcon, ChevronDownIcon } from '@heroicons/react/24/solid';
+import { ListBulletIcon } from '@heroicons/react/24/solid';
 import Button from '@/app/tool/_components/form/Button';
 
 export default function HeaderRecentlyUsed() {

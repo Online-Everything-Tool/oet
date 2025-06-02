@@ -11,7 +11,6 @@ import {
   CloudArrowDownIcon,
   ArrowPathIcon,
   ArrowsPointingInIcon,
-  WifiIcon,
   NoSymbolIcon,
 } from '@heroicons/react/24/outline';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -99,13 +98,6 @@ export default function AddSongModal({
     };
   }, []);
 
-  useEffect(() => {
-    if (!isOnline && activeTab === 'url' && !isEditing) {
-      handleInternalTabChange('manual');
-      setFetchError('Offline: Import from URL is unavailable.');
-    }
-  }, [isOnline, activeTab, isEditing]);
-
   const resetFormFields = (songDataToLoad?: Partial<SongData> | null) => {
     setTitle(songDataToLoad?.title || '');
     setArtist(songDataToLoad?.artist || '');
@@ -173,6 +165,13 @@ export default function AddSongModal({
       }
     }
   };
+
+  useEffect(() => {
+    if (!isOnline && activeTab === 'url' && !isEditing) {
+      handleInternalTabChange('manual');
+      setFetchError('Offline: Import from URL is unavailable.');
+    }
+  }, [isOnline, activeTab, isEditing]);
 
   const generateFilename = (): string => {
     const t = title.trim() || 'untitled';

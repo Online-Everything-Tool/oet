@@ -220,7 +220,6 @@ export default function ImageEyeDropperClient({
 
           const drawVisibleCanvas = () => {
             if (visibleCanvasRef.current && imageElementRef.current) {
-
               const canvas = visibleCanvasRef.current;
               const parent = canvas.parentElement;
               const imgElement = imageElementRef.current;
@@ -232,7 +231,7 @@ export default function ImageEyeDropperClient({
               }
 
               const availableWidth = parent.clientWidth;
-              let availableHeight = (availableWidth * 3) / 4;
+              const availableHeight = (availableWidth * 3) / 4;
               if (availableWidth === 0) {
                 console.warn('Parent width is 0, cannot size canvas yet.');
                 setIsImageLoading(false);
@@ -397,7 +396,7 @@ export default function ImageEyeDropperClient({
           if (type === 'hex') setCopiedHex(false);
           else setCopiedRgb(false);
         }, 2000);
-      } catch (err) {
+      } catch (_err) {
         setError('Failed to copy color to clipboard.');
       }
     },
@@ -439,7 +438,6 @@ export default function ImageEyeDropperClient({
   const imageFilter = useMemo(() => ({ category: 'image' as const }), []);
 
   const itdeSendableItems = useMemo(() => {
-
     return [];
   }, []);
 

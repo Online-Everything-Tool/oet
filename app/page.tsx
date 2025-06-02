@@ -2,7 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import React, { Suspense } from 'react';
-import { ParamConfig, ToolMetadata } from '@/src/types/tools.js';
+import { ToolMetadata } from '@/src/types/tools.js';
 
 import GatedContentLoader from './_components/GatedContentLoader';
 const HomeClient = React.lazy(
