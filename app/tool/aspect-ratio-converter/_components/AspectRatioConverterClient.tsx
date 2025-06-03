@@ -1,12 +1,14 @@
+```typescript
 'use client';
 
 import React, { useState, useCallback } from 'react';
 import Input from '../../_components/form/Input';
 import Select from '../../_components/form/Select';
 import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
-import { useToolState } from '../../_hooks/useToolState';
+import { useToolState } from '../../_hooks/useToolState'; //Fixed import
 import { ToolMetadata, OutputConfig } from '@/src/types/tools';
 import importedMetadata from '../metadata.json';
+import Button from '../../_components/form/Button'; // Added import for Button
 
 const metadata = importedMetadata as ToolMetadata;
 
@@ -167,7 +169,7 @@ export default function AspectRatioConverterClient({
           />
         </div>
         <div className="mt-4 flex justify-center">
-          <Button variant="primary" onClick={convertDimensions}>
+          <Button variant="primary" onClick={convertDimensions}> {/* Fixed undefined Button */}
             Convert
           </Button>
         </div>
@@ -201,3 +203,4 @@ export default function AspectRatioConverterClient({
     </div>
   );
 }
+```
