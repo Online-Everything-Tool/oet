@@ -2,14 +2,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
-import type { Endpoints } from '@octokit/types';
 import type { ToolGenerationInfoFileContent } from '@/src/types/build';
+
+import path from 'path';
 
 const GITHUB_REPO_OWNER =
   process.env.GITHUB_REPO_OWNER || 'Online-Everything-Tool';
 const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'oet';
-const appId = process.env.GITHUB_APP_ID;
-const privateKeyBase64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
+const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
+const GITHUB_PRIVATE_KEY_BASE64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
 
 const BOT_USERNAMES = {
   VPR: (process.env.GITHUB_VPR_BOT_USERNAME || 'OET CI Bot').toLowerCase(),
@@ -17,79 +18,118 @@ const BOT_USERNAMES = {
     process.env.GITHUB_ADM_BOT_USERNAME || 'AI Dependency Manager'
   ).toLowerCase(),
   ALF: (process.env.GITHUB_ALF_BOT_USERNAME || 'AI Lint Fixer').toLowerCase(),
-  PR_CREATOR: (
+  PR_CREATOR_BOT: (
     process.env.GITHUB_PR_CREATOR_BOT_USERNAME || 'OET Bot'
   ).toLowerCase(),
+  NETLIFY: 'netlify[bot]',
 };
 
+const WORKFLOW_FILENAMES = {
+  VPR: 'validate_generated_tool_pr.yml',
+  ADM: 'ai_dependency_manager.yml',
+  ALF: 'ai_lint_fixer.yml',
+};
+
+const MAX_POLLING_ATTEMPTS_API = 360;
 let octokitInstance: Octokit | undefined;
 
-async function getAuthenticatedOctokit(): Promise<Octokit> {
-  if (octokitInstance) return octokitInstance;
-
-  if (!appId || !privateKeyBase64) {
-    console.error('[api/status-pr] GitHub App credentials missing on server.');
-    throw new Error(
-      'Server configuration error: GitHub App credentials missing.'
-    );
-  }
-  const privateKey = Buffer.from(privateKeyBase64, 'base64').toString('utf-8');
-  if (!privateKey.startsWith('-----BEGIN')) {
-    throw new Error('Decoded private key does not appear to be in PEM format.');
-  }
-
-  const appAuth = createAppAuth({ appId, privateKey });
-  const appOctokit = new Octokit({
-    authStrategy: createAppAuth,
-    auth: { appId, privateKey },
-  });
-
-  let installationId;
-  try {
-    const { data: installation } =
-      await appOctokit.rest.apps.getRepoInstallation({
-        owner: GITHUB_REPO_OWNER,
-        repo: GITHUB_REPO_NAME,
-      });
-    installationId = installation.id;
-  } catch (e: unknown) {
-    const err = e as { status?: number };
-    console.error(
-      `[api/status-pr] Failed to get repo installation. Status: ${err?.status}`
-    );
-    throw new Error(
-      `App installation not found or accessible for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}.`
-    );
-  }
-
-  if (!installationId)
-    throw new Error(
-      `App installation ID not found for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`
-    );
-
-  const { token } = await appAuth({ type: 'installation', installationId });
-  octokitInstance = new Octokit({ auth: token });
-  console.log('[api/status-pr] GitHub App authentication successful.');
-  return octokitInstance;
+interface PrInfo {
+  number: number;
+  title: string | null;
+  state: 'open' | 'closed';
+  merged: boolean;
+  branch: string | null;
+  headSha: string;
+  baseBranch: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+  user: string | null | undefined;
+}
+interface ToolGenInfo {
+  status: 'found' | 'error_fetching' | 'not_applicable';
+  content: ToolGenerationInfoFileContent | null;
+  error: string | null;
+}
+interface WorkflowJobStep {
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+}
+interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+  html_url: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  steps: WorkflowJobStep[];
+}
+interface WorkflowArtifact {
+  id: number;
+  name: string;
+  size_in_bytes: number;
+  expired: boolean;
+  expires_at: string | null;
+}
+interface WorkflowRun {
+  id: number;
+  name: string | null;
+  workflow_filename: string;
+  status: string | null;
+  conclusion: string | null;
+  html_url: string | null;
+  head_sha: string;
+  created_at: string;
+  updated_at: string;
+  event: string;
+  jobs: WorkflowJob[];
+  artifacts: WorkflowArtifact[];
+}
+interface CategorizedWorkflowRuns {
+  vpr: WorkflowRun[];
+  adm: WorkflowRun[];
+  alf: WorkflowRun[];
+  other: WorkflowRun[];
+}
+interface NetlifyStatusInfo {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+  url: string | null;
+  details_url?: string | null;
+  app_slug?: string | null;
+}
+interface PrComment {
+  id: number;
+  user: string | null | undefined;
+  created_at: string;
+  updated_at: string;
+  body: string;
+  html_url: string;
+  isBot: boolean;
+  botType: string | null;
+}
+interface PrCiSummaryData {
+  prInfo: PrInfo;
+  toolGenerationInfo: ToolGenInfo;
+  githubActions: CategorizedWorkflowRuns;
+  netlifyStatus: NetlifyStatusInfo | null;
+  recentComments: PrComment[];
+  timestamp: string;
 }
 
 interface CiCheck {
   name: string;
-  status: string;
+  status: string | null;
   conclusion: string | null;
-  url?: string;
+  url?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
 }
-
-interface ToolGenerationInfoStatus {
-  npmDependenciesFulfilled: 'absent' | 'true' | 'false' | 'not_found';
-  lintFixesAttempted: boolean | 'not_found';
-  assetInstructionsPending?: boolean | 'not_found';
-}
-
 interface LastBotComment {
-  botName: string;
+  botName: string | null;
   summary: string;
   body?: string;
   timestamp: string;
@@ -101,180 +141,333 @@ interface AutomatedActionsStatus {
   nextExpectedAction: string | null;
   shouldContinuePolling: boolean;
   lastBotComment?: LastBotComment | null;
-  vprConclusionForHead?: string | null;
+  uiHint: 'info' | 'success' | 'warning' | 'error' | 'loading';
 }
-
 interface PrStatusApiResponse {
   prUrl: string;
   prNumber: number;
   headSha: string;
-  prHeadBranch: string;
+  prHeadBranch: string | null;
   prState: 'open' | 'closed';
   isMerged: boolean;
   checks: CiCheck[];
-  overallCheckStatusForHead: 'pending' | 'success' | 'failure' | 'error';
+  overallCheckStatusForHead:
+    | 'pending'
+    | 'success'
+    | 'failure'
+    | 'error'
+    | 'unknown';
   netlifyPreviewUrl: string | null;
   netlifyDeploymentSucceeded: boolean;
   imgurScreenshotUrl?: string | null;
-  toolGenerationInfo: ToolGenerationInfoStatus;
+  toolGenerationInfoForUI: {
+    npmDependenciesFulfilled:
+      | ToolGenerationInfoFileContent['npmDependenciesFulfilled']
+      | 'not_found'
+      | 'not_applicable';
+    lintFixesAttempted: boolean | 'not_found' | 'not_applicable';
+    identifiedDependencies?: string[] | null;
+  };
   automatedActions: AutomatedActionsStatus;
   lastUpdated: string;
   error?: string;
+  _debug_data_source?: PrCiSummaryData;
 }
 
-function extractToolDirectiveFromBranchName(branchName: string): string | null {
-  if (!branchName.startsWith('feat/gen-')) return null;
+async function getAuthenticatedOctokit(): Promise<Octokit> {
+  /* ... */
+  if (octokitInstance) return octokitInstance;
+  if (!GITHUB_APP_ID || !GITHUB_PRIVATE_KEY_BASE64) {
+    throw new Error(
+      'Server configuration error: GitHub App credentials missing.'
+    );
+  }
+  const privateKey = Buffer.from(GITHUB_PRIVATE_KEY_BASE64, 'base64').toString(
+    'utf-8'
+  );
+  if (!privateKey || !privateKey.startsWith('-----BEGIN')) {
+    throw new Error('Decoded private key is invalid or not in PEM format.');
+  }
+  const appAuth = createAppAuth({ appId: GITHUB_APP_ID, privateKey });
+  const appOctokit = new Octokit({
+    authStrategy: createAppAuth,
+    auth: { appId: GITHUB_APP_ID, privateKey },
+  });
+  const { data: installation } = await appOctokit.rest.apps.getRepoInstallation(
+    { owner: GITHUB_REPO_OWNER, repo: GITHUB_REPO_NAME }
+  );
+  if (!installation.id)
+    throw new Error(
+      `App installation not found for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}.`
+    );
+  const { token } = await appAuth({
+    type: 'installation',
+    installationId: installation.id,
+  });
+  octokitInstance = new Octokit({ auth: token });
+  return octokitInstance;
+}
+
+function extractToolDirectiveFromBranchName(
+  branchName: string | null
+): string | null {
+  /* ... */
+  if (!branchName || !branchName.startsWith('feat/gen-')) return null;
   const tempDirective = branchName.substring('feat/gen-'.length);
   return tempDirective.replace(/-[0-9]+$/, '') || null;
 }
 
-async function getToolGenerationInfo(
+async function getJsonFileContent<T>(
   octokit: Octokit,
-  branchName: string,
-  toolDirective: string | null
-): Promise<ToolGenerationInfoStatus> {
-  const defaultStatus: ToolGenerationInfoStatus = {
-    npmDependenciesFulfilled: 'not_found',
-    lintFixesAttempted: 'not_found',
-  };
-  if (!toolDirective) {
-    console.log(
-      '[api/status-pr] No tool directive provided to getToolGenerationInfo, returning not_found status.'
-    );
-    return defaultStatus;
-  }
-
-  const filePath = `app/tool/${toolDirective}/tool-generation-info.json`;
+  owner: string,
+  repo: string,
+  filePath: string,
+  ref: string
+): Promise<T | { error: string }> {
+  /* ... */
   try {
-    console.log(
-      `[api/status-pr] Fetching tool-generation-info.json from: ${filePath} on branch ${branchName}`
-    );
-    const { data: fileContentResponse } = await octokit.rest.repos.getContent({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
       path: filePath,
-      ref: branchName,
+      ref,
     });
-
-    const responseWithContent = fileContentResponse as {
-      content?: string;
-      encoding?: string;
+    // @ts-expect-error bad stuff can happen
+    if (data && data.content && data.encoding === 'base64') {
+      // @ts-expect-error bad stuff can happen
+      const content = Buffer.from(data.content, 'base64').toString('utf-8');
+      return JSON.parse(content) as T;
+    }
+    return {
+      error: `File content not base64 or type not file: ${filePath} at ref ${ref}`,
     };
-
-    if (
-      responseWithContent.content &&
-      responseWithContent.encoding === 'base64'
-    ) {
-      const content = Buffer.from(
-        responseWithContent.content,
-        'base64'
-      ).toString('utf-8');
-      const jsonData = JSON.parse(content) as Partial<
-        ToolGenerationInfoFileContent & ToolGenerationInfoStatus
-      >;
-
-      let npmStatus = jsonData.npmDependenciesFulfilled || 'absent';
-      if (!['true', 'false', 'absent'].includes(npmStatus)) {
-        npmStatus = 'absent';
-      }
-
-      return {
-        npmDependenciesFulfilled: npmStatus as 'absent' | 'true' | 'false',
-        lintFixesAttempted:
-          typeof jsonData.lintFixesAttempted === 'boolean'
-            ? jsonData.lintFixesAttempted
-            : false,
-      };
-    }
-    console.log(
-      `[api/status-pr] tool-generation-info.json found but no base64 content field at ${filePath}`
-    );
-    return defaultStatus;
-  } catch (error: unknown) {
-    const err = error as { status?: number; message?: string };
-    if (err.status === 404) {
-      console.log(
-        `[api/status-pr] tool-generation-info.json not found at ${filePath} on branch ${branchName}.`
-      );
-    } else {
-      console.warn(
-        `[api/status-pr] Error fetching tool-generation-info.json:`,
-        err.message || String(error)
-      );
-    }
-    return defaultStatus;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    if (error.status === 404)
+      return { error: `File not found: ${filePath} at ref ${ref}` };
+    return {
+      error: `Error fetching ${filePath} at ref ${ref}: ${error.message}`,
+    };
   }
 }
 
-type IssuesListCommentsResponseData =
-  Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/comments']['response']['data'];
+async function fetchFullPrCiSummary(
+  prNumber: number,
+  octokit: Octokit,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prDataInput?: any
+): Promise<PrCiSummaryData> {
+  /* ... */
+  const prData =
+    prDataInput ||
+    (
+      await octokit.rest.pulls.get({
+        owner: GITHUB_REPO_OWNER,
+        repo: GITHUB_REPO_NAME,
+        pull_number: prNumber,
+      })
+    ).data;
 
-function parseLastBotComment(
-  comments: IssuesListCommentsResponseData
-): LastBotComment | null {
-  if (!comments || comments.length === 0) return null;
+  const headSha = prData.head.sha;
+  const prHeadBranch = prData.head.ref;
+  const toolDirective = extractToolDirectiveFromBranchName(prHeadBranch);
 
-  for (const comment of comments) {
-    const authorLogin = comment.user?.login?.toLowerCase();
-    const body = comment.body || '';
-    let botName: string | null = null;
-    let summary = 'Recent bot activity noted.';
-
-    if (authorLogin === BOT_USERNAMES.VPR) botName = 'VPR';
-    else if (authorLogin === BOT_USERNAMES.ADM) botName = 'ADM';
-    else if (authorLogin === BOT_USERNAMES.ALF) botName = 'ALF';
-    else if (authorLogin === BOT_USERNAMES.PR_CREATOR) botName = 'PR Creator';
-    else continue;
-
-    if (botName === 'VPR') {
-      if (
-        body.includes('Handoff') &&
-        body.includes('AI Dependency Manager (ADM) will be triggered')
-      )
-        summary = 'VPR: Handoff to ADM.';
-      else if (
-        body.includes('Handoff') &&
-        body.includes('AI Lint Fixer (ALF) will be triggered')
-      )
-        summary = 'VPR: Handoff to ALF.';
-      else if (body.includes('VPR Succeeded')) summary = 'VPR: Succeeded.';
-      else if (
-        body.includes('VPR Failed') &&
-        body.includes('Manual review required')
-      )
-        summary = 'VPR: Failed, manual review needed.';
-      else if (body.includes('VPR Failed')) summary = 'VPR: Failed.';
-    } else if (botName === 'ADM') {
-      if (body.includes('Dependencies successfully processed'))
-        summary = 'ADM: Dependencies resolved.';
-      else if (body.includes('Dependency Resolution Failed'))
-        summary = 'ADM: Dependency resolution failed.';
-    } else if (botName === 'ALF') {
-      if (body.includes('AI-assisted lint fixes applied'))
-        summary = 'ALF: Lint fixes applied.';
-      else if (body.includes('AI proposed no code changes'))
-        summary = 'ALF: Attempted, no code changes made by AI.';
-      else if (body.includes('AI Lint Fix API Call Failed'))
-        summary = 'ALF: API call failed.';
-    } else if (botName === 'PR Creator' && body.includes('Adds the new tool')) {
-      summary = 'PR Creator: New tool PR created.';
+  let toolGenerationInfo: ToolGenInfo = {
+    status: 'not_applicable',
+    content: null,
+    error: null,
+  };
+  if (toolDirective) {
+    const result = await getJsonFileContent<ToolGenerationInfoFileContent>(
+      octokit,
+      GITHUB_REPO_OWNER,
+      GITHUB_REPO_NAME,
+      `app/tool/${toolDirective}/tool-generation-info.json`,
+      headSha
+    );
+    if ('error' in result) {
+      toolGenerationInfo = {
+        status: 'error_fetching',
+        content: null,
+        error: result.error,
+      };
+    } else {
+      toolGenerationInfo = { status: 'found', content: result, error: null };
     }
-
-    return {
-      botName,
-      summary,
-      body: body.substring(0, 300) + (body.length > 300 ? '...' : ''),
-      timestamp: comment.created_at,
-      url: comment.html_url,
-    };
   }
-  return null;
+
+  const { data: repoWorkflowRuns } =
+    await octokit.rest.actions.listWorkflowRunsForRepo({
+      owner: GITHUB_REPO_OWNER,
+      repo: GITHUB_REPO_NAME,
+      per_page: 75,
+    });
+
+  const relevantWorkflowRuns = repoWorkflowRuns.workflow_runs.filter(
+    (run) =>
+      run.pull_requests?.some(
+        (pr) => pr.id === prData.id && pr.number === prNumber
+      ) || run.head_sha === headSha
+  );
+
+  const categorizedWorkflowRuns: CategorizedWorkflowRuns = {
+    vpr: [],
+    adm: [],
+    alf: [],
+    other: [],
+  };
+  for (const run of relevantWorkflowRuns) {
+    const { data: jobsData } =
+      await octokit.rest.actions.listJobsForWorkflowRun({
+        owner: GITHUB_REPO_OWNER,
+        repo: GITHUB_REPO_NAME,
+        run_id: run.id,
+      });
+    const { data: artifactsData } =
+      await octokit.rest.actions.listWorkflowRunArtifacts({
+        owner: GITHUB_REPO_OWNER,
+        repo: GITHUB_REPO_NAME,
+        run_id: run.id,
+      });
+    const runSummary: WorkflowRun = {
+      id: run.id,
+      name: run.name || 'Unnamed Workflow',
+      workflow_filename: path.basename(run.path),
+      status: run.status,
+      conclusion: run.conclusion,
+      html_url: run.html_url,
+      head_sha: run.head_sha,
+      created_at: run.created_at,
+      updated_at: run.updated_at,
+      event: run.event,
+      jobs: jobsData.jobs.map((job) => ({
+        id: job.id,
+        name: job.name,
+        status: job.status,
+        conclusion: job.conclusion,
+        html_url: job.html_url,
+        started_at: job.started_at,
+        completed_at: job.completed_at,
+        steps:
+          job.steps?.map((step) => ({
+            name: step.name,
+            status: step.status,
+            conclusion: step.conclusion,
+          })) || [],
+      })),
+      artifacts: artifactsData.artifacts.map((art) => ({
+        id: art.id,
+        name: art.name,
+        size_in_bytes: art.size_in_bytes,
+        expired: art.expired,
+        expires_at: art.expires_at,
+      })),
+    };
+    const wfFilename = path.basename(run.path);
+    if (wfFilename === WORKFLOW_FILENAMES.VPR)
+      categorizedWorkflowRuns.vpr.push(runSummary);
+    else if (wfFilename === WORKFLOW_FILENAMES.ADM)
+      categorizedWorkflowRuns.adm.push(runSummary);
+    else if (wfFilename === WORKFLOW_FILENAMES.ALF)
+      categorizedWorkflowRuns.alf.push(runSummary);
+    else categorizedWorkflowRuns.other.push(runSummary);
+  }
+
+  (['vpr', 'adm', 'alf', 'other'] as (keyof CategorizedWorkflowRuns)[]).forEach(
+    (category) => {
+      categorizedWorkflowRuns[category].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+  );
+
+  const { data: checkSuites } = await octokit.rest.checks.listSuitesForRef({
+    owner: GITHUB_REPO_OWNER,
+    repo: GITHUB_REPO_NAME,
+    ref: headSha,
+  });
+  const netlifyCheckSuiteData = checkSuites.check_suites.find(
+    (suite) => suite.app?.slug === 'netlify'
+  );
+  const netlifyStatus: NetlifyStatusInfo | null = netlifyCheckSuiteData
+    ? {
+        id: netlifyCheckSuiteData.id,
+        status: netlifyCheckSuiteData.status,
+        conclusion: netlifyCheckSuiteData.conclusion,
+        url: netlifyCheckSuiteData.url,
+        // @ts-expect-error bad stuff can happen
+        details_url: netlifyCheckSuiteData.details_url || null,
+        app_slug: netlifyCheckSuiteData.app?.slug,
+      }
+    : null;
+
+  const { data: commentsData } = await octokit.rest.issues.listComments({
+    owner: GITHUB_REPO_OWNER,
+    repo: GITHUB_REPO_NAME,
+    issue_number: prNumber,
+    per_page: 10,
+    sort: 'created',
+    direction: 'desc',
+  });
+  const recentComments: PrComment[] = commentsData.map((comment) => ({
+    id: comment.id,
+    user: comment.user?.login,
+    created_at: comment.created_at,
+    updated_at: comment.updated_at,
+    body:
+      comment.body?.substring(0, 500) +
+      (comment.body && comment.body.length > 500 ? '...' : ''),
+    html_url: comment.html_url,
+    isBot: comment.user?.type === 'Bot',
+    botType:
+      comment.user?.login?.toLowerCase() === BOT_USERNAMES.VPR
+        ? 'VPR'
+        : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ADM
+          ? 'ADM'
+          : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ALF
+            ? 'ALF'
+            : comment.user?.login?.toLowerCase() ===
+                BOT_USERNAMES.PR_CREATOR_BOT
+              ? 'PR_CREATOR'
+              : comment.user?.login?.toLowerCase() === BOT_USERNAMES.NETLIFY
+                ? 'Netlify'
+                : comment.user?.type === 'Bot'
+                  ? 'OtherBot'
+                  : null,
+  }));
+
+  const prInfo: PrInfo = {
+    number: prData.number,
+    title: prData.title,
+    state: prData.state as 'open' | 'closed',
+    merged: prData.merged_at !== null,
+    branch: prData.head.ref,
+    headSha: prData.head.sha,
+    baseBranch: prData.base.ref,
+    url: prData.html_url,
+    createdAt: prData.created_at,
+    updatedAt: prData.updated_at,
+    user: prData.user?.login,
+  };
+
+  return {
+    prInfo,
+    toolGenerationInfo,
+    githubActions: categorizedWorkflowRuns,
+    netlifyStatus,
+    recentComments,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const prNumberStr = searchParams.get('prNumber');
-  console.log(`[api/status-pr] GET request. PR#: ${prNumberStr}`);
+  const pollingAttemptStr = searchParams.get('pollingAttempt');
+  const pollingAttempt = pollingAttemptStr
+    ? parseInt(pollingAttemptStr, 10)
+    : 0;
 
   if (!prNumberStr)
     return NextResponse.json(
@@ -287,267 +480,381 @@ export async function GET(request: NextRequest) {
 
   try {
     const octokit = await getAuthenticatedOctokit();
-    console.log(`[api/status-pr] Fetching PR data for PR #${actualPrNumber}`);
-    const { data: prData } = await octokit.rest.pulls.get({
-      owner: GITHUB_REPO_OWNER,
-      repo: GITHUB_REPO_NAME,
-      pull_number: actualPrNumber,
-    });
-    const headShaToUse = prData.head.sha;
-    const prHeadBranchName = prData.head.ref;
-    const toolDirective = extractToolDirectiveFromBranchName(prHeadBranchName);
+    const summary = await fetchFullPrCiSummary(actualPrNumber, octokit);
 
-    console.log(
-      `[api/status-pr] Head SHA: ${headShaToUse}, Branch: ${prHeadBranchName}, Tool: ${toolDirective || 'N/A'}`
-    );
+    const {
+      prInfo,
+      toolGenerationInfo,
+      githubActions,
+      netlifyStatus,
+      recentComments,
+    } = summary;
 
-    const [checkRunsResponse, toolGenInfo, commentsResponse] =
-      await Promise.all([
-        octokit.rest.checks.listForRef({
-          owner: GITHUB_REPO_OWNER,
-          repo: GITHUB_REPO_NAME,
-          ref: headShaToUse,
-          per_page: 50,
-        }),
-        getToolGenerationInfo(octokit, prHeadBranchName, toolDirective),
-        octokit.rest.issues.listComments({
-          owner: GITHUB_REPO_OWNER,
-          repo: GITHUB_REPO_NAME,
-          issue_number: actualPrNumber,
-          per_page: 15,
-          sort: 'created',
-          direction: 'desc',
-        }),
-      ]);
-
-    const allCheckRunsForRef = checkRunsResponse.data;
-    const comments = commentsResponse.data;
-
-    const ciChecks: CiCheck[] = [];
-    let checksOverallStatus: PrStatusApiResponse['overallCheckStatusForHead'] =
-      'pending';
-    let netlifySuccess = false;
-
-    const latestChecksMap = new Map<
-      string,
-      (typeof allCheckRunsForRef.check_runs)[0]
-    >();
-    for (const run of allCheckRunsForRef.check_runs) {
-      const existing = latestChecksMap.get(run.name);
-      const runTimestamp = new Date(
-        run.completed_at || run.started_at || Date.now()
-      ).getTime();
-      const existingTimestamp = existing
-        ? new Date(existing.completed_at || existing.started_at || 0).getTime()
-        : 0;
-      if (!existing || runTimestamp > existingTimestamp)
-        latestChecksMap.set(run.name, run);
-    }
-    const sortedChecks = Array.from(latestChecksMap.values()).sort(
-      (a, b) =>
-        new Date(a.started_at || 0).getTime() -
-        new Date(b.started_at || 0).getTime()
-    );
-
-    let allCompleted = true;
-    let anyFailed = false;
-    for (const run of sortedChecks) {
-      ciChecks.push({
-        name: run.name,
-        status: run.status,
-        conclusion: run.conclusion,
-        url: run.html_url || undefined,
-        started_at: run.started_at,
-        completed_at: run.completed_at,
-      });
-      if (run.status !== 'completed') allCompleted = false;
-      if (
-        ['failure', 'timed_out', 'cancelled', 'action_required'].includes(
-          run.conclusion || ''
-        )
-      )
-        anyFailed = true;
-      if (
-        run.name.toLowerCase().includes('netlify') &&
-        run.name.toLowerCase().includes('deploy') &&
-        run.conclusion === 'success'
-      ) {
-        netlifySuccess = true;
-      }
-    }
-
-    if (anyFailed) checksOverallStatus = 'failure';
-    else if (allCompleted && ciChecks.length > 0)
-      checksOverallStatus = 'success';
-    else if (!allCompleted && ciChecks.length > 0)
-      checksOverallStatus = 'pending';
-    else if (ciChecks.length === 0 && prData.state === 'open')
-      checksOverallStatus = 'pending';
-    else checksOverallStatus = 'error';
-
+    let statusSummary = 'Analyzing PR status...';
+    let nextExpectedAction: string | null = 'VPR_PENDING';
+    let shouldContinuePolling = true;
+    let uiHint: AutomatedActionsStatus['uiHint'] = 'loading';
+    let overallCheckStatusForHead: PrStatusApiResponse['overallCheckStatusForHead'] =
+      'unknown';
     let netlifyPreviewUrl: string | null = null;
+    let netlifyDeploymentSucceeded = false;
     let imgurScreenshotUrl: string | null = null;
 
-    for (const comment of comments) {
-      if (comment.body) {
-        if (
-          !netlifyPreviewUrl &&
-          comment.user?.login?.toLowerCase().includes('netlify') &&
-          comment.body.includes('Deploy Preview')
+    let wasVprFinalized: boolean | undefined = false;
+    let latestVprRunForHead: WorkflowRun | undefined = undefined;
+
+    if (prInfo.state === 'closed') {
+      shouldContinuePolling = false;
+      nextExpectedAction = 'NONE';
+      const toolDirectiveNameForClosedPr =
+        extractToolDirectiveFromBranchName(prInfo.branch) ||
+        prInfo.branch ||
+        `PR #${prInfo.number}`;
+      if (prInfo.merged) {
+        statusSummary = `PR #${prInfo.number} for '${toolDirectiveNameForClosedPr}' was MERGED!`;
+        uiHint = 'success';
+        overallCheckStatusForHead = 'success';
+      } else {
+        statusSummary = `PR #${prInfo.number} for '${toolDirectiveNameForClosedPr}' was CLOSED without merging.`;
+        uiHint = 'info';
+        const lastVprRun = githubActions.vpr[0];
+        if (lastVprRun && lastVprRun.conclusion === 'failure')
+          overallCheckStatusForHead = 'failure';
+        else if (lastVprRun && lastVprRun.conclusion === 'success')
+          overallCheckStatusForHead = 'success';
+        else overallCheckStatusForHead = 'unknown';
+      }
+      const netlifyBotComment = recentComments.find(
+        (c) => c.botType === 'Netlify' && c.body?.includes('Deploy Preview')
+      );
+      if (netlifyBotComment?.body) {
+        const urlMatch = netlifyBotComment.body.match(
+          /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+        );
+        if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
+      }
+      if (netlifyStatus?.conclusion === 'success')
+        netlifyDeploymentSucceeded = true;
+    } else {
+      latestVprRunForHead = githubActions.vpr.find(
+        (run) => run.head_sha === prInfo.headSha
+      );
+      const latestAlfComment = recentComments.find((c) => c.botType === 'ALF');
+
+      wasVprFinalized =
+        toolGenerationInfo.status === 'error_fetching' &&
+        toolGenerationInfo.error?.includes('File not found') &&
+        prInfo.title != null &&
+        !prInfo.title.includes('[skip netlify]');
+
+      if (wasVprFinalized) {
+        overallCheckStatusForHead = 'success';
+        uiHint = 'success';
+        const directiveForUrl = extractToolDirectiveFromBranchName(
+          prInfo.branch
+        );
+        const toolNameForMsg =
+          directiveForUrl || prInfo.branch || `PR #${prInfo.number}`;
+
+        if (netlifyStatus?.conclusion === 'success') {
+          netlifyDeploymentSucceeded = true;
+          const netlifyBaseComment = recentComments.find(
+            (c) => c.botType === 'Netlify' && c.body?.includes('Deploy Preview')
+          );
+          if (netlifyBaseComment?.body) {
+            const urlMatch = netlifyBaseComment.body.match(
+              /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+            );
+            if (urlMatch && urlMatch[0] && directiveForUrl)
+              netlifyPreviewUrl = `${urlMatch[0]}/tool/${directiveForUrl}/`;
+            else if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
+          }
+          statusSummary = `Netlify Deploy Preview for '${toolNameForMsg}' is READY!`;
+          nextExpectedAction = 'USER_REVIEW_PREVIEW';
+          shouldContinuePolling = false;
+        } else if (
+          netlifyStatus?.status === 'queued' ||
+          netlifyStatus?.status === 'in_progress' ||
+          !netlifyStatus
         ) {
-          const urlMatch = comment.body.match(
-            /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
-          );
-          if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
+          statusSummary = `VPR checks passed! Netlify Deploy Preview is ${netlifyStatus?.status || 'pending'} for '${toolNameForMsg}'.`;
+          nextExpectedAction = 'NETLIFY_PREVIEW';
+          uiHint = 'loading';
+        } else if (netlifyStatus?.conclusion === 'failure') {
+          statusSummary = `VPR checks passed, but Netlify Deploy Preview FAILED for '${toolNameForMsg}'. Manual review needed.`;
+          nextExpectedAction = 'MANUAL_REVIEW_NETLIFY';
+          shouldContinuePolling = false;
+          uiHint = 'error';
+        } else {
+          statusSummary = `VPR checks passed for commit ${prInfo.headSha.substring(0, 7)}. Waiting for Netlify...`;
+          nextExpectedAction = 'NETLIFY_PREVIEW';
+          uiHint = 'loading';
         }
-        if (!imgurScreenshotUrl) {
-          const imgurMatch = comment.body.match(
-            /https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif)/i
+      } else if (latestVprRunForHead) {
+        if (latestVprRunForHead.status === 'completed') {
+          overallCheckStatusForHead =
+            latestVprRunForHead.conclusion === 'success'
+              ? 'success'
+              : 'failure';
+          const vprJob4 = latestVprRunForHead.jobs.find((job) =>
+            job.name.includes('4. Report PR Validation Status')
           );
-          if (imgurMatch && imgurMatch[0]) imgurScreenshotUrl = imgurMatch[0];
+
+          if (latestVprRunForHead.conclusion === 'success') {
+            statusSummary = `VPR checks passed for commit ${prInfo.headSha.substring(0, 7)}. Finalizing for Netlify preview...`;
+            nextExpectedAction = 'VPR_FINALIZING';
+            uiHint = 'loading';
+          } else {
+            uiHint = 'error';
+            const isLintIssueArtifact = latestVprRunForHead.artifacts.some(
+              (art) => art.name.startsWith('lint-failure-data')
+            );
+            const toolGenContent = toolGenerationInfo.content;
+
+            if (vprJob4?.conclusion === 'failure') {
+              statusSummary = `Critical VPR Error: 'Report PR Status' job failed (run ${latestVprRunForHead.id}). Manual review of Actions logs needed.`;
+              nextExpectedAction = 'MANUAL_REVIEW_CI_ERROR';
+              shouldContinuePolling = false;
+            } else if (isLintIssueArtifact) {
+              if (toolGenContent?.lintFixesAttempted) {
+                statusSummary =
+                  'AI Lint Fixer previously tried. Build/lint issues persist. Manual review of PR required.';
+                nextExpectedAction = 'MANUAL_REVIEW_LINT';
+                shouldContinuePolling = false;
+              } else if (
+                latestAlfComment?.body?.includes('AI Lint Fix API Call Failed')
+              ) {
+                statusSummary =
+                  'AI Lint Fixer API error. Manual review required.';
+                nextExpectedAction = 'MANUAL_REVIEW_LINT_API_FAIL';
+                shouldContinuePolling = false;
+              } else {
+                statusSummary =
+                  'VPR detected build/lint issues. Expecting AI Lint Fixer (ALF) to run.';
+                nextExpectedAction = 'ALF_EXPECTED';
+                uiHint = 'loading';
+              }
+            } else if (
+              toolGenContent?.identifiedDependencies &&
+              toolGenContent.identifiedDependencies.length > 0 &&
+              toolGenContent.npmDependenciesFulfilled === 'absent'
+            ) {
+              statusSummary =
+                'VPR identified new dependencies. Expecting AI Dependency Manager (ADM) to run.';
+              nextExpectedAction = 'ADM_EXPECTED';
+              uiHint = 'loading';
+            } else if (toolGenContent?.npmDependenciesFulfilled === 'false') {
+              statusSummary =
+                'AI Dependency Manager previously failed. Manual review required.';
+              nextExpectedAction = 'MANUAL_REVIEW_DEPS';
+              shouldContinuePolling = false;
+            } else {
+              statusSummary = `VPR failed (commit ${prInfo.headSha.substring(0, 7)}). Cause unclear. Manual review of PR & Actions needed.`;
+              nextExpectedAction = 'MANUAL_REVIEW_VPR_UNKNOWN';
+              shouldContinuePolling = false;
+            }
+          }
+        } else if (
+          latestVprRunForHead.status === 'in_progress' ||
+          latestVprRunForHead.status === 'queued'
+        ) {
+          statusSummary = `VPR workflow is ${latestVprRunForHead.status} for commit ${prInfo.headSha.substring(0, 7)}...`;
+          nextExpectedAction = 'VPR_RUNNING';
+          uiHint = 'loading';
+          overallCheckStatusForHead = 'pending';
+        } else {
+          statusSummary = `VPR status for commit ${prInfo.headSha.substring(0, 7)} is '${latestVprRunForHead.status}'. Waiting for completion...`;
+          nextExpectedAction = 'VPR_RUNNING';
+          uiHint = 'loading';
+          overallCheckStatusForHead = 'pending';
         }
-        if (netlifyPreviewUrl && imgurScreenshotUrl) break;
+      } else {
+        statusSummary = `Waiting for VPR checks to start for commit ${prInfo.headSha.substring(0, 7)}...`;
+        nextExpectedAction = 'VPR_PENDING';
+        uiHint = 'loading';
+        overallCheckStatusForHead = 'pending';
       }
     }
-    if (netlifyPreviewUrl && !netlifySuccess) {
+
+    const vprCommentWithDirectLink = recentComments.find(
+      (c) => c.botType === 'VPR' && c.body?.includes('(Direct Imgur Link:')
+    );
+
+    if (vprCommentWithDirectLink?.body) {
+      const directLinkRegex =
+        /\(Direct Imgur Link:\s*(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif))\)/i;
+      const imgurMatch = vprCommentWithDirectLink.body.match(directLinkRegex);
+      if (imgurMatch && imgurMatch[1]) {
+        imgurScreenshotUrl = imgurMatch[1];
+        console.log(
+          `[API Status PR #${actualPrNumber}] Extracted direct Imgur URL: ${imgurScreenshotUrl}`
+        );
+      } else {
+        console.log(
+          `[API Status PR #${actualPrNumber}] Found VPR comment with 'Direct Imgur Link:' but regex did not match a URL.`
+        );
+      }
+    } else {
       console.log(
-        '[api/status-pr] Netlify URL found in comment, marking Netlify as successful for display.'
+        `[API Status PR #${actualPrNumber}] No VPR comment found with '(Direct Imgur Link:' text.`
       );
-      netlifySuccess = true;
     }
 
-    const automatedActions: AutomatedActionsStatus = {
-      statusSummary: 'Analyzing PR state...',
-      activeWorkflow: null,
-      nextExpectedAction: null,
-      shouldContinuePolling: true,
-      lastBotComment: parseLastBotComment(comments),
-      vprConclusionForHead: null,
+    if (
+      pollingAttempt >= MAX_POLLING_ATTEMPTS_API &&
+      shouldContinuePolling &&
+      prInfo.state === 'open'
+    ) {
+      statusSummary =
+        'Max polling attempts reached. Please check the PR on GitHub for the latest status.';
+      shouldContinuePolling = false;
+      nextExpectedAction = 'MANUAL_REVIEW_TIMEOUT';
+      uiHint = 'error';
+    }
+
+    const vprJobsForUi =
+      githubActions.vpr.find((run) => run.head_sha === prInfo.headSha)?.jobs ||
+      githubActions.vpr[0]?.jobs ||
+      [];
+    const uiChecks: CiCheck[] = vprJobsForUi
+      .map(
+        (j) =>
+          ({
+            name: j.name,
+            status: j.status,
+            conclusion: j.conclusion,
+            url: j.html_url || null,
+            started_at: j.started_at,
+            completed_at: j.completed_at,
+          }) as CiCheck
+      )
+      .concat(
+        netlifyStatus
+          ? [
+              {
+                name: `Netlify Deploy (${netlifyStatus.app_slug || 'site'})`,
+                status: netlifyStatus.status,
+                conclusion: netlifyStatus.conclusion,
+                url: netlifyStatus.details_url || null,
+                started_at: null,
+                completed_at: null,
+              } as CiCheck,
+            ]
+          : []
+      );
+
+    const toolGenInfoForUI: PrStatusApiResponse['toolGenerationInfoForUI'] = {
+      npmDependenciesFulfilled:
+        toolGenerationInfo.status === 'found' && toolGenerationInfo.content
+          ? (toolGenerationInfo.content.npmDependenciesFulfilled ?? 'absent')
+          : toolGenerationInfo.status === 'not_applicable'
+            ? 'not_applicable'
+            : 'not_found',
+      lintFixesAttempted:
+        toolGenerationInfo.status === 'found' && toolGenerationInfo.content
+          ? (toolGenerationInfo.content.lintFixesAttempted ?? false)
+          : toolGenerationInfo.status === 'not_applicable'
+            ? 'not_applicable'
+            : 'not_found',
+      identifiedDependencies:
+        toolGenerationInfo.status === 'found' && toolGenerationInfo.content
+          ? toolGenerationInfo.content.identifiedDependencies?.map(
+              (d) => d.packageName
+            ) || null
+          : null,
     };
 
-    const vprJobNamesPattern =
-      /\b(initial_checks|analyze_state_and_dependencies|build_and_run_douglas_checker|report_pr_status)\b/i;
-    const vprChecks = ciChecks.filter(
+    const automatedActions: AutomatedActionsStatus = {
+      statusSummary,
+      activeWorkflow: null,
+      nextExpectedAction,
+      shouldContinuePolling,
+      uiHint,
+    };
+    const lastBotActionComment = recentComments.find(
       (c) =>
-        c.name.toLowerCase().includes('vpr /') ||
-        vprJobNamesPattern.test(c.name.toLowerCase())
+        c.isBot &&
+        (c.botType === 'VPR' ||
+          c.botType === 'ALF' ||
+          c.botType === 'ADM' ||
+          c.botType === 'Netlify')
     );
-
-    const isVprRunning = vprChecks.some(
-      (c) => c.status === 'in_progress' || c.status === 'queued'
-    );
-    const didVprFailOnHead = vprChecks.some((c) =>
-      ['failure', 'timed_out', 'cancelled', 'action_required'].includes(
-        c.conclusion || ''
-      )
-    );
-    const didVprSucceedOnHead =
-      vprChecks.length > 0 &&
-      vprChecks.every(
-        (c) => c.status === 'completed' && c.conclusion === 'success'
-      );
-
-    if (isVprRunning) {
-      automatedActions.activeWorkflow = 'VPR';
-      automatedActions.statusSummary =
-        'VPR workflow is currently running for the latest commit.';
-    } else if (didVprFailOnHead) {
-      automatedActions.vprConclusionForHead = 'failure';
-      if (
-        toolGenInfo.npmDependenciesFulfilled === 'absent' &&
-        automatedActions.lastBotComment?.summary.includes('Handoff to ADM')
-      ) {
-        automatedActions.statusSummary =
-          'VPR failed. Dependency resolution (ADM) is expected next.';
-        automatedActions.nextExpectedAction = 'ADM';
-      } else if (
-        toolGenInfo.lintFixesAttempted === false &&
-        automatedActions.lastBotComment?.summary.includes('Handoff to ALF')
-      ) {
-        automatedActions.statusSummary =
-          'VPR failed. Lint fixing (ALF) is expected next.';
-        automatedActions.nextExpectedAction = 'ALF';
-      } else if (toolGenInfo.npmDependenciesFulfilled === 'false') {
-        automatedActions.statusSummary =
-          'VPR failed. ADM previously attempted dependency resolution and issues persist. Manual review needed.';
-        automatedActions.nextExpectedAction = 'MANUAL_REVIEW';
-        automatedActions.shouldContinuePolling = false;
-      } else if (toolGenInfo.lintFixesAttempted === true) {
-        automatedActions.statusSummary =
-          'VPR failed after lint fix attempt. Manual review likely needed.';
-        automatedActions.nextExpectedAction = 'MANUAL_REVIEW';
-        automatedActions.shouldContinuePolling = false;
-      } else {
-        automatedActions.statusSummary =
-          'VPR failed. See PR comments for details. Manual review may be needed.';
-        automatedActions.nextExpectedAction = 'MANUAL_REVIEW';
-        automatedActions.shouldContinuePolling = false;
-      }
-    } else if (didVprSucceedOnHead) {
-      automatedActions.vprConclusionForHead = 'success';
-      automatedActions.statusSummary =
-        'VPR workflow completed successfully for the latest commit!';
-      automatedActions.nextExpectedAction = 'NONE';
-      automatedActions.shouldContinuePolling = false;
-    } else {
-      if (checksOverallStatus === 'pending' && ciChecks.length > 0) {
-        automatedActions.statusSummary =
-          'CI checks for the latest commit are pending.';
-      } else if (ciChecks.length === 0 && prData.state === 'open') {
-        automatedActions.statusSummary =
-          'Waiting for CI checks to start for the latest commit.';
-      } else {
-        automatedActions.statusSummary = `PR is ${prData.state}. Last known CI status for HEAD: ${checksOverallStatus}. Review PR for details.`;
-        automatedActions.shouldContinuePolling =
-          prData.state === 'open' && checksOverallStatus === 'pending';
-        if (checksOverallStatus === 'error')
-          automatedActions.shouldContinuePolling = false;
-      }
+    if (lastBotActionComment) {
+      automatedActions.lastBotComment = {
+        botName: lastBotActionComment.botType,
+        summary: lastBotActionComment.body
+          .split('\n')[0]
+          .replace(/^(##\s*🤖\s*|###\s*<span.*?>.*?<\/span>\s*)/, '')
+          .substring(0, 100)
+          .trim(),
+        body: lastBotActionComment.body,
+        timestamp: lastBotActionComment.created_at,
+        url: lastBotActionComment.html_url,
+      };
     }
 
-    if (prData.state === 'closed') {
-      const mergedStatus = prData.merged ? 'merged' : 'closed without merging';
-      automatedActions.statusSummary = `PR was ${mergedStatus}. Polling stopped. (${automatedActions.statusSummary})`;
-      automatedActions.shouldContinuePolling = false;
-      automatedActions.activeWorkflow = null;
-      automatedActions.nextExpectedAction = 'NONE';
-    }
+    console.log(
+      `[API Status PR #${actualPrNumber} For SHA ${prInfo.headSha.substring(0, 7)}] FINAL DECISION:`
+    );
+    console.log(`  - PR State: ${prInfo.state}, Merged: ${prInfo.merged}`);
+    console.log(
+      `  - ToolGenInfo Status: ${toolGenerationInfo.status}, LintFixAttempted: ${toolGenInfoForUI.lintFixesAttempted}, NPMFulfilled: ${toolGenInfoForUI.npmDependenciesFulfilled}`
+    );
+    console.log(
+      `  - VPR for HEAD (${prInfo.headSha.substring(0, 7)}): ${latestVprRunForHead ? `${latestVprRunForHead.status}/${latestVprRunForHead.conclusion}` : 'Not Found (or VPR Finalized)'}`
+    );
+    console.log(`  - WasVprFinalized (heuristic): ${wasVprFinalized}`);
+    console.log(
+      `  - Netlify Status: ${netlifyStatus?.status}/${netlifyStatus?.conclusion}`
+    );
+    console.log(`  - Netlify Preview URL constructed: ${netlifyPreviewUrl}`);
+    console.log(`  - SHOULD CONTINUE POLLING: ${shouldContinuePolling}`);
+    console.log(`  - NEXT EXPECTED ACTION: ${nextExpectedAction}`);
+    console.log(`  - UI HINT: ${uiHint}`);
+    console.log(
+      `  - Overall Check Status for HEAD: ${overallCheckStatusForHead}`
+    );
 
     const responsePayload: PrStatusApiResponse = {
-      prUrl: prData.html_url,
+      prUrl: prInfo.url,
       prNumber: actualPrNumber,
-      headSha: headShaToUse,
-      prHeadBranch: prHeadBranchName,
-      prState: prData.state as 'open' | 'closed',
-      isMerged: prData.merged || false,
-      checks: ciChecks,
-      overallCheckStatusForHead: checksOverallStatus,
+      headSha: prInfo.headSha,
+      prHeadBranch: prInfo.branch,
+      prState: prInfo.state,
+      isMerged: prInfo.merged,
+      checks: uiChecks,
+      overallCheckStatusForHead,
       netlifyPreviewUrl,
-      netlifyDeploymentSucceeded: netlifySuccess,
+      netlifyDeploymentSucceeded,
       imgurScreenshotUrl,
-      toolGenerationInfo: toolGenInfo,
+      toolGenerationInfoForUI: toolGenInfoForUI,
       automatedActions,
       lastUpdated: new Date().toISOString(),
     };
 
     return NextResponse.json(responsePayload, { status: 200 });
-  } catch (error: unknown) {
-    const err = error as Error & { status?: number };
-    console.error('[api/status-pr] Error in handler:', err.message, err.stack);
-    let errorMessage = 'Failed to fetch PR CI status.';
-    if (err.message) errorMessage = err.message;
-
-    if (err.status === 404)
-      return NextResponse.json(
-        { error: `PR #${actualPrNumber} not found. ${errorMessage}` },
-        { status: 404 }
-      );
-    if (err.status === 403 || err.status === 401)
-      return NextResponse.json(
-        { error: `Permission issue. ${errorMessage}` },
-        { status: err.status }
-      );
-
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (error: any) {
+    console.error(
+      `[api/status-pr PR#${actualPrNumber}] Error in GET handler:`,
+      error.message,
+      error.stack
+    );
+    let errorMessage = `Failed to fetch PR CI status: ${error.message}`;
+    let statusCode = 500;
+    if (error.status === 404) {
+      errorMessage = `PR #${actualPrNumber} not found. ${error.message}`;
+      statusCode = 404;
+    } else if (error.status === 403 || error.status === 401) {
+      errorMessage = `Permission issue fetching PR status. ${error.message}`;
+      statusCode = error.status;
+    }
+    return NextResponse.json(
+      {
+        error: errorMessage,
+        lastUpdated: new Date().toISOString(),
+      } as Partial<PrStatusApiResponse>,
+      { status: statusCode }
+    );
   }
 }

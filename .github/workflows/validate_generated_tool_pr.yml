@@ -687,6 +687,7 @@ jobs:
 
               if (process.env.IMGUR_URL_FOR_COMMENT) {
                 commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${process.env.IMGUR_URL_FOR_COMMENT})\n`;
+                commentBody += `   (Direct Imgur Link: ${process.env.IMGUR_URL_FOR_COMMENT})\n\n`;
               }
             }
             commentBody += "\n---\n";

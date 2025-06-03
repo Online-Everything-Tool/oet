@@ -18,7 +18,6 @@
       }
     ]
   },
-  "tags": ["music", "lyrics", "chords", "song", "viewer", "player", "storage"],
   "includeInSitemap": true,
   "status": "stable"
 }

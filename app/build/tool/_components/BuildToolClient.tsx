@@ -73,10 +73,6 @@ export default function BuildToolClient() {
     [defaultModelName]
   );
 
-  const getInitialToolDirectiveFromUrl = useCallback(() => {
-    return searchParams.get('directive') || '';
-  }, [searchParams]);
-
   const getInitialModeAndPr = useCallback(() => {
     const prNumberFromUrlStr = searchParams.get('prNumber');
     const initialDirective = searchParams.get('directive');

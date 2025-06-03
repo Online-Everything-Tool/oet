@@ -13,7 +13,6 @@
   "outputConfig": {
     "transferableContent": "none"
   },
-  "tags": ["image", "color", "picker", "developer", "design", "utility"],
   "includeInSitemap": true,
   "status": "stable"
 }

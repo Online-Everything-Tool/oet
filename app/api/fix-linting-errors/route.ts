@@ -36,13 +36,6 @@ interface AiFixedFileResult {
   fixDescription: string | null;
 }
 
-interface ApiResponse {
-  success: boolean;
-  message: string;
-  fixedFileResults?: Record<string, Omit<AiFixedFileResult, 'filePath'>>;
-  error?: string;
-}
-
 const generationConfig: GenerationConfig = {
   temperature: 0.2,
   topK: 30,

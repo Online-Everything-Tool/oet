@@ -16,8 +16,6 @@
   "outputConfig": {
     "transferableContent": "none"
   },
-  "tags": [],
-  "iconName": null,
   "includeInSitemap": true,
   "status": "stable"
 }

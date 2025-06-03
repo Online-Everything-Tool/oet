@@ -3,6 +3,8 @@
 export interface ToolGenerationInfoFileContent {
   identifiedDependencies: LibraryDependency[] | null;
   assetInstructions: string | null;
+  lintFixesAttempted?: boolean;
+  npmDependenciesFulfilled?: 'true' | 'false' | 'absent';
 }
 
 export interface ToolReconciliationInfo {

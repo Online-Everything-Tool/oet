@@ -10,8 +10,8 @@ export default function HeaderRecentBuilds() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [hasRecentBuilds, setHasRecentBuilds] = useState(true);
-  const [isLoadingBuilds, setIsLoadingBuilds] = useState(false);
+  const hasRecentBuilds = true;
+  const isLoadingBuilds = false;
 
   const toggleDropdown = useCallback(() => {
     setIsDropdownOpen((prev) => !prev);

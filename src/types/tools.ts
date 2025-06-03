@@ -46,7 +46,6 @@ export interface ToolMetadata {
   inputConfig: InputConfig;
   outputConfig: OutputConfig;
   urlStateParams?: ParamConfig[];
-  tags?: string[];
   includeInSitemap?: boolean;
   status?: string;
   [key: string]: unknown;

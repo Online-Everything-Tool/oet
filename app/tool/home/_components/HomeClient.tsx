@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import useToolState from '@/app/tool/_hooks/useToolState';
 
 import BuildToolWidget from '@/app/_components/BuildToolWidget';
-import RecentBuildsWidget from '@/app/_components/RecentBuildsWidget';
 import ToolListWidget from '@/app/_components/ToolListWidget';
 import { ToolDisplayData } from '@/app/page';
 
