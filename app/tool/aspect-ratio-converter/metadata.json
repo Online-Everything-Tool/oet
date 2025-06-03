@@ -1,0 +1,31 @@
+{
+  "title": "Aspect Ratio Converter",
+  "directive": "aspect-ratio-converter",
+  "description": "This tool converts image dimensions to fit various aspect ratios.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "urlStateParams": [
+    {
+      "paramName": "width",
+      "type": "number",
+      "defaultValue": 0
+    },
+    {
+      "paramName": "height",
+      "type": "number",
+      "defaultValue": 0
+    },
+    {
+      "paramName": "aspectRatio",
+      "type": "string",
+      "defaultValue": "16:9"
+    }
+  ],
+  "includeInSitemap": true,
+  "status": "stable"
+}
