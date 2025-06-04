@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
@@ -103,7 +103,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
           } else {
             setClientError(`Failed to load GZIP file (ID: ${toolState.selectedGzipFileId}). It may no longer exist.`);
             // Clear relevant parts of state if file not found
-            setToolState(prev => ({
+            setToolState((prev) => ({
               ...prev,
               selectedGzipFileId: null,
               selectedGzipFileName: null,
@@ -131,7 +131,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       decompress(currentGzipFile)
         .then(async (result: DecompressionResult) => {
           const newDecompressedFileId = await addFile(result.blob, result.fileName, result.mimeType, true, toolRoute); // Save as temporary
-          
+
           const newStateUpdate: Partial<GzipExplorerToolState> = {
             decompressedFileId: newDecompressedFileId,
             lastDecompressedInfo: {
@@ -140,33 +140,33 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
               size: result.decompressedSize,
             },
           };
-          setToolState(prev => ({...prev, ...newStateUpdate}));
-          await saveStateNow({...toolState, ...newStateUpdate});
+          setToolState((prev) => ({ ...prev, ...newStateUpdate }));
+          await saveStateNow({ ...toolState, ...newStateUpdate });
 
           if (oldDecompressedFileId && oldDecompressedFileId !== newDecompressedFileId) {
-             // Asynchronously clean up the old temporary file
-            cleanupOrphanedTemporaryFiles([oldDecompressedFileId]).catch(e => console.warn("Failed to cleanup old decompressed file", e));
+            // Asynchronously clean up the old temporary file
+            cleanupOrphanedTemporaryFiles([oldDecompressedFileId]).catch((e) => console.warn("Failed to cleanup old decompressed file", e));
           }
         })
         .catch((err) => {
           // Error is already set by useGzipDecompression hook, or handled there
           console.error("Decompression process failed:", err);
-          setToolState(prev => ({...prev, decompressedFileId: null, lastDecompressedInfo: null}));
+          setToolState((prev) => ({ ...prev, decompressedFileId: null, lastDecompressedInfo: null }));
         });
     } else if (!currentGzipFile) {
-       // If currentGzipFile is cleared, clear decompressed info too
+      // If currentGzipFile is cleared, clear decompressed info too
       if (toolState.decompressedFileId || toolState.lastDecompressedInfo) {
         const oldId = toolState.decompressedFileId;
         const clearedState: Partial<GzipExplorerToolState> = { decompressedFileId: null, lastDecompressedInfo: null };
-        setToolState(prev => ({...prev, ...clearedState}));
-        saveStateNow({...toolState, ...clearedState});
+        setToolState((prev) => ({ ...prev, ...clearedState }));
+        saveStateNow({ ...toolState, ...clearedState });
         if (oldId) {
-          cleanupOrphanedTemporaryFiles([oldId]).catch(e => console.warn("Failed to cleanup old decompressed file on clear", e));
+          cleanupOrphanedTemporaryFiles([oldId]).catch((e) => console.warn("Failed to cleanup old decompressed file on clear", e));
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentGzipFile, decompress, addFile, toolRoute, saveStateNow /* setToolState, toolState.decompressedFileId are dependencies but cause loops if not careful */ ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentGzipFile, decompress, addFile, toolRoute, saveStateNow /* setToolState, toolState.decompressedFileId are dependencies but cause loops if not careful */]);
 
 
   const handleFileSelectedFromModal = useCallback(async (files: StoredFile[]) => {
@@ -185,16 +185,16 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
           decompressedFileId: null, // Will be set by effect after decompression
           lastDecompressedInfo: null,
         };
-        setToolState(newState); 
+        setToolState(newState);
         // setCurrentGzipFile will be set by the effect listening to selectedGzipFileId
-        
+
         // Cleanup old files if they were different
         const idsToCleanup: string[] = [];
         if (oldSelectedFileId && oldSelectedFileId !== file.id) idsToCleanup.push(oldSelectedFileId);
         if (oldDecompressedFileId) idsToCleanup.push(oldDecompressedFileId);
-        
+
         if (idsToCleanup.length > 0) {
-          cleanupOrphanedTemporaryFiles(idsToCleanup).catch(e => console.warn("Failed to cleanup old files on new selection", e));
+          cleanupOrphanedTemporaryFiles(idsToCleanup).catch((e) => console.warn("Failed to cleanup old files on new selection", e));
         }
       } else {
         setClientError('Invalid file. Please select a .gz file.');
@@ -212,12 +212,12 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
     setIsPreviewOpen(false);
     setPreviewContentUrl(null);
     setPreviewTextContent(null);
-    
+
     setToolState(DEFAULT_GZIP_TOOL_STATE);
     await saveStateNow(DEFAULT_GZIP_TOOL_STATE);
 
     if (idsToCleanup.length > 0) {
-      cleanupOrphanedTemporaryFiles(idsToCleanup).catch(e => console.warn("Failed to cleanup files on clear", e));
+      cleanupOrphanedTemporaryFiles(idsToCleanup).catch((e) => console.warn("Failed to cleanup files on clear", e));
     }
     setSaveSuccess(false);
     setDownloadSuccess(false);
@@ -262,7 +262,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       setPreviewType('unsupported');
     }
   };
-  
+
   useEffect(() => {
     const url = previewContentUrl;
     return () => {
@@ -289,7 +289,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       setClientError("Decompressed file data not found.");
       return;
     }
-    
+
     let finalFilename = chosenFilename.trim();
     if (!finalFilename) finalFilename = toolState.lastDecompressedInfo?.name || 'decompressed_file';
 
@@ -318,7 +318,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
         // For now, let's re-add with permanent flag.
         await deleteFilePermanently(toolState.decompressedFileId); // remove old temp entry
         const newPermanentId = await addFile(decompressedFile.blob, finalFilename, decompressedFile.type, false, toolRoute);
-        setToolState(prev => ({...prev, decompressedFileId: newPermanentId})); // update state with new permanent ID
+        setToolState((prev) => ({ ...prev, decompressedFileId: newPermanentId })); // update state with new permanent ID
         setSaveSuccess(true);
         if (clientError) setClientError(null);
         setTimeout(() => setSaveSuccess(false), 2000);
@@ -383,7 +383,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
     if (fileToProcess) {
       const oldSelectedId = toolState.selectedGzipFileId;
       const oldDecompressedId = toolState.decompressedFileId;
-      
+
       const newStateUpdate: Partial<GzipExplorerToolState> = {
         selectedGzipFileId: fileToProcess.id,
         selectedGzipFileName: fileToProcess.filename,
@@ -396,10 +396,10 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       setUserDeferredAutoPopup(false);
 
       const idsToCleanup: string[] = [];
-      if(oldSelectedId && oldSelectedId !== fileToProcess.id) idsToCleanup.push(oldSelectedId);
-      if(oldDecompressedId) idsToCleanup.push(oldDecompressedId);
-      if(idsToCleanup.length > 0) {
-        cleanupOrphanedTemporaryFiles(idsToCleanup).catch(e => console.warn("Cleanup failed after ITDE", e));
+      if (oldSelectedId && oldSelectedId !== fileToProcess.id) idsToCleanup.push(oldSelectedId);
+      if (oldDecompressedId) idsToCleanup.push(oldDecompressedId);
+      if (idsToCleanup.length > 0) {
+        cleanupOrphanedTemporaryFiles(idsToCleanup).catch((e) => console.warn("Cleanup failed after ITDE", e));
       }
 
     }
@@ -419,13 +419,13 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       itdeTarget.openModalIfSignalsExist();
     }
   }, [isLoadingToolState, itdeTarget, userDeferredAutoPopup]);
-  
+
   const handleModalDeferAll = () => { setUserDeferredAutoPopup(true); itdeTarget.closeModal(); };
   const handleModalIgnoreAll = () => { setUserDeferredAutoPopup(false); itdeTarget.ignoreAllSignals(); };
   const handleModalAccept = (sd: string) => itdeTarget.acceptSignal(sd);
   const handleModalIgnore = (sd: string) => {
     itdeTarget.ignoreSignal(sd);
-    if (itdeTarget.pendingSignals.filter(s => s.sourceDirective !== sd).length === 0) setUserDeferredAutoPopup(false);
+    if (itdeTarget.pendingSignals.filter((s) => s.sourceDirective !== sd).length === 0) setUserDeferredAutoPopup(false);
   };
 
   const canPerformOutputActions = !!toolState.decompressedFileId && !!toolState.lastDecompressedInfo && !displayError;
@@ -461,7 +461,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       </div>
 
       {isLoading && <p className="text-center p-4 italic text-gray-500 animate-pulse">Processing...</p>}
-      
+
       {displayError && (
         <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-center gap-2">
           <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
@@ -498,19 +498,19 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
               onClear={handleClear}
               directiveName={directiveName}
               outputConfig={ownMetadata.outputConfig}
-              selectedOutputItems={toolState.decompressedFileId ? [{id: toolState.decompressedFileId, type: toolState.lastDecompressedInfo.type, filename: toolState.lastDecompressedInfo.name} as StoredFile] : []}
+              selectedOutputItems={toolState.decompressedFileId ? [{ id: toolState.decompressedFileId, type: toolState.lastDecompressedInfo.type, filename: toolState.lastDecompressedInfo.name } as StoredFile] : []}
             />
           </div>
         </div>
       )}
-      
+
       {!toolState.selectedGzipFileId && !isLoading && !displayError && (
-         <div className="p-6 border-2 border-dashed border-[rgb(var(--color-border-base))] rounded-md text-center">
-            <DocumentMagnifyingGlassIcon className="mx-auto h-12 w-12 text-[rgb(var(--color-text-muted))]" />
-            <p className="mt-2 text-sm text-[rgb(var(--color-text-muted))]">
-              Select a GZIP (.gz) file to view its decompressed content.
-            </p>
-          </div>
+        <div className="p-6 border-2 border-dashed border-[rgb(var(--color-border-base))] rounded-md text-center">
+          <DocumentMagnifyingGlassIcon className="mx-auto h-12 w-12 text-[rgb(var(--color-text-muted))]" />
+          <p className="mt-2 text-sm text-[rgb(var(--color-text-muted))]">
+            Select a GZIP (.gz) file to view its decompressed content.
+          </p>
+        </div>
       )}
 
       <FileSelectionModal
@@ -560,7 +560,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
           </div>
         </div>
       )}
-      
+
       <IncomingDataModal
         isOpen={itdeTarget.isModalOpen}
         signals={itdeTarget.pendingSignals}
