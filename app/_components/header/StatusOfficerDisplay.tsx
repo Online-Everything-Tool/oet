@@ -16,6 +16,7 @@ import {
   EyeSlashIcon,
   CodeBracketSquareIcon,
   ArrowRightEndOnRectangleIcon,
+  CircleStackIcon,
 } from '@heroicons/react/24/outline';
 
 export type OfficerDisplayState =
@@ -48,6 +49,12 @@ export default function StatusOfficerDisplay({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [storageInfo, setStorageInfo] = useState<{
+    usage: string;
+    quota?: string;
+  } | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   const toggleDropdown = useCallback(() => {
     setIsDropdownOpen((prev) => !prev);
@@ -120,14 +127,12 @@ export default function StatusOfficerDisplay({
         });
         return;
       }
-
       await dotControls.start({
         backgroundColor: '#FBBF24',
         opacity: 1,
         scale: 1,
         transition: { duration: 0.15 * FLICKER_SPEED_MULTIPLIER },
       });
-
       if (displayState === 'pending') {
         dotControls.start({
           scale: [1, 1.08, 1],
@@ -141,7 +146,6 @@ export default function StatusOfficerDisplay({
       } else if (displayState === 'operational' || displayState === 'error') {
         dotControls.stop();
         await dotControls.start({ scale: 1, backgroundColor: '#FBBF24' });
-
         for (const step of flickerSequence) {
           await dotControls.start(step);
         }
@@ -158,9 +162,44 @@ export default function StatusOfficerDisplay({
         });
       }
     };
-
     animateDot();
   }, [displayState, dotControls]);
+
+  useEffect(() => {
+    async function estimateStorage() {
+      if (navigator.storage && navigator.storage.estimate) {
+        try {
+          const estimate = await navigator.storage.estimate();
+          if (estimate.usage !== undefined) {
+            const usageMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+            const quotaMB = estimate.quota
+              ? (estimate.quota / (1024 * 1024)).toFixed(0)
+              : null;
+            setStorageInfo({
+              usage: `${usageMB} MB`,
+              quota: quotaMB ? `${quotaMB} MB` : undefined,
+            });
+            setStorageError(null);
+          } else {
+            setStorageError('Usage data N/A');
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (e: any) {
+          console.warn('Storage estimate failed:', e);
+          setStorageError('Error');
+        }
+      } else {
+        setStorageError('Not Supported');
+      }
+    }
+
+    if (displayState !== 'hidden') {
+      estimateStorage();
+    } else {
+      setStorageInfo(null);
+      setStorageError(null);
+    }
+  }, [displayState]);
 
   if (displayState === 'hidden') {
     return null;
@@ -248,55 +287,101 @@ export default function StatusOfficerDisplay({
       </div>
       {isDropdownOpen && (
         <div
-          className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] animate-slide-down"
+          className="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg z-[60] animate-slide-down"
           role="menu"
           aria-orientation="vertical"
           tabIndex={-1}
         >
-          <div className="py-1 divide-y divide-gray-100" role="none">
-            <div className="px-4 py-3">
-              <p className="text-sm font-semibold text-gray-900">OET Ethos</p>
-            </div>
-            {principles.map((principle) => (
-              <div
-                key={principle.key}
-                className="px-4 py-3 flex items-center text-sm text-gray-700"
-                role="menuitem"
-                aria-disabled="true"
-              >
-                <principle.Icon className="h-5 w-5 mr-3 text-indigo-500 flex-shrink-0" />
-                <span>{principle.text}</span>
+          <div
+            className="py-1 divide-y divide-gray-100 dark:divide-gray-700"
+            role="none"
+          >
+            {/* OET Ethos Section */}
+            <div>
+              <div className="px-4 pt-2 pb-1">
+                {' '}
+                {/* Adjusted pt-2 if storage info is not present, otherwise pt-3 from its wrapper */}
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  OET Ethos
+                </p>
               </div>
-            ))}
+              {principles.map((principle) => (
+                <div
+                  key={principle.key}
+                  className="px-4 py-2 flex items-center text-sm text-gray-700 dark:text-gray-300"
+                  role="menuitem"
+                  aria-disabled="true"
+                >
+                  <principle.Icon className="h-5 w-5 mr-3 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                  <span>{principle.text}</span>
+                </div>
+              ))}
+            </div>
 
-            <div className="border-t border-gray-200 my-1"></div>
-            <div className="flex flex-col gap-2">
+            {(storageInfo || storageError) && (
+              <div className="pb-1">
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    Storage Footprint
+                  </p>
+                </div>
+                <div
+                  className="px-4 py-2 flex items-center text-sm text-gray-700 dark:text-gray-300"
+                  role="menuitem"
+                  aria-disabled="true"
+                >
+                  <CircleStackIcon className="h-5 w-5 mr-3 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                  {storageInfo && (
+                    <div className="flex-grow">
+                      <span>
+                        Usage: <strong>{storageInfo.usage}</strong>
+                      </span>
+                      {storageInfo.quota && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                          (Approx. Quota: {storageInfo.quota})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {storageError && (
+                    <span
+                      className={`text-xs italic ${storageError === 'Error' ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}
+                    >
+                      {storageError === 'Error'
+                        ? 'Estimation Error'
+                        : storageError}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Links Section */}
+            <div className="pt-1 flex flex-col items-end">
               <a
                 href={`https://github.com/Online-Everything-Tool`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="self-end flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
                 role="menuitem"
                 tabIndex={-1}
                 onClick={closeDropdown}
               >
-                <span className="text-sm">OET on GitHub</span>
-                <ArrowRightEndOnRectangleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                <span>OET on GitHub</span>
+                <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
               </a>
               {statusOfficerGithub && (
                 <a
                   href={`https://github.com/${statusOfficerGithub}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="self-end flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                  className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={closeDropdown}
                 >
-                  <span className="text-sm">
-                    {statusOfficerGithub} on GitHub
-                  </span>
-                  <ArrowRightEndOnRectangleIcon className="h-4 w-4 ml-1 text-gray-500" />
+                  <span>{statusOfficerGithub} on GitHub</span>
+                  <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                 </a>
               )}
             </div>

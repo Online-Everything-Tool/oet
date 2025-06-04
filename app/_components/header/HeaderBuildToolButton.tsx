@@ -71,7 +71,7 @@ export default function HeaderBuildToolButton() {
   return (
     <div className="relative inline-block" ref={dropdownRef}>
       <Button
-        onClick={toggleDropdown}
+        onClick={goToBuildTool}
         disabled={false}
         className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.4)] text-white disabled:opacity-70 px-2.5 py-1.5"
         aria-label="Build Tool Options"
@@ -85,7 +85,7 @@ export default function HeaderBuildToolButton() {
 
       {isDropdownOpen && (
         <div
-          className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] animate-slide-down"
+          className="absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white shadow-lg focus:outline-none z-[60] animate-slide-down"
           role="menu"
           aria-orientation="vertical"
           tabIndex={-1}

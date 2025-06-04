@@ -1,0 +1,35 @@
+{
+  "title": "A Reminder From “Big Tool”",
+  "messages": [
+    {
+      "id": "msg1",
+      "source": "MegaTool Inc.",
+      "emoji": "😉",
+      "text": "User tracking isn't just good, it's how we know you *really* well."
+    },
+    {
+      "id": "msg2",
+      "source": "AdVantage Corp.",
+      "emoji": "📈",
+      "text": "Ads drive innovation! (And our quarterly profits. Mostly the profits.)"
+    },
+    {
+      "id": "msg3",
+      "source": "Gatekeeper Solutions Ltd.",
+      "emoji": "📜",
+      "text": "Gatekeeping features isn't mean, it's a legal requirement... somewhere... probably."
+    },
+    {
+      "id": "msg4",
+      "source": "HyperSpeed Networks LLC",
+      "emoji": "🚀",
+      "text": "FYI: Good tools *only* work on our upcoming 7G Quantum Networks. Pre-order now!"
+    },
+    {
+      "id": "msg5",
+      "source": "MindMeld Synergies",
+      "emoji": "😵‍💫",
+      "text": "Our staff of in-house hypnotists report you're feeling very sleepy... and agreeable to our terms."
+    }
+  ]
+}

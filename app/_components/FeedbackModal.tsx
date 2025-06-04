@@ -22,8 +22,7 @@ export default function FeedbackModal({
     return null;
   }
 
-  let githubIssuesUrl =
-    'https://github.com/Online-Everything-Tool/oet/issues/new/choose';
+  let githubIssuesUrl = `https://github.com/${process.env.GITHUB_REPO_OWNER}/${process.env.GITHUB_REPO_NAME}/issues/new/choose`;
   let modalTitle = 'Provide Feedback';
 
   if (toolMetadata) {
@@ -61,7 +60,7 @@ export default function FeedbackModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
             aria-label="Close Feedback Modal"
           >
             <XMarkIcon className="h-6 w-6" aria-hidden="true" />{' '}
@@ -82,7 +81,7 @@ export default function FeedbackModal({
             href={githubIssuesUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block w-full text-center px-5 py-2.5 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[rgb(var(--color-button-primary-bg))] transition-colors duration-150 ease-in-out"
+            className="inline-block w-full text-center px-5 py-2.5 bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] font-medium text-sm rounded-md shadow-sm hover:bg-[rgb(var(--color-button-primary-hover-bg))] transition-colors duration-150 ease-in-out"
           >
             Open GitHub Issues
           </a>

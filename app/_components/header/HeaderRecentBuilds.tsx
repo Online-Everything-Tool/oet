@@ -65,7 +65,7 @@ export default function HeaderRecentBuilds() {
         <span className="hidden sm:inline ml-1">Pipeline</span>
       </Button>
       <div
-        className={`absolute px-2 right-0 mt-2 w-72 md:w-80 origin-top-right rounded-md bg-white text-gray-800 shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] 
+        className={`absolute px-2 right-0 mt-2 w-72 md:w-80 origin-top-right rounded-md bg-white text-gray-800 shadow-xl z-[60] 
                    ${isDropdownOpen ? 'block animate-slide-down' : 'hidden'}`}
         onClick={(e) => e.stopPropagation()}
         aria-hidden={!isDropdownOpen}

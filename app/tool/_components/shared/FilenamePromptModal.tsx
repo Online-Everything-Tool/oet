@@ -113,7 +113,7 @@ export default function FilenamePromptModal({
                 value={filename}
                 onChange={(e) => setFilename(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))] text-sm"
+                className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm text-sm"
                 placeholder="e.g., my-encoded-data.txt"
               />
               <p className="text-sm text-gray-400 mt-2">

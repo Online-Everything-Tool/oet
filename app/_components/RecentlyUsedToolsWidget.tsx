@@ -201,10 +201,9 @@ export default function RecentlyUsedToolsWidget({
     MAX_DISPLAY_ITEMS_HEADER
   );
 
-  const containerClasses =
-    'py-1 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none min-w-[300px] max-w-sm';
+  const containerClasses = 'py-1 shadow-lg min-w-[300px] max-w-sm';
   const titleClasses =
-    'px-4 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
+    'px-3 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
   const listClasses = 'max-h-[400px] overflow-y-auto custom-scrollbar';
 
   if (!isLoaded) {

@@ -175,7 +175,7 @@ export default function Header() {
         () => {
           ctaGroupControls.start('visible');
         },
-        (IS_STATIC_BUILD_VALIDATION ? 0.05 : 0.2) *
+        (IS_STATIC_BUILD_VALIDATION ? 0.001 : 0.2) *
           ANIMATION_SPEED_MULTIPLIER *
           1000
       );

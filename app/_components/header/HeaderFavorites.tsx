@@ -8,23 +8,69 @@ import { useFavorites } from '@/app/context/FavoritesContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import {
   StarIcon as StarIconSolid,
-  LightBulbIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/solid';
 import Button from '@/app/tool/_components/form/Button';
+
+interface LatestAdditionsData {
+  header: string;
+  subheader: string;
+  directives: string[];
+}
 
 export default function HeaderFavorites() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const { getToolMetadata, isLoading: metadataLoading } = useMetadata();
+  const [latestAdditions, setLatestAdditions] =
+    useState<LatestAdditionsData | null>(null);
+  const [latestAdditionsLoading, setLatestAdditionsLoading] = useState(true);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const favoritesCount = favoritesLoaded ? favorites.length : 0;
 
+  useEffect(() => {
+    const fetchLatestAdditions = async () => {
+      setLatestAdditionsLoading(true);
+      try {
+        const response = await fetch('/data/build/latest_additions.json');
+        if (!response.ok) {
+          if (response.status === 404) {
+            console.warn(
+              'latest_additions.json not found, skipping latest additions banner.'
+            );
+            setLatestAdditions(null);
+            return;
+          }
+          throw new Error(
+            `Failed to fetch latest additions: ${response.status}`
+          );
+        }
+        const data: LatestAdditionsData = await response.json();
+        if (data && data.directives && data.directives.length > 0) {
+          setLatestAdditions(data);
+        } else {
+          console.warn('latest_additions.json is empty or has no directives.');
+          setLatestAdditions(null);
+        }
+      } catch (error) {
+        console.error(
+          'Error fetching or parsing latest_additions.json:',
+          error
+        );
+        setLatestAdditions(null);
+      } finally {
+        setLatestAdditionsLoading(false);
+      }
+    };
+    fetchLatestAdditions();
+  }, []);
+
   const toggleDropdown = useCallback(() => {
-    if (!favoritesLoaded || metadataLoading) return;
+    if (!favoritesLoaded || metadataLoading || latestAdditionsLoading) return;
     setIsDropdownOpen((prev) => !prev);
-  }, [favoritesLoaded, metadataLoading]);
+  }, [favoritesLoaded, metadataLoading, latestAdditionsLoading]);
 
   const closeDropdown = useCallback(() => {
     setIsDropdownOpen(false);
@@ -58,30 +104,73 @@ export default function HeaderFavorites() {
     };
   }, [isDropdownOpen, closeDropdown, handleEscKey]);
 
-  const NewToolBanner = () => (
-    <div className="px-3 py-2.5 border-t border-gray-200 bg-indigo-50 hover:bg-indigo-100 transition-colors">
-      <Link
-        href="/tool/build"
-        onClick={closeDropdown}
-        className="group block"
-        title="Create a new tool with AI assistance"
-      >
-        <div className="flex items-center">
-          <LightBulbIcon className="h-5 w-5 text-indigo-500 mr-2 transition-transform group-hover:scale-105" />
-          <div>
-            <p className="text-sm font-semibold text-indigo-700 group-hover:text-indigo-800">
-              Build a New Tool!
-            </p>
-            <p className="text-xs text-indigo-600 group-hover:text-indigo-700">
-              AI-assisted tool creation.
-            </p>
-          </div>
-        </div>
-      </Link>
-    </div>
-  );
+  const LatestAdditionsBanner = () => {
+    if (
+      latestAdditionsLoading ||
+      !latestAdditions ||
+      latestAdditions.directives.length === 0
+    ) {
+      return null;
+    }
 
-  const isLoading = !favoritesLoaded || metadataLoading;
+    const toolsToShow = latestAdditions.directives.slice(0, 2);
+
+    return (
+      <div className="border-t border-gray-200 pt-1">
+        <div className="px-3 pt-2.5 pb-1 flex flex-col gap-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            {latestAdditions.header}
+          </p>
+          {latestAdditions.subheader && (
+            <p className="text-xs text-gray-500 mb-1.5">
+              {latestAdditions.subheader}
+            </p>
+          )}
+        </div>
+        {toolsToShow.map((directive) => {
+          const metadata = getToolMetadata(directive);
+          const title =
+            metadata?.title ||
+            directive
+              .replace(/-/g, ' ')
+              .replace(/\b\w/g, (l) => l.toUpperCase());
+          return (
+            <Link
+              key={directive}
+              href={`/tool/${directive}/`}
+              onClick={closeDropdown}
+              className="group block px-3 py-2 transition-colors"
+              title={`Check out: ${title}`}
+            >
+              <div className="flex items-center">
+                <SparklesIcon className="h-5 w-5 text-gray-600 mr-2.5 transition-transform group-hover:scale-105 shrink-0" />
+                <div className="flex-grow overflow-hidden">
+                  <p className="text-sm font-medium text-gray-600 group-hover:text-gray-800 truncate">
+                    {title}
+                  </p>
+                  {metadata?.description && (
+                    <p className="text-xs text-gray-600 group-hover:text-gray-800 truncate">
+                      {metadata.description.length > 45
+                        ? metadata.description.substring(0, 43) + '...'
+                        : metadata.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+        {latestAdditions.directives.length > toolsToShow.length && (
+          <div className="px-3 py-1.5 text-center">
+            <em className="text-xs text-gray-400">...and more!</em>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const isLoading =
+    !favoritesLoaded || metadataLoading || latestAdditionsLoading;
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>
@@ -91,7 +180,7 @@ export default function HeaderFavorites() {
         disabled={isLoading}
         className="rounded bg-[rgba(255,255,255,0.2)] hover:!bg-[rgba(255,255,255,0.3)] relative text-white disabled:opacity-70 px-2.5 py-1.5"
         aria-label="View Favorites"
-        title={isLoading ? 'Loading Favorites...' : 'View Favorites'}
+        title={isLoading ? 'Loading...' : 'View Favorites'}
         aria-haspopup="true"
         aria-expanded={isDropdownOpen}
         iconLeft={
@@ -114,13 +203,13 @@ export default function HeaderFavorites() {
 
       {isDropdownOpen && !isLoading && (
         <div
-          className="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[60] overflow-hidden flex flex-col animate-slide-down"
+          className="absolute right-0 mt-2 w-72 origin-top-right rounded-md bg-white shadow-xl z-[60] overflow-hidden flex flex-col animate-slide-down"
           role="menu"
           aria-orientation="vertical"
           tabIndex={-1}
         >
           <div
-            className="py-1 max-h-72 overflow-y-auto custom-scrollbar"
+            className="py-1 max-h-60 overflow-y-auto custom-scrollbar"
             role="none"
           >
             {favorites.length > 0 ? (
@@ -153,7 +242,7 @@ export default function HeaderFavorites() {
               </p>
             )}
           </div>
-          <NewToolBanner />
+          <LatestAdditionsBanner />
         </div>
       )}
     </div>
