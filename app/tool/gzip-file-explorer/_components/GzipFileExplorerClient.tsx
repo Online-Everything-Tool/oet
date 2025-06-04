@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useEffect,
   useRef,
-  useMemo,
+  // useMemo, // Removed: unused
 } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -18,7 +18,7 @@ import type { ToolMetadata as AppToolMetadata } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import {
   formatBytes,
-  getFileIconClassName,
+  // getFileIconClassName, // Removed: unused
   isTextBasedMimeType,
 } from '@/app/lib/utils';
 import {
@@ -121,7 +121,7 @@ export default function GzipFileExplorerClient({
   // Load files from state IDs
   useEffect(() => {
     if (toolState.inputFileId && !currentInputFile) {
-      getFile(toolState.inputFileId).then(setCurrentInputFile);
+      getFile(toolState.inputFileId).then((file) => setCurrentInputFile(file)); //Fixed
     } else if (!toolState.inputFileId && currentInputFile) {
       setCurrentInputFile(null);
     }
@@ -129,7 +129,7 @@ export default function GzipFileExplorerClient({
 
   useEffect(() => {
     if (toolState.decompressedFileId && !currentDecompressedFile) {
-      getFile(toolState.decompressedFileId).then(setCurrentDecompressedFile);
+      getFile(toolState.decompressedFileId).then((file) => setCurrentDecompressedFile(file)); //Fixed
     } else if (!toolState.decompressedFileId && currentDecompressedFile) {
       setCurrentDecompressedFile(null);
     }
@@ -182,7 +182,7 @@ export default function GzipFileExplorerClient({
     clientError,
     toolRoute
   ]);
-  
+
   // Effect for initial state load completion
   useEffect(() => {
     if (!isLoadingToolState && !initialToolStateLoadCompleteRef.current) {
@@ -200,20 +200,26 @@ export default function GzipFileExplorerClient({
     setClientError(null);
     setToolState(DEFAULT_GZIP_TOOL_STATE);
     await saveStateNow(DEFAULT_GZIP_TOOL_STATE);
-    
+
     setCopySuccess(false);
     setSaveSuccess(false);
     setDownloadSuccess(false);
 
     if (idsToCleanup.length > 0) {
-      cleanupOrphanedTemporaryFiles(idsToCleanup).catch(e => 
+      cleanupOrphanedTemporaryFiles(idsToCleanup).catch((e) =>
         console.error("[GzipExplorer Clear] Cleanup failed:", e)
       );
     }
-  }, [setToolState, saveStateNow, toolState.inputFileId, toolState.decompressedFileId, cleanupOrphanedTemporaryFiles]);
+  }, [
+    setToolState,
+    saveStateNow,
+    toolState.inputFileId,
+    toolState.decompressedFileId,
+    cleanupOrphanedTemporaryFiles,
+  ]);
 
   const handleFileSelectedFromModal = useCallback(
-    async (files: StoredFile[], source: 'library' | 'upload', filterToThese?: boolean) => {
+    async (files: StoredFile[], source: 'library' | 'upload', filterToThese?: boolean) => { // filterToThese is unused, but kept for now
       setIsLoadFileModalOpen(false);
       setClientError(null);
       const file = files[0];
@@ -231,11 +237,11 @@ export default function GzipFileExplorerClient({
           if (oldDecompressedId) idsToPotentiallyDelete.push(oldDecompressedId);
 
           if (idsToPotentiallyDelete.length > 0) {
-             cleanupOrphanedTemporaryFiles(idsToPotentiallyDelete).catch(e => 
-                console.error("[GzipExplorer FileSelect] Old files cleanup failed:", e)
-             );
+            cleanupOrphanedTemporaryFiles(idsToPotentiallyDelete).catch((e) =>
+              console.error("[GzipExplorer FileSelect] Old files cleanup failed:", e)
+            );
           }
-          
+
           setToolState({
             ...DEFAULT_GZIP_TOOL_STATE, // Reset most state
             inputFileId: file.id,
@@ -247,12 +253,20 @@ export default function GzipFileExplorerClient({
           setClientError('Invalid file. Please select a .gz file.');
           if (source === 'upload' && file.isTemporary && file.id) {
             // If an invalid file was uploaded and made temporary, delete it.
-            deleteFilePermanently(file.id).catch(e => console.warn("Failed to delete invalid temp upload", e));
+            deleteFilePermanently(file.id).catch((e) =>
+              console.warn("Failed to delete invalid temp upload", e)
+            );
           }
         }
       }
     },
-    [setToolState, toolState.inputFileId, toolState.decompressedFileId, cleanupOrphanedTemporaryFiles, deleteFilePermanently]
+    [
+      setToolState,
+      toolState.inputFileId,
+      toolState.decompressedFileId,
+      cleanupOrphanedTemporaryFiles,
+      deleteFilePermanently,
+    ]
   );
 
   const handleProcessIncomingSignal = useCallback(
@@ -268,7 +282,12 @@ export default function GzipFileExplorerClient({
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
-      if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none' || !resolvedPayload.data || resolvedPayload.data.length === 0) {
+      if (
+        resolvedPayload.type === 'error' ||
+        resolvedPayload.type === 'none' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
         setClientError(resolvedPayload.errorMessage || 'No data received from source.');
         return;
       }
@@ -276,26 +295,38 @@ export default function GzipFileExplorerClient({
       const receivedFileItem = resolvedPayload.data[0];
       let fileToProcess: StoredFile | null = null;
 
-      if (receivedFileItem && (
-          receivedFileItem.type === 'application/gzip' || 
+      if (
+        receivedFileItem &&
+        (receivedFileItem.type === 'application/gzip' ||
           receivedFileItem.type === 'application/x-gzip' ||
-          ('filename' in receivedFileItem && (receivedFileItem as StoredFile).filename.toLowerCase().endsWith('.gz'))
-        )) {
-        if (!('id' in receivedFileItem)) { // InlineFile
+          ('filename' in receivedFileItem &&
+            (receivedFileItem as StoredFile).filename.toLowerCase().endsWith('.gz')))
+      ) {
+        if (!('id' in receivedFileItem)) {
+          // InlineFile
           try {
             const tempName = `itde-received-${Date.now()}.gz`;
-            const newId = await addFile(receivedFileItem.blob, tempName, receivedFileItem.type, true, toolRoute);
-            fileToProcess = await getFile(newId);
+            const newId = await addFile(
+              receivedFileItem.blob,
+              tempName,
+              receivedFileItem.type,
+              true,
+              toolRoute
+            );
+            fileToProcess = (await getFile(newId)) || null; //Fixed
             if (!fileToProcess) throw new Error('Failed to retrieve saved InlineFile');
           } catch (e) {
             setClientError(`Failed to process incoming GZip: ${e instanceof Error ? e.message : String(e)}`);
             return;
           }
-        } else { // StoredFile
+        } else {
+          // StoredFile
           fileToProcess = receivedFileItem as StoredFile;
         }
       } else if (receivedFileItem) {
-        setClientError(`Received file from ${signal.sourceToolTitle} is not a GZip (type: ${receivedFileItem.type}).`);
+        setClientError(
+          `Received file from ${signal.sourceToolTitle} is not a GZip (type: ${receivedFileItem.type}).`
+        );
         return;
       }
 
@@ -303,23 +334,27 @@ export default function GzipFileExplorerClient({
         handleFileSelectedFromModal([fileToProcess], 'library'); // Treat as if selected from library
         setUserDeferredAutoPopup(false);
       } else {
-         setClientError('No valid GZip file found in ITDE data.');
+        setClientError('No valid GZip file found in ITDE data.');
       }
     },
-    [getToolMetadata, addFile, getFile, handleFileSelectedFromModal, toolRoute]
+    [getToolMetadata, addFile, getFile, handleFileSelectedFromModal, toolRoute],
   );
-  
+
   const itdeTarget = useItdeTargetHandler({
     targetToolDirective: directiveName,
     onProcessSignal: handleProcessIncomingSignal,
   });
 
   useEffect(() => {
-    if (initialToolStateLoadCompleteRef.current && itdeTarget.pendingSignals.length > 0 && !itdeTarget.isModalOpen && !userDeferredAutoPopup) {
+    if (
+      initialToolStateLoadCompleteRef.current &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
       itdeTarget.openModalIfSignalsExist();
     }
   }, [itdeTarget, userDeferredAutoPopup]);
-
 
   const handleOpenPreview = useCallback(async () => {
     if (!currentDecompressedFile?.blob) {
@@ -331,14 +366,14 @@ export default function GzipFileExplorerClient({
     setPreviewContent(null);
 
     const fileType = currentDecompressedFile.type || '';
-    const filename = currentDecompressedFile.filename || 'preview';
+    // const filename = currentDecompressedFile.filename || 'preview'; // Removed: unused
 
     if (isTextBasedMimeType(fileType)) {
       try {
         let text = await currentDecompressedFile.blob.text();
         if (currentDecompressedFile.blob.size > MAX_TEXT_PREVIEW_SIZE_BYTES) {
           text = text.substring(0, MAX_TEXT_PREVIEW_SIZE_BYTES / 2) + // Approx, char vs byte
-                 '\n\n--- CONTENT TRUNCATED ---';
+            '\n\n--- CONTENT TRUNCATED ---';
         }
         setPreviewContent(text);
         setPreviewType('text');
@@ -394,7 +429,7 @@ export default function GzipFileExplorerClient({
       } else if (filenameAction === 'save') {
         try {
           await makeFilePermanentAndUpdate(currentDecompressedFile.id, finalFilename);
-          setToolState(prev => ({...prev, decompressedFileName: finalFilename})); // Update name in state
+          setToolState((prev) => ({ ...prev, decompressedFileName: finalFilename })); // Update name in state
           setSaveSuccess(true);
           setTimeout(() => setSaveSuccess(false), 2000);
         } catch (err) {
@@ -403,20 +438,23 @@ export default function GzipFileExplorerClient({
       }
       setFilenameAction(null);
     },
-    [currentDecompressedFile, filenameAction, makeFilePermanentAndUpdate, setToolState]
+    [currentDecompressedFile, filenameAction, makeFilePermanentAndUpdate, setToolState],
   );
-  
+
   const initiateOutputAction = (action: 'download' | 'save') => {
     if (!currentDecompressedFile) {
-        setClientError('No decompressed file available.');
-        return;
+      setClientError('No decompressed file available.');
+      return;
     }
     setFilenameAction(action);
     setIsFilenameModalOpen(true);
   };
 
   const handleCopyToClipboard = useCallback(async () => {
-    if (!currentDecompressedFile || !isTextBasedMimeType(currentDecompressedFile.type)) {
+    if (
+      !currentDecompressedFile ||
+      !isTextBasedMimeType(currentDecompressedFile.type)
+    ) {
       setClientError('Cannot copy: Output is not text or not available.');
       return;
     }
@@ -440,9 +478,13 @@ export default function GzipFileExplorerClient({
           <h2 className="text-lg font-semibold">Input Gzip File</h2>
           <div className="flex gap-2 items-center">
             <ReceiveItdeDataTrigger
-                hasDeferredSignals={itdeTarget.pendingSignals.length > 0 && userDeferredAutoPopup && !itdeTarget.isModalOpen}
-                pendingSignalCount={itdeTarget.pendingSignals.length}
-                onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
+              hasDeferredSignals={
+                itdeTarget.pendingSignals.length > 0 &&
+                userDeferredAutoPopup &&
+                !itdeTarget.isModalOpen
+              }
+              pendingSignalCount={itdeTarget.pendingSignals.length}
+              onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
             />
             <Button
               variant="primary"
@@ -454,7 +496,9 @@ export default function GzipFileExplorerClient({
             </Button>
           </div>
         </div>
-        {isLoading && !currentInputFile && <p className="text-sm italic">Loading state...</p>}
+        {isLoading && !currentInputFile && (
+          <p className="text-sm italic">Loading state...</p>
+        )}
         {currentInputFile && (
           <div className="text-sm">
             <p>
@@ -475,64 +519,83 @@ export default function GzipFileExplorerClient({
 
       {/* Error Display */}
       {displayError && (
-        <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
-          <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <div><strong className="font-semibold">Error:</strong> {displayError}</div>
+        <div
+          role="alert"
+          className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
+        >
+          <ExclamationTriangleIcon
+            className="h-5 w-5 flex-shrink-0 mt-0.5"
+            aria-hidden="true"
+          />
+          <div>
+            <strong className="font-semibold">Error:</strong> {displayError}
+          </div>
         </div>
       )}
 
       {/* Output Section */}
       {(currentDecompressedFile || isDecompressing) && !displayError && (
-         <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md">
-            <h2 className="text-lg font-semibold mb-2">Decompressed Output</h2>
-            {isDecompressing && !currentDecompressedFile && <p className="text-sm italic animate-pulse">Decompressing...</p>}
-            {currentDecompressedFile && (
-                <>
-                    <div className="text-sm mb-3">
-                        <p>Filename: <strong>{currentDecompressedFile.filename}</strong></p>
-                        <p>Size: {formatBytes(currentDecompressedFile.size)}</p>
-                        <p>Type: {currentDecompressedFile.type}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 items-center">
-                        <Button 
-                            variant="neutral-outline"
-                            onClick={handleOpenPreview}
-                            iconLeft={<DocumentMagnifyingGlassIcon className="h-5 w-5" />}
-                        >
-                            Preview
-                        </Button>
-                        <OutputActionButtons
-                            canPerform={canPerformOutputActions}
-                            isSaveSuccess={saveSuccess}
-                            isCopySuccess={copySuccess}
-                            isDownloadSuccess={downloadSuccess}
-                            onInitiateSave={() => initiateOutputAction('save')}
-                            onInitiateDownload={() => initiateOutputAction('download')}
-                            onCopy={isTextBasedMimeType(currentDecompressedFile.type) ? handleCopyToClipboard : undefined}
-                            onClear={handleClear}
-                            directiveName={directiveName}
-                            outputConfig={ownMetadata.outputConfig}
-                            selectedOutputItems={currentDecompressedFile ? [currentDecompressedFile] : []}
-                        />
-                    </div>
-                </>
-            )}
-         </div>
-      )}
-      
-      {/* Clear button if there's any state or error */}
-      {(currentInputFile || displayError) && !currentDecompressedFile && !isDecompressing && (
-         <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md">
-            <Button
-                variant="danger"
-                onClick={handleClear}
-                iconLeft={<XCircleIcon className="h-5 w-5" />}
-            >
-                Clear
-            </Button>
-         </div>
+        <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md">
+          <h2 className="text-lg font-semibold mb-2">Decompressed Output</h2>
+          {isDecompressing && !currentDecompressedFile && (
+            <p className="text-sm italic animate-pulse">Decompressing...</p>
+          )}
+          {currentDecompressedFile && (
+            <>
+              <div className="text-sm mb-3">
+                <p>
+                  Filename: <strong>{currentDecompressedFile.filename}</strong>
+                </p>
+                <p>
+                  Size: {formatBytes(currentDecompressedFile.size)}
+                </p>
+                <p>Type: {currentDecompressedFile.type}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                <Button
+                  variant="neutral-outline"
+                  onClick={handleOpenPreview}
+                  iconLeft={<DocumentMagnifyingGlassIcon className="h-5 w-5" />}
+                >
+                  Preview
+                </Button>
+                <OutputActionButtons
+                  canPerform={canPerformOutputActions}
+                  isSaveSuccess={saveSuccess}
+                  isCopySuccess={copySuccess}
+                  isDownloadSuccess={downloadSuccess}
+                  onInitiateSave={() => initiateOutputAction('save')}
+                  onInitiateDownload={() => initiateOutputAction('download')}
+                  onCopy={
+                    isTextBasedMimeType(currentDecompressedFile.type)
+                      ? handleCopyToClipboard
+                      : undefined
+                  }
+                  onClear={handleClear}
+                  directiveName={directiveName}
+                  outputConfig={ownMetadata.outputConfig}
+                  selectedOutputItems={currentDecompressedFile ? [currentDecompressedFile] : []}
+                />
+              </div>
+            </>
+          )}
+        </div>
       )}
 
+      {/* Clear button if there's any state or error */}
+      {(currentInputFile || displayError) &&
+        !currentDecompressedFile &&
+        !isDecompressing && (
+          <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md">
+            <Button
+              variant="danger"
+              onClick={handleClear}
+              iconLeft={<XCircleIcon className="h-5 w-5" />}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
 
       {/* Modals */}
       <FileSelectionModal
@@ -548,16 +611,29 @@ export default function GzipFileExplorerClient({
 
       <FilenamePromptModal
         isOpen={isFilenameModalOpen}
-        onClose={() => { setIsFilenameModalOpen(false); setFilenameAction(null); }}
+        onClose={() => {
+          setIsFilenameModalOpen(false);
+          setFilenameAction(null);
+        }}
         onConfirm={handleFilenameConfirm}
         initialFilename={currentDecompressedFile?.filename || 'decompressed_file'}
-        title={filenameAction === 'download' ? 'Enter Download Filename' : 'Enter Filename for Library'}
+        title={
+          filenameAction === 'download'
+            ? 'Enter Download Filename'
+            : 'Enter Filename for Library'
+        }
         filenameAction={filenameAction || 'download'}
       />
 
       {isPreviewModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]" onClick={() => setIsPreviewModalOpen(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]"
+          onClick={() => setIsPreviewModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-3 px-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
               <h3 className="text-lg font-semibold truncate" title={currentDecompressedFile?.filename || 'Preview'}>
                 {currentDecompressedFile?.filename || 'Preview'}
@@ -567,8 +643,14 @@ export default function GzipFileExplorerClient({
               </Button>
             </div>
             <div className="p-4 overflow-auto flex-grow min-h-[200px]">
-              {previewType === 'loading' && <p className="text-center animate-pulse">Loading preview...</p>}
-              {previewType === 'unsupported' && <p className="text-center">Preview not available for this file type.</p>}
+              {previewType === 'loading' && (
+                <p className="text-center animate-pulse">Loading preview...</p>
+              )}
+              {previewType === 'unsupported' && (
+                <p className="text-center">
+                  Preview not available for this file type.
+                </p>
+              )}
               {previewType === 'text' && previewContent && (
                 <pre className="text-sm whitespace-pre-wrap break-words max-h-[calc(90vh-120px)] overflow-auto">
                   <code>{previewContent}</code>
@@ -590,14 +672,28 @@ export default function GzipFileExplorerClient({
           </div>
         </div>
       )}
-      
+
       <IncomingDataModal
         isOpen={itdeTarget.isModalOpen}
         signals={itdeTarget.pendingSignals}
-        onAccept={(sd) => { itdeTarget.acceptSignal(sd); if(itdeTarget.pendingSignals.length -1 === 0) setUserDeferredAutoPopup(false);}}
-        onIgnore={(sd) => { itdeTarget.ignoreSignal(sd); if(itdeTarget.pendingSignals.length -1 === 0) setUserDeferredAutoPopup(false);}}
-        onDeferAll={() => { setUserDeferredAutoPopup(true); itdeTarget.closeModal(); }}
-        onIgnoreAll={() => { setUserDeferredAutoPopup(false); itdeTarget.ignoreAllSignals(); }}
+        onAccept={(sd) => {
+          itdeTarget.acceptSignal(sd);
+          if (itdeTarget.pendingSignals.length - 1 === 0)
+            setUserDeferredAutoPopup(false);
+        }}
+        onIgnore={(sd) => {
+          itdeTarget.ignoreSignal(sd);
+          if (itdeTarget.pendingSignals.length - 1 === 0)
+            setUserDeferredAutoPopup(false);
+        }}
+        onDeferAll={() => {
+          setUserDeferredAutoPopup(true);
+          itdeTarget.closeModal();
+        }}
+        onIgnoreAll={() => {
+          setUserDeferredAutoPopup(false);
+          itdeTarget.ignoreAllSignals();
+        }}
       />
     </div>
   );
