@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
-import { useGzipDecompressor, GzipDecompressionResult } from '../_hooks/useGzipDecompressor';
+import { useGzipDecompressor } from '../_hooks/useGzipDecompressor';
 import Button from '../../_components/form/Button';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
@@ -12,7 +12,6 @@ import type { StoredFile } from '@/src/types/storage';
 import {
   formatBytesCompact,
   getMimeTypeForFile,
-  getFileIconClassName,
   PREVIEWABLE_TEXT_EXTENSIONS,
   PREVIEWABLE_IMAGE_EXTENSIONS,
 } from '@/app/lib/utils';
@@ -129,7 +128,7 @@ export default function GzipFileExplorerClient({ toolRoute }: { toolRoute: strin
             setPersistentState(prev => ({...prev, decompressedFileId: null}));
         }
     }
-  }, [selectedGzipFileObject, persistentState.selectedGzipFileId]);
+  }, [selectedGzipFileObject, persistentState.selectedGzipFileId, gzipDecompressor, setDecompressedFileObject, setGzipHeaderInfo, setPersistentState]);
 
 
   // Effect to handle result from useGzipDecompressor
@@ -352,7 +351,7 @@ export default function GzipFileExplorerClient({ toolRoute }: { toolRoute: strin
       setPreviewError(`Failed to load preview: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setPreviewType('unsupported');
     }
-  }, [decompressedFileObject]);
+  }, [decompressedFileObject, PREVIEWABLE_IMAGE_EXTENSIONS, PREVIEWABLE_TEXT_EXTENSIONS, formatBytesCompact]);
 
   useEffect(() => { // Cleanup object URL for image preview
     let objectUrlToRevoke: string | null = null;
