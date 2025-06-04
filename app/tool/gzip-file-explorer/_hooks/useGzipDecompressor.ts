@@ -1,3 +1,4 @@
+```typescript
 import { useCallback, useState } from 'react';
 import pako from 'pako';
 import type { StoredFile } from '@/src/types/storage';
@@ -44,7 +45,7 @@ const useGzipDecompressor = (): UseGzipDecompressorReturn => {
       const gzippedData = new Uint8Array(gzippedArrayBuffer);
 
       return new Promise<DecompressResult>((resolve, reject) => {
-        let decompressedChunks: Uint8Array[] = [];
+        const decompressedChunks: Uint8Array[] = []; // Fixed: Changed to const
         let totalLength = 0;
         let headerInfo: GzipHeaderInfo | null = null;
 
@@ -97,3 +98,4 @@ const useGzipDecompressor = (): UseGzipDecompressorReturn => {
 };
 
 export default useGzipDecompressor;
+```
