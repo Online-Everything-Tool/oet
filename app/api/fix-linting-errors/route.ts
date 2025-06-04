@@ -161,6 +161,7 @@ function preprocessLintOutput(
       continue;
     }
 
+    console.log(`[DEBUG PREPROCESS] Processing line: "${line}"`);
     const filePathMarkerMatch = line.match(filePathMarkerRegex);
     if (filePathMarkerMatch) {
       const pathInErrorLineNormalized = path.normalize(filePathMarkerMatch[1]);
