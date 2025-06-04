@@ -499,7 +499,7 @@ export default function LinkedinPostFormatterClient({
       <EmojiExplorerModal
         isOpen={isEmojiModalOpen}
         onClose={() => setIsEmojiModalOpen(false)}
-        onEmojiSelect={handleEmojiSelect}
+        onEmojiCopied={handleEmojiSelect}
       />
     </div>
   );

@@ -72,6 +72,7 @@ export default function HeaderRecentlyUsed() {
   return (
     <div className="relative inline-block" ref={dropdownRef}>
       <Button
+        isEmpty={true}
         onClick={toggleDropdown}
         disabled={isLoading}
         className="rounded bg-[rgba(255,255,255,0.2)] relative hover:!bg-[rgba(255,255,255,0.4)] text-white disabled:opacity-70 px-2.5 py-1.5"

@@ -1,0 +1,100 @@
+{
+  "MANUAL_REVIEW_LINT": [
+    {
+      "emoji": "🧹",
+      "memo": "Our AI Lint Fixer gave it a shot, but some code style or build issues persist."
+    },
+    {
+      "emoji": "🧑‍💻",
+      "memo": "This usually means there's a tricky bit of code the AI couldn't automatically resolve."
+    },
+    {
+      "emoji": "💡",
+      "memo": "Your feedback on what you were trying to build can help us improve the AI or fix this manually!"
+    }
+  ],
+  "MANUAL_REVIEW_LINT_API_FAIL": [
+    {
+      "emoji": "📡",
+      "memo": "The AI Lint Fixer service seems to have had a hiccup communicating with its brain (the API)."
+    },
+    {
+      "emoji": "🛠️",
+      "memo": "This isn't related to your tool's code itself, but rather our AI infrastructure."
+    },
+    {
+      "emoji": "🙏",
+      "memo": "Please report this so our human engineers can take a look at the AI!"
+    }
+  ],
+  "MANUAL_REVIEW_DEPS": [
+    {
+      "emoji": "🧱",
+      "memo": "The AI Dependency Manager tried to sort out the necessary building blocks (NPM packages) but hit a snag."
+    },
+    {
+      "emoji": "🧩",
+      "memo": "Sometimes, new tools need libraries that require a bit of human finesse to integrate."
+    },
+    {
+      "emoji": "👍",
+      "memo": "Letting us know about the tool you envisioned helps us get the dependencies right!"
+    }
+  ],
+  "MANUAL_REVIEW_CI_ERROR": [
+    {
+      "emoji": "⚙️",
+      "memo": "Oops! It looks like our internal CI (Continuous Integration) process had an unexpected issue."
+    },
+    {
+      "emoji": "🤖",
+      "memo": "This is usually a hiccup on our end, not with the tool you designed."
+    },
+    {
+      "emoji": "🔧",
+      "memo": "Reporting this helps our team fix the CI pipeline. Thanks!"
+    }
+  ],
+  "MANUAL_REVIEW_VPR_UNKNOWN": [
+    {
+      "emoji": "🤔",
+      "memo": "The automated validation for your tool didn't complete as expected, and the reason isn't immediately clear."
+    },
+    {
+      "emoji": "🧑‍🔬",
+      "memo": "This requires a human to look at the logs and see what went sideways."
+    },
+    {
+      "emoji": "📝",
+      "memo": "Details about the tool you were trying to build would be very helpful for our investigation!"
+    }
+  ],
+  "MANUAL_REVIEW_TIMEOUT": [
+    {
+      "emoji": "⏳",
+      "memo": "The automated build process took longer than expected and timed out."
+    },
+    {
+      "emoji": "🤖",
+      "memo": "Sometimes AI generation or complex checks can be slow. We're working on optimizing this!"
+    },
+    {
+      "emoji": "🗣️",
+      "memo": "Your feedback on the tool can help us understand if complexity was a factor."
+    }
+  ],
+  "DEFAULT_MANUAL_REVIEW": [
+    {
+      "emoji": "🚧",
+      "memo": "The automated build for your tool couldn't be completed."
+    },
+    {
+      "emoji": "💡",
+      "memo": "AI is a powerful assistant, but sometimes human expertise is needed to get things just right."
+    },
+    {
+      "emoji": "🙏",
+      "memo": "Please help us improve by providing details about the tool you were trying to create."
+    }
+  ]
+}

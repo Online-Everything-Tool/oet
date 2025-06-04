@@ -1,5 +1,10 @@
 // FILE: src/types/build.ts
 
+export interface EmojiMessage {
+  emoji: string;
+  memo: string;
+}
+
 export interface ToolGenerationInfoFileContent {
   identifiedDependencies: LibraryDependency[] | null;
   assetInstructions: string | null;

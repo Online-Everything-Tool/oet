@@ -29,6 +29,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: React.ReactNode;
   fullWidth?: boolean;
   className?: string;
+  isEmpty?: boolean;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -43,6 +44,7 @@ const Button: React.FC<ButtonProps> = ({
   className = '',
   type = 'button',
   disabled,
+  isEmpty = false,
   ...rest
 }) => {
   const isDisabled = disabled || isLoading;
@@ -124,9 +126,15 @@ const Button: React.FC<ButtonProps> = ({
       aria-disabled={isDisabled}
       {...rest}
     >
-      {currentIconLeft && <span>{currentIconLeft}</span>}
+      {currentIconLeft && (
+        <span className={(children || loadingText) && !isEmpty ? 'mr-2' : ''}>
+          {currentIconLeft}
+        </span>
+      )}
       {isLoading && loadingText ? loadingText : children}
-      {!isLoading && iconRight && <span>{iconRight}</span>}
+      {!isLoading && iconRight && (
+        <span className={children && !isEmpty ? 'ml-2' : ''}>{iconRight}</span>
+      )}
     </button>
   );
 };

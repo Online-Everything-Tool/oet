@@ -1,4 +1,4 @@
-// --- FILE: app/tool/_components/shared/EmojiExplorerModal.tsx ---
+// FILE: /app/tool/_components/shared/EmojiExplorerModal.tsx
 'use client';
 
 import React, {
@@ -36,12 +36,15 @@ const DEFAULT_EMOJI_EXPLORER_STATE: EmojiExplorerToolState = {
   recentlyCopiedEmojis: [],
 };
 
-const MAX_RECENTLY_COPIED = 20;
+const MAX_RECENTLY_INTERACTED = 20;
 
 interface EmojiExplorerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onEmojiSelect: (emoji: string) => void;
+
+  outputMode?: 'copy' | 'select';
+  onEmojiCopied?: (emoji: string, name: string) => void;
+  onEmojiSelectedForForm?: (emoji: string) => void;
 
   toolRouteForRecentState?: string;
 }
@@ -49,7 +52,9 @@ interface EmojiExplorerModalProps {
 export default function EmojiExplorerModal({
   isOpen,
   onClose,
-  onEmojiSelect,
+  outputMode = 'copy',
+  onEmojiCopied,
+  onEmojiSelectedForForm,
   toolRouteForRecentState = '/tool/emoji-explorer',
 }: EmojiExplorerModalProps) {
   const [modalEmojisList, setModalEmojisList] = useState<RichEmojiData[]>([]);
@@ -63,10 +68,10 @@ export default function EmojiExplorerModal({
   const [selectedSubgroup, setSelectedSubgroup] = useState<string>('');
   const [selectedVersion, setSelectedVersion] = useState<string>('');
   const modalBodyRef = useRef<HTMLDivElement>(null);
-  const [lastCopiedValue, setLastCopiedValue] = useState<{
-    type: string;
-    value: string;
-  } | null>(null);
+
+  const [copiedEmojiString, setCopiedEmojiString] = useState<string | null>(
+    null
+  );
 
   const {
     state: emojiExplorerToolState,
@@ -92,9 +97,7 @@ export default function EmojiExplorerModal({
           return res.json();
         })
         .then((data: { emojis: RichEmojiData[]; error?: string }) => {
-          if (data.error) {
-            throw new Error(data.error);
-          }
+          if (data.error) throw new Error(data.error);
           setModalEmojisList(data.emojis || []);
           hasFetchedDataRef.current = true;
         })
@@ -103,22 +106,16 @@ export default function EmojiExplorerModal({
           setModalDataError(err.message || 'Could not load emoji data.');
           setModalEmojisList([]);
         })
-        .finally(() => {
-          setIsLoadingModalData(false);
-        });
+        .finally(() => setIsLoadingModalData(false));
     } else if (!isOpen) {
-    }
-  }, [isOpen, isLoadingModalData]);
-
-  useEffect(() => {
-    if (!isOpen) {
       setSearchTerm('');
       setSelectedGroup('');
       setSelectedSubgroup('');
       setSelectedVersion('');
       setIsFilterPanelOpen(false);
+      setCopiedEmojiString(null);
     }
-  }, [isOpen]);
+  }, [isOpen, isLoadingModalData]);
 
   const availableGroups = useMemo(
     () => getUniqueSortedValues(modalEmojisList, 'group', 'asc'),
@@ -145,31 +142,24 @@ export default function EmojiExplorerModal({
   }, [selectedGroup, selectedSubgroup, selectedVersion]);
 
   const filteredEmojis = useMemo<RichEmojiData[]>(() => {
-    if (modalEmojisList.length === 0) {
-      return [];
-    }
+    if (modalEmojisList.length === 0) return [];
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
-    let emojisToReturn = modalEmojisList;
-
-    if (lowerCaseSearchTerm || selectedGroup || selectedVersion) {
-      emojisToReturn = modalEmojisList.filter((emoji) => {
-        if (
-          lowerCaseSearchTerm &&
-          !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)
-        )
-          return false;
-        if (selectedGroup && emoji.group !== selectedGroup) return false;
-        if (
-          selectedGroup &&
-          selectedSubgroup &&
-          emoji.subgroup !== selectedSubgroup
-        )
-          return false;
-        if (selectedVersion && emoji.version !== selectedVersion) return false;
-        return true;
-      });
-    }
-    return emojisToReturn;
+    return modalEmojisList.filter((emoji) => {
+      if (
+        lowerCaseSearchTerm &&
+        !emoji.name.toLowerCase().includes(lowerCaseSearchTerm)
+      )
+        return false;
+      if (selectedGroup && emoji.group !== selectedGroup) return false;
+      if (
+        selectedGroup &&
+        selectedSubgroup &&
+        emoji.subgroup !== selectedSubgroup
+      )
+        return false;
+      if (selectedVersion && emoji.version !== selectedVersion) return false;
+      return true;
+    });
   }, [
     searchTerm,
     modalEmojisList,
@@ -183,9 +173,7 @@ export default function EmojiExplorerModal({
     return filteredEmojis.reduce(
       (acc, emoji) => {
         const groupName = emoji.group;
-        if (!acc[groupName]) {
-          acc[groupName] = [];
-        }
+        if (!acc[groupName]) acc[groupName] = [];
         acc[groupName].push(emoji);
         return acc;
       },
@@ -221,64 +209,64 @@ export default function EmojiExplorerModal({
     setSelectedVersion('');
   }, []);
 
-  const copyToClipboardInternal = useCallback(
-    async (textToCopy: string, copyContentType: string, emojiName?: string) => {
-      if (!textToCopy) return;
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-        setLastCopiedValue({ type: copyContentType, value: textToCopy });
-        setTimeout(() => setLastCopiedValue(null), 1500);
-      } catch (err) {
-        console.error(`Failed to copy ${emojiName} ${copyContentType}:`, err);
+  const handleEmojiInteraction = useCallback(
+    async (emojiData: RichEmojiData, source: 'grid' | 'recent' = 'grid') => {
+      if (outputMode === 'select' && onEmojiSelectedForForm) {
+        onEmojiSelectedForForm(emojiData.emoji);
+      } else {
+        try {
+          await navigator.clipboard.writeText(emojiData.emoji);
+          setCopiedEmojiString(emojiData.emoji);
+          setTimeout(() => setCopiedEmojiString(null), 1500);
+          if (onEmojiCopied) onEmojiCopied(emojiData.emoji, emojiData.name);
+        } catch (err) {
+          console.error(`Failed to copy ${emojiData.name} emoji:`, err);
+        }
       }
-    },
-    []
-  );
 
-  const handleEmojiSelectInternal = useCallback(
-    (emojiData: RichEmojiData, source: 'grid' | 'recent' = 'grid') => {
-      onEmojiSelect(emojiData.emoji);
-      copyToClipboardInternal(emojiData.emoji, 'emoji', emojiData.name);
-
-      if (source === 'grid') {
+      if (source === 'grid' && !isLoadingEmojiExplorerToolState) {
         setEmojiExplorerToolState((prev) => {
           const newRecentlyCopied = [
             emojiData,
             ...prev.recentlyCopiedEmojis.filter(
               (e) => e.codePoints !== emojiData.codePoints
             ),
-          ].slice(0, MAX_RECENTLY_COPIED);
+          ].slice(0, MAX_RECENTLY_INTERACTED);
           return { ...prev, recentlyCopiedEmojis: newRecentlyCopied };
         });
       }
     },
-    [onEmojiSelect, copyToClipboardInternal, setEmojiExplorerToolState]
+    [
+      outputMode,
+      onEmojiSelectedForForm,
+      onEmojiCopied,
+      isLoadingEmojiExplorerToolState,
+      setEmojiExplorerToolState,
+    ]
   );
 
-  const handleClearRecentlyCopiedInModal = useCallback(() => {
-    setEmojiExplorerToolState({ recentlyCopiedEmojis: [] });
-  }, [setEmojiExplorerToolState]);
+  const handleClearRecentlyInteracted = useCallback(() => {
+    if (!isLoadingEmojiExplorerToolState) {
+      setEmojiExplorerToolState((prev) => ({
+        ...prev,
+        recentlyCopiedEmojis: [],
+      }));
+    }
+  }, [isLoadingEmojiExplorerToolState, setEmojiExplorerToolState]);
 
   useEffect(() => {
     if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
+    const handleKeyDown = (event: KeyboardEvent) =>
+      event.key === 'Escape' && onClose();
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    if (modalBodyRef.current) {
-      modalBodyRef.current.scrollTop = 0;
-    }
+    if (modalBodyRef.current) modalBodyRef.current.scrollTop = 0;
   }, [filteredEmojis, selectedGroup, selectedSubgroup, selectedVersion]);
 
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   const renderContent = () => {
     if (isLoadingModalData) {
@@ -297,9 +285,7 @@ export default function EmojiExplorerModal({
     }
     if (modalEmojisList.length === 0 && hasFetchedDataRef.current) {
       return (
-        <p className="text-center text-gray-500 py-10">
-          No emoji data found or loaded.
-        </p>
+        <p className="text-center text-gray-500 py-10">No emoji data found.</p>
       );
     }
     if (modalEmojisList.length === 0 && !hasFetchedDataRef.current) {
@@ -327,13 +313,21 @@ export default function EmojiExplorerModal({
               {emojisGroupedByName[groupName].map((emojiData) => (
                 <button
                   key={emojiData.codePoints || emojiData.name}
-                  onClick={() => handleEmojiSelectInternal(emojiData, 'grid')}
+                  onClick={() => handleEmojiInteraction(emojiData, 'grid')}
                   className="text-2xl p-1 rounded hover:bg-gray-200 aspect-square flex items-center justify-center transition-colors duration-100"
-                  title={emojiData.name}
-                  aria-label={`Insert emoji: ${emojiData.name}`}
+                  title={
+                    outputMode === 'copy'
+                      ? `Copy: ${emojiData.name}`
+                      : `Select: ${emojiData.name}`
+                  }
+                  aria-label={
+                    outputMode === 'copy'
+                      ? `Copy emoji: ${emojiData.name}`
+                      : `Select emoji: ${emojiData.name}`
+                  }
                 >
-                  {lastCopiedValue?.type === 'emoji' &&
-                  lastCopiedValue?.value === emojiData.emoji ? (
+                  {outputMode === 'copy' &&
+                  copiedEmojiString === emojiData.emoji ? (
                     <CheckIcon className="h-5 w-5 text-green-500" />
                   ) : (
                     emojiData.emoji
@@ -364,7 +358,7 @@ export default function EmojiExplorerModal({
             id="emoji-modal-title"
             className="text-lg font-semibold text-gray-800 whitespace-nowrap"
           >
-            Select Emoji
+            {outputMode === 'select' ? 'Select an Emoji' : 'Emoji Explorer'}
           </h2>
           <Input
             type="search"
@@ -498,13 +492,16 @@ export default function EmojiExplorerModal({
             <div className="p-3 border-b border-gray-200 flex-shrink-0 bg-gray-50">
               <div className="flex justify-between items-center mb-1.5">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Recently Copied
+                  {/* Title changes based on mode, or could be generic "Recently Used" */}
+                  {outputMode === 'select'
+                    ? 'Recently Selected'
+                    : 'Recently Copied'}
                 </h3>
                 <Button
                   variant="link"
                   size="sm"
-                  onClick={handleClearRecentlyCopiedInModal}
-                  title="Clear recently copied emojis from Emoji Explorer tool"
+                  onClick={handleClearRecentlyInteracted}
+                  title="Clear recently used emojis"
                   className="!p-0.5 text-xs"
                 >
                   <XMarkIcon className="h-4 w-4 text-gray-400 hover:text-red-500" />
@@ -518,14 +515,22 @@ export default function EmojiExplorerModal({
                       variant="neutral-outline"
                       size="sm"
                       onClick={() =>
-                        handleEmojiSelectInternal(emojiData, 'recent')
+                        handleEmojiInteraction(emojiData, 'recent')
                       }
-                      title={`Copy: ${emojiData.name}`}
+                      title={
+                        outputMode === 'copy'
+                          ? `Copy: ${emojiData.name}`
+                          : `Select: ${emojiData.name}`
+                      }
                       className="!p-1.5 !text-lg leading-none aspect-square"
-                      aria-label={`Copy emoji: ${emojiData.name}`}
+                      aria-label={
+                        outputMode === 'copy'
+                          ? `Copy emoji: ${emojiData.name}`
+                          : `Select emoji: ${emojiData.name}`
+                      }
                     >
-                      {lastCopiedValue?.type === 'emoji' &&
-                      lastCopiedValue?.value === emojiData.emoji ? (
+                      {outputMode === 'copy' &&
+                      copiedEmojiString === emojiData.emoji ? (
                         <CheckIcon className="h-4 w-4 text-green-500" />
                       ) : (
                         emojiData.emoji

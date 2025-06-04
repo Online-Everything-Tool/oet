@@ -1,4 +1,4 @@
-// FILE: scripts/get-pr-ci-summary.mjs (Refined Version - Corrected Workflow Fetch)
+// FILE: scripts/get-pr-ci-summary.mjs (Corrected Bot Type Detection)
 import { Octokit } from 'octokit';
 import { createAppAuth } from '@octokit/auth-app';
 import dotenv from 'dotenv';
@@ -8,22 +8,19 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- Load .env file from project root ---
 try {
-  const envPath = path.resolve(__dirname, '../.env'); // Corrected path
+  const envPath = path.resolve(__dirname, '../.env');
   const result = dotenv.config({ path: envPath });
   if (result.error) {
     console.warn(
       `[CI Summary Script] Warning: Could not load .env file from ${envPath}. Error: ${result.error.message}. Relying on pre-set environment variables.`
     );
   } else {
-    // Avoid logging if running in a test environment that might not want .env processing logged
     if (process.env.NODE_ENV !== 'test') {
       console.log(`[CI Summary Script] .env file processed from ${envPath}.`);
     }
   }
 } catch (e) {
-  // @ts-ignore
   console.warn(
     `[CI Summary Script] Error initializing dotenv: ${e.message}. Relying on pre-set environment variables.`
   );
@@ -35,19 +32,24 @@ const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'oet';
 const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_PRIVATE_KEY_BASE64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
 
+// More specific bot name ENV VARs can override these defaults if needed.
+// The key is to match what `comment.user.login` actually is for the bot.
 const BOT_USERNAMES = {
-  VPR: (process.env.GITHUB_VPR_BOT_USERNAME || 'OET CI Bot').toLowerCase(),
+  VPR: (
+    process.env.GITHUB_VPR_BOT_USERNAME || 'github-actions[bot]'
+  ).toLowerCase(), // Default to common Actions bot
   ADM: (
-    process.env.GITHUB_ADM_BOT_USERNAME || 'AI Dependency Manager'
+    process.env.GITHUB_ADM_BOT_USERNAME || 'github-actions[bot]'
   ).toLowerCase(),
-  ALF: (process.env.GITHUB_ALF_BOT_USERNAME || 'AI Lint Fixer').toLowerCase(),
+  ALF: (
+    process.env.GITHUB_ALF_BOT_USERNAME || 'github-actions[bot]'
+  ).toLowerCase(),
   PR_CREATOR_BOT: (
     process.env.GITHUB_PR_CREATOR_BOT_USERNAME || 'OET Bot'
-  ).toLowerCase(),
+  ).toLowerCase(), // This one might be different
 };
 
 const WORKFLOW_FILENAMES = {
-  // Using filenames is more robust than display names
   VPR: 'validate_generated_tool_pr.yml',
   ADM: 'ai_dependency_manager.yml',
   ALF: 'ai_lint_fixer.yml',
@@ -93,7 +95,6 @@ async function getAuthenticatedOctokit() {
     return octokitInstance;
   } catch (error) {
     console.error('\n[CI Summary Script] ERROR DURING AUTHENTICATION:');
-    // @ts-ignore
     console.error(`  Message: ${error.message}`);
     throw error;
   }
@@ -113,9 +114,7 @@ async function getJsonFileContent(octokit, owner, repo, filePath, ref) {
       path: filePath,
       ref,
     });
-    // @ts-ignore
     if (data && data.content && data.encoding === 'base64') {
-      // @ts-ignore
       const content = Buffer.from(data.content, 'base64').toString('utf-8');
       return JSON.parse(content);
     }
@@ -123,10 +122,8 @@ async function getJsonFileContent(octokit, owner, repo, filePath, ref) {
       error: `File content not base64 or type not file: ${filePath} at ref ${ref}`,
     };
   } catch (error) {
-    // @ts-ignore
     if (error.status === 404)
       return { error: `File not found: ${filePath} at ref ${ref}` };
-    // @ts-ignore
     return {
       error: `Error fetching ${filePath} at ref ${ref}: ${error.message}`,
     };
@@ -158,9 +155,7 @@ async function getPrCiSummary(prNumber) {
       `app/tool/${toolDirective}/tool-generation-info.json`,
       headSha
     );
-    // @ts-ignore
     if (result.error) {
-      // @ts-ignore
       toolGenerationInfo = {
         status: 'error_fetching',
         content: null,
@@ -171,37 +166,23 @@ async function getPrCiSummary(prNumber) {
     }
   }
 
-  // --- Corrected Workflow Fetching ---
   const { data: repoWorkflowRuns } =
     await octokit.rest.actions.listWorkflowRunsForRepo({
       owner: GITHUB_REPO_OWNER,
       repo: GITHUB_REPO_NAME,
-      per_page: 75, // Fetch a decent number to find relevant runs
+      per_page: 75,
     });
 
-  // Filter runs that are specifically for the PR
-  const relevantWorkflowRuns = repoWorkflowRuns.workflow_runs.filter((run) => {
-    // Check if the run is associated with the PR number via its pull_requests array
-    if (
+  const relevantWorkflowRuns = repoWorkflowRuns.workflow_runs.filter(
+    (run) =>
       run.pull_requests?.some(
         (pr) => pr.id === prData.id && pr.number === prNumber
-      )
-    ) {
-      return true;
-    }
-    // As a secondary check, include runs matching the head_sha,
-    // though direct PR association is preferred.
-    if (run.head_sha === headSha) {
-      return true;
-    }
-    return false;
-  });
-  // --- End Corrected Workflow Fetching ---
+      ) || run.head_sha === headSha
+  );
 
   const categorizedWorkflowRuns = { vpr: [], adm: [], alf: [], other: [] };
 
   for (const run of relevantWorkflowRuns) {
-    // Only fetch jobs and artifacts if needed or for latest runs to save API calls
     const { data: jobsData } =
       await octokit.rest.actions.listJobsForWorkflowRun({
         owner: GITHUB_REPO_OWNER,
@@ -217,8 +198,8 @@ async function getPrCiSummary(prNumber) {
 
     const runSummary = {
       id: run.id,
-      name: run.name,
-      workflow_filename: path.basename(run.path), // Store the filename
+      name: run.name || 'Unnamed Workflow',
+      workflow_filename: path.basename(run.path),
       status: run.status,
       conclusion: run.conclusion,
       html_url: run.html_url,
@@ -252,22 +233,17 @@ async function getPrCiSummary(prNumber) {
 
     const wfFilename = path.basename(run.path);
     if (wfFilename === WORKFLOW_FILENAMES.VPR) {
-      // @ts-ignore
       categorizedWorkflowRuns.vpr.push(runSummary);
     } else if (wfFilename === WORKFLOW_FILENAMES.ADM) {
-      // @ts-ignore
       categorizedWorkflowRuns.adm.push(runSummary);
     } else if (wfFilename === WORKFLOW_FILENAMES.ALF) {
-      // @ts-ignore
       categorizedWorkflowRuns.alf.push(runSummary);
     } else {
-      // @ts-ignore
       categorizedWorkflowRuns.other.push(runSummary);
     }
   }
 
-  ['vpr', 'adm', 'alf', 'other'].forEach((category) => {
-    // @ts-ignore
+  Object.keys(categorizedWorkflowRuns).forEach((category) => {
     categorizedWorkflowRuns[category].sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -301,37 +277,125 @@ async function getPrCiSummary(prNumber) {
     sort: 'created',
     direction: 'desc',
   });
-  const recentComments = commentsData.map((comment) => ({
-    id: comment.id,
-    user: comment.user?.login,
-    created_at: comment.created_at,
-    updated_at: comment.updated_at,
-    body:
-      comment.body?.substring(0, 500) +
-      (comment.body && comment.body.length > 500 ? '...' : ''),
-    html_url: comment.html_url,
-    isBot: comment.user?.type === 'Bot',
-    botType:
-      comment.user?.login?.toLowerCase() === BOT_USERNAMES.VPR
-        ? 'VPR'
-        : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ADM
-          ? 'ADM'
-          : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ALF
-            ? 'ALF'
-            : comment.user?.login?.toLowerCase() ===
-                BOT_USERNAMES.PR_CREATOR_BOT
-              ? 'PR_CREATOR'
-              : comment.user?.type === 'Bot'
-                ? 'OtherBot'
-                : null,
-  }));
+
+  const recentComments = commentsData.map((comment) => {
+    const userLoginLower = comment.user?.login?.toLowerCase();
+    let determinedBotType = null;
+
+    if (comment.user?.type === 'Bot') {
+      if (
+        userLoginLower === BOT_USERNAMES.VPR &&
+        comment.body?.includes('## 🤖 OET Tool PR Validation Status')
+      ) {
+        determinedBotType = 'VPR';
+      } else if (
+        userLoginLower === BOT_USERNAMES.ADM &&
+        comment.body?.includes('## 🤖 AI Dependency Manager Results')
+      ) {
+        determinedBotType = 'ADM';
+      } else if (
+        userLoginLower === BOT_USERNAMES.ALF &&
+        comment.body?.includes('## 🤖 AI Lint Fixer Results')
+      ) {
+        determinedBotType = 'ALF';
+      } else if (userLoginLower === BOT_USERNAMES.PR_CREATOR_BOT) {
+        // Assuming PR creator bot has a distinct comment
+        determinedBotType = 'PR_CREATOR_BOT';
+      } else if (userLoginLower === 'netlify[bot]') {
+        determinedBotType = 'Netlify';
+      } else if (userLoginLower === 'github-actions[bot]') {
+        // Fallback for github-actions if more specific content matches
+        if (comment.body?.includes('## 🤖 OET Tool PR Validation Status'))
+          determinedBotType = 'VPR_generic';
+        else if (comment.body?.includes('## 🤖 AI Lint Fixer Results'))
+          determinedBotType = 'ALF_generic';
+        else if (comment.body?.includes('## 🤖 AI Dependency Manager Results'))
+          determinedBotType = 'ADM_generic';
+        else determinedBotType = 'GitHubActionsBot_Other';
+      } else {
+        determinedBotType = 'OtherBot';
+      }
+    }
+
+    return {
+      id: comment.id,
+      user: comment.user?.login,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+      body: comment.body || '',
+      html_url: comment.html_url,
+      isBot: comment.user?.type === 'Bot',
+      botType: determinedBotType,
+    };
+  });
+
+  console.log(`\n--- Debugging Imgur URL Parsing ---`);
+  let imgurScreenshotUrl = null;
+  // Now filter for VPR or VPR_generic
+  const vprBotComments = recentComments.filter(
+    (c) => c.botType === 'VPR' || c.botType === 'VPR_generic'
+  );
+  console.log(
+    `Found ${vprBotComments.length} comments potentially from VPR bot (including generic).`
+  );
+
+  if (vprBotComments.length > 0) {
+    console.log('Checking VPR bot comments for Direct Imgur Link pattern...');
+  }
+
+  const vprCommentWithDirectLink = vprBotComments.find((c) => {
+    const containsPattern = c.body?.includes('(Direct Imgur Link:');
+    if (containsPattern) {
+      console.log(
+        `  Comment ID ${c.id} (User: ${c.user}, Type: ${c.botType}) CONTAINS the pattern.`
+      );
+      console.log(
+        `    Snippet: ${c.body.substring(Math.max(0, c.body.indexOf('(Direct Imgur Link:') - 20), Math.min(c.body.length, c.body.indexOf('(Direct Imgur Link:') + 80))}`
+      );
+    }
+    return containsPattern;
+  });
+
+  if (vprCommentWithDirectLink?.body) {
+    console.log(
+      `Comment with pattern found (ID: ${vprCommentWithDirectLink.id}). Attempting regex match...`
+    );
+    const directLinkRegex =
+      /\(Direct Imgur Link:\s*(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif))\)/i;
+    const imgurMatch = vprCommentWithDirectLink.body.match(directLinkRegex);
+
+    if (imgurMatch && imgurMatch[1]) {
+      imgurScreenshotUrl = imgurMatch[1];
+      console.log(`  REGEX MATCH SUCCESS! URL: ${imgurScreenshotUrl}`);
+    } else {
+      console.error(
+        `  REGEX MATCH FAILED on body of comment ID ${vprCommentWithDirectLink.id}.`
+      );
+      console.error(
+        `    Full comment body was (check for hidden characters or slight pattern deviations):`
+      );
+      console.error(`    "${vprCommentWithDirectLink.body}"`);
+    }
+  } else if (vprBotComments.length > 0) {
+    console.log(
+      "No VPR bot comment found containing the exact pattern '(Direct Imgur Link:'."
+    );
+    vprBotComments.forEach((c, i) => {
+      console.log(
+        `  VPR Comment ${i + 1} (Type: ${c.botType}) Body (first 150 chars): ${c.body.substring(0, 150)}`
+      );
+    });
+  } else {
+    console.log('No VPR bot comments found at all in recent comments list.');
+  }
+  console.log(`--- End Debugging Imgur URL Parsing ---`);
 
   return {
     prInfo: {
       number: prNumber,
       title: prData.title,
       state: prData.state,
-      merged: prData.merged,
+      merged: prData.merged_at !== null,
       branch: prHeadBranch,
       headSha: headSha,
       baseBranch: prData.base.ref,
@@ -343,12 +407,15 @@ async function getPrCiSummary(prNumber) {
     toolGenerationInfo: toolGenerationInfo,
     githubActions: categorizedWorkflowRuns,
     netlifyStatus: netlifyStatus,
-    recentComments: recentComments,
+    imgurScreenshotUrl: imgurScreenshotUrl,
+    recentComments: recentComments.map((c) => ({
+      ...c,
+      body: c.body.substring(0, 500) + (c.body.length > 500 ? '...' : ''),
+    })),
     timestamp: new Date().toISOString(),
   };
 }
 
-// --- Main execution block for script ---
 (async () => {
   if (process.argv.length < 3) {
     console.error('Usage: node scripts/get-pr-ci-summary.mjs <PR_NUMBER>');
@@ -394,24 +461,18 @@ async function getPrCiSummary(prNumber) {
       summary.toolGenerationInfo.content
     ) {
       console.log(`  Status: Found`);
-      // @ts-ignore
       console.log(
         `  npmDependenciesFulfilled: ${summary.toolGenerationInfo.content.npmDependenciesFulfilled ?? 'absent'}`
       );
-      // @ts-ignore
       console.log(
         `  lintFixesAttempted: ${summary.toolGenerationInfo.content.lintFixesAttempted ?? false}`
       );
-      // @ts-ignore
       if (summary.toolGenerationInfo.content.identifiedDependencies?.length) {
-        // @ts-ignore
         console.log(
           `  Identified Dependencies: ${summary.toolGenerationInfo.content.identifiedDependencies.map((d) => d.packageName).join(', ')}`
         );
       }
-      // @ts-ignore
       if (summary.toolGenerationInfo.content.assetInstructions) {
-        // @ts-ignore
         console.log(
           `  Asset Instructions: Present (length ${summary.toolGenerationInfo.content.assetInstructions.length})`
         );
@@ -423,10 +484,8 @@ async function getPrCiSummary(prNumber) {
     console.log(
       `\n--- GitHub Actions Workflow Runs (Latest First per Category for PR #${prNumber}) ---`
     );
-    for (const category of ['vpr', 'alf', 'adm', 'other']) {
-      // @ts-ignore
+    Object.keys(summary.githubActions).forEach((category) => {
       if (summary.githubActions[category].length > 0) {
-        // @ts-ignore
         for (const run of summary.githubActions[category]) {
           console.log(
             `\n  Workflow: "${run.name}" (File: ${run.workflow_filename}, ID: ${run.id}, Commit: ${run.head_sha.substring(0, 7)}, Event: ${run.event})`
@@ -453,7 +512,6 @@ async function getPrCiSummary(prNumber) {
               console.log(
                 `          Status: ${job.status} | Conclusion: ${job.conclusion || 'N/A'} ${durationStr}`
               );
-              // @ts-ignore
               const failingStep = job.steps.find(
                 (s) => s.status === 'completed' && s.conclusion === 'failure'
               );
@@ -476,14 +534,14 @@ async function getPrCiSummary(prNumber) {
           `\n  No runs found for category: ${category.toUpperCase()}`
         );
       }
-    }
+    });
 
     console.log(
       `\n--- Other Check Suites (e.g., Netlify for HEAD SHA: ${summary.prInfo.headSha}) ---`
     );
     if (summary.netlifyStatus) {
       console.log(
-        `  Netlify Check Suite (App: ${summary.netlifyStatus.app_slug}, ID: ${summary.netlifyStatus.id})`
+        `  Netlify Check Suite (App: ${summary.netlifyStatus.app_slug || 'N/A'}, ID: ${summary.netlifyStatus.id})`
       );
       console.log(
         `    Status: ${summary.netlifyStatus.status} | Conclusion: ${summary.netlifyStatus.conclusion || 'N/A'}`
@@ -494,17 +552,28 @@ async function getPrCiSummary(prNumber) {
       console.log('  No Netlify check suite found for this ref.');
     }
 
+    if (summary.imgurScreenshotUrl) {
+      console.log(`\n--- Douglas Screenshot (From VPR Comment) ---`);
+      console.log(`  Direct Imgur URL: ${summary.imgurScreenshotUrl}`);
+    } else {
+      console.log(`\n--- Douglas Screenshot (From VPR Comment) ---`);
+      console.log(`  No direct Imgur URL found in VPR comments.`);
+    }
+
     console.log(
       `\n--- Recent PR Comments (Last ${summary.recentComments.length}) ---`
     );
     if (summary.recentComments.length > 0) {
       summary.recentComments.forEach((comment) => {
         const botLabel = comment.isBot ? `[${comment.botType || 'Bot'}] ` : '';
+        const bodyContent =
+          typeof comment.body === 'string' ? comment.body : '';
+        const bodyLines = bodyContent.split('\n').map((line) => `    ${line}`);
+
         console.log(
           `\n  Comment by @${comment.user} ${botLabel}on ${new Date(comment.created_at).toLocaleString()}`
         );
         console.log(`  URL: ${comment.html_url}`);
-        const bodyLines = comment.body.split('\n').map((line) => `    ${line}`);
         console.log(bodyLines.join('\n'));
       });
     } else {
@@ -516,11 +585,8 @@ async function getPrCiSummary(prNumber) {
     );
     console.log(`[CI Summary Script] Finished at ${summary.timestamp}.`);
   } catch (error) {
-    // @ts-ignore
     console.error('\n[CI Summary Script] SCRIPT FAILED:', error.message);
-    // @ts-ignore
     if (error.status) console.error('Status:', error.status);
-    // @ts-ignore
     if (error.response?.data?.message)
       console.error('GitHub API Error:', error.response.data.message);
     process.exit(1);

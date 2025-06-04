@@ -13,11 +13,15 @@ const GITHUB_APP_ID = process.env.GITHUB_APP_ID;
 const GITHUB_PRIVATE_KEY_BASE64 = process.env.GITHUB_PRIVATE_KEY_BASE64;
 
 const BOT_USERNAMES = {
-  VPR: (process.env.GITHUB_VPR_BOT_USERNAME || 'OET CI Bot').toLowerCase(),
-  ADM: (
-    process.env.GITHUB_ADM_BOT_USERNAME || 'AI Dependency Manager'
+  VPR: (
+    process.env.GITHUB_VPR_BOT_USERNAME || 'github-actions[bot]'
   ).toLowerCase(),
-  ALF: (process.env.GITHUB_ALF_BOT_USERNAME || 'AI Lint Fixer').toLowerCase(),
+  ADM: (
+    process.env.GITHUB_ADM_BOT_USERNAME || 'github-actions[bot]'
+  ).toLowerCase(),
+  ALF: (
+    process.env.GITHUB_ALF_BOT_USERNAME || 'github-actions[bot]'
+  ).toLowerCase(),
   PR_CREATOR_BOT: (
     process.env.GITHUB_PR_CREATOR_BOT_USERNAME || 'OET Bot'
   ).toLowerCase(),
@@ -117,6 +121,7 @@ interface PrCiSummaryData {
   githubActions: CategorizedWorkflowRuns;
   netlifyStatus: NetlifyStatusInfo | null;
   recentComments: PrComment[];
+  imgurScreenshotUrl: string | null;
   timestamp: string;
 }
 
@@ -175,7 +180,6 @@ interface PrStatusApiResponse {
 }
 
 async function getAuthenticatedOctokit(): Promise<Octokit> {
-  /* ... */
   if (octokitInstance) return octokitInstance;
   if (!GITHUB_APP_ID || !GITHUB_PRIVATE_KEY_BASE64) {
     throw new Error(
@@ -211,7 +215,6 @@ async function getAuthenticatedOctokit(): Promise<Octokit> {
 function extractToolDirectiveFromBranchName(
   branchName: string | null
 ): string | null {
-  /* ... */
   if (!branchName || !branchName.startsWith('feat/gen-')) return null;
   const tempDirective = branchName.substring('feat/gen-'.length);
   return tempDirective.replace(/-[0-9]+$/, '') || null;
@@ -224,7 +227,6 @@ async function getJsonFileContent<T>(
   filePath: string,
   ref: string
 ): Promise<T | { error: string }> {
-  /* ... */
   try {
     const { data } = await octokit.rest.repos.getContent({
       owner,
@@ -257,7 +259,6 @@ async function fetchFullPrCiSummary(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   prDataInput?: any
 ): Promise<PrCiSummaryData> {
-  /* ... */
   const prData =
     prDataInput ||
     (
@@ -373,14 +374,13 @@ async function fetchFullPrCiSummary(
     else categorizedWorkflowRuns.other.push(runSummary);
   }
 
-  (['vpr', 'adm', 'alf', 'other'] as (keyof CategorizedWorkflowRuns)[]).forEach(
-    (category) => {
-      categorizedWorkflowRuns[category].sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    }
-  );
+  Object.keys(categorizedWorkflowRuns).forEach((category) => {
+    // @ts-expect-error bad stuff can happen
+    categorizedWorkflowRuns[category].sort(
+      (a: WorkflowRun, b: WorkflowRun) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  });
 
   const { data: checkSuites } = await octokit.rest.checks.listSuitesForRef({
     owner: GITHUB_REPO_OWNER,
@@ -410,32 +410,66 @@ async function fetchFullPrCiSummary(
     sort: 'created',
     direction: 'desc',
   });
-  const recentComments: PrComment[] = commentsData.map((comment) => ({
-    id: comment.id,
-    user: comment.user?.login,
-    created_at: comment.created_at,
-    updated_at: comment.updated_at,
-    body:
-      comment.body?.substring(0, 500) +
-      (comment.body && comment.body.length > 500 ? '...' : ''),
-    html_url: comment.html_url,
-    isBot: comment.user?.type === 'Bot',
-    botType:
-      comment.user?.login?.toLowerCase() === BOT_USERNAMES.VPR
-        ? 'VPR'
-        : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ADM
-          ? 'ADM'
-          : comment.user?.login?.toLowerCase() === BOT_USERNAMES.ALF
-            ? 'ALF'
-            : comment.user?.login?.toLowerCase() ===
-                BOT_USERNAMES.PR_CREATOR_BOT
-              ? 'PR_CREATOR'
-              : comment.user?.login?.toLowerCase() === BOT_USERNAMES.NETLIFY
-                ? 'Netlify'
-                : comment.user?.type === 'Bot'
-                  ? 'OtherBot'
-                  : null,
-  }));
+  const recentComments: PrComment[] = commentsData.map((comment) => {
+    const userLoginLower = comment.user?.login?.toLowerCase();
+    let determinedBotType = null;
+
+    if (comment.user?.type === 'Bot') {
+      if (
+        userLoginLower === BOT_USERNAMES.VPR &&
+        comment.body?.includes('## 🤖 OET Tool PR Validation Status')
+      ) {
+        determinedBotType = 'VPR';
+      } else if (
+        userLoginLower === BOT_USERNAMES.ADM &&
+        comment.body?.includes('## 🤖 AI Dependency Manager Results')
+      ) {
+        determinedBotType = 'ADM';
+      } else if (
+        userLoginLower === BOT_USERNAMES.ALF &&
+        comment.body?.includes('## 🤖 AI Lint Fixer Results')
+      ) {
+        determinedBotType = 'ALF';
+      } else if (userLoginLower === BOT_USERNAMES.PR_CREATOR_BOT) {
+        determinedBotType = 'PR_CREATOR_BOT';
+      } else if (userLoginLower === 'netlify[bot]') {
+        determinedBotType = 'Netlify';
+      } else if (userLoginLower === 'github-actions[bot]') {
+        if (comment.body?.includes('## 🤖 OET Tool PR Validation Status'))
+          determinedBotType = 'VPR';
+        else if (comment.body?.includes('## 🤖 AI Lint Fixer Results'))
+          determinedBotType = 'ALF';
+        else if (comment.body?.includes('## 🤖 AI Dependency Manager Results'))
+          determinedBotType = 'ADM';
+        else determinedBotType = 'GitHubActionsBot_Other';
+      } else {
+        determinedBotType = 'OtherBot';
+      }
+    }
+    return {
+      id: comment.id,
+      user: comment.user?.login,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+      body: comment.body || '',
+      html_url: comment.html_url,
+      isBot: comment.user?.type === 'Bot',
+      botType: determinedBotType,
+    };
+  });
+
+  let imgurScreenshotUrlFromComments: string | null = null;
+  const vprBotCommentForImgur = recentComments.find(
+    (c) => c.botType === 'VPR' && c.body?.includes('(Direct Imgur Link:')
+  );
+  if (vprBotCommentForImgur?.body) {
+    const directLinkRegex =
+      /\(Direct Imgur Link:\s*(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif))\)/i;
+    const imgurMatch = vprBotCommentForImgur.body.match(directLinkRegex);
+    if (imgurMatch && imgurMatch[1]) {
+      imgurScreenshotUrlFromComments = imgurMatch[1];
+    }
+  }
 
   const prInfo: PrInfo = {
     number: prData.number,
@@ -457,6 +491,7 @@ async function fetchFullPrCiSummary(
     githubActions: categorizedWorkflowRuns,
     netlifyStatus,
     recentComments,
+    imgurScreenshotUrl: imgurScreenshotUrlFromComments,
     timestamp: new Date().toISOString(),
   };
 }
@@ -488,6 +523,7 @@ export async function GET(request: NextRequest) {
       githubActions,
       netlifyStatus,
       recentComments,
+      imgurScreenshotUrl,
     } = summary;
 
     let statusSummary = 'Analyzing PR status...';
@@ -498,7 +534,6 @@ export async function GET(request: NextRequest) {
       'unknown';
     let netlifyPreviewUrl: string | null = null;
     let netlifyDeploymentSucceeded = false;
-    let imgurScreenshotUrl: string | null = null;
 
     let wasVprFinalized: boolean | undefined = false;
     let latestVprRunForHead: WorkflowRun | undefined = undefined;
@@ -566,7 +601,7 @@ export async function GET(request: NextRequest) {
               /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
             );
             if (urlMatch && urlMatch[0] && directiveForUrl)
-              netlifyPreviewUrl = `${urlMatch[0]}/tool/${directiveForUrl}/`;
+              netlifyPreviewUrl = `${urlMatch[0]}/tool/${directiveForUrl}`;
             else if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
           }
           statusSummary = `Netlify Deploy Preview for '${toolNameForMsg}' is READY!`;
@@ -676,30 +711,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const vprCommentWithDirectLink = recentComments.find(
-      (c) => c.botType === 'VPR' && c.body?.includes('(Direct Imgur Link:')
-    );
-
-    if (vprCommentWithDirectLink?.body) {
-      const directLinkRegex =
-        /\(Direct Imgur Link:\s*(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+\.(?:png|jpg|jpeg|gif))\)/i;
-      const imgurMatch = vprCommentWithDirectLink.body.match(directLinkRegex);
-      if (imgurMatch && imgurMatch[1]) {
-        imgurScreenshotUrl = imgurMatch[1];
-        console.log(
-          `[API Status PR #${actualPrNumber}] Extracted direct Imgur URL: ${imgurScreenshotUrl}`
-        );
-      } else {
-        console.log(
-          `[API Status PR #${actualPrNumber}] Found VPR comment with 'Direct Imgur Link:' but regex did not match a URL.`
-        );
-      }
-    } else {
-      console.log(
-        `[API Status PR #${actualPrNumber}] No VPR comment found with '(Direct Imgur Link:' text.`
-      );
-    }
-
     if (
       pollingAttempt >= MAX_POLLING_ATTEMPTS_API &&
       shouldContinuePolling &&
@@ -806,6 +817,9 @@ export async function GET(request: NextRequest) {
     console.log(`  - WasVprFinalized (heuristic): ${wasVprFinalized}`);
     console.log(
       `  - Netlify Status: ${netlifyStatus?.status}/${netlifyStatus?.conclusion}`
+    );
+    console.log(
+      `  - Imgur Screenshot URL found by API: ${imgurScreenshotUrl || 'No'}`
     );
     console.log(`  - Netlify Preview URL constructed: ${netlifyPreviewUrl}`);
     console.log(`  - SHOULD CONTINUE POLLING: ${shouldContinuePolling}`);
