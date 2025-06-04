@@ -19,7 +19,6 @@ import {
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
   ChatBubbleLeftEllipsisIcon,
-  ArrowRightEndOnRectangleIcon,
 } from '@heroicons/react/20/solid';
 import type {
   ToolGenerationInfoFileContent,
@@ -27,6 +26,122 @@ import type {
 } from '@/src/types/build';
 import FeedbackMerge from './FeedbackMerge';
 import Button from '@/app/tool/_components/form/Button';
+
+interface PrUser {
+  login: string;
+}
+interface PrRepo {
+  name: string;
+  owner: PrUser;
+}
+interface PrLink {
+  href: string;
+}
+interface PrPullRequestLinks {
+  html: PrLink;
+}
+interface PrPullRequest {
+  id: number;
+  number: number;
+  url: string;
+  title: string;
+  state: 'open' | 'closed';
+  merged_at: string | null;
+  head: { ref: string; sha: string; repo: PrRepo | null };
+  base: { ref: string };
+  user: PrUser | null;
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  _links: PrPullRequestLinks;
+}
+interface WorkflowJobStep {
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+}
+interface WorkflowJob {
+  id: number;
+  name: string;
+  status: string | null;
+  conclusion: string | null;
+  html_url: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  steps: WorkflowJobStep[];
+}
+interface WorkflowArtifact {
+  id: number;
+  name: string;
+  size_in_bytes: number;
+  expired: boolean;
+  expires_at: string | null;
+}
+interface WorkflowRun {
+  id: number;
+  name: string | null;
+  workflow_filename: string;
+  status: string | null;
+  conclusion: string | null;
+  html_url: string | null;
+  head_sha: string;
+  created_at: string;
+  updated_at: string;
+  event: string;
+  jobs: WorkflowJob[];
+  artifacts: WorkflowArtifact[];
+  pull_requests?: PrPullRequest[];
+}
+interface CategorizedWorkflowRuns {
+  vpr: WorkflowRun[];
+  adm: WorkflowRun[];
+  alf: WorkflowRun[];
+  other: WorkflowRun[];
+}
+interface NetlifyStatusInfo {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+  url: string | null;
+  details_url?: string | null;
+  app_slug?: string | null;
+}
+interface PrComment {
+  id: number;
+  user: { login: string; avatar_url: string; type: string } | null;
+  created_at: string;
+  updated_at: string;
+  body: string;
+  html_url: string;
+  isBot: boolean;
+  botType: string | null;
+}
+
+interface PrCiSummaryData {
+  prInfo: {
+    number: number;
+    title: string | null;
+    state: 'open' | 'closed';
+    merged: boolean;
+    branch: string | null;
+    headSha: string;
+    baseBranch: string;
+    url: string;
+    createdAt: string;
+    updatedAt: string;
+    user: string | null | undefined;
+  };
+  toolGenerationInfo: {
+    status: 'found' | 'error_fetching' | 'not_applicable';
+    content: ToolGenerationInfoFileContent | null;
+    error: string | null;
+  };
+  githubActions: CategorizedWorkflowRuns;
+  netlifyStatus: NetlifyStatusInfo | null;
+  recentComments: PrComment[];
+  imgurScreenshotUrl: string | null;
+  timestamp: string;
+}
 
 interface CiCheck {
   name: string;
@@ -79,6 +194,7 @@ interface PrStatusApiResponse {
   automatedActions: AutomatedActionsStatus;
   lastUpdated: string;
   error?: string;
+  _debug_data_source?: PrCiSummaryData;
 }
 
 interface ViewPrStatusProps {
@@ -228,7 +344,6 @@ export default function ViewPrStatus({
             );
           }
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         if (!componentMountedRef.current) return;
         if (
@@ -271,15 +386,317 @@ export default function ViewPrStatus({
       return;
     }
 
-    const shouldCurrentlyBePolling =
-      prStatus.automatedActions.shouldContinuePolling &&
-      prStatus.prState === 'open';
-    if (isPolling !== shouldCurrentlyBePolling) {
-      setIsPolling(shouldCurrentlyBePolling);
+    let statusSummary = prStatus.automatedActions.statusSummary;
+    let nextExpectedAction = prStatus.automatedActions.nextExpectedAction;
+    let shouldContinuePolling = prStatus.automatedActions.shouldContinuePolling;
+    let uiHint = prStatus.automatedActions.uiHint;
+    let overallCheckStatusForHead = prStatus.overallCheckStatusForHead;
+    let netlifyPreviewUrl = prStatus.netlifyPreviewUrl;
+    let netlifyDeploymentSucceeded = prStatus.netlifyDeploymentSucceeded;
+
+    const prInfo = prStatus._debug_data_source?.prInfo || {
+      headSha: prStatus.headSha,
+      title: null,
+      branch: prStatus.prHeadBranch,
+    };
+    const toolGenerationInfo = prStatus._debug_data_source
+      ?.toolGenerationInfo || {
+      status: 'not_applicable',
+      content: null,
+      error: null,
+    };
+    const githubActions = prStatus._debug_data_source?.githubActions || {
+      vpr: [],
+      adm: [],
+      alf: [],
+      other: [],
+    };
+    const recentComments = prStatus._debug_data_source?.recentComments || [];
+    const netlifyStatus = prStatus._debug_data_source?.netlifyStatus || null;
+
+    if (prStatus.prState === 'closed') {
+      shouldContinuePolling = false;
+      nextExpectedAction = 'NONE';
+      const toolNameForMsg =
+        initialToolDirectiveForDisplay ||
+        prInfo.branch ||
+        `PR #${prNumberToMonitor}`;
+      if (prStatus.isMerged) {
+        statusSummary = `PR #${prNumberToMonitor} for '${toolNameForMsg}' was MERGED!`;
+        uiHint = 'success';
+        overallCheckStatusForHead = 'success';
+      } else {
+        statusSummary = `PR #${prNumberToMonitor} for '${toolNameForMsg}' was CLOSED without merging.`;
+        uiHint = 'info';
+        const lastVprRun = githubActions.vpr[0];
+        if (lastVprRun?.conclusion === 'failure')
+          overallCheckStatusForHead = 'failure';
+        else if (lastVprRun?.conclusion === 'success')
+          overallCheckStatusForHead = 'success';
+        else overallCheckStatusForHead = 'unknown';
+      }
+
+      const netlifyBotComment = recentComments.find(
+        (c) => c.botType === 'Netlify' && c.body?.includes('Deploy Preview')
+      );
+      if (netlifyBotComment?.body) {
+        const urlMatch = netlifyBotComment.body.match(
+          /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+        );
+        if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
+      }
+      if (netlifyStatus?.conclusion === 'success')
+        netlifyDeploymentSucceeded = true;
+    } else {
+      const latestVprRunForHead = githubActions.vpr.find(
+        (run) => run.head_sha === prInfo.headSha
+      );
+      const toolGenContentForHead = toolGenerationInfo.content;
+
+      if (latestVprRunForHead) {
+        if (latestVprRunForHead.status === 'completed') {
+          overallCheckStatusForHead =
+            latestVprRunForHead.conclusion === 'success'
+              ? 'success'
+              : 'failure';
+
+          if (latestVprRunForHead.conclusion === 'success') {
+            const prTitleIncludesSkipNetlify =
+              prInfo.title?.includes('[skip netlify]');
+            const toolGenInfoMissingOrError =
+              toolGenerationInfo.status === 'error_fetching' ||
+              toolGenerationInfo.status === 'not_applicable' ||
+              (toolGenerationInfo.status === 'found' && !toolGenContentForHead);
+
+            if (!prTitleIncludesSkipNetlify && !toolGenInfoMissingOrError) {
+              statusSummary = `VPR checks passed for commit ${prInfo.headSha.substring(0, 7)}. Waiting for Netlify Deploy Preview...`;
+              nextExpectedAction = 'NETLIFY_PREVIEW';
+              uiHint = 'loading';
+
+              if (netlifyStatus?.conclusion === 'success') {
+                netlifyDeploymentSucceeded = true;
+                const netlifyBaseComment = recentComments.find(
+                  (c) =>
+                    c.botType === 'Netlify' &&
+                    c.body?.includes('Deploy Preview')
+                );
+                if (netlifyBaseComment?.body) {
+                  const urlMatch = netlifyBaseComment.body.match(
+                    /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+                  );
+                  const directiveForUrl = extractToolDirectiveFromBranchName(
+                    prInfo.branch
+                  );
+                  if (urlMatch && urlMatch[0] && directiveForUrl)
+                    netlifyPreviewUrl = `${urlMatch[0]}/tool/${directiveForUrl}/`;
+                  else if (urlMatch && urlMatch[0])
+                    netlifyPreviewUrl = urlMatch[0];
+                }
+                statusSummary = `Netlify Deploy Preview for '${initialToolDirectiveForDisplay || prInfo.branch || `PR #${prNumberToMonitor}`}' is READY!`;
+                nextExpectedAction = 'USER_REVIEW_PREVIEW';
+                shouldContinuePolling = false;
+                uiHint = 'success';
+              } else if (
+                netlifyStatus?.status === 'queued' ||
+                netlifyStatus?.status === 'in_progress' ||
+                !netlifyStatus
+              ) {
+              } else if (netlifyStatus?.conclusion === 'failure') {
+                statusSummary = `VPR checks passed, but Netlify Deploy Preview FAILED for '${initialToolDirectiveForDisplay || prInfo.branch || `PR #${prNumberToMonitor}`}'. Manual review of Netlify logs needed.`;
+                nextExpectedAction = 'MANUAL_REVIEW_NETLIFY';
+                shouldContinuePolling = false;
+                uiHint = 'error';
+              }
+            } else {
+              statusSummary = `VPR checks passed for commit ${prInfo.headSha.substring(0, 7)}. Netlify deploy preview was skipped.`;
+              nextExpectedAction = 'USER_REVIEW_NO_PREVIEW';
+              uiHint = 'success';
+              shouldContinuePolling = false;
+            }
+          } else {
+            uiHint = 'error';
+            const isLintIssueArtifactPresent =
+              latestVprRunForHead.artifacts.some((art) =>
+                art.name.startsWith('lint-failure-data')
+              );
+            const vprJob4Failed =
+              latestVprRunForHead.jobs.find((job) =>
+                job.name.includes('4. Report PR Validation Status')
+              )?.conclusion === 'failure';
+
+            if (
+              vprJob4Failed &&
+              latestVprRunForHead.jobs
+                .find((job) =>
+                  job.name.includes('4. Report PR Validation Status')
+                )
+                ?.steps.some(
+                  (s) =>
+                    s.name === 'Construct and Post PR Comment' &&
+                    s.conclusion === 'failure'
+                )
+            ) {
+              statusSummary = `Critical VPR Error in 'Report PR Status' job (run ${latestVprRunForHead.id}). Unable to post status comment. Manual review of Actions logs needed.`;
+              nextExpectedAction = 'MANUAL_REVIEW_CI_ERROR';
+              shouldContinuePolling = false;
+            } else if (isLintIssueArtifactPresent) {
+              const activeAlfRun = githubActions.alf.find(
+                (run) => run.status === 'in_progress' || run.status === 'queued'
+              );
+              if (toolGenContentForHead?.lintFixesAttempted) {
+                statusSummary =
+                  'AI Lint Fixer (ALF) previously attempted fixes, but build/lint issues persist on the current commit. Manual review required.';
+                nextExpectedAction = 'MANUAL_REVIEW_LINT';
+                shouldContinuePolling = false;
+              } else if (activeAlfRun) {
+                statusSummary = `VPR detected lint issues. AI Lint Fixer (ALF) is currently ${activeAlfRun.status}... (Run ID: ${activeAlfRun.id})`;
+                nextExpectedAction = 'ALF_RUNNING';
+                uiHint = 'loading';
+                shouldContinuePolling = true;
+              } else {
+                const latestAlfCommentFailure = recentComments.find(
+                  (c) =>
+                    c.botType === 'ALF' &&
+                    (c.body?.includes('AI Lint Fix API Call Failed') ||
+                      c.body?.includes(
+                        'No actionable lint failure artifact found'
+                      ))
+                );
+                if (
+                  latestAlfCommentFailure &&
+                  new Date(latestAlfCommentFailure.created_at) >
+                    new Date(latestVprRunForHead.created_at)
+                ) {
+                  statusSummary = `VPR detected lint issues. ALF reported: "${latestAlfCommentFailure.body?.split('\n\n')[1]?.trim()}". Manual check advised if ALF doesn't proceed.`;
+                  nextExpectedAction = 'MANUAL_REVIEW_ALF_TRIGGER';
+                  uiHint = 'warning';
+                  shouldContinuePolling = true;
+                } else {
+                  statusSummary = `VPR detected build/lint issues on commit ${prInfo.headSha.substring(0, 7)}. Expecting AI Lint Fixer (ALF) to trigger.`;
+                  nextExpectedAction = 'ALF_EXPECTED';
+                  uiHint = 'loading';
+                  shouldContinuePolling = true;
+                }
+              }
+            } else if (
+              toolGenContentForHead?.identifiedDependencies &&
+              toolGenContentForHead.identifiedDependencies.length > 0 &&
+              (toolGenContentForHead.npmDependenciesFulfilled === 'absent' ||
+                typeof toolGenContentForHead.npmDependenciesFulfilled ===
+                  'undefined')
+            ) {
+              const activeAdmRun = githubActions.adm.find(
+                (run) => run.status === 'in_progress' || run.status === 'queued'
+              );
+              if (activeAdmRun) {
+                statusSummary = `VPR identified new dependencies. AI Dependency Manager (ADM) is currently ${activeAdmRun.status}... (Run ID: ${activeAdmRun.id})`;
+                nextExpectedAction = 'ADM_RUNNING';
+                uiHint = 'loading';
+                shouldContinuePolling = true;
+              } else {
+                const latestAdmCommentFailure = recentComments.find(
+                  (c) =>
+                    c.botType === 'ADM' &&
+                    c.body?.includes(
+                      'No actionable pending dependency artifact was found'
+                    )
+                );
+                if (
+                  latestAdmCommentFailure &&
+                  new Date(latestAdmCommentFailure.created_at) >
+                    new Date(latestVprRunForHead.created_at) &&
+                  latestVprRunForHead.artifacts.some((art) =>
+                    art.name.startsWith('pending-dependencies-')
+                  )
+                ) {
+                  statusSummary = `VPR found pending dependencies. ADM reported: "${latestAdmCommentFailure.body?.split('\n\n')[1]?.trim()}". Manual check if ADM doesn't proceed.`;
+                  nextExpectedAction = 'MANUAL_REVIEW_ADM_TRIGGER';
+                  uiHint = 'warning';
+                  shouldContinuePolling = true;
+                } else {
+                  statusSummary = `VPR identified new dependencies on commit ${prInfo.headSha.substring(0, 7)}. Expecting AI Dependency Manager (ADM) to trigger.`;
+                  nextExpectedAction = 'ADM_EXPECTED';
+                  uiHint = 'loading';
+                  shouldContinuePolling = true;
+                }
+              }
+            } else if (
+              toolGenContentForHead?.npmDependenciesFulfilled === 'false'
+            ) {
+              statusSummary =
+                'AI Dependency Manager (ADM) previously failed to handle dependencies. Manual review required.';
+              nextExpectedAction = 'MANUAL_REVIEW_DEPS';
+              shouldContinuePolling = false;
+            } else {
+              statusSummary = `VPR failed on commit ${prInfo.headSha.substring(0, 7)} for an undetermined reason. Manual review of VPR logs needed. (Run ID: ${latestVprRunForHead.id})`;
+              nextExpectedAction = 'MANUAL_REVIEW_VPR_UNKNOWN';
+              shouldContinuePolling = false;
+            }
+          }
+        } else {
+          statusSummary = `VPR workflow is ${latestVprRunForHead.status} for commit ${prInfo.headSha.substring(0, 7)}...`;
+          nextExpectedAction = 'VPR_RUNNING';
+          uiHint = 'loading';
+          overallCheckStatusForHead = 'pending';
+          shouldContinuePolling = true;
+        }
+      } else {
+        statusSummary = `VPR checks for commit ${prInfo.headSha.substring(0, 7)} are pending or not yet started...`;
+        nextExpectedAction = 'VPR_PENDING';
+        uiHint = 'loading';
+        overallCheckStatusForHead = 'pending';
+        shouldContinuePolling = true;
+      }
     }
 
-    if (!shouldCurrentlyBePolling && isPolling && onPollingStopped) {
-      onPollingStopped(prStatus);
+    if (
+      pollingAttemptsRef.current >= MAX_POLLING_ATTEMPTS &&
+      prStatus.prState === 'open' &&
+      shouldContinuePolling
+    ) {
+      statusSummary =
+        'Max polling attempts reached. Please check the PR on GitHub for the latest status.';
+      shouldContinuePolling = false;
+      nextExpectedAction = 'MANUAL_REVIEW_TIMEOUT';
+      uiHint = 'error';
+    }
+
+    setPrStatus((prev) => {
+      if (!prev) return null;
+
+      if (
+        prev.automatedActions.statusSummary === statusSummary &&
+        prev.automatedActions.nextExpectedAction === nextExpectedAction &&
+        prev.automatedActions.shouldContinuePolling === shouldContinuePolling &&
+        prev.automatedActions.uiHint === uiHint &&
+        prev.overallCheckStatusForHead === overallCheckStatusForHead &&
+        prev.netlifyPreviewUrl === netlifyPreviewUrl &&
+        prev.netlifyDeploymentSucceeded === netlifyDeploymentSucceeded
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        automatedActions: {
+          ...prev.automatedActions,
+          statusSummary,
+          nextExpectedAction,
+          shouldContinuePolling,
+          uiHint,
+        },
+        overallCheckStatusForHead,
+        netlifyPreviewUrl,
+        netlifyDeploymentSucceeded,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+
+    if (isPolling !== shouldContinuePolling) {
+      setIsPolling(shouldContinuePolling);
+    }
+
+    if (!shouldContinuePolling && onPollingStopped) {
+      onPollingStopped(prStatusRef.current);
     }
 
     if (
@@ -290,11 +707,12 @@ export default function ViewPrStatus({
       setIsFeedbackSectionVisible(false);
     }
   }, [
-    prNumberToMonitor,
     prStatus,
     isPolling,
     fetchPrStatusCallback,
     onPollingStopped,
+    prNumberToMonitor,
+    initialToolDirectiveForDisplay,
   ]);
 
   useEffect(() => {
@@ -328,7 +746,7 @@ export default function ViewPrStatus({
     if (status === 'completed') {
       if (conclusion === 'success')
         return (
-          <CheckCircleIcon className="h-5 w-5 text-[#15803d] inline mr-1" />
+          <CheckCircleIcon className="h-5 w-5 text-green-500 inline mr-1" />
         );
       if (
         ['failure', 'timed_out', 'cancelled', 'action_required'].includes(
@@ -374,28 +792,34 @@ export default function ViewPrStatus({
   ) => {
     switch (hint) {
       case 'success':
-        return 'bg-green-50 border-[#15803d] text-[#15803d]';
+        return 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-200';
       case 'error':
-        return 'bg-red-50 border-red-200 text-red-700';
+        return 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900 dark:border-red-700 dark:text-red-200';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-300 text-yellow-700';
+        return 'bg-yellow-50 border-yellow-300 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-200';
       case 'info':
-        return 'bg-blue-50 border-blue-200 text-blue-700';
+        return 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-200';
       case 'loading':
-        return 'bg-indigo-50 border-indigo-200 text-indigo-700 animate-pulse';
+        return 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900 dark:border-indigo-700 dark:text-indigo-200 animate-pulse';
       default:
-        return 'bg-gray-50 border-gray-200 text-gray-700';
+        return 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300';
     }
   };
 
   const renderToolGenInfo = () => {
-    if (!prStatus?.toolGenerationInfoForUI) return null;
-    const {
-      npmDependenciesFulfilled,
-      lintFixesAttempted,
-      identifiedDependencies,
-    } = prStatus.toolGenerationInfoForUI;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (
+      !prStatus?._debug_data_source?.toolGenerationInfo ||
+      prStatus._debug_data_source.toolGenerationInfo.status === 'not_applicable'
+    )
+      return null;
+    const { npmDependenciesFulfilled, lintFixesAttempted } =
+      prStatus.toolGenerationInfoForUI;
+    const identifiedDependencies =
+      prStatus.toolGenerationInfoForUI.identifiedDependencies ||
+      prStatus._debug_data_source.toolGenerationInfo.content?.identifiedDependencies?.map(
+        (d) => d.packageName
+      );
+
     const isNotApplicableOrNotFound = (value: any) =>
       ['not_found', 'not_applicable'].includes(value);
 
@@ -408,14 +832,16 @@ export default function ViewPrStatus({
     if (!isInteresting) return null;
 
     return (
-      <div className="mt-3 p-2.5 border border-gray-200 rounded-md bg-gray-50 text-xs text-gray-600 space-y-1">
-        <h4 className="font-medium text-gray-700">Tool Generation State:</h4>
+      <div className="mt-3 p-2.5 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+        <h4 className="font-medium text-gray-700 dark:text-gray-200">
+          Tool Generation State (from current commit):
+        </h4>
         {!isNotApplicableOrNotFound(npmDependenciesFulfilled) &&
           npmDependenciesFulfilled !== 'absent' && (
             <p>
-              NPM Deps Fulfilled:{' '}
+              NPM Deps Processed:{' '}
               <span
-                className={`font-semibold ${npmDependenciesFulfilled === 'true' ? 'text-[#15803d]' : 'text-red-600'}`}
+                className={`font-semibold ${npmDependenciesFulfilled === 'true' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}
               >
                 {String(npmDependenciesFulfilled)}
               </span>
@@ -424,7 +850,7 @@ export default function ViewPrStatus({
         {!isNotApplicableOrNotFound(lintFixesAttempted) &&
           lintFixesAttempted !== false && (
             <p>
-              Lint Fixes Previously Attempted:{' '}
+              Lint Fixes Attempted:{' '}
               <span className="font-semibold">
                 {String(lintFixesAttempted)}
               </span>
@@ -432,7 +858,7 @@ export default function ViewPrStatus({
           )}
         {identifiedDependencies && identifiedDependencies.length > 0 && (
           <p>
-            Identified Dependencies:{' '}
+            Initially Identified Dependencies:{' '}
             <span className="font-mono">
               {identifiedDependencies.join(', ') || 'None'}
             </span>
@@ -445,7 +871,10 @@ export default function ViewPrStatus({
   const renderManualReviewSection = () => {
     if (
       !prStatus ||
-      !prStatus.automatedActions.nextExpectedAction?.startsWith('MANUAL_REVIEW')
+      !prStatus.automatedActions.nextExpectedAction?.startsWith(
+        'MANUAL_REVIEW'
+      ) ||
+      isLoadingFailureMessages
     ) {
       return null;
     }
@@ -457,7 +886,7 @@ export default function ViewPrStatus({
       buildFailureMessages['DEFAULT_MANUAL_REVIEW'] || [
         {
           emoji: '🚧',
-          memo: 'This tool requires manual review. Please check the GitHub Pull Request for details and provide feedback if necessary.',
+          memo: 'This tool requires manual review. Please check the GitHub Pull Request for details.',
         },
       ];
 
@@ -471,30 +900,29 @@ export default function ViewPrStatus({
       `AI Tool Gen Feedback: PR #${prNum} - ${toolDir}`
     );
     const issueBodyTemplate = `
-**Pull Request Number:** #${prNum} 
+**Pull Request Number:** #${prNum}
 **(Link: [View PR on GitHub](${prStatus.prUrl}))**
 
 **Tool Directive Attempted:** \`${toolDir}\`
 
-**Original Goal / What were you trying to build?**
+**Observed CI Status Summary:**
+${statusSummaryForIssue}
+
+**What were you trying to build?**
 (Please describe the tool you were hoping the AI would generate)
 
 **Example URLs or Similar Tools (Optional):**
-(If you had existing tools in mind that do something similar, please share links and a brief note on what you like/dislike about them.)
 - Example 1: [URL] - Notes: ...
-- Example 2: [URL] - Notes: ...
 
 **General Feedback / Additional Details:**
-(Any other thoughts, ideas, or specific features you were looking for?)
 
 ---
 *Internal Diagnostics (Maintainer Use):*
-*OET Build Status Summary:* ${statusSummaryForIssue}
 *Affected Commit SHA:* ${headShaShort}
+*Next Expected Action Code:* ${actionCode}
     `;
     const issueBody = encodeURIComponent(issueBodyTemplate.trim());
     const labels = encodeURIComponent('build-tool,feedback,needs-triage');
-
     const githubRepoOwner =
       process.env.NEXT_PUBLIC_GITHUB_REPO_OWNER || 'Online-Everything-Tool';
     const githubRepoName = process.env.NEXT_PUBLIC_GITHUB_REPO_NAME || 'oet';
@@ -505,41 +933,31 @@ export default function ViewPrStatus({
         className={`mt-4 p-4 border rounded-lg text-sm ${getUiHintClasses('warning')}`}
       >
         <div className="flex items-start">
-          <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500 mr-3 flex-shrink-0 mt-0.5" />
+          <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500 dark:text-yellow-400 mr-3 flex-shrink-0 mt-0.5" />
           <div className="flex-grow">
-            <h4 className="font-semibold text-yellow-800 text-md mb-2">
+            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 text-md mb-2">
               Automation Halted: Manual Review Needed
             </h4>
-
-            {isLoadingFailureMessages &&
-            Object.keys(buildFailureMessages).length === 0 ? (
-              <p className="text-yellow-700 italic animate-pulse">
-                Loading guidance...
-              </p>
-            ) : (
-              <div className="space-y-2 mb-3">
-                {messagesToDisplay.map((msg, index) => (
-                  <div key={index} className="flex items-start">
-                    <span className="text-xl mr-2">{msg.emoji}</span>
-                    <p className="text-yellow-700 leading-relaxed">
-                      {msg.memo}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <p className="text-yellow-600 mt-3 mb-2 text-xs italic">
+            <div className="space-y-2 mb-3">
+              {messagesToDisplay.map((msg, index) => (
+                <div key={index} className="flex items-start">
+                  <span className="text-xl mr-2">{msg.emoji}</span>
+                  <p className="text-yellow-700 dark:text-yellow-300 leading-relaxed">
+                    {msg.memo}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="text-yellow-600 dark:text-yellow-400 mt-3 mb-2 text-xs italic">
               Current automated status:{' '}
               {prStatus.automatedActions.statusSummary}
             </p>
-
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
               <Link
                 href={prStatus.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-4 py-2 border border-gray-400 text-xs font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center justify-center px-4 py-2 border border-gray-400 dark:border-gray-500 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 View PR Details on GitHub
                 <ArrowTopRightOnSquareIcon className="ml-2 h-4 w-4" />
@@ -562,12 +980,12 @@ export default function ViewPrStatus({
 
   return (
     <section
-      className={`p-4 border rounded-lg bg-white shadow-sm ${prStatus ? getUiHintClasses(prStatus.automatedActions.uiHint).split(' ')[1] : 'border-gray-200'}`}
+      className={`p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${prStatus ? getUiHintClasses(prStatus.automatedActions.uiHint).split(' ')[1] : 'border-gray-200 dark:border-gray-600'}`}
     >
-      <h2 className="text-lg font-semibold mb-1 text-gray-700 flex items-center">
+      <h2 className="text-lg font-semibold mb-1 text-gray-700 dark:text-gray-100 flex items-center">
         {prTitleForDisplay}
         {isPolling && prStatus?.prState === 'open' && (
-          <ArrowPathIcon className="h-5 w-5 text-blue-500 animate-spin inline ml-2" />
+          <ArrowPathIcon className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-spin inline ml-2" />
         )}
       </h2>
 
@@ -578,7 +996,7 @@ export default function ViewPrStatus({
             href={prUrlToDisplay}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             {' '}
             View Pull Request #{prNumberToMonitor} on GitHub{' '}
@@ -624,7 +1042,6 @@ export default function ViewPrStatus({
 
       {prStatus && (
         <div className="space-y-3 my-2">
-          {/* Automated Status Summary Box */}
           {prStatus.automatedActions?.statusSummary &&
             !isFeedbackSectionVisible && (
               <div
@@ -648,7 +1065,7 @@ export default function ViewPrStatus({
                         href={prStatus.automatedActions.lastBotComment.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline ml-1"
+                        className="text-blue-600 dark:text-blue-400 hover:underline ml-1"
                       >
                         (details)
                       </Link>
@@ -664,40 +1081,39 @@ export default function ViewPrStatus({
                     'USER_REVIEW_PREVIEW' && (
                     <span className="block text-xs mt-1 opacity-80">
                       Next expected:{' '}
-                      {prStatus.automatedActions.nextExpectedAction}
+                      {prStatus.automatedActions.nextExpectedAction.replace(
+                        /_/g,
+                        ' '
+                      )}
                     </span>
                   )}
               </div>
             )}
 
-          {/* Tool Generation Info - Show if not in feedback mode or if relevant */}
           {!isFeedbackSectionVisible && renderToolGenInfo()}
-
-          {/* Manual Review Section - Show if applicable and not in feedback mode */}
           {!isFeedbackSectionVisible && renderManualReviewSection()}
 
-          {/* CI/CD Checks - Show if not in feedback mode */}
           {prStatus.checks &&
             prStatus.checks.length > 0 &&
             !isFeedbackSectionVisible && (
               <div className="mt-3">
-                <h3 className="text-sm font-semibold text-gray-600 mb-1.5">
+                <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
                   CI/CD Checks:
                 </h3>
-                <ul className="space-y-1 text-sm list-none pl-1 border border-gray-200 rounded-md p-2 bg-gray-50/50 max-h-60 overflow-y-auto custom-scrollbar">
+                <ul className="space-y-1 text-sm list-none pl-1 border border-gray-200 dark:border-gray-600 rounded-md p-2 bg-gray-50/50 dark:bg-gray-700/50 max-h-60 overflow-y-auto custom-scrollbar">
                   {prStatus.checks.map((check, idx) => (
                     <li
                       key={check.name + (check.started_at || idx)}
-                      className="flex items-center py-1.5 border-b border-gray-100 last:border-b-0"
+                      className="flex items-center py-1.5 border-b border-gray-100 dark:border-gray-600/50 last:border-b-0 last:pb-0"
                     >
                       {getStatusIcon(check.status, check.conclusion)}
                       <span
-                        className={`ml-1 ${check.conclusion === 'failure' ? 'text-red-600 font-medium' : check.conclusion === 'success' ? 'text-[#15803d]' : 'text-gray-700'}`}
+                        className={`ml-1 ${check.conclusion === 'failure' ? 'text-red-600 dark:text-red-400 font-medium' : check.conclusion === 'success' ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}
                       >
                         {' '}
                         {check.name}{' '}
                       </span>
-                      <span className="text-xs text-gray-500 ml-1.5">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">
                         {' '}
                         ({check.status}
                         {check.conclusion && `, ${check.conclusion}`}){' '}
@@ -707,9 +1123,9 @@ export default function ViewPrStatus({
                           href={check.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:underline ml-auto"
+                          className="text-xs text-blue-500 dark:text-blue-400 hover:underline ml-auto"
                         >
-                          (details)
+                          (Details)
                         </Link>
                       )}
                     </li>
@@ -724,32 +1140,30 @@ export default function ViewPrStatus({
               'USER_REVIEW_PREVIEW' &&
             !isFeedbackSectionVisible && (
               <div
-                className={`px-3 rounded-md text-sm ${getUiHintClasses('success')}`}
+                className={`mt-4 p-3 rounded-md text-sm ${getUiHintClasses('success')}`}
               >
-                <div className="flex flex-col justify-between items-start gap-4">
-                  <div className="flex gap-2 items-center">
-                    <div className="text-3xl font-semibold">🎉</div>
-                    <div className="flex flex-col gap-2">
-                      <p className="text-xl font-semibold">
-                        Deploy Preview Ready!
-                      </p>
-                      <Link
-                        href={prStatus.netlifyPreviewUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block mt-1 text-blue-600 hover:underline break-all"
-                      >
-                        {prStatus.netlifyPreviewUrl}
-                      </Link>
-                    </div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+                  <div className="flex-grow">
+                    <p className="text-md font-semibold">
+                      🎉 Deploy Preview Ready!
+                    </p>
+                    <Link
+                      href={prStatus.netlifyPreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block mt-1 text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    >
+                      {' '}
+                      {prStatus.netlifyPreviewUrl}{' '}
+                    </Link>
                   </div>
                   <Button
-                    className="self-center"
                     variant="accent"
                     onClick={() => setIsFeedbackSectionVisible(true)}
                     iconLeft={
                       <ChatBubbleLeftEllipsisIcon className="h-5 w-5" />
                     }
+                    className="w-full sm:w-auto mt-2 sm:mt-0"
                   >
                     Provide Feedback / View Discussion
                   </Button>
@@ -758,30 +1172,21 @@ export default function ViewPrStatus({
             )}
 
           {prStatus.imgurScreenshotUrl && !isFeedbackSectionVisible && (
-            <div className="mt-4 flex justify-center">
-              <div>
-                <h4 className="text-sm font-semibold text-gray-600 mb-1">
-                  Douglas&apos; View (Screenshot):
-                </h4>
-                <Link
-                  href={prStatus.imgurScreenshotUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Image
-                    src={prStatus.imgurScreenshotUrl}
-                    alt={`Douglas Screenshot for PR #${prStatus.prNumber}`}
-                    width={600}
-                    height={400}
-                    className="border rounded-md object-contain max-w-full h-auto"
-                    unoptimized
-                  />
-                </Link>
-              </div>
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                Douglas' View (Screenshot):
+              </h4>
+              <Image
+                src={prStatus.imgurScreenshotUrl}
+                alt={`Douglas Screenshot for PR #${prStatus.prNumber}`}
+                width={600}
+                height={400}
+                className="border dark:border-gray-600 rounded-md object-contain max-w-full h-auto"
+                unoptimized
+              />
             </div>
           )}
 
-          {/* Terminal state messages if polling stopped AND not showing FeedbackMerge */}
           {!isPolling &&
             !isFeedbackSectionVisible &&
             prStatus.prState === 'closed' && (
@@ -801,14 +1206,12 @@ export default function ViewPrStatus({
               <div
                 className={`mt-4 p-3 rounded-md text-sm ${getUiHintClasses('error')}`}
               >
-                <strong>Polling stopped.</strong>{' '}
-                {/* Manual review section itself contains more details now */}
+                <strong>Polling stopped.</strong>
               </div>
             )}
         </div>
       )}
 
-      {/* Render FeedbackMerge when isFeedbackSectionVisible is true */}
       {isFeedbackSectionVisible && prStatus && prStatus.netlifyPreviewUrl && (
         <FeedbackMerge
           prNumber={prStatus.prNumber}

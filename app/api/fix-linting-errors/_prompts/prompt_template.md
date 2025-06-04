@@ -4,14 +4,13 @@ File Path: {{FILE_PATH}}
 
 Original File Content:
 
-```typescript
 {{FILE_CONTENT}}
 
 Lint/Compiler Warnings/Errors for {{FILE_PATH}}:
 {{LINT_ERRORS}}
 
 **Return:**
-Return the updated file and the a bried fix description for any fixes applied.  If no fixes are applied the description should be `No fixes applied`.
+Return the updated file and the a bried fix description for any fixes applied. If no fixes are applied the description should be `No fixes applied`.
 
 **Return Format:**
 ---START_FIXED_FILE:{{FILE_PATH}}---
@@ -20,5 +19,3 @@ Return the updated file and the a bried fix description for any fixes applied.  
 ---START_FIX_DESCRIPTION---
 // brief fix description
 ---END_FIX_DESCRIPTION---
-
-```

@@ -202,7 +202,6 @@ html {
   margin-bottom: 0.25em;
 }
 
-/* Optional: Add Keyframes for Animation */
 @keyframes slideDown {
   from {
     opacity: 0;
@@ -213,13 +212,25 @@ html {
     transform: translateY(0);
   }
 }
-
-/* Optional: Apply Animation */
 .animate-slide-down {
   animation: slideDown 0.3s ease-out forwards;
 }
 
-/* Optional: Dark mode overrides can go here */
+@keyframes pulse-rocket {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-45deg); /* Keep rotation */
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05) rotate(-45deg); /* Slight grow and keep rotation */
+  }
+}
+.animate-pulse-rocket {
+  animation: pulse-rocket 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  transform-origin: center; /* Ensure scaling is from the center */
+}
 
 body {
   background-color: rgb(var(--color-bg-page));

@@ -317,9 +317,8 @@ jobs:
           name: asset-instructions-${{ needs.initial_checks.outputs.pr_sha }}
           path: ${{ steps.check_tool_info.outputs.asset_artifact_upload_path }}
           if-no-files-found: error
-
   build_and_run_douglas_checker:
-    name: 3. Build & Lint Tool
+    name: 3. Build & Lint Tool (Comprehensive Checks)
     needs: [initial_checks, analyze_state_and_dependencies]
     if: >
       success() &&
@@ -331,7 +330,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      build_command_failed_output: ${{ steps.build_oet.outputs.build_command_failed }}
+      next_build_command_failed_output: ${{ steps.build_oet.outputs.build_command_failed }}
+      static_analysis_errors_found_output: ${{ steps.comprehensive_static_analysis.outputs.static_analysis_errors_found }}
       lint_errors_captured_for_ai_output: ${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}
       douglas_check_step_outcome_output: ${{ steps.douglas_checker_run.outcome }}
       imgur_screenshot_url_output: ${{ steps.upload_to_imgur.outputs.image_url }}
@@ -352,51 +352,107 @@ jobs:
 
       - name: Install OET Dependencies
         run: npm ci
+      - name: Run Comprehensive Static Analysis (ESLint & TSC)
+        id: comprehensive_static_analysis
+        run: |
+          echo "::group::Running Comprehensive Static Analysis"
+          STATIC_ANALYSIS_ERRORS_FOUND=false
+          ERROR_LOG_DIR="${{ runner.temp }}/static-analysis-logs"
+          mkdir -p "$ERROR_LOG_DIR"
+          ESLINT_OUTPUT_FILE="$ERROR_LOG_DIR/eslint_errors.txt"
+          TSC_OUTPUT_FILE="$ERROR_LOG_DIR/tsc_errors.txt"
+          CONSOLIDATED_ERRORS_FILE="$ERROR_LOG_DIR/all_static_errors.txt"
+
+          echo "Running ESLint..."
+          # Using --format unix for potentially easier parsing, adjust if needed
+          # `|| true` allows the script to continue even if eslint finds errors
+          npx eslint . --format unix --output-file "$ESLINT_OUTPUT_FILE" || true
+          if [ -s "$ESLINT_OUTPUT_FILE" ] && grep -qE ": error|: warning" "$ESLINT_OUTPUT_FILE"; then
+            echo "ESLint found issues."
+            STATIC_ANALYSIS_ERRORS_FOUND=true
+          else
+            echo "ESLint found no issues or output file is empty."
+            # Ensure file exists for cat, even if empty
+            touch "$ESLINT_OUTPUT_FILE"
+          fi
+
+          echo "Running TypeScript Compiler (tsc --noEmit)..."
+          # Using --pretty false for more machine-friendly output
+          # `|| true` allows script to continue
+          npx tsc --project tsconfig.json --noEmit --pretty false > "$TSC_OUTPUT_FILE" 2>&1 || true
+          if [ -s "$TSC_OUTPUT_FILE" ] && grep -qE "error TS" "$TSC_OUTPUT_FILE"; then
+            echo "TypeScript (tsc) found type errors."
+            STATIC_ANALYSIS_ERRORS_FOUND=true
+          else
+            echo "TypeScript (tsc) found no type errors or output file is empty."
+            # Ensure file exists for cat, even if empty
+            touch "$TSC_OUTPUT_FILE"
+          fi
+
+          echo "Consolidating error logs..."
+          {
+            echo "--- ESLint Output ---"
+            cat "$ESLINT_OUTPUT_FILE"
+            echo "" # Add a newline separator
+            echo "--- TypeScript Compiler (tsc) Output ---"
+            cat "$TSC_OUTPUT_FILE"
+          } > "$CONSOLIDATED_ERRORS_FILE"
+
+          if [ "$STATIC_ANALYSIS_ERRORS_FOUND" = true ]; then
+            echo "Static analysis errors were found."
+            echo "Consolidated errors written to $CONSOLIDATED_ERRORS_FILE"
+            echo "--- Start of Consolidated Errors ---"
+            cat "$CONSOLIDATED_ERRORS_FILE"
+            echo "--- End of Consolidated Errors ---"
+          else
+            echo "No static analysis errors found by ESLint or TSC."
+          fi
+
+          echo "static_analysis_errors_found=$STATIC_ANALYSIS_ERRORS_FOUND" >> $GITHUB_OUTPUT
+          echo "consolidated_errors_log_path=$CONSOLIDATED_ERRORS_FILE" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
 
       - name: Prepare for Static Build (Isolate New Tool)
         env:
           TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
         run: |
+          # ... (this step remains unchanged)
           echo "Isolating tool: $TOOL_DIRECTIVE for static check"
           if [ -z "$TOOL_DIRECTIVE" ]; then echo "::error::Tool directive not received."; exit 1; fi
-
           echo "Removing app/api to prevent 'output: export' issues and to allow header to use static build mode..."
           rm -rf app/api || echo "No app/api to remove."
-
           echo "Removing app/page.tsx (homepage) as its dependencies might be pruned..."
           rm -f app/page.tsx || echo "No app/page.tsx to remove."
-
           if [ -d "app/tool" ]; then
             echo "Pruning other tool directories from app/tool/ ..."
             cd app/tool
-            # Prune all tools except the current one, _components, and _hooks
             ls -d */ 2>/dev/null | grep -v -E "^(${TOOL_DIRECTIVE}/|_components/|_hooks/)$" | xargs -r rm -rf
             cd ../.. 
           fi
           echo "Project structure pruned for static check."
 
-      - name: Build OET for Static Export (and check for lint issues)
+      - name: Build OET for Static Export (Next.js Build)
         id: build_oet
         env:
           NEXT_OUTPUT_MODE: export
           NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION: true
         run: |
           echo "Attempting static build with NEXT_OUTPUT_MODE=${NEXT_OUTPUT_MODE} and NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION=${NEXT_PUBLIC_IS_STATIC_BUILD_VALIDATION}..."
-          BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log"
+          BUILD_LOG_FILE_PATH="${{ runner.temp }}/build_output.log" # Still useful for general build logs
           set +e 
           npm run build > "$BUILD_LOG_FILE_PATH" 2>&1
           BUILD_EXIT_CODE=$? 
           set -e 
           echo "npm run build exited with code: $BUILD_EXIT_CODE" 
-          echo "--- Start of Build Output (from $BUILD_LOG_FILE_PATH) ---"
+          echo "--- Start of Next.js Build Output (from $BUILD_LOG_FILE_PATH) ---"
           if [ -f "$BUILD_LOG_FILE_PATH" ]; then cat "$BUILD_LOG_FILE_PATH"; else echo "ERROR: Build log file $BUILD_LOG_FILE_PATH not found!"; fi
-          echo "--- End of Build Output ---"
+          echo "--- End of Next.js Build Output ---"
 
           if [ "$BUILD_EXIT_CODE" -ne 0 ]; then
-            echo "build_command_failed=true" >> $GITHUB_OUTPUT
+            echo "build_command_failed=true" >> $GITHUB_OUTPUT # MODIFIED: Output name
             echo "::warning::'npm run build' command failed with exit code $BUILD_EXIT_CODE."
           else
-            echo "build_command_failed=false" >> $GITHUB_OUTPUT
+            echo "build_command_failed=false" >> $GITHUB_OUTPUT # MODIFIED: Output name
             echo "'npm run build' command succeeded."
           fi
           if [ -d "out" ]; then
@@ -406,45 +462,48 @@ jobs:
             echo "::error::Build output directory 'out' not found."
             echo "build_succeeded_structurally=false" >> $GITHUB_OUTPUT
             if [ "$BUILD_EXIT_CODE" -eq 0 ]; then 
-                echo "build_command_failed=true" >> $GITHUB_OUTPUT 
+                echo "build_command_failed=true" >> $GITHUB_OUTPUT # MODIFIED: Output name
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
           fi
-          echo "build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
-
-      - name: Capture Lint Output and Changed Files for AI Fixer
+          # This build_log_path is still useful for general build debugging, but not primary for ALF
+          echo "next_build_log_path=$BUILD_LOG_FILE_PATH" >> $GITHUB_OUTPUT
+      - name: Prepare Lint Artifact for AI Fixer (if static analysis found errors)
         id: capture_for_ai_fix
-        if: steps.build_oet.outputs.build_command_failed == 'true'
+        if: steps.comprehensive_static_analysis.outputs.static_analysis_errors_found == 'true'
         env:
           TOOL_DIRECTIVE_PATH: app/tool/${{ needs.initial_checks.outputs.tool_directive }}
         run: |
-          echo "--- Start of capture_for_ai_fix step ---"
-          BUILD_LOG_FILE="${{ steps.build_oet.outputs.build_log_path }}"
-          LINT_DATA_DIR="${{ runner.temp }}/lint-data-artifact" 
-          mkdir -p "$LINT_DATA_DIR"
-          LINT_ERRORS_FILE="$LINT_DATA_DIR/lint_errors.txt"
-          FILES_TO_CHECK_FILE="$LINT_DATA_DIR/files_to_check.txt"
-          LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="false" 
+          echo "--- Start of capture_for_ai_fix step (using comprehensive static analysis results) ---"
+          CONSOLIDATED_ERRORS_LOG_PATH="${{ steps.comprehensive_static_analysis.outputs.consolidated_errors_log_path }}"
+          LINT_DATA_DIR_FOR_ARTIFACT="${{ runner.temp }}/lint-data-artifact" # Standardized name
+          mkdir -p "$LINT_DATA_DIR_FOR_ARTIFACT"
+          LINT_ERRORS_FILE_FOR_ARTIFACT="$LINT_DATA_DIR_FOR_ARTIFACT/lint_errors.txt"
+          FILES_TO_CHECK_FILE_FOR_ARTIFACT="$LINT_DATA_DIR_FOR_ARTIFACT/files_to_check.txt"
+          LINT_ERRORS_CAPTURED_FLAG="false" # Default to false
 
-          if [ -f "$BUILD_LOG_FILE" ]; then
-            if grep -q -E "Failed to compile.|Linting and checking validity of types failed|TypeScript error" "$BUILD_LOG_FILE"; then
-              echo "MATCHED: Lint/compile failure found in build log."
-              cp "$BUILD_LOG_FILE" "$LINT_ERRORS_FILE"
-              find "$TOOL_DIRECTIVE_PATH" \( -name "*.ts" -o -name "*.tsx" \) -type f > "$FILES_TO_CHECK_FILE"
-              if [ -s "$FILES_TO_CHECK_FILE" ]; then
-                LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG="true"
-                echo "Files to check based on TOOL_DIRECTIVE_PATH:"
-                cat "$FILES_TO_CHECK_FILE"
-              else
-                echo "::warning::Build failed with lint-like errors, but no source files found in tool dir '$TOOL_DIRECTIVE_PATH'."
-              fi
+          if [ -f "$CONSOLIDATED_ERRORS_LOG_PATH" ] && [ -s "$CONSOLIDATED_ERRORS_LOG_PATH" ]; then
+            echo "Comprehensive static analysis errors found. Preparing artifact."
+            cp "$CONSOLIDATED_ERRORS_LOG_PATH" "$LINT_ERRORS_FILE_FOR_ARTIFACT"
+            
+            # Create files_to_check.txt by finding relevant files in the tool's directory
+            # This logic assumes ALF primarily works on files within the new tool's directory.
+            # Adjust if ALF needs to fix files outside this scope based on the lint errors.
+            find "$TOOL_DIRECTIVE_PATH" \( -name "*.ts" -o -name "*.tsx" \) -type f > "$FILES_TO_CHECK_FILE_FOR_ARTIFACT"
+            
+            if [ -s "$FILES_TO_CHECK_FILE_FOR_ARTIFACT" ]; then
+              LINT_ERRORS_CAPTURED_FLAG="true"
+              echo "Files to check (for AI to potentially fix) based on TOOL_DIRECTIVE_PATH:"
+              cat "$FILES_TO_CHECK_FILE_FOR_ARTIFACT"
             else
-              echo "Build failed for non-lint reasons based on log indicators (e.g. 'Failed to compile.' not found)."
+              echo "::warning::Static analysis errors found, but no source files found in tool dir '$TOOL_DIRECTIVE_PATH' to list for ALF. Lint artifact might be incomplete for targeting."
+              # Still set to true if lint_errors.txt has content, ALF can decide what to do.
+              if [ -s "$LINT_ERRORS_FILE_FOR_ARTIFACT" ]; then LINT_ERRORS_CAPTURED_FLAG="true"; fi
             fi
           else
-            echo "::warning::Build output log ($BUILD_LOG_FILE) not found."
+            echo "No comprehensive static analysis errors found or log file is empty. No lint artifact for AI created from this step."
           fi
-          echo "lint_errors_captured_for_ai=$LINT_ERRORS_IDENTIFIED_FOR_AI_FLAG" >> $GITHUB_OUTPUT
+          echo "lint_errors_captured_for_ai=$LINT_ERRORS_CAPTURED_FLAG" >> $GITHUB_OUTPUT
           echo "--- End of capture_for_ai_fix step ---"
 
       - name: Upload Lint Failure Artifact for AI Fixer
@@ -454,11 +513,14 @@ jobs:
           name: lint-failure-data-${{ needs.initial_checks.outputs.pr_sha }}
           path: ${{ runner.temp }}/lint-data-artifact/
           if-no-files-found: error
-
       - name: Serve Static Output Locally
         id: serve_static
-        if: steps.build_oet.outputs.build_succeeded_structurally == 'true' && steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai != 'true'
+        if: >
+          steps.comprehensive_static_analysis.outputs.static_analysis_errors_found == 'false' &&
+          steps.build_oet.outputs.build_succeeded_structurally == 'true' &&
+          steps.build_oet.outputs.build_command_failed == 'false'
         run: |
+          # ... (this step remains largely unchanged, ensure it correctly serves 'out')
           echo "Starting static server for 'out' directory on port 3001..."
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
             echo "Port 3001 is in use. Attempting to kill process..."
@@ -517,6 +579,7 @@ jobs:
         env:
           IMGUR_CLIENT_ID: ${{ secrets.IMGUR_CLIENT_ID }}
         run: |
+          # ... (this step remains unchanged)
           SCREENSHOT_FILE="$RUNNER_TEMP/douglas_screenshot.png"
           IMAGE_URL=""
           if [ -f "$SCREENSHOT_FILE" ] && [ -n "$IMGUR_CLIENT_ID" ]; then
@@ -538,10 +601,10 @@ jobs:
         continue-on-error: true
 
       - name: Upload Douglas Artifacts
-        if: always() && steps.serve_static.outcome == 'success'
+        if: always() && steps.serve_static.outcome == 'success' # Depends on serve_static having run
         uses: actions/upload-artifact@v4
         with:
-          name: douglas-artifacts-${{ github.run_id }}
+          name: douglas-artifacts-${{ github.run_id }} # Use github.run_id for uniqueness if needed, or sha
           path: |
             ${{ runner.temp }}/douglas_summary.md
             ${{ runner.temp }}/douglas_screenshot.png
@@ -550,6 +613,7 @@ jobs:
       - name: Kill Static Server
         if: always() && steps.serve_static.outputs.server_pid
         run: |
+          # ... (this step remains unchanged)
           echo "Attempting to kill static server PID: ${{ steps.serve_static.outputs.server_pid }}..."
           (sudo kill -9 ${{ steps.serve_static.outputs.server_pid }} || echo "Kill failed or server already stopped.")
           if sudo fuser 3001/tcp > /dev/null 2>&1; then
