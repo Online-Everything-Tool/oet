@@ -11,9 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_LINT_FIX_MODEL_NAME ||
-  'models/gemini-1.5-flash-latest';
+const DEFAULT_MODEL_NAME = 'models/gemini-1.5-pro-latest';
 
 if (!API_KEY) {
   console.error('FATAL ERROR (fix-linting-errors): GEMINI_API_KEY missing.');
@@ -161,7 +159,6 @@ function preprocessLintOutput(
       continue;
     }
 
-    console.log(`[DEBUG PREPROCESS] Processing line: "${line}"`);
     const filePathMarkerMatch = line.match(filePathMarkerRegex);
     if (filePathMarkerMatch) {
       const pathInErrorLineNormalized = path.normalize(filePathMarkerMatch[1]);
