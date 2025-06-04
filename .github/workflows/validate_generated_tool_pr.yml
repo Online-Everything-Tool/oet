@@ -376,6 +376,8 @@ jobs:
           fi
           echo "Project structure pruned for static check."
 
+          npm run prebuild
+
       - name: Run Dedicated Lint & Type Check (Combined Next Lint & TSC)
         id: run_dedicated_lint_check
         run: |
