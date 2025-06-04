@@ -24,10 +24,10 @@ import {
   TrashIcon,
   EyeIcon,
   ArrowDownTrayIcon,
-  XCircleIcon,
+  //XCircleIcon,
   ExclamationTriangleIcon,
   DocumentTextIcon,
-  PhotoIcon,
+  //PhotoIcon,
 } from '@heroicons/react/24/outline';
 
 
@@ -68,7 +68,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
     saveStateNow,
   } = useToolState<PersistedGzipExplorerState>(toolRoute, DEFAULT_GZIP_EXPLORER_STATE);
 
-  const { getFile, addFile: addFileToLibrary, cleanupOrphanedTemporaryFiles, deleteFilePermanently } = useFileLibrary();
+  const { getFile, addFile: addFileToLibrary, cleanupOrphanedTemporaryFiles/*, deleteFilePermanently*/ } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const decompressor = useGzipDecompressor();
 
@@ -187,7 +187,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
         try {
           const tempName = `itde-received-${Date.now()}.gz`;
           const newId = await addFileToLibrary(receivedFileItem.blob, tempName, receivedFileItem.type || 'application/gzip', true);
-          fileToProcess = await getFile(newId);
+          fileToProcess = (await getFile(newId)) || null; //Fixed the type error here
           if (!fileToProcess) throw new Error('Failed to retrieve saved InlineFile.');
         } catch (e) {
           setClientError(`Failed to process incoming Gzip: ${e instanceof Error ? e.message : String(e)}`);
