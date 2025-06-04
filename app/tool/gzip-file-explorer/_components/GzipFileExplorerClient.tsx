@@ -229,8 +229,8 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
             } else {
               // Hex preview for other binary types
               const buffer = await file.blob.arrayBuffer();
-              const firstBytes = new Uint8Array(buffer.slice(0, MAX_HEX_PREVIEW_BYTES));
-              setHexPreview(bufferToHex(firstBytes));
+              const firstBytes = new Uint8Array(buffer);
+              setHexPreview(bufferToHex(firstBytes.slice(0, MAX_HEX_PREVIEW_BYTES)));
             }
           }
         })
