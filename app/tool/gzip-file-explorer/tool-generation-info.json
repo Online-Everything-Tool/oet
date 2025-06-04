@@ -1,0 +1,15 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "pako",
+      "reason": "For Gzip decompression",
+      "importUsed": "import pako from 'pako';"
+    },
+    {
+      "packageName": "@types/pako",
+      "reason": "TypeScript definitions for pako",
+      "importUsed": ""
+    }
+  ],
+  "assetInstructions": null
+}

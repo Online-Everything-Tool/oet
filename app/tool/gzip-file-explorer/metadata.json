@@ -1,0 +1,17 @@
+{
+  "title": "Gzip File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Inspect and extract the content of Gzip compressed files (.gz) entirely in your browser.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip", "application/x-gzip"],
+    "stateFiles": [{ "stateKey": "selectedGzipFileId" }]
+  },
+  "outputConfig": {
+    "transferableContent": [{
+      "dataType": "reference",
+      "stateKey": "decompressedFileId"
+    }]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
