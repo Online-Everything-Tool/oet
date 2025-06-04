@@ -12,5 +12,6 @@
     }
   ],
   "assetInstructions": null,
-  "npmDependenciesFulfilled": true
+  "npmDependenciesFulfilled": true,
+  "lintFixesAttempted": true
 }

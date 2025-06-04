@@ -18,7 +18,6 @@ import {
 import {
   ArrowUpTrayIcon,
   TrashIcon,
-  XCircleIcon as XCircleIconOutline,
   EyeIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
@@ -57,7 +56,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
     saveStateNow,
   } = useToolState<GzipExplorerToolState>(toolRoute, DEFAULT_TOOL_STATE);
 
-  const { getFile, addFile, makeFilePermanentAndUpdate, deleteFilePermanently, cleanupOrphanedTemporaryFiles } = useFileLibrary();
+  const { getFile, addFile, makeFilePermanentAndUpdate, deleteFilePermanently } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
 
   const [isLoadingProcessing, setIsLoadingProcessing] = useState(false);
@@ -109,10 +108,10 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       if (toolState.decompressedFileId) {
         const decFile = await getFile(toolState.decompressedFileId);
         setDecompressedStoredFile(decFile || null);
-         if (!decFile && toolState.selectedGzipFileId) { // Decompressed missing but GZ present
-            // This might indicate an interruption. Optionally, reprocess here if selectedGzipFile is loaded.
-            // For now, just clear the decompressedFileId from state.
-            setToolState(prev => ({ ...prev, decompressedFileId: null }));
+        if (!decFile && toolState.selectedGzipFileId) { // Decompressed missing but GZ present
+          // This might indicate an interruption. Optionally, reprocess here if selectedGzipFile is loaded.
+          // For now, just clear the decompressedFileId from state.
+          setToolState(prev => ({ ...prev, decompressedFileId: null }));
         }
       } else {
         setDecompressedStoredFile(null);
@@ -221,7 +220,6 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       previewObjectUrlRef.current = null;
     }
 
-    const extension = decompressedStoredFile.filename.substring(decompressedStoredFile.filename.lastIndexOf('.') + 1).toLowerCase();
     const mime = decompressedStoredFile.type;
 
     try {
@@ -292,7 +290,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
         await makeFilePermanentAndUpdate(toolState.decompressedFileId, finalFilename);
         // Fetch the updated file to reflect changes in UI if necessary
         const updatedFile = await getFile(toolState.decompressedFileId);
-        setDecompressedStoredFile(updatedFile);
+        setDecompressedStoredFile(updatedFile || null);
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2000);
       } catch (err) {
@@ -482,11 +480,11 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
           </div>
         </div>
       )}
-      
+
       {!isLoading && !selectedGzipFile && !clientError && (
-         <p className="p-4 text-lg text-center text-gray-400 italic">
-            Select a .gz file to begin.
-          </p>
+        <p className="p-4 text-lg text-center text-gray-400 italic">
+          Select a .gz file to begin.
+        </p>
       )}
 
       <FileSelectionModal
