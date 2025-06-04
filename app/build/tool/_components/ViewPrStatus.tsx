@@ -344,6 +344,7 @@ export default function ViewPrStatus({
             );
           }
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (error: any) {
         if (!componentMountedRef.current) return;
         if (
@@ -819,7 +820,7 @@ export default function ViewPrStatus({
       prStatus._debug_data_source.toolGenerationInfo.content?.identifiedDependencies?.map(
         (d) => d.packageName
       );
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isNotApplicableOrNotFound = (value: any) =>
       ['not_found', 'not_applicable'].includes(value);
 
@@ -1174,7 +1175,7 @@ ${statusSummaryForIssue}
           {prStatus.imgurScreenshotUrl && !isFeedbackSectionVisible && (
             <div className="mt-4">
               <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                Douglas' View (Screenshot):
+                Douglas&apos; View (Screenshot):
               </h4>
               <Image
                 src={prStatus.imgurScreenshotUrl}

@@ -22,12 +22,12 @@ const PreNarrativeContent = ({ toolDirective }: { toolDirective: string }) => {
         OET Mission Control...
       </p>
       <p className="text-lg md:text-xl text-indigo-600 dark:text-indigo-300 mb-6">
-        We're GO for launch on:{' '}
+        We&apos;re GO for launch on:{' '}
         <strong className="font-bold">{toolDirective}</strong>!
       </p>
       <p className="text-sm text-gray-600 dark:text-gray-400 italic px-4">
         You can almost feel Big Tool Corp starting to panic... their servers are
-        probably "requesting a comfort animal."
+        probably &lsquo;requesting a comfort animal.&rsquo;
       </p>
     </div>
   );
