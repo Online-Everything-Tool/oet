@@ -1,0 +1,23 @@
+{
+  "title": "Gzip File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Decompress and inspect Gzip (.gz) compressed files. View original filename (if available in header), size, and preview or download the decompressed file.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip", "application/x-gzip", ".gz"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedGzipFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "decompressedFileId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
