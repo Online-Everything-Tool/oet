@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
-import useGzipDecompress, { GzipHeaderInfo } from '../_hooks/useGzipDecompress';
+import useGzipDecompress from '../_hooks/useGzipDecompress';
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import Button from '../../_components/form/Button';
@@ -221,7 +221,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       getFile(toolState.decompressedFileId)
         .then(async (file) => {
           if (file && file.blob) {
-            if (isTextBasedMimeType(toolState.decompressedFileType)) {
+            if (isTextBasedMimeType(toolState.decompressedFileType || '')) { // Provide default value for null
               const text = await file.blob.text();
               setTextPreview(text.length > MAX_TEXT_PREVIEW_SIZE_BYTES ? text.substring(0, MAX_TEXT_PREVIEW_SIZE_BYTES) + "\n\n--- Content truncated ---" : text);
             } else if (toolState.decompressedFileType?.startsWith('image/')) {
@@ -230,7 +230,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
             } else {
               // Hex preview for other binary types
               const buffer = await file.blob.arrayBuffer();
-              const firstBytes = new Uint8Array(buffer.slice(0, MAX_HEX_PREVIEW_BYTES));
+              const firstBytes = new Uint8Array(buffer, 0, MAX_HEX_PREVIEW_BYTES); // Correct slicing
               setHexPreview(bufferToHex(firstBytes));
             }
           }
@@ -352,7 +352,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
     await saveStateNow(DEFAULT_TOOL_STATE); // Persist cleared state
 
     if (idsToCleanup.length > 0) {
-      cleanupOrphanedTemporaryFiles(idsToCleanup).catch(e => console.warn("Clear: Cleanup failed", e));
+      cleanupOrphanedTemporaryFiles(idsToCleanup).catch(_e => console.warn("Clear: Cleanup failed", _e));
     }
   }, [toolState.inputFileId, toolState.decompressedFileId, clearDecompressionResults, imagePreviewUrl, setToolState, saveStateNow, cleanupOrphanedTemporaryFiles]);
 
