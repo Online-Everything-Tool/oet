@@ -1,0 +1,24 @@
+{
+  "title": "GZIP File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Explore the contents of GZIP compressed files client-side.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip"],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "extractedText",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "experimental"
+}
