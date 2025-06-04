@@ -1,8 +1,8 @@
 #!/bin/bash
-
+# scripts/whack-status-pr.sh
 PR_NUMBER="220" # Or pass as an argument
 API_URL="http://localhost:3000/api/status-pr" # Or your deployed API
-OUTPUT_DIR="./pr_status_logs_pr${PR_NUMBER}"
+OUTPUT_DIR="./_data/pr_status_logs_pr${PR_NUMBER}"
 POLL_INTERVAL_SECONDS=2 # How often to poll
 MAX_ATTEMPTS=200 # Max polls to prevent infinite loop
 

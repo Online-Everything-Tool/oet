@@ -29,8 +29,6 @@ The content between `---START_DEPS---` and `---END_DEPS---` MUST be a valid JSON
 This tool requires additional static assets. Please follow these instructions:
 
 1. Download X from Y_URL and place it in 'public/data/{{TOOL_DIRECTIVE}}/assets/X'.
-2. Ensure your generated code loads model Z from '/data/{{TOOL_DIRECTIVE}}/assets/Z/model.weights'.
-   (Provide clear, actionable, multi-line instructions here.)
    ---END_ASSET_INSTRUCTIONS---
 
 **For the overall message:**

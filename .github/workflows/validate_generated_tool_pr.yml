@@ -376,51 +376,88 @@ jobs:
           fi
           echo "Project structure pruned for static check."
 
-      - name: Run Dedicated Lint & Type Check (using 'npm run lint' which is 'next lint')
+      - name: Run Dedicated Lint & Type Check (Combined Next Lint & TSC)
         id: run_dedicated_lint_check
         run: |
-          LINT_LOG_FILE_PATH="${{ runner.temp }}/dedicated_lint_output.log"
-          echo "Running dedicated lint and type checks via 'npm run lint' (next lint)..."
-          # Ensure log file exists and is empty initially
-          >"$LINT_LOG_FILE_PATH"
-          
-          NPM_LINT_EXIT_CODE=0
-          # Use a local variable for clarity before setting the output
+          COMBINED_LINT_LOG_FILE_PATH="${{ runner.temp }}/dedicated_lint_combined_output.log"
+          NEXT_LINT_LOG_FILE_PATH="${{ runner.temp }}/next_lint_output.log"
+          TSC_LOG_FILE_PATH="${{ runner.temp }}/tsc_output.log"
+
+          echo "Running dedicated lint and type checks..."
+          # Ensure log files are empty initially
+          >"$COMBINED_LINT_LOG_FILE_PATH"
+          >"$NEXT_LINT_LOG_FILE_PATH"
+          >"$TSC_LOG_FILE_PATH"
+
+          NEXT_LINT_EXIT_CODE=0
+          TSC_EXIT_CODE=0
           LINT_STEP_FAILED_FLAG=false 
 
-          # Set the GITHUB_OUTPUT for lint_log_path unconditionally
-          echo "lint_log_path=$LINT_LOG_FILE_PATH" >> $GITHUB_OUTPUT
+          # Set the GITHUB_OUTPUT for the *combined* lint_log_path unconditionally
+          echo "lint_log_path=$COMBINED_LINT_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
+          # --- 1. Run 'npm run lint' (next lint) ---
+          echo "--- Output of 'npm run lint' (next lint) ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
           set +e
-          # Execute 'npm run lint' and redirect all its output to the log file
-          npm run lint >> "$LINT_LOG_FILE_PATH" 2>&1
-          NPM_LINT_EXIT_CODE=$?
+          npm run lint >> "$NEXT_LINT_LOG_FILE_PATH" 2>&1
+          NEXT_LINT_EXIT_CODE=$?
           set -e
 
-          # Also, cat the log file to the main GitHub Actions step log for immediate visibility
-          echo "--- Output of 'npm run lint' (from $LINT_LOG_FILE_PATH) ---"
-          cat "$LINT_LOG_FILE_PATH"
+          cat "$NEXT_LINT_LOG_FILE_PATH" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH" # Add a newline separator
+
+          # Log to GitHub Actions console for immediate visibility
+          echo "--- Output of 'npm run lint' (from $NEXT_LINT_LOG_FILE_PATH, Exit Code: $NEXT_LINT_EXIT_CODE) ---"
+          cat "$NEXT_LINT_LOG_FILE_PATH"
           echo "--- End of 'npm run lint' Output ---"
 
-          if [ "$NPM_LINT_EXIT_CODE" -ne 0 ]; then
-            echo "::warning::'npm run lint' (next lint) found errors (exit code: $NPM_LINT_EXIT_CODE)."
+          if [ "$NEXT_LINT_EXIT_CODE" -ne 0 ]; then
+            echo "::warning::'npm run lint' (next lint) found issues (exit code: $NEXT_LINT_EXIT_CODE)."
             LINT_STEP_FAILED_FLAG=true
           else
             echo "'npm run lint' (next lint) reported no errors."
-            # Optionally, you could echo success to the LINT_LOG_FILE_PATH if it was empty
-            # but usually `next lint` will have *some* output even on success.
           fi
-          
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "--- 'npm run lint' (next lint) Check Complete ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
+
+
+          # --- 2. Run 'npx tsc --noEmit --pretty' ---
+          echo "--- Output of 'npx tsc --noEmit --pretty' ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          set +e
+          npx tsc --noEmit --pretty >> "$TSC_LOG_FILE_PATH" 2>&1
+          TSC_EXIT_CODE=$?
+          set -e
+
+          cat "$TSC_LOG_FILE_PATH" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH" # Add a newline separator
+
+          # Log to GitHub Actions console
+          echo "--- Output of 'npx tsc --noEmit' (from $TSC_LOG_FILE_PATH, Exit Code: $TSC_EXIT_CODE) ---"
+          cat "$TSC_LOG_FILE_PATH"
+          echo "--- End of 'npx tsc --noEmit' Output ---"
+
+          if [ "$TSC_EXIT_CODE" -ne 0 ]; then
+            echo "::warning::'npx tsc --noEmit' found type errors (exit code: $TSC_EXIT_CODE)."
+            LINT_STEP_FAILED_FLAG=true # Set to true if TSC fails, even if next lint passed
+          else
+            echo "'npx tsc --noEmit' reported no type errors."
+          fi
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "--- 'npx tsc --noEmit --pretty' Check Complete ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
+          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
+
+          # --- 3. Set Final GitHub Actions Outputs ---
           if [[ "$LINT_STEP_FAILED_FLAG" == "true" ]]; then
             echo "lint_check_failed=true" >> $GITHUB_OUTPUT
-            echo "Dedicated lint/type check (via npm run lint) found errors."
+            echo "Dedicated lint/type check (combined) found errors."
           else
             echo "lint_check_failed=false" >> $GITHUB_OUTPUT
-            echo "Dedicated lint/type check (via npm run lint) passed."
+            echo "Dedicated lint/type check (combined) passed."
           fi
 
       - name: Build OET for Static Export (and check for lint issues)
-        id: build_oet      
+        id: build_oet
         if: steps.run_dedicated_lint_check.outputs.lint_check_failed == 'false'
         env:
           NEXT_OUTPUT_MODE: export
@@ -454,9 +491,9 @@ jobs:
                 echo "build_command_failed=true" >> $GITHUB_OUTPUT                 
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
-          fi        
+          fi
       - name: Capture Lint Output and Changed Files for AI Fixer
-        id: capture_for_ai_fix      
+        id: capture_for_ai_fix
         if: |
           steps.run_dedicated_lint_check.outputs.lint_check_failed == 'true' ||
           steps.build_oet.outputs.build_command_failed == 'true'
