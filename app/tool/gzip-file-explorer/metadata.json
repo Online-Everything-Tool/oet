@@ -1,0 +1,23 @@
+{
+  "title": "Gzip File Explorer",
+  "directive": "gzip-file-explorer",
+  "description": "Allows users to decompress and explore the contents of gzip (.gz) compressed files entirely in the browser.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/gzip", "application/x-gzip", ".gz"],
+    "stateFiles": [
+      {
+        "stateKey": "inputFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "decompressedFileId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
