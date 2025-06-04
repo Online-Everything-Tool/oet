@@ -11,5 +11,6 @@
       "importUsed": ""
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
