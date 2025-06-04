@@ -331,6 +331,7 @@ jobs:
     permissions:
       contents: read
     outputs:
+      dedicated_lint_check_failed_output: ${{ steps.run_dedicated_lint_check.outputs.lint_check_failed }}
       build_command_failed_output: ${{ steps.build_oet.outputs.build_command_failed }}
       lint_errors_captured_for_ai_output: ${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}
       douglas_check_step_outcome_output: ${{ steps.douglas_checker_run.outcome }}
@@ -455,8 +456,7 @@ jobs:
             fi
           fi        
       - name: Capture Lint Output and Changed Files for AI Fixer
-        id: capture_for_ai_fix
-      
+        id: capture_for_ai_fix      
         if: |
           steps.run_dedicated_lint_check.outputs.lint_check_failed == 'true' ||
           steps.build_oet.outputs.build_command_failed == 'true'
@@ -636,9 +636,12 @@ jobs:
           echo "DEP_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
           echo "ASSET_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV
 
-          echo "BUILD_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
+          echo "DEDICATED_LINT_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.dedicated_lint_check_failed_output }}" >> $GITHUB_ENV
           echo "BUILD_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV
           echo "LINT_ERRORS_CAPTURED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
+
+          echo "BUILD_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
+
           echo "DOUGLAS_OUTCOME_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome_output }}" >> $GITHUB_ENV
           echo "IMGUR_URL_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url_output }}" >> $GITHUB_ENV
 
@@ -675,6 +678,7 @@ jobs:
             const initialChecksOk = process.env.CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT === 'true';
             const depActionRequired = process.env.DEP_ACTION_REQUIRED_FOR_COMMENT === 'true';
             const assetActionRequired = process.env.ASSET_ACTION_REQUIRED_FOR_COMMENT === 'true';
+            const dedicatedLintFailed = process.env.DEDICATED_LINT_FAILED_FOR_COMMENT === 'true';
             const buildFailed = process.env.BUILD_FAILED_FOR_COMMENT === 'true';
             const lintErrorsCaptured = process.env.LINT_ERRORS_CAPTURED_FOR_COMMENT === 'true';
 
@@ -714,6 +718,7 @@ jobs:
 
             commentBody += `### 3. Build, Lint & Douglas Check (Job: ${buildJobResult || 'N/A'})\n`;
             if (buildJobResult === 'skipped') commentBody += `🟡 Skipped (due to pending dependencies/assets).\n`;
+            else if (dedicatedLintFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
             else if (buildFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
             else if (buildFailed) commentBody += `🚨 **Build Failed (Non-Lint Issue):** Manual review needed.\n`;
             else { 
@@ -750,6 +755,9 @@ jobs:
               commentBody += `⏳ **VPR Handoff:** Asset instructions found. **AI Asset Provisioner (AAP)** will be triggered (future).`;
               vprFailedOverall = true; 
             } else if (buildFailed && lintErrorsCaptured) { 
+              commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
+              vprFailedOverall = true; 
+            } else if (dedicatedLintFailed && lintErrorsCaptured) { 
               commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
               vprFailedOverall = true; 
             } else if (buildFailed) { 

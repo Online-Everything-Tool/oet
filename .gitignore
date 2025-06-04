@@ -18,6 +18,8 @@ infra/data
 public/assets
 public/api/all-tool-metadata.json
 
+scripts/_data
+
 app/api/generate-tool-resources/_contexts
 
 public/sw.js
