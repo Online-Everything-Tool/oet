@@ -399,7 +399,6 @@ jobs:
           echo "lint_log_path=$COMBINED_LINT_LOG_FILE_PATH" >> $GITHUB_OUTPUT
 
           # --- 1. Run 'npm run lint' (next lint) ---
-          echo "--- Output of 'npm run lint' (next lint) ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
           set +e
           npm run lint >> "$NEXT_LINT_LOG_FILE_PATH" 2>&1
           NEXT_LINT_EXIT_CODE=$?
@@ -419,15 +418,9 @@ jobs:
           else
             echo "'npm run lint' (next lint) reported no errors."
           fi
-          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
-          echo "--- 'npm run lint' (next lint) Check Complete ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
-          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
-
-
           # --- 2. Run 'npx tsc --noEmit --pretty' ---
-          echo "--- Output of 'npx tsc --noEmit --pretty' ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
           set +e
-          npx tsc --noEmit --pretty >> "$TSC_LOG_FILE_PATH" 2>&1
+          npx tsc --noEmit --pretty false >> "$TSC_LOG_FILE_PATH" 2>&1
           TSC_EXIT_CODE=$?
           set -e
 
@@ -445,10 +438,6 @@ jobs:
           else
             echo "'npx tsc --noEmit' reported no type errors."
           fi
-          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
-          echo "--- 'npx tsc --noEmit --pretty' Check Complete ---" >> "$COMBINED_LINT_LOG_FILE_PATH"
-          echo "" >> "$COMBINED_LINT_LOG_FILE_PATH"
-
           # --- 3. Set Final GitHub Actions Outputs ---
           if [[ "$LINT_STEP_FAILED_FLAG" == "true" ]]; then
             echo "lint_check_failed=true" >> $GITHUB_OUTPUT
