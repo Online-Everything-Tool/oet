@@ -10,5 +10,6 @@
       "reason": "TypeScript typings for pako"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
