@@ -21,7 +21,6 @@ interface LatestAdditionsData {
 const titleClasses =
   'px-3 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
 
-
 export default function HeaderFavorites() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const { getToolMetadata, isLoading: metadataLoading } = useMetadata();

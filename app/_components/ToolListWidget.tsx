@@ -18,7 +18,6 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTools = useMemo(() => {
-    // ... (filtering logic remains the same) ...
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerCaseSearchTerm) {
       return initialTools;
@@ -70,7 +69,7 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
                 >
                   {tool.title}
                 </Link>
-                <p className="text-xs text-[rgb(var(--color-text-muted))] line-clamp-3 flex-grow">
+                <p className="text-sm text-[rgb(var(--color-text-muted))] line-clamp-3 flex-grow">
                   {tool.description}
                 </p>
               </div>

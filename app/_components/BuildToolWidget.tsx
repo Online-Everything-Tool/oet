@@ -13,7 +13,7 @@ export default function BuildToolWidget({
   modelNameUsed,
 }: BuildToolWidgetProps) {
   return (
-    <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm space-y-4">
+    <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm">
       {/* Main Build Section */}
       <div>
         <h2 className="text-xl font-semibold mb-3 text-[rgb(var(--color-text-base))]">

@@ -5,7 +5,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import useToolState from './tool/_hooks/useToolState';
 import ToolListWidget from './_components/ToolListWidget';
 import BuildToolWidget from './_components/BuildToolWidget';
-import { useMetadata } from './context/MetadataContext'; // Import useMetadata
+import { useMetadata } from './context/MetadataContext';
 
 export interface ToolDisplayData {
   href: string;
@@ -13,30 +13,21 @@ export interface ToolDisplayData {
   description: string;
 }
 
-// HomeClientProps is no longer needed if initialTools is not passed as a prop
-// interface HomeClientProps {
-//   initialTools: ToolDisplayData[];
-// }
-
 interface HomeToolState {
-  terms: boolean; // For now, will be introModalPermanentlyDismissed later
-  // introModalPermanentlyDismissed?: boolean; // Example for later
+  terms: boolean;
 }
 
 const DEFAULT_HOME_STATE: HomeToolState = {
   terms: false,
-  // introModalPermanentlyDismissed: false, // Example for later
 };
 
 export default function Home(/*{ initialTools }: HomeClientProps*/) {
-  // initialTools prop removed
   const toolRouteForState = `/tool/home`;
 
   const {
     state: homePersistentState,
     setState: setHomePersistentState,
     isLoadingState: isLoadingToolSavedState,
-    // errorLoadingState: toolStateError, // If you need to display this error
   } = useToolState<HomeToolState>(toolRouteForState, DEFAULT_HOME_STATE);
 
   const [projectAnalysis, setProjectAnalysis] = useState<{
@@ -47,12 +38,8 @@ export default function Home(/*{ initialTools }: HomeClientProps*/) {
   const [isLoadingProjectAnalysis, setIsLoadingProjectAnalysis] =
     useState(true);
 
-  // Use MetadataContext to get tool metadata
-  const {
-    getAllToolMetadataArray,
-    isLoading: isLoadingMetadata,
-    // error: metadataError, // If you need to display this error
-  } = useMetadata();
+  const { getAllToolMetadataArray, isLoading: isLoadingMetadata } =
+    useMetadata();
 
   useEffect(() => {
     const fetchProjectAnalysis = async () => {
@@ -71,16 +58,15 @@ export default function Home(/*{ initialTools }: HomeClientProps*/) {
         });
       } catch (error) {
         console.error('Error fetching project_analysis.json:', error);
-        // Set a default or empty state for projectAnalysis on error
+
         setProjectAnalysis({ suggestedDirectives: [], modelNameUsed: null });
       } finally {
         setIsLoadingProjectAnalysis(false);
       }
     };
     fetchProjectAnalysis();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
-  // Derive initialTools for ToolListWidget from metadata
   const initialToolsForWidget: ToolDisplayData[] = useMemo(() => {
     if (isLoadingMetadata) {
       return [];
@@ -99,12 +85,10 @@ export default function Home(/*{ initialTools }: HomeClientProps*/) {
       .sort((a, b) => a.title.localeCompare(b.title));
   }, [getAllToolMetadataArray, isLoadingMetadata]);
 
-  // Determine overall loading state for the page content
   const isPageContentLoading =
     isLoadingProjectAnalysis || isLoadingMetadata || isLoadingToolSavedState;
 
   if (isPageContentLoading) {
-    // A more specific loading skeleton could be beneficial
     return (
       <div className="space-y-10 animate-pulse">
         {/* Placeholder for ToolListWidget */}
@@ -123,7 +107,7 @@ export default function Home(/*{ initialTools }: HomeClientProps*/) {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="flex flex-col gap-4">
       <ToolListWidget initialTools={initialToolsForWidget} />
       <BuildToolWidget
         suggestedDirectives={projectAnalysis?.suggestedDirectives || []}

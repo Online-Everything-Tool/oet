@@ -168,7 +168,8 @@ export default function GenerateToolResources({
       return;
     }
 
-    fetch('/api/generate-modal-narrative', {
+    const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL;
+    fetch(`${apiUrl}/api/generate-modal-narrative`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
