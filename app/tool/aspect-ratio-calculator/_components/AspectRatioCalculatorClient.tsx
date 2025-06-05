@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
-import Input from '../../../_components/form/Input';
-import Button from '../../../_components/form/Button';
-import useToolUrlState from '../../../_hooks/useToolUrlState';
+import Input from '@/app/_components/form/Input';
+import Button from '@/app/_components/form/Button';
+import useToolUrlState from '@/app/_hooks/useToolUrlState';
 import { useAspectRatioCalculations } from '../_hooks/useAspectRatioCalculations';
 import type { ToolMetadata, ParamConfig } from '@/src/types/tools';
 import importedMetadata from '../metadata.json';
