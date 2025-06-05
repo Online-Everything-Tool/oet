@@ -41,9 +41,8 @@ const useGzipDecompress = (): UseGzipDecompressReturn => {
       const gzippedData = new Uint8Array(arrayBuffer);
 
       // pako's ungzip with header option
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pakoHeader: any = {};
-      const result = pako.ungzip(gzippedData, { header: pakoHeader });
+      const pakoHeader: pako.Unzip$Options = {};
+      const result = pako.ungzip(gzippedData, pakoHeader);
       
       setDecompressedData(result);
       
