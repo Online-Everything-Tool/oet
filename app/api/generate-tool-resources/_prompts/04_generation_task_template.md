@@ -2,5 +2,3 @@
 Generate the FULL, COMPLETE, and VALID source code for the new tool "{{TOOL_DIRECTIVE}}", strictly adhering to all the rules, ITDE patterns, types, hooks, and components demonstrated above and in the examples/core context.
 This includes generating the **three core files** (`{{SERVER_COMPONENT_PATH}}`, `{{CLIENT_COMPONENT_PATH}}`, `{{METADATA_PATH}}`) AND **any necessary additional custom hook or sub-component files** (in `{{TOOL_BASE_PATH}}/_hooks/` or `{{TOOL_BASE_PATH}}/_components/`) if the tool's complexity warrants decomposition according to Rule #3.
 Ensure the `metadata.json` file always includes `inputConfig` (as an array) and `outputConfig` (as an object), as these are mandatory fields. If a tool does not accept any specific inputs, provide an empty array for `inputConfig` (e.g., `"inputConfig": []`). If a tool does not have a transferable output, use `"outputConfig": { "transferableContent": { "dataType": "none" } }`.
-
-Identify any potential _external_ npm libraries needed beyond those defined in package.json. @types libraries for _external_ npm libraries should also be identified.

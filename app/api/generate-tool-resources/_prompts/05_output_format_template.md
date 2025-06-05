@@ -27,21 +27,17 @@ The content between `---START_DEPS---` and `---END_DEPS---` MUST be a valid JSON
 
 ---START_ASSET_INSTRUCTIONS---
 This tool requires additional static assets. Please follow these instructions:
-
-1. Download X from Y_URL and place it in 'public/data/{{TOOL_DIRECTIVE}}/assets/X'.
-   ---END_ASSET_INSTRUCTIONS---
+1. Client utilizes '/data/{{TOOL_DIRECTIVE}}/assets/X'.
+---END_ASSET_INSTRUCTIONS---
 
 **For the overall message:**
 
 ---START_MESSAGE---
-<Brief message about generation success or any warnings.
-If asset_instructions are provided, the message could also hint at this, e.g.,
-"Tool generation successful. If asset setup notes are displayed below, please review them for manual steps.">
+Brief message about generation success including dependencies
 ---END_MESSAGE---
 
-**Example of the complete plain text output structure (including optional asset instructions):**
+**Example of the complete plain text output structure (including optional hook, dependencies, and asset instructions):**
 
-```text
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
 // ... page.tsx code ...
 ---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
@@ -49,6 +45,10 @@ If asset_instructions are provided, the message could also hint at this, e.g.,
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
 // ... client.tsx code ...
 ---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
+
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_hooks/use{{COMPONENT_NAME}}Client.ts---
+// ... hooks code ...
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_hooks/use{{COMPONENT_NAME}}Client.ts---
 
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/metadata.json---
 // ... metadata.json content ...
@@ -62,12 +62,9 @@ If asset_instructions are provided, the message could also hint at this, e.g.,
 
 ---START_ASSET_INSTRUCTIONS---
 This tool utilizes face-api.js and requires its pre-trained models.
-1. Obtain the 'tiny_face_detector' and 'face_landmark_68_tiny_model' models (weights and manifest files) from the official face-api.js repository.
-2. Place these model files into the following directory in your project: 'public/data/{{TOOL_DIRECTIVE}}/face-api-models/'.
-3. The generated client code expects to load models from '/data/{{TOOL_DIRECTIVE}}/face-api-models/'.
+1. Model files should be placed in 'public/data/{{TOOL_DIRECTIVE}}/face-api-models/face_landmark_68_tiny_model-shard1'.
 ---END_ASSET_INSTRUCTIONS---
 
 ---START_MESSAGE---
-Successfully generated resources for {{TOOL_DIRECTIVE}}. Note: This tool requires manual setup of face-api.js models as per ASSET_INSTRUCTIONS.
+Successfully generated resources for {{TOOL_DIRECTIVE}}. Note: This tool requires manual setup of face-api.js models as per dependencies and asset instructions.
 ---END_MESSAGE---
-```
