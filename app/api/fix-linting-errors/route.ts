@@ -138,15 +138,19 @@ function preprocessLintOutput(
       !trimmedLine ||
       trimmedLine.startsWith('info  - Need to disable some ESLint rules?') ||
       trimmedLine.startsWith('Next.js build worker exited') ||
-      trimmedLine.startsWith("--- Output of 'npm run lint'") || // Added to ignore our headers
-      trimmedLine.startsWith("--- 'npm run lint' (next lint) Check Complete ---") || // Added
-      trimmedLine.startsWith("--- Output of 'npx tsc --noEmit --pretty'") || // Added
-      trimmedLine.startsWith("--- 'npx tsc --noEmit --pretty' Check Complete ---") || // Added
-      trimmedLine.match(/^Found \d+ errors? in \d+ files?\.?$/) || // Added for TSC summary
-      trimmedLine.match(/^Errors\s+Files$/) || // Added for TSC summary
-      trimmedLine.match(/^\s*\d+\s+app\/.*/) // Added for TSC summary table (e.g. "     1  app/context/...")
+      trimmedLine.startsWith("--- Output of 'npm run lint'") ||
+      trimmedLine.startsWith(
+        "--- 'npm run lint' (next lint) Check Complete ---"
+      ) ||
+      trimmedLine.startsWith("--- Output of 'npx tsc --noEmit --pretty'") ||
+      trimmedLine.startsWith(
+        "--- 'npx tsc --noEmit --pretty' Check Complete ---"
+      ) ||
+      trimmedLine.match(/^Found \d+ errors? in \d+ files?\.?$/) ||
+      trimmedLine.match(/^Errors\s+Files$/) ||
+      trimmedLine.match(/^\s*\d+\s+app\/.*/)
     ) {
-      continue; // Skip these non-error/summary lines
+      continue;
     }
 
     const eslintHeaderMatch = trimmedLine.match(eslintHeaderPathRegex);

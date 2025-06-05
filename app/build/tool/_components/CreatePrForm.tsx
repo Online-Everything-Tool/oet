@@ -200,6 +200,38 @@ export default function CreatePrForm({
         </div>
       )}
 
+      {generationResult.identifiedDependencies &&
+        generationResult.identifiedDependencies.length > 0 && (
+          <div className="mb-4 p-3 border border-purple-300 dark:border-purple-600 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+            <h3 className="text-sm font-semibold mb-2 flex items-center">
+              <InformationCircleIcon className="h-5 w-5 mr-2 text-purple-500 dark:text-purple-400" />
+              AI Identified Potential NPM Dependencies:
+            </h3>
+            <ul className="list-disc list-outside pl-5 space-y-1 text-xs">
+              {generationResult.identifiedDependencies.map((dep, index) => (
+                <li key={index}>
+                  <code className="font-mono bg-purple-100 dark:bg-purple-700/40 px-1 py-0.5 rounded">
+                    {dep.packageName}
+                  </code>
+                  {dep.reason && (
+                    <span className="italic text-purple-600 dark:text-purple-400">
+                      {' '}
+                      - {dep.reason}
+                    </span>
+                  )}
+                  {dep.importUsed && (
+                    <span className="text-xs text-purple-500 dark:text-purple-500">
+                      {' '}
+                      (e.g., import used:{' '}
+                      <code className="font-mono">{dep.importUsed}</code>)
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
       {generationResult.assetInstructions && (
         <div className="mb-4 p-3 border border-blue-300 rounded-lg bg-blue-50 text-blue-700">
           <h3 className="text-sm font-semibold mb-2 flex items-center">

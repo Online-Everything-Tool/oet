@@ -8,8 +8,8 @@
 3.  **Decomposition:** For tools with significant complexity (many states, complex UI sections, intricate logic), DO NOT put everything into the main Client Component. Instead, decompose by generating additional helper files:
     - **Custom Hooks:** For tool-specific complex state logic, side effects, or reusable calculations, create custom hooks in `app/tool/<directive>/_hooks/<hookName>.ts`.
     - **Sub-Components:** For complex UI sections, break them into smaller, focused presentational components in `app/tool/<directive>/_components/<SubComponentName>.tsx`.
-4.  **Libraries:** 
-    - Leverage existing project dependencies listed in `package.json` (like `uuid`, `date-fns`, `use-debounce`, `swipper`, etc.) when their functionality is applicable.  
+4.  **Libraries:**
+    - Leverage existing project dependencies listed in `package.json` (like `uuid`, `date-fns`, `use-debounce`, `swipper`, etc.) when their functionality is applicable.
     - **Critical** If an external npm library is to be utilized it **must** be identify it in the `---START_DEPS---` block.
     - **Critical** Associated @types libraries for external dependencies **must** be included in the `---START_DEPS---` block.
 5.  **UI:**

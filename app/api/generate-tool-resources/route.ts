@@ -99,7 +99,7 @@ function parseDelimitedAIResponse(
     generatedFiles[filePath] = fileContent;
   }
 
-  console.log('generatedFiles length:', Object.keys(generatedFiles).length)
+  console.log('generatedFiles length:', Object.keys(generatedFiles).length);
 
   const depsRegex = /---START_DEPS---([\s\S]*?)---END_DEPS---/;
   const depsMatch = responseText.match(depsRegex);
@@ -113,7 +113,7 @@ function parseDelimitedAIResponse(
             dep !== null &&
             'packageName' in dep &&
             typeof (dep as { packageName: unknown }).packageName === 'string'
-        );        
+        );
       } else {
         console.warn(
           '[API parseDelimited] Parsed dependencies is not an array, defaulting to empty.'
@@ -128,24 +128,27 @@ function parseDelimitedAIResponse(
     }
   }
 
-  console.log('identifiedDependencies length:', identifiedDependencies.length)
+  console.log('identifiedDependencies length:', identifiedDependencies.length);
 
   const assetInstructionsRegex =
     /---START_ASSET_INSTRUCTIONS---([\s\S]*?)---END_ASSET_INSTRUCTIONS---/;
   const assetInstructionsMatch = responseText.match(assetInstructionsRegex);
   if (assetInstructionsMatch && assetInstructionsMatch[1]) {
     assetInstructions = assetInstructionsMatch[1].trim();
-    if (assetInstructions === '') assetInstructions = null;    
+    if (assetInstructions === '') assetInstructions = null;
   }
-  console.log('assetInstructions length:', assetInstructions && assetInstructions.length || 0);
+  console.log(
+    'assetInstructions length:',
+    (assetInstructions && assetInstructions.length) || 0
+  );
 
   const messageRegex = /---START_MESSAGE---([\s\S]*?)---END_MESSAGE---/;
   const messageMatch = responseText.match(messageRegex);
   if (messageMatch && messageMatch[1]) {
     message = messageMatch[1].trim();
   }
-  
-  console.log('message length:', message && message.length || 0);
+
+  console.log('message length:', (message && message.length) || 0);
 
   if (Object.keys(generatedFiles).length === 0) {
     console.warn(

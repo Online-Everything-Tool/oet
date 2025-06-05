@@ -27,8 +27,9 @@ The content between `---START_DEPS---` and `---END_DEPS---` MUST be a valid JSON
 
 ---START_ASSET_INSTRUCTIONS---
 This tool requires additional static assets. Please follow these instructions:
+
 1. Client utilizes '/data/{{TOOL_DIRECTIVE}}/assets/X'.
----END_ASSET_INSTRUCTIONS---
+   ---END_ASSET_INSTRUCTIONS---
 
 **For the overall message:**
 
@@ -42,13 +43,13 @@ Brief message about generation success including dependencies
 // ... page.tsx code ...
 ---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/page.tsx---
 
----START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/\_components/{{COMPONENT_NAME}}Client.tsx---
 // ... client.tsx code ...
----END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_components/{{COMPONENT_NAME}}Client.tsx---
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/\_components/{{COMPONENT_NAME}}Client.tsx---
 
----START_FILE:app/tool/{{TOOL_DIRECTIVE}}/_hooks/use{{COMPONENT_NAME}}Client.ts---
+---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/\_hooks/use{{COMPONENT_NAME}}Client.ts---
 // ... hooks code ...
----END_FILE:app/tool/{{TOOL_DIRECTIVE}}/_hooks/use{{COMPONENT_NAME}}Client.ts---
+---END_FILE:app/tool/{{TOOL_DIRECTIVE}}/\_hooks/use{{COMPONENT_NAME}}Client.ts---
 
 ---START_FILE:app/tool/{{TOOL_DIRECTIVE}}/metadata.json---
 // ... metadata.json content ...
@@ -56,14 +57,15 @@ Brief message about generation success including dependencies
 
 ---START_DEPS---
 [
-  {"packageName": "face-api.js", "reason": "For face detection"}
+{"packageName": "face-api.js", "reason": "For face detection"}
 ]
 ---END_DEPS---
 
 ---START_ASSET_INSTRUCTIONS---
 This tool utilizes face-api.js and requires its pre-trained models.
+
 1. Model files should be placed in 'public/data/{{TOOL_DIRECTIVE}}/face-api-models/face_landmark_68_tiny_model-shard1'.
----END_ASSET_INSTRUCTIONS---
+   ---END_ASSET_INSTRUCTIONS---
 
 ---START_MESSAGE---
 Successfully generated resources for {{TOOL_DIRECTIVE}}. Note: This tool requires manual setup of face-api.js models as per dependencies and asset instructions.

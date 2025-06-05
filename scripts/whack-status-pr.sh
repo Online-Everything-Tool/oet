@@ -1,9 +1,18 @@
 #!/bin/bash
 # scripts/whack-status-pr.sh
-PR_NUMBER="220" # Or pass as an argument
+
+# Check if a PR number is provided as the first argument
+if [ -z "$1" ]; then
+  echo "Error: PR Number argument is required."
+  echo "Usage: $0 <PR_NUMBER>"
+  exit 1
+fi
+
+PR_NUMBER="$1"
+
 API_URL="http://localhost:3000/api/status-pr" # Or your deployed API
 OUTPUT_DIR="./_data/pr_status_logs_pr${PR_NUMBER}"
-POLL_INTERVAL_SECONDS=2 # How often to poll
+POLL_INTERVAL_SECONDS=3 # How often to poll
 MAX_ATTEMPTS=200 # Max polls to prevent infinite loop
 
 mkdir -p "$OUTPUT_DIR"

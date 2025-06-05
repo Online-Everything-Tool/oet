@@ -363,7 +363,7 @@ jobs:
             echo "tool-generation-info.json not found. Assuming lint fixes have not been attempted."
           fi
           echo "lint_fixes_previously_attempted=$LINT_FIXES_ATTEMPTED" >> $GITHUB_OUTPUT
-        continue-on-error: true           
+        continue-on-error: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -397,7 +397,7 @@ jobs:
           fi
           echo "Project structure pruned for static check."
 
-          npm run prebuild          
+          npm run prebuild
 
       - name: Run Dedicated Lint & Type Check (Combined Next Lint & TSC)
         id: run_dedicated_lint_check
@@ -512,7 +512,7 @@ jobs:
           LINT_CHECK_FAILED="${{ steps.run_dedicated_lint_check.outputs.lint_check_failed }}"
           BUILD_COMMAND_FAILED="${{ steps.build_oet.outputs.build_command_failed }}"
           LINT_FIXES_PREVIOUSLY_ATTEMPTED="${{ steps.read_tool_info_for_alf.outputs.lint_fixes_previously_attempted }}"
-          
+
           ALF_RETRY_NEEDED="false"
           if [[ ("$LINT_CHECK_FAILED" == "true" || "$BUILD_COMMAND_FAILED" == "true") && "$LINT_FIXES_PREVIOUSLY_ATTEMPTED" == "true" ]]; then
             ALF_RETRY_NEEDED="true"
@@ -703,7 +703,7 @@ jobs:
           echo "ANALYZE_DEPS_JOB_RESULT_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.result }}" >> $GITHUB_ENV # Renamed
           echo "DEP_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
           echo "ASSET_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV
-          
+
           echo "DEDICATED_LINT_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.dedicated_lint_check_failed_output }}" >> $GITHUB_ENV
           echo "BUILD_COMMAND_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV # Renamed
           echo "LINT_ERRORS_CAPTURED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
@@ -748,7 +748,7 @@ jobs:
             const toolDirective = process.env.TOOL_DIRECTIVE_FOR_COMMENT || "UnknownTool";
             const prHeadShaShort = (process.env.PR_SHA_FOR_COMMENT || 'N/A').substring(0,7);
             const actionRunUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}?pr=${issue_number}`;
-            
+
             // Variables for decision logic
             const initialChecksPassed = process.env.CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT === 'true';
             const depActionRequired = process.env.DEP_ACTION_REQUIRED_FOR_COMMENT === 'true';
@@ -869,9 +869,9 @@ jobs:
             // Section 4: VPR Workflow Outcome & Next Steps (uses primaryStatusMessageForPR)
             commentBody += `### 4. VPR Workflow Outcome & Next Steps\n`;
             commentBody += `${primaryStatusMessageForPR}\n`;
-            
+
             commentBody += `\n\n---\n*OET CI Bot Report for commit \`${prHeadShaShort}\`*`;
-            
+
             try {
               await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
             } catch (e) {
@@ -892,7 +892,7 @@ jobs:
           # Default to critical failure if the needed output is missing (e.g., Job 4 failed unexpectedly)
           VPR_VERDICT="${{ needs.determine_vpr_verdict_and_comment.outputs.vpr_final_verdict_output || 'CRITICAL_FAILURE' }}"
           echo "VPR Final Verdict received from Job 4: '$VPR_VERDICT'"
-          
+
           CAN_FINALIZE="false"
           JOB_SHOULD_FAIL="false"
           FAILURE_MESSAGE=""
