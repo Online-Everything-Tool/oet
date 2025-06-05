@@ -2,13 +2,13 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import useToolState from '../../_hooks/useToolState';
+import useToolState from '@/app/tool/_hooks/useToolState';
 import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
-import Textarea from '../../_components/form/Textarea';
-import RadioGroup from '../../_components/form/RadioGroup';
-import Button from '../../_components/form/Button';
-import FileSelectionModal from '../../_components/shared/FileSelectionModal';
-import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
+import Textarea from '@/app/tool/_components/form/Textarea';
+import RadioGroup from '@/app/tool/_components/form/RadioGroup';
+import Button from '@/app/tool/_components/form/Button';
+import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
+import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
 import type { StoredFile } from '@/src/types/storage';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useDebouncedCallback } from 'use-debounce';
@@ -20,11 +20,11 @@ import {
 import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
-} from '../../_hooks/useItdeTargetHandler';
+} from '@/app/tool/_hooks/useItdeTargetHandler';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
-import IncomingDataModal from '../../_components/shared/IncomingDataModal';
-import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
-import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
+import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
+import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
 import importedMetadata from '../metadata.json';
 
 type Operation = 'encode' | 'decode';

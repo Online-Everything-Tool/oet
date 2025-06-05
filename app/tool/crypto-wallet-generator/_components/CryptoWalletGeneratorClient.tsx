@@ -18,10 +18,10 @@ import { Buffer } from 'buffer';
 import { Keypair } from '@solana/web3.js';
 import { v4 as uuidv4 } from 'uuid';
 
-import Button from '../../_components/form/Button';
-import RadioGroup from '../../_components/form/RadioGroup';
-import useToolState from '../../_hooks/useToolState';
-import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
+import Button from '@/app/tool/_components/form/Button';
+import RadioGroup from '@/app/tool/_components/form/RadioGroup';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
 import type { ParamConfig } from '@/src/types/tools';
 import {
   ArrowPathIcon,

@@ -1,9 +1,9 @@
 // FILE: app/tool/image-storage/page.tsx
 import React from 'react';
-import ToolHeader from '../../_components/ToolHeader';
-import ToolSettings from '../../_components/ToolSettings';
+import ToolHeader from '@/app/_components/ToolHeader';
+import ToolSettings from '@/app/_components/ToolSettings';
 import metadata from './metadata.json';
-import ToolSuspenseWrapper from '../../_components/ToolSuspenseWrapper';
+import ToolSuspenseWrapper from '@/app/_components/ToolSuspenseWrapper';
 import ImageStorageClient from './_components/ImageStorageClient';
 import { ToolMetadata } from '@/src/types/tools';
 import { toolRoute } from '@/app/lib/utils';

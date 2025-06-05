@@ -1,6 +1,6 @@
 // --- FILE: app/tool/image-montage/_components/ImageAdjustmentCard.tsx ---
 import React from 'react';
-import Range from '../../_components/form/Range';
+import Range from '@/app/tool/_components/form/Range';
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -8,7 +8,7 @@ import {
   ArrowRightIcon,
   TrashIcon,
 } from '@heroicons/react/20/solid';
-import Button from '../../_components/form/Button';
+import Button from '@/app/tool/_components/form/Button';
 
 export interface MontageImageForCard {
   id: number;

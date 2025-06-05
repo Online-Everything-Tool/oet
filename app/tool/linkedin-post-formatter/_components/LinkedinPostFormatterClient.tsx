@@ -7,9 +7,9 @@ import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
 
-import useToolState from '../../_hooks/useToolState';
-import EmojiExplorerModal from '../../_components/shared/EmojiExplorerModal';
-import Button from '../../_components/form/Button';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import EmojiExplorerModal from '@/app/tool/_components/shared/EmojiExplorerModal';
+import Button from '@/app/tool/_components/form/Button';
 import {
   ListBulletIcon,
   Bars3BottomLeftIcon,

@@ -9,7 +9,7 @@ import {
   ChevronRightIcon,
   ChevronDownIcon,
 } from '@heroicons/react/20/solid';
-import Checkbox from '../../_components/form/Checkbox';
+import Checkbox from '@/app/tool/_components/form/Checkbox';
 import { getFileIconClassName, formatBytesCompact } from '@/app/lib/utils';
 
 interface TreeNodeProps {

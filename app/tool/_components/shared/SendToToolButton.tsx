@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import useItdeDiscovery from '../../_hooks/useItdeDiscovery';
+import useItdeDiscovery from '@/app/tool/_hooks/useItdeDiscovery';
 import { signalTargetTool } from '@/app/lib/sessionStorageUtils';
 import type { OutputConfig, DiscoveredTarget } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';

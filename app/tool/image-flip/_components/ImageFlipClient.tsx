@@ -11,7 +11,7 @@ import React, {
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
-import useToolState from '../../_hooks/useToolState';
+import useToolState from '@/app/tool/_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
 import type { ToolMetadata } from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
@@ -19,15 +19,15 @@ import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptMod
 import useImageProcessing from '@/app/tool/_hooks/useImageProcessing';
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
-import RadioGroup from '../../_components/form/RadioGroup';
-import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
+import RadioGroup from '@/app/tool/_components/form/RadioGroup';
+import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
 
 import importedMetadata from '../metadata.json';
 import useItdeTargetHandler, {
   IncomingSignal,
-} from '../../_hooks/useItdeTargetHandler';
-import IncomingDataModal from '../../_components/shared/IncomingDataModal';
-import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+} from '@/app/tool/_hooks/useItdeTargetHandler';
+import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 
 import {

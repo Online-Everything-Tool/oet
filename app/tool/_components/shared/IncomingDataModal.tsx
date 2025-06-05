@@ -10,7 +10,7 @@ import {
   ArchiveBoxXMarkIcon,
   StopCircleIcon,
 } from '@heroicons/react/24/outline';
-import type { IncomingSignal } from '../../_hooks/useItdeTargetHandler';
+import type { IncomingSignal } from '@/app/tool/_hooks/useItdeTargetHandler';
 import { XCircleIcon } from '@heroicons/react/24/solid';
 
 interface IncomingDataModalProps {

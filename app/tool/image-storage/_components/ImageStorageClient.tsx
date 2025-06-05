@@ -13,7 +13,7 @@ import GenericStorageClient, {
   DefaultItemActionHandlers,
   FeedbackStateEntry,
   CustomBulkActionConfig,
-} from '../../_components/storage/GenericStorageClient';
+} from '@/app/tool/_components/storage/GenericStorageClient';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import importedMetadata from '../metadata.json';
 import type { ToolMetadata } from '@/src/types/tools';
@@ -26,7 +26,7 @@ import {
   ArrowDownTrayIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import Button from '../../_components/form/Button';
+import Button from '@/app/tool/_components/form/Button';
 import ImagePreviewModal from './ImagePreviewModal';
 
 interface ImageStorageClientProps {

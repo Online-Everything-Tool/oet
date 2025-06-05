@@ -7,12 +7,12 @@ import GenericStorageClient, {
   DefaultItemActionHandlers,
   FeedbackStateEntry,
   CustomPrimaryCreateConfig,
-} from '../../_components/storage/GenericStorageClient';
+} from '@/app/tool/_components/storage/GenericStorageClient';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { ToolMetadata } from '@/src/types/tools';
 import type { StoredFile } from '@/src/types/storage';
 import { getFileIconClassName } from '@/app/lib/utils';
-import Input from '../../_components/form/Input';
+import Input from '@/app/tool/_components/form/Input';
 import {
   PlayIcon,
   PencilSquareIcon,
@@ -20,7 +20,7 @@ import {
   TrashIcon,
   ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
-import Button from '../../_components/form/Button';
+import Button from '@/app/tool/_components/form/Button';
 import AddSongModal from './AddSongModal';
 import PlaySongView from './PlaySongView';
 

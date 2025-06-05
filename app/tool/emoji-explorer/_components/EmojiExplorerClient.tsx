@@ -2,9 +2,9 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
-import useToolState from '../../_hooks/useToolState';
-import Button from '../../_components/form/Button';
-import Input from '../../_components/form/Input';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import Button from '@/app/tool/_components/form/Button';
+import Input from '@/app/tool/_components/form/Input';
 
 import { getUniqueSortedValues } from '@/app/lib/utils';
 import { RichEmojiData } from '@/src/constants/emojis';

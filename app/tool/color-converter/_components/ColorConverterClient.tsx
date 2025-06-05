@@ -2,8 +2,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import useToolState from '../../_hooks/useToolState';
-import Button from '../../_components/form/Button';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import Button from '@/app/tool/_components/form/Button';
 import type { ParamConfig } from '@/src/types/tools';
 import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb } from '@/app/lib/colorUtils';
 import { useDebouncedCallback } from 'use-debounce';

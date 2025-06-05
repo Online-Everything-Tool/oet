@@ -13,11 +13,11 @@ import Image from 'next/image';
 import type { RawZipEntry, TreeNodeData } from './types';
 import { buildFileTree } from './utils';
 import TreeNode from './TreeNode';
-import FileSelectionModal from '../../_components/shared/FileSelectionModal';
-import Button from '../../_components/form/Button';
-import Select from '../../_components/form/Select';
-import Input from '../../_components/form/Input';
-import useToolState from '../../_hooks/useToolState';
+import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
+import Button from '@/app/tool/_components/form/Button';
+import Select from '@/app/tool/_components/form/Select';
+import Input from '@/app/tool/_components/form/Input';
+import useToolState from '@/app/tool/_hooks/useToolState';
 import type { StoredFile } from '@/src/types/storage';
 import {
   PREVIEWABLE_TEXT_EXTENSIONS,
@@ -38,11 +38,11 @@ import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import useItdeTargetHandler, {
   IncomingSignal,
-} from '../../_hooks/useItdeTargetHandler';
-import IncomingDataModal from '../../_components/shared/IncomingDataModal';
-import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+} from '@/app/tool/_hooks/useItdeTargetHandler';
+import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
-import SendToToolButton from '../../_components/shared/SendToToolButton';
+import SendToToolButton from '@/app/tool/_components/shared/SendToToolButton';
 import toolSpecificMetadata from '../metadata.json';
 import type {
   ToolMetadata as AppToolMetadata,

@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import GenericStorageClient from '../../_components/storage/GenericStorageClient';
+import GenericStorageClient from '@/app/tool/_components/storage/GenericStorageClient';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import importedMetadata from '../metadata.json';
 import type { ToolMetadata } from '@/src/types/tools';

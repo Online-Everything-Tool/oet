@@ -12,7 +12,7 @@ import React, {
 import type { ButtonVariant } from '../form/Button';
 import type { StoredFile } from '@/src/types/storage';
 import type { ToolMetadata, OutputConfig } from '@/src/types/tools';
-import useToolState from '../../_hooks/useToolState';
+import useToolState from '@/app/tool/_hooks/useToolState';
 
 import StorageControls from './StorageControls';
 import FileListView from './FileListView';

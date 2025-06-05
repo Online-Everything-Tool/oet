@@ -13,8 +13,8 @@ import { useDebouncedCallback } from 'use-debounce';
 import type { StoredFile } from '@/src/types/storage';
 import type { SongData } from './SongbookClient';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
-import Button from '../../_components/form/Button';
-import Range from '../../_components/form/Range';
+import Button from '@/app/tool/_components/form/Button';
+import Range from '@/app/tool/_components/form/Range';
 import {
   XMarkIcon,
   PlayIcon as PlaySolidIcon,

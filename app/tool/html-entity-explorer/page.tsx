@@ -3,8 +3,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import HtmlEntityExplorerClient from './_components/HtmlEntityExplorerClient';
 import { v4 as uuidv4 } from 'uuid';
-import ToolHeader from '../../_components/ToolHeader';
-import ToolSettings from '../../_components/ToolSettings';
+import ToolHeader from '@/app/_components/ToolHeader';
+import ToolSettings from '@/app/_components/ToolSettings';
 import metadata from './metadata.json';
 import { ToolMetadata } from '@/src/types/tools';
 

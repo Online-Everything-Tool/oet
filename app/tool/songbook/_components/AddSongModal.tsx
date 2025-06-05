@@ -2,9 +2,9 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Button from '../../_components/form/Button';
-import Input from '../../_components/form/Input';
-import Textarea from '../../_components/form/Textarea';
+import Button from '@/app/tool/_components/form/Button';
+import Input from '@/app/tool/_components/form/Input';
+import Textarea from '@/app/tool/_components/form/Textarea';
 import {
   XMarkIcon,
   DocumentPlusIcon,

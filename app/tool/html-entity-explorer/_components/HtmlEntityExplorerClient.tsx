@@ -3,10 +3,10 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import type { RichEntityData } from '../page';
-import useToolState from '../../_hooks/useToolState';
-import Button from '../../_components/form/Button';
-import Input from '../../_components/form/Input';
-import Select from '../../_components/form/Select';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import Button from '@/app/tool/_components/form/Button';
+import Input from '@/app/tool/_components/form/Input';
+import Select from '@/app/tool/_components/form/Select';
 import {
   CheckIcon,
   XMarkIcon,

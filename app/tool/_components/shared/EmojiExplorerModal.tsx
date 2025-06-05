@@ -18,7 +18,7 @@ import {
   CheckIcon,
 } from '@heroicons/react/20/solid';
 import { RichEmojiData } from '@/src/constants/emojis';
-import useToolState from '../../_hooks/useToolState';
+import useToolState from '@/app/tool/_hooks/useToolState';
 
 interface EmojiExplorerToolState {
   searchTerm: string;

@@ -2,10 +2,10 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import useToolState from '../../_hooks/useToolState';
-import Input from '../../_components/form/Input';
-import Button from '../../_components/form/Button';
-import Checkbox from '../../_components/form/Checkbox';
+import useToolState from '@/app/tool/_hooks/useToolState';
+import Input from '@/app/tool/_components/form/Input';
+import Button from '@/app/tool/_components/form/Button';
+import Checkbox from '@/app/tool/_components/form/Checkbox';
 import {
   LOWERCASE,
   UPPERCASE,

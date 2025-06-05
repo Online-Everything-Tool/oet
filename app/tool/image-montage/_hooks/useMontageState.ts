@@ -1,7 +1,7 @@
 // --- FILE: app/tool/image-montage/_hooks/useMontageState.ts ---
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { StoredFile } from '@/src/types/storage';
-import useToolState from '../../_hooks/useToolState';
+import useToolState from '@/app/tool/_hooks/useToolState';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { v4 as uuidv4 } from 'uuid';
 

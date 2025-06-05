@@ -18,14 +18,14 @@ import { useMontageCanvas } from '../_hooks/useMontageCanvas';
 import ImageAdjustmentCard, {
   MontageImageForCard,
 } from './ImageAdjustmentCard';
-import { OutputActionButtons } from '../../_components/shared/OutputActionButtons';
-import Button from '../../_components/form/Button';
+import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
+import Button from '@/app/tool/_components/form/Button';
 
-import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
-import FileSelectionModal from '../../_components/shared/FileSelectionModal';
+import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
+import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import type { StoredFile } from '@/src/types/storage';
 import type { ToolMetadata } from '@/src/types/tools';
-import RadioGroup from '../../_components/form/RadioGroup';
+import RadioGroup from '@/app/tool/_components/form/RadioGroup';
 import {
   XCircleIcon,
   ArrowPathIcon,
@@ -37,12 +37,12 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useItdeTargetHandler, {
   IncomingSignal,
-} from '../../_hooks/useItdeTargetHandler';
-import IncomingDataModal from '../../_components/shared/IncomingDataModal';
-import ReceiveItdeDataTrigger from '../../_components/shared/ReceiveItdeDataTrigger';
+} from '@/app/tool/_hooks/useItdeTargetHandler';
+import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
+import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
 import ItdeAcceptChoiceModal, {
   ItdeChoiceOption,
-} from '../../_components/shared/ItdeAcceptChoiceModal';
+} from '@/app/tool/_components/shared/ItdeAcceptChoiceModal';
 import importedMetadata from '../metadata.json';
 import { ResolvedItdeData, resolveItdeData } from '@/app/lib/itdeDataUtils';
 
