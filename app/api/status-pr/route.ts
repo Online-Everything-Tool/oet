@@ -114,7 +114,6 @@ interface NetlifyStatusInfo {
   url: string | null;
   app_slug?: string | null;
   deployment_id?: string | null;
-  deploy_url?: string | null;
   check_runs?: NetlifyCheckRun[];
 }
 interface PrComment {
@@ -135,6 +134,7 @@ interface PrCiSummaryData {
   netlifyStatus: NetlifyStatusInfo | null;
   recentComments: PrComment[];
   imgurScreenshotUrl: string | null;
+  netlifyPreviewUrl: string | null;
   timestamp: string;
 }
 
@@ -479,7 +479,6 @@ async function fetchFullPrCiSummary(
 
   let netlifyStatus: NetlifyStatusInfo | null = null;
   if (netlifyCheckSuiteData) {
-    let deployUrl: string | null = null;
     const deploymentId: string | null = null;
     let checkRunsForSuite: NetlifyCheckRun[] = [];
 
@@ -498,31 +497,6 @@ async function fetchFullPrCiSummary(
       output: cr.output,
     }));
 
-    const deployPreviewRun = checkRunsForSuite.find((cr) =>
-      cr.name.toLowerCase().includes('deploy preview')
-    );
-    if (deployPreviewRun?.details_url?.includes('netlify.app')) {
-      deployUrl = deployPreviewRun.details_url;
-    } else if (
-      deployPreviewRun?.output?.summary?.includes('https://') &&
-      deployPreviewRun.output.summary.includes('netlify.app')
-    ) {
-      const urlMatch = deployPreviewRun.output.summary.match(
-        /(https:\/\/[^ ]*netlify\.app[^ ]*)/
-      );
-      if (urlMatch && urlMatch[0]) deployUrl = urlMatch[0];
-    }
-
-    if (deployUrl) {
-      const deployIdMatch = deployUrl.match(/deploy-preview-\d+--[^.]+/);
-      if (deployIdMatch && deployIdMatch[0]) {
-        const fullSubdomain = deployIdMatch[0];
-        const actualDeployIdMatch = fullSubdomain.match(/^deploy-preview-\d+/);
-        if (actualDeployIdMatch && actualDeployIdMatch[0]) {
-        }
-      }
-    }
-
     netlifyStatus = {
       id: netlifyCheckSuiteData.id,
       status: netlifyCheckSuiteData.status,
@@ -530,7 +504,6 @@ async function fetchFullPrCiSummary(
       url: netlifyCheckSuiteData.url,
       app_slug: netlifyCheckSuiteData.app?.slug,
       deployment_id: deploymentId,
-      deploy_url: deployUrl,
       check_runs: checkRunsForSuite,
     };
   }
@@ -594,6 +567,17 @@ async function fetchFullPrCiSummary(
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
+  let netlifyPreviewUrlFromComments: string | null = null;
+  const netlifyBotCommentForNetlifyPreviewUrl = recentComments.find(
+    (c) => c.botType === 'Netlify' && c.body
+  );
+  if (netlifyBotCommentForNetlifyPreviewUrl?.body) {
+    const urlMatch = netlifyBotCommentForNetlifyPreviewUrl.body.match(
+      /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
+    );
+    if (urlMatch && urlMatch[0]) netlifyPreviewUrlFromComments = urlMatch[0];
+  }
+
   let imgurScreenshotUrlFromComments: string | null = null;
   const vprBotCommentForImgur = recentComments.find(
     (c) =>
@@ -627,6 +611,7 @@ async function fetchFullPrCiSummary(
     netlifyStatus,
     recentComments,
     imgurScreenshotUrl: imgurScreenshotUrlFromComments,
+    netlifyPreviewUrl: netlifyPreviewUrlFromComments,
     timestamp: new Date().toISOString(),
   };
 }
@@ -659,7 +644,10 @@ export async function GET(request: NextRequest) {
       netlifyStatus,
       recentComments,
       imgurScreenshotUrl,
+      netlifyPreviewUrl,
     } = summary;
+
+    console.log('yo:', netlifyPreviewUrl);
 
     let statusSummary = 'Analyzing PR status...';
     let activeWorkflow: AutomatedActionsStatus['activeWorkflow'] = null;
@@ -668,7 +656,6 @@ export async function GET(request: NextRequest) {
     let uiHint: AutomatedActionsStatus['uiHint'] = 'loading';
     let overallCheckStatusForHead: PrStatusApiResponse['overallCheckStatusForHead'] =
       'unknown';
-    let netlifyPreviewUrl: string | null = null;
     let netlifyDeploymentSucceeded = false;
 
     const currentToolGenContent = sourceToolGenerationInfo.content;
@@ -725,37 +712,12 @@ export async function GET(request: NextRequest) {
           overallCheckStatusForHead = 'neutral';
         else overallCheckStatusForHead = 'unknown';
       }
-      if (netlifyStatus?.deploy_url) {
-        netlifyPreviewUrl = netlifyStatus.deploy_url;
-        if (netlifyStatus.conclusion === 'success')
-          netlifyDeploymentSucceeded = true;
-      } else {
-        const netlifyBotComment = recentComments.find(
-          (c) => c.botType === 'Netlify' && c.body?.includes('Deploy Preview')
-        );
-        if (netlifyBotComment?.body) {
-          const urlMatch = netlifyBotComment.body.match(
-            /https:\/\/(deploy-preview-\d+--[a-zA-Z0-9-]+)\.netlify\.app/
-          );
-          if (urlMatch && urlMatch[0]) netlifyPreviewUrl = urlMatch[0];
-        }
-      }
       if (netlifyStatus?.conclusion === 'success')
         netlifyDeploymentSucceeded = true;
     } else {
       if (isVprFinalized) {
         overallCheckStatusForHead = 'pending';
         activeWorkflow = 'Netlify';
-
-        if (netlifyStatus?.deploy_url) {
-          const directiveForUrl = extractToolDirectiveFromBranchName(
-            prInfo.branch
-          );
-          if (directiveForUrl)
-            netlifyPreviewUrl = `${netlifyStatus.deploy_url}/tool/${directiveForUrl}/`;
-          else netlifyPreviewUrl = netlifyStatus.deploy_url;
-        }
-
         if (netlifyStatus?.conclusion === 'success') {
           netlifyDeploymentSucceeded = true;
           statusSummary = `Netlify Deploy Preview for '${toolNameForMsg}' is READY!`;
@@ -955,7 +917,6 @@ export async function GET(request: NextRequest) {
                 status: netlifyStatus.status,
                 conclusion: netlifyStatus.conclusion,
                 url:
-                  netlifyStatus.deploy_url ||
                   netlifyStatus.check_runs?.[0]?.details_url ||
                   netlifyStatus.url,
                 started_at: null,
@@ -1078,7 +1039,10 @@ export async function GET(request: NextRequest) {
       isMerged: prInfo.merged,
       checks: uiChecks,
       overallCheckStatusForHead,
-      netlifyPreviewUrl,
+      netlifyPreviewUrl: netlifyPreviewUrl
+        ? netlifyPreviewUrl +
+          `/tool/${extractToolDirectiveFromBranchName(prInfo.branch)}`
+        : null,
       netlifyDeploymentSucceeded,
       imgurScreenshotUrl,
       toolGenerationInfoForUI,

@@ -234,6 +234,7 @@ export default function ViewPrStatus({
           throw new Error(errorMessage);
         }
         const data: PrStatusApiResponse = await response.json();
+        console.log('status-pr response:', data);
         if (!componentMountedRef.current) return;
 
         if (componentMountedRef.current) {
@@ -764,7 +765,7 @@ ${statusSummaryForIssue}
               <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
                 CI/CD Checks:
               </h3>
-              <ul className="space-y-1 text-sm list-none pl-1 border border-gray-200 dark:border-gray-600 rounded-md p-2 bg-gray-50/50 dark:bg-gray-700/50 max-h-60 overflow-y-auto custom-scrollbar">
+              <ul className="space-y-1 text-sm list-none pl-1 border border-gray-200 dark:border-gray-600 rounded-md p-2 bg-gray-50/50 dark:bg-gray-700/50 max-h-60">
                 {sortedChecks.map((check, idx) => (
                   <li
                     key={`${check.name}-${check.started_at || idx}`}
@@ -812,20 +813,23 @@ ${statusSummaryForIssue}
                   'success'
                 )}`}
               >
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-                  <div className="flex-grow">
-                    <p className="text-md font-semibold">
-                      🎉 Deploy Preview Ready!
-                    </p>
-                    <Link
-                      href={prStatus.netlifyPreviewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block mt-1 text-blue-600 dark:text-blue-400 hover:underline break-all"
-                    >
-                      {prStatus.netlifyPreviewUrl}
-                      <ArrowTopRightOnSquareIcon className="inline h-4 w-4 ml-1" />
-                    </Link>
+                <div className="flex flex-col justify-between items-center gap-3">
+                  <div className="flex gap-2 items-center">
+                    <p className="text-4xl font-semibold">🎉</p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xl font-semibold">
+                        Deploy Preview Ready!
+                      </p>
+                      <Link
+                        href={prStatus.netlifyPreviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block mt-1 text-blue-600 dark:text-blue-400 hover:underline break-all"
+                      >
+                        {prStatus.netlifyPreviewUrl}
+                        <ArrowTopRightOnSquareIcon className="inline h-4 w-4 ml-1" />
+                      </Link>
+                    </div>
                   </div>
                   <Button
                     variant="accent"
@@ -835,25 +839,27 @@ ${statusSummaryForIssue}
                     }
                     className="w-full sm:w-auto mt-2 sm:mt-0 flex-shrink-0"
                   >
-                    Provide Feedback / View Discussion
+                    Feedback / Merge
                   </Button>
                 </div>
               </div>
             )}
 
           {prStatus.imgurScreenshotUrl && !isFeedbackSectionVisible && (
-            <div className="mt-4">
-              <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                Douglas&apos; View (Screenshot):
-              </h4>
-              <Image
-                src={prStatus.imgurScreenshotUrl}
-                alt={`Douglas Screenshot for PR #${prStatus.prNumber}`}
-                width={600}
-                height={400}
-                className="border dark:border-gray-600 rounded-md object-contain max-w-full h-auto"
-                unoptimized
-              />
+            <div className="mt-4 flex justify-center">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                  Douglas&apos; View (Screenshot):
+                </h4>
+                <Image
+                  src={prStatus.imgurScreenshotUrl}
+                  alt={`Douglas Screenshot for PR #${prStatus.prNumber}`}
+                  width={600}
+                  height={400}
+                  className="border dark:border-gray-600 rounded-md object-contain max-w-full h-auto"
+                  unoptimized
+                />
+              </div>
             </div>
           )}
 

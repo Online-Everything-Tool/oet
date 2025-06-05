@@ -599,7 +599,7 @@ export default function BuildToolClient() {
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <div className="flex justify-between items-center mb-2 pb-2 border-b">
         <h1 className="text-2xl font-bold text-gray-800">
-          Build a New Tool (AI Assisted)
+          New Tool (AI Assisted)
           {currentMode === 'monitoring' &&
             monitoredPrNumber &&
             ` - Monitoring PR #${monitoredPrNumber}${toolDirectiveForMonitoring ? ` (${toolDirectiveForMonitoring})` : ''}`}
