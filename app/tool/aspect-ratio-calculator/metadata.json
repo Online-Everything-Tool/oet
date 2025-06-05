@@ -1,0 +1,18 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "Calculates and displays different aspect ratios based on provided image dimensions or custom values. Enter a width and height to see equivalent dimensions for common aspect ratios.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "urlStateParams": [
+    { "paramName": "width", "type": "number", "defaultValue": 1920 },
+    { "paramName": "height", "type": "number", "defaultValue": 1080 }
+  ],
+  "includeInSitemap": true,
+  "status": "stable"
+}
