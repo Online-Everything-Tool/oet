@@ -50,7 +50,7 @@ const Button: React.FC<ButtonProps> = ({
   const isDisabled = disabled || isLoading;
 
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-md shadow-sm transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-1';
+    'inline-flex items-center justify-center font-medium rounded-md shadow-sm transition-colors duration-150 ease-in-out';
 
   const sizeStyles: Record<ButtonSize, string> = {
     sm: 'px-3 py-1.5 text-xs',
@@ -60,32 +60,32 @@ const Button: React.FC<ButtonProps> = ({
 
   const variantStyles: Record<ButtonVariant, string> = {
     primary:
-      'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))] focus:ring-[rgb(var(--color-button-primary-bg))]',
+      'bg-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-text))] hover:bg-[rgb(var(--color-button-primary-hover-bg))]',
     secondary:
-      'bg-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-text))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))] focus:ring-[rgb(var(--color-button-secondary-bg))]',
+      'bg-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-text))] hover:bg-[rgb(var(--color-button-secondary-hover-bg))]',
     accent:
-      'bg-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-text))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] focus:ring-[rgb(var(--color-button-accent-bg))]',
+      'bg-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-text))] hover:bg-[rgb(var(--color-button-accent-hover-bg))]',
     accent2:
-      'bg-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-text))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))] focus:ring-[rgb(var(--color-button-accent2-bg))]',
+      'bg-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-text))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))]',
     danger:
-      'bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))] focus:ring-[rgb(var(--color-button-danger-bg))]',
+      'bg-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-text))] hover:bg-[rgb(var(--color-button-danger-hover-bg))]',
     neutral:
-      'bg-[rgb(var(--color-button-neutral-bg))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-transparent focus:ring-gray-400',
+      'bg-[rgb(var(--color-button-neutral-bg))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgb(var(--color-button-neutral-hover-bg))] border border-transparent',
 
     'primary-outline':
-      'bg-transparent border border-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-bg))] hover:bg-[rgba(var(--color-button-primary-bg)/0.1)] focus:ring-[rgb(var(--color-button-primary-bg))]',
+      'bg-transparent border border-[rgb(var(--color-button-primary-bg))] text-[rgb(var(--color-button-primary-bg))] hover:bg-[rgba(var(--color-button-primary-bg)/0.1)]',
     'secondary-outline':
-      'bg-transparent border border-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgba(var(--color-button-secondary-bg)/0.1)] focus:ring-[rgb(var(--color-button-secondary-bg))]',
+      'bg-transparent border border-[rgb(var(--color-button-secondary-bg))] text-[rgb(var(--color-button-secondary-bg))] hover:bg-[rgba(var(--color-button-secondary-bg)/0.1)]',
     'accent-outline':
-      'bg-transparent border border-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-bg))] hover:bg-[rgba(var(--color-button-accent-bg)/0.1)] focus:ring-[rgb(var(--color-button-accent-bg))]',
+      'bg-transparent border border-[rgb(var(--color-button-accent-bg))] text-[rgb(var(--color-button-accent-bg))] hover:bg-[rgba(var(--color-button-accent-bg)/0.1)]',
     'accent2-outline':
-      'bg-transparent border border-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgba(var(--color-button-accent2-bg)/0.1)] focus:ring-[rgb(var(--color-button-accent2-bg))]',
+      'bg-transparent border border-[rgb(var(--color-button-accent2-bg))] text-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgba(var(--color-button-accent2-bg)/0.1)]',
     'danger-outline':
-      'bg-transparent border border-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-bg))] hover:bg-[rgba(var(--color-button-danger-bg)/0.1)] focus:ring-[rgb(var(--color-button-danger-bg))]',
+      'bg-transparent border border-[rgb(var(--color-button-danger-bg))] text-[rgb(var(--color-button-danger-bg))] hover:bg-[rgba(var(--color-button-danger-bg)/0.1)]',
     'neutral-outline':
-      'bg-transparent border border-[rgb(var(--color-button-neutral-text))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgba(var(--color-button-neutral-text)/0.1)] focus:ring-gray-400',
+      'bg-transparent border border-[rgb(var(--color-button-neutral-text))] text-[rgb(var(--color-button-neutral-text))] hover:bg-[rgba(var(--color-button-neutral-text)/0.1)]',
 
-    link: 'bg-transparent text-[rgb(var(--color-text-link))] hover:underline shadow-none px-1 py-0.5 focus:ring-transparent',
+    link: 'bg-transparent text-[rgb(var(--color-text-link))] hover:underline shadow-none px-1 py-0.5',
   };
 
   const hasOnlyIcon =

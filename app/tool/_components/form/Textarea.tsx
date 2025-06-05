@@ -79,7 +79,7 @@ const Textarea: React.ForwardRefRenderFunction<
         className={`
           ${baseTextareaStyles}
           ${hasError ? errorBorder : normalBorder}
-          ${!isDisabled ? `${focusBorder} focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))]` : ''}
+          ${!isDisabled ? `${focusBorder}` : ''}
           ${disabledStyles}
           ${textareaClassName}
         `}

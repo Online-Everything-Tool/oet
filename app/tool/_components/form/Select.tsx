@@ -48,13 +48,11 @@ export default function Select<T extends string | number>({
     block w-full p-2.5 border rounded-md shadow-sm
     text-sm
     bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
-    focus:outline-none focus:ring-1
   `;
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
   const errorBorder = 'border-[rgb(var(--color-border-error))]';
-  const focusStyles =
-    'focus:border-[rgb(var(--color-input-focus-border))] focus:ring-[rgb(var(--color-input-focus-border))]';
+  const focusStyles = 'focus:border-[rgb(var(--color-input-focus-border))]';
   const disabledStyles = isDisabled
     ? 'disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed opacity-60'
     : '';

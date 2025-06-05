@@ -269,7 +269,7 @@ export default function CreatePrForm({
                         prev === filePath ? null : filePath
                       )
                     }
-                    className="w-full text-left px-3 py-2 flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 rounded-t"
+                    className="w-full text-left px-3 py-2 flex justify-between items-center rounded-t"
                     aria-expanded={isExpanded}
                   >
                     <code

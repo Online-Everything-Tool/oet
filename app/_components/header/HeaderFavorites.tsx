@@ -18,6 +18,10 @@ interface LatestAdditionsData {
   directives: string[];
 }
 
+const titleClasses =
+  'px-3 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
+
+
 export default function HeaderFavorites() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
   const { getToolMetadata, isLoading: metadataLoading } = useMetadata();
@@ -208,6 +212,7 @@ export default function HeaderFavorites() {
           aria-orientation="vertical"
           tabIndex={-1}
         >
+          <h2 className={titleClasses}>My Favorites</h2>
           <div
             className="py-1 max-h-60 overflow-y-auto custom-scrollbar"
             role="none"

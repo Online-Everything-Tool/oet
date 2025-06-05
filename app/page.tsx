@@ -1,13 +1,11 @@
 // FILE: app/page.tsx
-import fs from 'fs/promises';
-import path from 'path';
-import React, { Suspense } from 'react';
-import { ToolMetadata } from '@/src/types/tools.js';
+'use client';
 
-import GatedContentLoader from './_components/GatedContentLoader';
-const HomeClient = React.lazy(
-  () => import('./tool/home/_components/HomeClient')
-);
+import React, { useEffect, useState, useMemo } from 'react';
+import useToolState from './tool/_hooks/useToolState';
+import ToolListWidget from './_components/ToolListWidget';
+import BuildToolWidget from './_components/BuildToolWidget';
+import { useMetadata } from './context/MetadataContext'; // Import useMetadata
 
 export interface ToolDisplayData {
   href: string;
@@ -15,120 +13,123 @@ export interface ToolDisplayData {
   description: string;
 }
 
-async function getAvailableTools(): Promise<ToolDisplayData[]> {
-  const toolsDirPath = path.join(process.cwd(), 'app', 'tool');
-  const dynamicTools: ToolDisplayData[] = [];
-  try {
-    const entries = await fs.readdir(toolsDirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith('_')) {
-        const directive = entry.name;
-        const metadataPath = path.join(
-          toolsDirPath,
-          directive,
-          'metadata.json'
-        );
-        try {
-          await fs.access(metadataPath);
-          const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-          const metadata: ToolMetadata = JSON.parse(metadataContent);
-          if (
-            metadata.title &&
-            metadata.description &&
-            metadata.includeInSitemap !== false
-          ) {
-            dynamicTools.push({
-              href: `/tool/${directive}/`,
-              title: metadata.title,
-              description: metadata.description,
-            });
-          } else if (!metadata.title || !metadata.description) {
-            console.warn(
-              `[Page Load] Metadata missing title or description for tool: ${directive}`
-            );
-          }
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const isFsError =
-            typeof error === 'object' && error !== null && 'code' in error;
-          const errorCode = isFsError ? (error as { code: string }).code : null;
-          if (errorCode !== 'ENOENT') {
-            console.error(
-              `[Page Load] Error processing metadata for tool '${directive}':`,
-              message
-            );
-          } else {
-            console.warn(
-              `[Page Load] Metadata file not found for tool: ${directive}`
-            );
-          }
-        }
-      }
-    }
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('[Page Load] Error reading tools directory:', message);
-    return [];
-  }
-  dynamicTools.sort((a, b) => a.title.localeCompare(b.title));
-  return dynamicTools;
+// HomeClientProps is no longer needed if initialTools is not passed as a prop
+// interface HomeClientProps {
+//   initialTools: ToolDisplayData[];
+// }
+
+interface HomeToolState {
+  terms: boolean; // For now, will be introModalPermanentlyDismissed later
+  // introModalPermanentlyDismissed?: boolean; // Example for later
 }
 
-const HomeClientCodeLoadingFallback = () => (
-  <div className="text-center p-10 animate-pulse text-gray-500 text-lg">
-    Preparing OET Dashboard Module...
-  </div>
-);
+const DEFAULT_HOME_STATE: HomeToolState = {
+  terms: false,
+  // introModalPermanentlyDismissed: false, // Example for later
+};
 
-const InitialHomepageCTAFallback = () => (
-  <div className="text-center py-10 px-4 md:px-6 space-y-6 rounded-lg bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 shadow-lg">
-    <h2 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400">
-      Welcome to OET!
-    </h2>
-    <p className="text-lg text-gray-700 max-w-2xl mx-auto">
-      Click below to unveil your personalized OET experience and launch the
-      dashboard.
-    </p>
-    <div className="h-12 w-72 bg-gray-200 animate-pulse rounded-md mx-auto mt-4"></div>{' '}
-    {/* Button Placeholder improved */}
-  </div>
-);
+export default function Home(/*{ initialTools }: HomeClientProps*/) {
+  // initialTools prop removed
+  const toolRouteForState = `/tool/home`;
 
-export default async function Home() {
-  const availableTools = await getAvailableTools();
+  const {
+    state: homePersistentState,
+    setState: setHomePersistentState,
+    isLoadingState: isLoadingToolSavedState,
+    // errorLoadingState: toolStateError, // If you need to display this error
+  } = useToolState<HomeToolState>(toolRouteForState, DEFAULT_HOME_STATE);
 
-  const handleGenerateNarrativeAndOpenGate = async (): Promise<boolean> => {
-    'use server';
-    console.log('Attempting to generate narrative and open gate...');
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log('Narrative fetched (simulated), opening gate.');
-      return true;
-    } catch (error) {
-      console.error('Failed to generate narrative for gate:', error);
-      return false;
+  const [projectAnalysis, setProjectAnalysis] = useState<{
+    suggestedDirectives: string[];
+    modelNameUsed: string | null;
+  } | null>(null);
+
+  const [isLoadingProjectAnalysis, setIsLoadingProjectAnalysis] =
+    useState(true);
+
+  // Use MetadataContext to get tool metadata
+  const {
+    getAllToolMetadataArray,
+    isLoading: isLoadingMetadata,
+    // error: metadataError, // If you need to display this error
+  } = useMetadata();
+
+  useEffect(() => {
+    const fetchProjectAnalysis = async () => {
+      setIsLoadingProjectAnalysis(true);
+      try {
+        const response = await fetch('/data/project_analysis.json');
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch project analysis: ${response.status}`
+          );
+        }
+        const data = await response.json();
+        setProjectAnalysis({
+          suggestedDirectives: data.suggestedNewToolDirectives || [],
+          modelNameUsed: data.modelNameUsed || null,
+        });
+      } catch (error) {
+        console.error('Error fetching project_analysis.json:', error);
+        // Set a default or empty state for projectAnalysis on error
+        setProjectAnalysis({ suggestedDirectives: [], modelNameUsed: null });
+      } finally {
+        setIsLoadingProjectAnalysis(false);
+      }
+    };
+    fetchProjectAnalysis();
+  }, []); // Empty dependency array means this runs once on mount
+
+  // Derive initialTools for ToolListWidget from metadata
+  const initialToolsForWidget: ToolDisplayData[] = useMemo(() => {
+    if (isLoadingMetadata) {
+      return [];
     }
-  };
+    const allMeta = getAllToolMetadataArray();
+    return allMeta
+      .filter(
+        (tool) =>
+          tool.includeInSitemap !== false && tool.title && tool.description
+      )
+      .map((tool) => ({
+        href: `/tool/${tool.directive}/`,
+        title: tool.title,
+        description: tool.description,
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [getAllToolMetadataArray, isLoadingMetadata]);
 
-  const homeClientContent = (
-    <Suspense fallback={<HomeClientCodeLoadingFallback />}>
-      <HomeClient initialTools={availableTools} />
-    </Suspense>
-  );
+  // Determine overall loading state for the page content
+  const isPageContentLoading =
+    isLoadingProjectAnalysis || isLoadingMetadata || isLoadingToolSavedState;
+
+  if (isPageContentLoading) {
+    // A more specific loading skeleton could be beneficial
+    return (
+      <div className="space-y-10 animate-pulse">
+        {/* Placeholder for ToolListWidget */}
+        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-72">
+          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full mb-2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-5/6"></div>
+        </div>
+        {/* Placeholder for BuildToolWidget */}
+        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-56">
+          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-8">
-      <div className="relative flex flex-col gap-4">
-        <GatedContentLoader
-          childrenToLoad={homeClientContent}
-          onButtonClick={handleGenerateNarrativeAndOpenGate}
-          buttonText="🚀 Launch OET Dashboard & Unveil Narrative 🚀"
-          gateClosedFallback={<InitialHomepageCTAFallback />}
-          mainSuspenseFallback={<HomeClientCodeLoadingFallback />}
-          initialButtonLoadingText="Unveiling..."
-        />
-      </div>
+    <div className="space-y-10">
+      <ToolListWidget initialTools={initialToolsForWidget} />
+      <BuildToolWidget
+        suggestedDirectives={projectAnalysis?.suggestedDirectives || []}
+        modelNameUsed={projectAnalysis?.modelNameUsed}
+      />
+      {/* IntroPromotionalModal will be added here later */}
     </div>
   );
 }

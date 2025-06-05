@@ -422,9 +422,8 @@ export default function ColorConverterClient({
   const inputBaseClasses =
     'p-2 border rounded-md shadow-sm focus:outline-none text-base bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] placeholder:text-[rgb(var(--color-input-placeholder))] disabled:bg-gray-100 disabled:cursor-not-allowed';
   const inputBorderNormal =
-    'border-[rgb(var(--color-input-border))] focus:border-[rgb(var(--color-input-focus-border))] focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))]';
-  const inputBorderError =
-    'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500';
+    'border-[rgb(var(--color-input-border))] focus:border-[rgb(var(--color-input-focus-border))]';
+  const inputBorderError = 'border-red-500 focus:border-red-500';
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">

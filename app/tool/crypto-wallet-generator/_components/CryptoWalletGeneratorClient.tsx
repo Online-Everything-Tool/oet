@@ -421,14 +421,14 @@ export default function CryptoWalletGeneratorClient({
                     type="text"
                     value={wallet.publicKey}
                     readOnly
-                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 text-[rgb(var(--color-input-text))] ring-1 ring-inset ring-[rgb(var(--color-input-border))] focus:ring-2 focus:ring-inset focus:ring-[rgb(var(--color-input-focus-border))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
+                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 text-[rgb(var(--color-input-text))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
                   />
                   <Button
                     variant="accent2"
                     onClick={() =>
                       copyToClipboard(wallet.publicKey, 'Address', wallet.id)
                     }
-                    className="rounded-l-none !py-1.5 px-3 border-l-0"
+                    className="!py-1.5 px-3 border-l-0"
                     iconLeft={
                       isPublicKeyCopied ? (
                         <CheckIcon className="h-4 w-4" />
@@ -458,14 +458,14 @@ export default function CryptoWalletGeneratorClient({
                     type={wallet.isPrivateKeyVisible ? 'text' : 'password'}
                     value={wallet.privateKey}
                     readOnly
-                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 font-mono text-[rgb(var(--color-input-text))] ring-1 ring-inset ring-[rgb(var(--color-input-border))] focus:ring-2 focus:ring-inset focus:ring-[rgb(var(--color-input-focus-border))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
+                    className="block w-full flex-1 rounded-l-md border-0 py-1.5 px-2 font-mono text-[rgb(var(--color-input-text))] sm:text-sm sm:leading-6 bg-[rgb(var(--color-bg-subtle))]"
                   />
                   <Button
                     variant="neutral"
                     onClick={() =>
                       toggleSpecificPrivateKeyVisibility(wallet.id)
                     }
-                    className="rounded-none !py-1.5 px-3 border-l-0"
+                    className="rounded-r-none !py-1.5 px-3 border-l-0"
                     iconLeft={
                       wallet.isPrivateKeyVisible ? (
                         <EyeSlashIcon className="h-4 w-4" />

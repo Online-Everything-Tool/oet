@@ -374,7 +374,7 @@ export default function GenerateToolResources({
                     isApiUnavailable ||
                     availableGenerationModels.length === 0
                   }
-                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600"
+                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md shadow-sm sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600"
                 >
                   {availableGenerationModels.map((modelName) => (
                     <option key={modelName} value={modelName}>
@@ -417,7 +417,7 @@ export default function GenerateToolResources({
                           e.target.checked
                         )
                       }
-                      className="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-500 text-purple-600 focus:ring-purple-500 disabled:opacity-50 accent-purple-600"
+                      className="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-500 text-purple-600 disabled:opacity-50 accent-purple-600"
                     />
                     <label
                       htmlFor={`user-choice-${directive}`}
@@ -457,7 +457,7 @@ export default function GenerateToolResources({
             onChange={(e) => setAdditionalDescription(e.target.value)}
             rows={4}
             disabled={isGeneratingMain || isApiUnavailable}
-            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm resize-y disabled:bg-gray-100 dark:disabled:bg-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 sm:text-sm resize-y disabled:bg-gray-100 dark:disabled:bg-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
             placeholder="Specific UI preferences, libraries to avoid, edge cases..."
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

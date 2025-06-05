@@ -574,7 +574,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                           key={file.id}
                           type="button"
                           onClick={() => handleLibraryFileClick(file)}
-                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500 ring-2 ring-blue-300 ring-offset-1' : 'border-gray-200 hover:border-blue-400'}`}
+                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500' : 'border-gray-200 hover:border-blue-400'}`}
                           aria-pressed={isSelected}
                           aria-label={`Select file: ${file.filename || 'Untitled'}`}
                         >

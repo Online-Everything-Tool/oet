@@ -168,7 +168,7 @@ export default function FileGridView({
             key={file.id}
             className={`relative group border rounded-md shadow-sm overflow-hidden bg-white flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${
               isSelected
-                ? 'border-blue-500 ring-2 ring-blue-300 ring-offset-1'
+                ? 'border-blue-500'
                 : 'hover:shadow-lg hover:border-gray-300 border-gray-200'
             } ${isProcessingItem ? 'opacity-70 cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-60' : ''}`}
             onClick={(e) => handleCardClick(e, file.id)}

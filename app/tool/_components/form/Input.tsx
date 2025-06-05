@@ -62,16 +62,13 @@ const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
     text-sm sm:text-base
     bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
     placeholder:text-[rgb(var(--color-input-placeholder))]
-    focus:outline-none focus:ring-1
   `;
 
   const widthStyle = type === 'color' ? '' : 'w-full';
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
-  const errorBorder =
-    'border-[rgb(var(--color-border-error))] ring-1 ring-[rgb(var(--color-border-error))]';
-  const focusStyles =
-    'focus:border-[rgb(var(--color-input-focus-border))] focus:ring-[rgb(var(--color-input-focus-border))]';
+  const errorBorder = 'border-[rgb(var(--color-border-error))]';
+  const focusStyles = 'focus:border-[rgb(var(--color-input-focus-border))]';
 
   const disabledStyles = isDisabled
     ? 'disabled:bg-[rgb(var(--color-bg-disabled))] disabled:cursor-not-allowed opacity-60'

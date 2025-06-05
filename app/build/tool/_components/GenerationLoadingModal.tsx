@@ -66,7 +66,7 @@ export default function GenerationLoadingModal({
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full p-1 z-10"
+            className="absolute top-3 right-3 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded-full p-1 z-10"
             aria-label="Close modal"
           >
             <XMarkIcon className="h-6 w-6" />

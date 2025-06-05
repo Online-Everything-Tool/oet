@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 
-interface ToolDisplayData {
+export interface ToolDisplayData {
   href: string;
   title: string;
   description: string;
@@ -18,6 +18,7 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTools = useMemo(() => {
+    // ... (filtering logic remains the same) ...
     const lowerCaseSearchTerm = searchTerm.toLowerCase().trim();
     if (!lowerCaseSearchTerm) {
       return initialTools;
@@ -34,11 +35,11 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
   };
 
   return (
-    <div className="p-4 md:p-6 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-component))] shadow-sm space-y-4">
-      {/* Search Input Section */}
+    <div className="space-y-4">
+      {/* Search Input Section (remains the same) */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
         <h2 className="text-xl font-semibold text-[rgb(var(--color-text-base))] shrink-0">
-          Available Tools ({filteredTools.length}) {/* Show filtered count */}
+          Available Tools ({filteredTools.length})
         </h2>
         <div className="w-full sm:w-auto sm:max-w-xs flex-grow">
           <label htmlFor="tool-search" className="sr-only">
@@ -55,30 +56,29 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
         </div>
       </div>
 
-      {/* Tool List Section */}
       <div>
         {filteredTools.length > 0 ? (
-          <ul className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
             {filteredTools.map((tool) => (
-              <li
+              <div
                 key={tool.href}
-                className="pb-3 border-b border-gray-200 last:border-b-0 last:pb-0"
+                className="flex flex-col p-4 border border-[rgb(var(--color-border-soft))] bg-[rgb(var(--color-bg-subtle))] rounded-md shadow-sm hover:shadow-md transition-shadow duration-150"
               >
                 <Link
                   href={tool.href}
-                  className="block text-lg font-medium text-[rgb(var(--color-text-link))] hover:underline mb-1"
+                  className="block text-base font-semibold text-[rgb(var(--color-text-link))] hover:underline mb-1 group"
                 >
                   {tool.title}
                 </Link>
-                <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                <p className="text-xs text-[rgb(var(--color-text-muted))] line-clamp-3 flex-grow">
                   {tool.description}
                 </p>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         ) : (
           <p className="text-[rgb(var(--color-text-muted))] text-center py-4">
-            No tools found matching &ldquo;{searchTerm}&rdquo;.
+            No tools found matching “{searchTerm}”.
           </p>
         )}
       </div>

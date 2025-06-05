@@ -454,7 +454,7 @@ export default function LinkedinPostFormatterClient({
 
       {/* Editor Content Area - no changes needed */}
       <div
-        className="border border-[rgb(var(--color-input-border))] rounded-md shadow-sm p-3 min-h-[200px] focus-within:border-[rgb(var(--color-input-focus-border))] focus-within:ring-1 focus-within:ring-[rgb(var(--color-input-focus-border))] bg-white cursor-text flex flex-col"
+        className="border border-[rgb(var(--color-input-border))] rounded-md shadow-sm p-3 min-h-[200px] focus-within:border-[rgb(var(--color-input-focus-border))] bg-white cursor-text flex flex-col"
         onClick={() => editor?.commands.focus()}
       >
         <EditorContent

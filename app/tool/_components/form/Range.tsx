@@ -43,8 +43,7 @@ const Range: React.FC<RangeProps> = ({
 
   const baseInputStyles = `
         w-full h-2 rounded-lg appearance-none cursor-pointer
-        bg-[rgb(var(--color-indicator-track-bg))]
-        focus:outline-none focus:ring-1 focus:ring-[rgb(var(--color-input-focus-border))]
+        bg-[rgb(var(--color-indicator-track-bg))]        
         disabled:cursor-not-allowed disabled:opacity-50
         accent-[rgb(var(--color-checkbox-accent))]
     `;

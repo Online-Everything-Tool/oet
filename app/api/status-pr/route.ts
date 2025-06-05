@@ -479,6 +479,8 @@ async function fetchFullPrCiSummary(
 
   let netlifyStatus: NetlifyStatusInfo | null = null;
   if (netlifyCheckSuiteData) {
+    const isSkippedByTitle = prData.title.includes('[skip netlify]');
+
     const deploymentId: string | null = null;
     let checkRunsForSuite: NetlifyCheckRun[] = [];
 
@@ -499,13 +501,14 @@ async function fetchFullPrCiSummary(
 
     netlifyStatus = {
       id: netlifyCheckSuiteData.id,
-      status: netlifyCheckSuiteData.status,
+      status: isSkippedByTitle ? 'skipped' : netlifyCheckSuiteData.status,
       conclusion: netlifyCheckSuiteData.conclusion,
       url: netlifyCheckSuiteData.url,
       app_slug: netlifyCheckSuiteData.app?.slug,
       deployment_id: deploymentId,
       check_runs: checkRunsForSuite,
     };
+    console.log('netlifyStatus:', netlifyStatus);
   }
 
   const { data: commentsData } = await octokit.rest.issues.listComments({

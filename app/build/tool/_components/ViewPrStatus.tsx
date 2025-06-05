@@ -614,7 +614,7 @@ ${statusSummaryForIssue}
                 href={prStatus.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-4 py-2 border border-gray-400 dark:border-gray-500 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center justify-center px-4 py-2 border border-gray-400 dark:border-gray-500 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 View PR Details on GitHub
                 <ArrowTopRightOnSquareIcon className="ml-2 h-4 w-4" />
@@ -623,7 +623,7 @@ ${statusSummaryForIssue}
                 href={reportIssueUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600"
               >
                 Report Issue / Provide Details
                 <ArrowTopRightOnSquareIcon className="ml-2 h-4 w-4" />
