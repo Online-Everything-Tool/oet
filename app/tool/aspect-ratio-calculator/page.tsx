@@ -8,7 +8,7 @@ import type { ParamConfig, ToolMetadata } from '@/src/types/tools';
 import { toolRoute } from '@/app/lib/utils';
 
 export default function AspectRatioCalculatorPage() {
-  const typedMetadata = metadata as ToolMetadata;
+  const typedMetadata = metadata as unknown as ToolMetadata;
   const urlStateParams = (typedMetadata.urlStateParams || []) as ParamConfig[];
 
   return (
