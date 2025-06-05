@@ -1,0 +1,10 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "pdfjs-dist",
+      "reason": "For client-side PDF parsing and image extraction.",
+      "importUsed": "import * as pdfjsLib from 'pdfjs-dist';"
+    }
+  ],
+  "assetInstructions": "This tool requires the PDF.js worker file to be available in the public directory.\n\n1. Ensure that the `pdf.worker.mjs` file from the `pdfjs-dist` npm package (typically found in `node_modules/pdfjs-dist/build/pdf.worker.mjs`) is copied to the `public/libs/pdfjs-dist/build/` directory of your project. The tool's hook (`usePdfMediaExtraction.ts`) will attempt to load it from `/libs/pdfjs-dist/build/pdf.worker.mjs`."
+}
