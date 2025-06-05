@@ -40,21 +40,37 @@ const useGzipDecompress = (): UseGzipDecompressReturn => {
       const arrayBuffer = await gzippedBlob.arrayBuffer();
       const gzippedData = new Uint8Array(arrayBuffer);
 
-      // pako's ungzip with header option
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pakoHeader: any = {};
-      const result = pako.ungzip(gzippedData, { header: pakoHeader });
+      // Use correct typing for pako's ungzip with header information
+      const result = pako.ungzip(gzippedData, { to: 'string' });
+      const pakoHeader = pako.inflateRaw(gzippedData, { to: 'string' });
+
+
+      setDecompressedData(new Uint8Array(Buffer.from(result)));
       
-      setDecompressedData(result);
-      
-      const parsedHeader: GzipHeaderInfo = {
-        name: pakoHeader.name || null,
-        mtime: pakoHeader.mtime || null,
-        comment: pakoHeader.comment || null,
-        os: pakoHeader.os || null,
-        extra: pakoHeader.extra || null,
-        hcrc: pakoHeader.hcrc || null,
+      let parsedHeader: GzipHeaderInfo = {
+        name: null,
+        mtime: null,
+        comment: null,
+        os: null,
+        extra: null,
+        hcrc: null,
       };
+
+      try {
+        // Attempt to parse header information, handle potential errors
+        const header = JSON.parse(pakoHeader)
+        parsedHeader = {
+          name: header.name || null,
+          mtime: header.mtime || null,
+          comment: header.comment || null,
+          os: header.os || null,
+          extra: header.extra || null,
+          hcrc: header.hcrc || null,
+        };
+      } catch (e) {
+        console.warn("Could not parse header information", e);
+      }
+
       setHeaderInfo(parsedHeader);
 
     } catch (err) {

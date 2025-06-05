@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '../../_hooks/useToolState';
-import useGzipDecompress, { GzipHeaderInfo } from '../_hooks/useGzipDecompress';
+import useGzipDecompress from '../_hooks/useGzipDecompress'; // Removed unused GzipHeaderInfo import
 import FileSelectionModal from '../../_components/shared/FileSelectionModal';
 import FilenamePromptModal from '../../_components/shared/FilenamePromptModal';
 import Button from '../../_components/form/Button';
@@ -259,7 +259,7 @@ export default function GzipFileExplorerClient({ toolRoute }: GzipFileExplorerCl
       setClientError(`Metadata not found for source: ${signal.sourceToolTitle}`);
       return;
     }
-    const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig);
+    const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig, signal.data); // Pass signal.data
     if (resolvedPayload.type === 'error' || resolvedPayload.type === 'none' || !resolvedPayload.data || resolvedPayload.data.length === 0) {
       setClientError(resolvedPayload.errorMessage || 'No data received from source.');
       return;
