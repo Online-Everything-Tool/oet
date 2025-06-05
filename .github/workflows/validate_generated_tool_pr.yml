@@ -334,6 +334,7 @@ jobs:
       dedicated_lint_check_failed_output: ${{ steps.run_dedicated_lint_check.outputs.lint_check_failed }}
       build_command_failed_output: ${{ steps.build_oet.outputs.build_command_failed }}
       lint_errors_captured_for_ai_output: ${{ steps.capture_for_ai_fix.outputs.lint_errors_captured_for_ai }}
+      alf_second_attempt_would_be_needed_output: ${{ steps.check_alf_retry_condition.outputs.alf_second_attempt_would_be_needed }}
       douglas_check_step_outcome_output: ${{ steps.douglas_checker_run.outcome }}
       imgur_screenshot_url_output: ${{ steps.upload_to_imgur.outputs.image_url }}
 
@@ -343,6 +344,26 @@ jobs:
         with:
           ref: ${{ needs.initial_checks.outputs.pr_sha }}
           fetch-depth: 0
+
+      - name: Read lintFixesAttempted from tool-generation-info.json
+        id: read_tool_info_for_alf
+        env:
+          TOOL_DIRECTIVE: ${{ needs.initial_checks.outputs.tool_directive }}
+        run: |
+          LINT_FIXES_ATTEMPTED="false" # Default to false
+          TOOL_INFO_FILE="app/tool/${TOOL_DIRECTIVE}/tool-generation-info.json"
+          if [ -f "$TOOL_INFO_FILE" ]; then
+            if jq -e '.lintFixesAttempted == true' "$TOOL_INFO_FILE" > /dev/null 2>&1; then
+              LINT_FIXES_ATTEMPTED="true"
+              echo "tool-generation-info.json indicates lintFixesAttempted is true."
+            else
+              echo "tool-generation-info.json exists, but lintFixesAttempted is not true or not present."
+            fi
+          else
+            echo "tool-generation-info.json not found. Assuming lint fixes have not been attempted."
+          fi
+          echo "lint_fixes_previously_attempted=$LINT_FIXES_ATTEMPTED" >> $GITHUB_OUTPUT
+        continue-on-error: true           
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -376,7 +397,7 @@ jobs:
           fi
           echo "Project structure pruned for static check."
 
-          npm run prebuild
+          npm run prebuild          
 
       - name: Run Dedicated Lint & Type Check (Combined Next Lint & TSC)
         id: run_dedicated_lint_check
@@ -400,7 +421,7 @@ jobs:
 
           # --- 1. Run 'npm run lint' (next lint) ---
           set +e
-          npm run lint >> "$NEXT_LINT_LOG_FILE_PATH" 2>&1
+          NO_COLOR=true npm run lint >> "$NEXT_LINT_LOG_FILE_PATH" 2>&1
           NEXT_LINT_EXIT_CODE=$?
           set -e
 
@@ -418,7 +439,7 @@ jobs:
           else
             echo "'npm run lint' (next lint) reported no errors."
           fi
-          # --- 2. Run 'npx tsc --noEmit --pretty' ---
+          # --- 2. Run 'npx tsc --noEmit --pretty false' ---
           set +e
           npx tsc --noEmit --pretty false >> "$TSC_LOG_FILE_PATH" 2>&1
           TSC_EXIT_CODE=$?
@@ -483,11 +504,28 @@ jobs:
                 echo "::error::'out' dir missing despite npm build exit code 0. Marking as command failed."
             fi
           fi
+
+      - name: Check if ALF retry is needed
+        id: check_alf_retry_condition
+        if: always()
+        run: |
+          LINT_CHECK_FAILED="${{ steps.run_dedicated_lint_check.outputs.lint_check_failed }}"
+          BUILD_COMMAND_FAILED="${{ steps.build_oet.outputs.build_command_failed }}"
+          LINT_FIXES_PREVIOUSLY_ATTEMPTED="${{ steps.read_tool_info_for_alf.outputs.lint_fixes_previously_attempted }}"
+          
+          ALF_RETRY_NEEDED="false"
+          if [[ ("$LINT_CHECK_FAILED" == "true" || "$BUILD_COMMAND_FAILED" == "true") && "$LINT_FIXES_PREVIOUSLY_ATTEMPTED" == "true" ]]; then
+            ALF_RETRY_NEEDED="true"
+            echo "::warning::Lint/build errors still present after ALF has already attempted fixes."
+          fi
+          echo "alf_second_attempt_would_be_needed=$ALF_RETRY_NEEDED" >> $GITHUB_OUTPUT
+
       - name: Capture Lint Output and Changed Files for AI Fixer
         id: capture_for_ai_fix
         if: |
-          steps.run_dedicated_lint_check.outputs.lint_check_failed == 'true' ||
-          steps.build_oet.outputs.build_command_failed == 'true'
+          (steps.run_dedicated_lint_check.outputs.lint_check_failed == 'true' ||
+           steps.build_oet.outputs.build_command_failed == 'true') &&
+           steps.read_tool_info_for_alf.outputs.lint_fixes_previously_attempted == 'false'
         env:
           TOOL_DIRECTIVE_PATH: app/tool/${{ needs.initial_checks.outputs.tool_directive }}
         run: |
@@ -663,10 +701,11 @@ jobs:
           echo "ANALYZE_DEPS_RESULT_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.result }}" >> $GITHUB_ENV
           echo "DEP_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
           echo "ASSET_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV
-
+          
           echo "DEDICATED_LINT_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.dedicated_lint_check_failed_output }}" >> $GITHUB_ENV
           echo "BUILD_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV
           echo "LINT_ERRORS_CAPTURED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
+          echo "ALF_RETRY_WOULD_BE_NEEDED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.alf_second_attempt_would_be_needed_output }}" >> $GITHUB_ENV
 
           echo "BUILD_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
 
@@ -782,12 +821,15 @@ jobs:
             } else if (assetActionRequired) { 
               commentBody += `⏳ **VPR Handoff:** Asset instructions found. **AI Asset Provisioner (AAP)** will be triggered (future).`;
               vprFailedOverall = true; 
-            } else if (buildFailed && lintErrorsCaptured) { 
+            } else if (buildFailed && lintErrorsCaptured && !alfRetryWouldBeNeeded) { 
               commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
               vprFailedOverall = true; 
-            } else if (dedicatedLintFailed && lintErrorsCaptured) { 
+            } else if (dedicatedLintFailed && lintErrorsCaptured && !alfRetryWouldBeNeeded) { 
               commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
               vprFailedOverall = true; 
+            } else if (buildFailed && alfRetryWouldBeNeeded) { // Lint errors persist after ALF already tried
+              commentBody += `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
+              vprFailedOverall = true;
             } else if (buildFailed) { 
               commentBody += `‼️ **VPR Failed:** Build failed for reasons other than lint that ALF can address. Manual review required.`;
               vprFailedOverall = true;
