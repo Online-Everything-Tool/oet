@@ -787,7 +787,7 @@ jobs:
             if (buildJobResult === 'skipped') commentBody += `🟡 Skipped (due to pending dependencies/assets).\n`;
             else if (dedicatedLintFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
             else if (buildFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
-            else if (buildFailed) commentBody += `🚨 **Build Failed (Non-Lint Issue):** Manual review needed.\n`;
+            else if (buildFailed || dedicatedLintFailed) commentBody += `🚨 **Build Failed (Non-Lint Issue):** Manual review needed.\n`;
             else { 
               commentBody += `✅ **Local Static Build Successful.**\n`;
               if (douglasOutcome === 'success') commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
@@ -827,7 +827,10 @@ jobs:
             } else if (dedicatedLintFailed && lintErrorsCaptured && !alfRetryWouldBeNeeded) { 
               commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
               vprFailedOverall = true; 
-            } else if (buildFailed && alfRetryWouldBeNeeded) { // Lint errors persist after ALF already tried
+            } else if (buildFailed && alfRetryWouldBeNeeded) {
+              commentBody += `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
+              vprFailedOverall = true;
+            } else if (dedicatedLintFailed && alfRetryWouldBeNeeded) { 
               commentBody += `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
               vprFailedOverall = true;
             } else if (buildFailed) { 
