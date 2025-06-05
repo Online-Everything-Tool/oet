@@ -41,19 +41,18 @@ const useGzipDecompress = (): UseGzipDecompressReturn => {
       const gzippedData = new Uint8Array(arrayBuffer);
 
       // pako's ungzip with header option
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pakoHeader: any = {};
-      const result = pako.ungzip(gzippedData, { header: pakoHeader });
+      const result = pako.ungzip(gzippedData);
+      const pakoHeader = result.header;
       
-      setDecompressedData(result);
+      setDecompressedData(result.buffer);
       
       const parsedHeader: GzipHeaderInfo = {
-        name: pakoHeader.name || null,
-        mtime: pakoHeader.mtime || null,
-        comment: pakoHeader.comment || null,
-        os: pakoHeader.os || null,
-        extra: pakoHeader.extra || null,
-        hcrc: pakoHeader.hcrc || null,
+        name: pakoHeader?.name || null,
+        mtime: pakoHeader?.mtime || null,
+        comment: pakoHeader?.comment || null,
+        os: pakoHeader?.os || null,
+        extra: pakoHeader?.extra || null,
+        hcrc: pakoHeader?.hcrc || null,
       };
       setHeaderInfo(parsedHeader);
 
