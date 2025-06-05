@@ -671,8 +671,8 @@ jobs:
              echo "Port 3001 is free."
           fi
 
-  report_pr_status:
-    name: 4. Report PR Validation Status & Outcome
+  determine_vpr_verdict_and_comment: # Was report_pr_status, now New Job 4
+    name: 4. Determine VPR Verdict & Comment
     needs:
       [
         initial_checks,
@@ -682,14 +682,16 @@ jobs:
     if: always() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions: { pull-requests: write, actions: read }
+    outputs:
+      vpr_final_verdict_output: ${{ steps.construct_comment_and_verdict.outputs.vpr_final_verdict }}
     steps:
-      - name: Prepare Data for Comment Script
-        id: prepare_comment_env
+      - name: Prepare Environment Variables for Script
+        id: prepare_comment_env # This step remains the same
         run: |
           echo "PR_NUMBER_FOR_COMMENT=${{ needs.initial_checks.outputs.pr_number }}" >> $GITHUB_ENV
           echo "TOOL_DIRECTIVE_FOR_COMMENT=${{ needs.initial_checks.outputs.tool_directive }}" >> $GITHUB_ENV
           echo "PR_SHA_FOR_COMMENT=${{ needs.initial_checks.outputs.pr_sha }}" >> $GITHUB_ENV
-          echo "INITIAL_CHECKS_RESULT_FOR_COMMENT=${{ needs.initial_checks.result }}" >> $GITHUB_ENV
+          echo "INITIAL_CHECKS_JOB_RESULT_FOR_COMMENT=${{ needs.initial_checks.result }}" >> $GITHUB_ENV # Renamed for clarity
           echo "CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT=${{ needs.initial_checks.outputs.critical_initial_checks_passed }}" >> $GITHUB_ENV
           echo "PATH_VALIDATION_PASSED_FOR_COMMENT=${{ needs.initial_checks.outputs.path_validation_passed_output }}" >> $GITHUB_ENV
           echo "INVALID_FILES_LIST_FOR_COMMENT=${{ needs.initial_checks.outputs.invalid_files_list_output }}" >> $GITHUB_ENV
@@ -698,22 +700,22 @@ jobs:
           echo "AI_IS_TYPO_FOR_COMMENT=${{ needs.initial_checks.outputs.ai_analysis_is_typo_output }}" >> $GITHUB_ENV
           echo "AI_SUGGESTIONS_JSON_FOR_COMMENT=${{ needs.initial_checks.outputs.ai_analysis_suggestions_json_output }}" >> $GITHUB_ENV
 
-          echo "ANALYZE_DEPS_RESULT_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.result }}" >> $GITHUB_ENV
+          echo "ANALYZE_DEPS_JOB_RESULT_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.result }}" >> $GITHUB_ENV # Renamed
           echo "DEP_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.dependency_action_required }}" >> $GITHUB_ENV
           echo "ASSET_ACTION_REQUIRED_FOR_COMMENT=${{ needs.analyze_state_and_dependencies.outputs.asset_action_required }}" >> $GITHUB_ENV
           
           echo "DEDICATED_LINT_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.dedicated_lint_check_failed_output }}" >> $GITHUB_ENV
-          echo "BUILD_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV
+          echo "BUILD_COMMAND_FAILED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.build_command_failed_output }}" >> $GITHUB_ENV # Renamed
           echo "LINT_ERRORS_CAPTURED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.lint_errors_captured_for_ai_output }}" >> $GITHUB_ENV
           echo "ALF_RETRY_WOULD_BE_NEEDED_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.alf_second_attempt_would_be_needed_output }}" >> $GITHUB_ENV
 
-          echo "BUILD_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV
+          echo "BUILD_AND_LINT_JOB_RESULT_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.result }}" >> $GITHUB_ENV # Renamed
 
           echo "DOUGLAS_OUTCOME_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome_output }}" >> $GITHUB_ENV
           echo "IMGUR_URL_FOR_COMMENT=${{ needs.build_and_run_douglas_checker.outputs.imgur_screenshot_url_output }}" >> $GITHUB_ENV
 
       - name: Download Douglas Artifacts (for comment)
-        id: download_douglas_artifacts_for_comment
+        id: download_douglas_artifacts_for_comment # This step remains the same
         if: needs.build_and_run_douglas_checker.result != 'skipped' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome_output != '' && needs.build_and_run_douglas_checker.outputs.douglas_check_step_outcome_output != 'skipped'
         uses: actions/download-artifact@v4
         with:
@@ -721,10 +723,12 @@ jobs:
           path: ${{ runner.temp }}/douglas-artifacts-for-comment
         continue-on-error: true
 
-      - name: Construct and Post PR Comment
+      - name: Determine Verdict, Construct & Post PR Comment
+        id: construct_comment_and_verdict # Renamed step
         uses: actions/github-script@v7
         env:
           AI_REASONING_TEXT_FROM_NEEDS: ${{ needs.initial_checks.outputs.ai_analysis_reasoning_output }}
+          # All other ENV vars are inherited from the prepare_comment_env step
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -734,28 +738,63 @@ jobs:
             const issue_number = parseInt(process.env.PR_NUMBER_FOR_COMMENT, 10);
 
             if (isNaN(issue_number)) {
-              core.setFailed("VPR Report: PR Number not found for commenting."); return;
+              // This job should not fail the workflow, but log an error if PR number is missing
+              core.error("VPR Report: PR Number not found. Cannot post comment or reliably set verdict.");
+              // Set a default critical failure verdict if PR number is missing, as we can't proceed.
+              core.setOutput('vpr_final_verdict', 'CRITICAL_FAILURE');
+              return;
             }
 
             const toolDirective = process.env.TOOL_DIRECTIVE_FOR_COMMENT || "UnknownTool";
             const prHeadShaShort = (process.env.PR_SHA_FOR_COMMENT || 'N/A').substring(0,7);
             const actionRunUrl = `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}?pr=${issue_number}`;
+            
+            // Variables for decision logic
+            const initialChecksPassed = process.env.CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT === 'true';
+            const depActionRequired = process.env.DEP_ACTION_REQUIRED_FOR_COMMENT === 'true';
+            // const assetActionRequired = process.env.ASSET_ACTION_REQUIRED_FOR_COMMENT === 'true'; // Currently not leading to a distinct handoff verdict
+            const dedicatedLintFailed = process.env.DEDICATED_LINT_FAILED_FOR_COMMENT === 'true';
+            const buildCommandFailed = process.env.BUILD_COMMAND_FAILED_FOR_COMMENT === 'true'; // Corrected name
+            const lintErrorsCaptured = process.env.LINT_ERRORS_CAPTURED_FOR_COMMENT === 'true';
+            const alfRetryWouldBeNeeded = process.env.ALF_RETRY_WOULD_BE_NEEDED_FOR_COMMENT === 'true';
+            const buildAndLintJobResult = process.env.BUILD_AND_LINT_JOB_RESULT_FOR_COMMENT; // Corrected name
+
+            let vprFinalVerdict = '';
+            let primaryStatusMessageForPR = '';
+
+            // Decision Logic for vprFinalVerdict and primaryStatusMessageForPR
+            if (!initialChecksPassed) {
+                vprFinalVerdict = 'CRITICAL_FAILURE';
+                primaryStatusMessageForPR = `‼️ **VPR Failed:** Critical initial PR validations did not pass. Manual review required.`;
+            } else if ((dedicatedLintFailed || buildCommandFailed) && alfRetryWouldBeNeeded) {
+                vprFinalVerdict = 'CRITICAL_FAILURE';
+                primaryStatusMessageForPR = `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
+            } else if ((dedicatedLintFailed || buildCommandFailed) && !lintErrorsCaptured && buildAndLintJobResult !== 'skipped') {
+                vprFinalVerdict = 'CRITICAL_FAILURE';
+                primaryStatusMessageForPR = `‼️ **VPR Failed:** Build/Lint errors detected, but they could not be captured for AI Fixer (or are not AI-fixable type errors). Manual review required.`;
+            } else if (depActionRequired) {
+                vprFinalVerdict = 'HANDOFF_ADM';
+                primaryStatusMessageForPR = `⏳ **VPR Handoff:** NPM dependencies pending. **AI Dependency Manager (ADM)** will be triggered.`;
+            } else if ((dedicatedLintFailed || buildCommandFailed) && lintErrorsCaptured && !alfRetryWouldBeNeeded) {
+                vprFinalVerdict = 'HANDOFF_ALF';
+                primaryStatusMessageForPR = `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
+            } else if (initialChecksPassed && !depActionRequired && !dedicatedLintFailed && !buildCommandFailed) {
+                vprFinalVerdict = 'PROCEED_TO_FINALIZE';
+                primaryStatusMessageForPR = `✅ **VPR Succeeded:** All checks passed! Tool is ready for Netlify deployment and further review.`;
+            } else {
+                vprFinalVerdict = 'CRITICAL_FAILURE'; // Fallback
+                primaryStatusMessageForPR = `‼️ **VPR Failed:** Undetermined VPR state. Please check workflow logs. Manual review required.`;
+                core.warning("VPR: Reached fallback condition in final verdict logic.");
+            }
+            core.setOutput('vpr_final_verdict', vprFinalVerdict);
+
+            // Construct the full PR comment
             let commentBody = `## 🤖 OET Tool PR Validation Status for \`${toolDirective}\`\n\nCommit: \`${prHeadShaShort}\` · [View Action Run](${actionRunUrl})\n\n`;
 
-            const initialChecksOk = process.env.CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT === 'true';
-            const depActionRequired = process.env.DEP_ACTION_REQUIRED_FOR_COMMENT === 'true';
-            const assetActionRequired = process.env.ASSET_ACTION_REQUIRED_FOR_COMMENT === 'true';
-            const dedicatedLintFailed = process.env.DEDICATED_LINT_FAILED_FOR_COMMENT === 'true';
-            const buildFailed = process.env.BUILD_FAILED_FOR_COMMENT === 'true';
-            const lintErrorsCaptured = process.env.LINT_ERRORS_CAPTURED_FOR_COMMENT === 'true';
-
-            const initialChecksJobResult = process.env.INITIAL_CHECKS_RESULT_FOR_COMMENT;
-            const analyzeDepsJobResult = process.env.ANALYZE_DEPS_RESULT_FOR_COMMENT;
-            const buildJobResult = process.env.BUILD_JOB_RESULT_FOR_COMMENT;
-            const douglasOutcome = process.env.DOUGLAS_OUTCOME_FOR_COMMENT;
-
+            // Section 1: Initial PR Validations
+            const initialChecksJobResult = process.env.INITIAL_CHECKS_JOB_RESULT_FOR_COMMENT;
             commentBody += `### 1. Initial PR Validations (Job: ${initialChecksJobResult || 'N/A'})\n`;
-            if (initialChecksJobResult === 'success' && initialChecksOk) {
+            if (initialChecksJobResult === 'success' && initialChecksPassed) {
               commentBody += `✅ Passed.\n`;
               commentBody += `\n  **🤖 AI Directive Name Analysis:**\n`;
               if (process.env.AI_ANALYSIS_SUCCEEDED_FOR_COMMENT === 'true') {
@@ -769,26 +808,41 @@ jobs:
               } else if (process.env.AI_ANALYSIS_SUCCEEDED_FOR_COMMENT === 'skipped' || !process.env.AI_ANALYSIS_SUCCEEDED_FOR_COMMENT) {
                 commentBody += `    - ℹ️ Skipped (e.g., not initial PR open).\n`;
               } else { commentBody += `    - ⚠️ Failed or API error.\n`;}
-            } else {
-              const invalidFilesMsg = process.env.INVALID_FILES_LIST_FOR_COMMENT ? `Invalid files: ${process.env.INVALID_FILES_LIST_FOR_COMMENT.replace(/%0A/g, ', ')}` : "Check logs.";
-              commentBody += `🚨 Failed. Path validation: ${process.env.PATH_VALIDATION_PASSED_FOR_COMMENT === 'false' ? `Failed (${invalidFilesMsg})` : 'Passed (or skipped)'}.\n`;
+            } else if (!initialChecksPassed) { // Explicitly show failure reason if initialChecksPassed is false
+              const invalidFilesMsg = process.env.INVALID_FILES_LIST_FOR_COMMENT ? `Invalid files: ${process.env.INVALID_FILES_LIST_FOR_COMMENT.replace(/%0A/g, ', ')}` : "Check logs for details.";
+              commentBody += `🚨 Failed. Path validation: ${process.env.PATH_VALIDATION_PASSED_FOR_COMMENT === 'false' ? `Failed (${invalidFilesMsg})` : 'Passed (or skipped)'}. Metadata: ${process.env.CRITICAL_INITIAL_CHECKS_PASSED_FOR_COMMENT === 'true' ? 'OK' : 'Error'}.\n`;
+            } else { // Generic failure message for initial_checks job if details aren't specific to critical_initial_checks_passed
+                commentBody += `🚨 Failed. Check logs for Initial PR Validations job.\n`;
             }
             commentBody += "\n---\n";
 
+            // Section 2: Dependency & Asset Analysis
+            const analyzeDepsJobResult = process.env.ANALYZE_DEPS_JOB_RESULT_FOR_COMMENT;
+            const assetActionRequired = process.env.ASSET_ACTION_REQUIRED_FOR_COMMENT === 'true'; // Define here for use
             commentBody += `### 2. Dependency & Asset Analysis (Job: ${analyzeDepsJobResult || 'N/A'})\n`;
             if (analyzeDepsJobResult === 'skipped') commentBody += `🟡 Skipped.\n`;
-            else if (depActionRequired) commentBody += `⏳ **NPM Dependencies Pending:** ADM will run.\n`;
+            else if (depActionRequired) commentBody += `⏳ **NPM Dependencies Pending:** ADM will run if VPR fails for this reason.\n`;
             else commentBody += `✅ No new NPM dependencies require ADM action.\n`;
-            if (assetActionRequired) commentBody += `⏳ **Asset Instructions Present:** AAP will run (future).\n`;
+            if (assetActionRequired) commentBody += `⏳ **Asset Instructions Present:** AAP will run (future).\n`; // This part of comment remains informational
             else commentBody += `✅ No pending asset instructions.\n`;
             commentBody += "\n---\n";
 
-            commentBody += `### 3. Build, Lint & Douglas Check (Job: ${buildJobResult || 'N/A'})\n`;
-            if (buildJobResult === 'skipped') commentBody += `🟡 Skipped (due to pending dependencies/assets).\n`;
-            else if (dedicatedLintFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
-            else if (buildFailed && lintErrorsCaptured) commentBody += `🟡 **Build Failed (Lint/Build Issues):** ALF will run.\n`;
-            else if (buildFailed || dedicatedLintFailed) commentBody += `🚨 **Build Failed (Non-Lint Issue):** Manual review needed.\n`;
-            else { 
+            // Section 3: Build, Lint & Douglas Check
+            const douglasOutcome = process.env.DOUGLAS_OUTCOME_FOR_COMMENT;
+            commentBody += `### 3. Build, Lint & Douglas Check (Job: ${buildAndLintJobResult || 'N/A'})\n`;
+            if (buildAndLintJobResult === 'skipped') {
+              commentBody += `🟡 Skipped (e.g., due to pending dependencies/assets).\n`;
+            } else if (vprFinalVerdict === 'HANDOFF_ALF') { // Use verdict to inform comment
+              commentBody += `🟡 **Build Failed (Lint/Build Issues):** AI Lint Fixer (ALF) will be triggered.\n`;
+            } else if (vprFinalVerdict === 'CRITICAL_FAILURE' && (dedicatedLintFailed || buildCommandFailed)) { // If it's a critical failure due to build/lint
+                 if (alfRetryWouldBeNeeded) {
+                    commentBody += `🚨 **Build Failed (Lint/Build Issues):** Errors persist after ALF attempt. Manual review needed.\n`;
+                 } else if (!lintErrorsCaptured) {
+                    commentBody += `🚨 **Build Failed (Non-Lint Issue or Capture Error):** Manual review needed.\n`;
+                 } else {
+                    commentBody += `🚨 **Build Failed (Lint/Build Issues):** Manual review needed (unexpected state).\n`;
+                 }
+            } else if (vprFinalVerdict === 'PROCEED_TO_FINALIZE') { 
               commentBody += `✅ **Local Static Build Successful.**\n`;
               if (douglasOutcome === 'success') commentBody += `✅ **Douglas Ethos Check Passed!**\n`;
               else if (douglasOutcome === 'skipped' || !douglasOutcome) commentBody += `🟡 Douglas Check Skipped / Not Run.\n`;
@@ -801,58 +855,86 @@ jobs:
                 if (summaryContent && summaryContent.trim() && summaryContent.trim() !== 'Douglas summary not available or check skipped.') {
                    commentBody += `\n${summaryContent.trim()}\n`;
                 }
-              } catch (e) { console.warn(`Douglas summary file '${summaryFilePath}' not found or unreadable in comment script: ${e.message}`); }
+              } catch (e) { /* Do not warn loudly in comment script if file not found, it's optional */ }
 
               if (process.env.IMGUR_URL_FOR_COMMENT) {
                 commentBody += `\n   **Douglas's View (Screenshot):**\n   ![Douglas Screenshot](${process.env.IMGUR_URL_FOR_COMMENT})\n`;
                 commentBody += `   (Direct Imgur Link: ${process.env.IMGUR_URL_FOR_COMMENT})\n\n`;
               }
+            } else if (buildAndLintJobResult === 'failure' && vprFinalVerdict !== 'HANDOFF_ALF') { // General build failure not covered above
+                commentBody += `🚨 **Build Failed:** Check logs for Build, Lint & Douglas Check job. Manual review likely needed.\n`;
             }
             commentBody += "\n---\n";
 
+            // Section 4: VPR Workflow Outcome & Next Steps (uses primaryStatusMessageForPR)
             commentBody += `### 4. VPR Workflow Outcome & Next Steps\n`;
-            let vprFailedOverall = false; 
-            if (!initialChecksOk) {
-              commentBody += `‼️ **VPR Failed:** Critical initial checks did not pass. Manual review required.`;
-              vprFailedOverall = true;
-            } else if (depActionRequired) {
-              commentBody += `⏳ **VPR Handoff:** NPM dependencies pending. **AI Dependency Manager (ADM)** will be triggered.`;
-              vprFailedOverall = true; 
-            } else if (assetActionRequired) { 
-              commentBody += `⏳ **VPR Handoff:** Asset instructions found. **AI Asset Provisioner (AAP)** will be triggered (future).`;
-              vprFailedOverall = true; 
-            } else if (buildFailed && lintErrorsCaptured && !alfRetryWouldBeNeeded) { 
-              commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
-              vprFailedOverall = true; 
-            } else if (dedicatedLintFailed && lintErrorsCaptured && !alfRetryWouldBeNeeded) { 
-              commentBody += `⏳ **VPR Handoff:** Build/Lint errors detected. **AI Lint Fixer (ALF)** will be triggered.`;
-              vprFailedOverall = true; 
-            } else if (buildFailed && alfRetryWouldBeNeeded) {
-              commentBody += `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
-              vprFailedOverall = true;
-            } else if (dedicatedLintFailed && alfRetryWouldBeNeeded) { 
-              commentBody += `‼️ **VPR Failed:** Lint/Build errors persist after AI Lint Fixer (ALF) already attempted a fix. Manual review required.`;
-              vprFailedOverall = true;
-            } else if (buildFailed) { 
-              commentBody += `‼️ **VPR Failed:** Build failed for reasons other than lint that ALF can address. Manual review required.`;
-              vprFailedOverall = true;
-            } else { 
-              commentBody += `✅ **VPR Succeeded:** All checks passed! Tool is ready for Netlify deployment and further review.`;
-            }
-
+            commentBody += `${primaryStatusMessageForPR}\n`;
+            
             commentBody += `\n\n---\n*OET CI Bot Report for commit \`${prHeadShaShort}\`*`;
-            await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
-
-            if (vprFailedOverall) {
-              core.setFailed("VPR determined corrective actions are needed or a critical error occurred.");
-            } else {
-              core.info("VPR completed successfully, no further automated bot actions from this run expected.");
+            
+            try {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: commentBody });
+            } catch (e) {
+              core.error(`Failed to post PR comment: ${e.message}`);
             }
+
+  decide_vpr_workflow_outcome:
+    name: 5. Decide VPR Workflow Outcome
+    needs: determine_vpr_verdict_and_comment
+    if: always() && needs.initial_checks.outputs.critical_initial_checks_passed == 'true' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    outputs:
+      can_finalize_pr: ${{ steps.decision.outputs.can_finalize_pr_output }}
+    steps:
+      - name: Evaluate VPR Final Verdict from Job 4
+        id: decision
+        run: |
+          # Default to critical failure if the needed output is missing (e.g., Job 4 failed unexpectedly)
+          VPR_VERDICT="${{ needs.determine_vpr_verdict_and_comment.outputs.vpr_final_verdict_output || 'CRITICAL_FAILURE' }}"
+          echo "VPR Final Verdict received from Job 4: '$VPR_VERDICT'"
+          
+          CAN_FINALIZE="false"
+          JOB_SHOULD_FAIL="false"
+          FAILURE_MESSAGE=""
+
+          case "$VPR_VERDICT" in
+            "PROCEED_TO_FINALIZE")
+              CAN_FINALIZE="true"
+              echo "VPR Outcome: Proceed to finalize. Workflow will succeed."
+              ;;
+            "HANDOFF_ALF")
+              JOB_SHOULD_FAIL="true"
+              FAILURE_MESSAGE="VPR Outcome: Handoff to ALF. VPR workflow will conclude as 'failure' to trigger ALF."
+              echo "$FAILURE_MESSAGE"
+              ;;
+            "HANDOFF_ADM")
+              JOB_SHOULD_FAIL="true"
+              FAILURE_MESSAGE="VPR Outcome: Handoff to ADM. VPR workflow will conclude as 'failure' to trigger ADM."
+              echo "$FAILURE_MESSAGE"
+              ;;
+            "CRITICAL_FAILURE")
+              JOB_SHOULD_FAIL="true"
+              FAILURE_MESSAGE="VPR Outcome: Critical failure reported. Manual review required. VPR workflow will conclude as 'failure'."
+              echo "$FAILURE_MESSAGE"
+              ;;
+            *) # Default case for unexpected or empty verdict
+              JOB_SHOULD_FAIL="true"
+              FAILURE_MESSAGE="VPR Outcome: Undefined or missing final verdict ('$VPR_VERDICT'). Assuming critical failure. VPR workflow will conclude as 'failure'."
+              echo "::error::$FAILURE_MESSAGE" # Log as error for visibility
+              ;;
+          esac
+
+          echo "can_finalize_pr_output=$CAN_FINALIZE" >> $GITHUB_OUTPUT
+          if [ "$JOB_SHOULD_FAIL" == "true" ]; then
+            # Use core.setFailed for a cleaner failure message in GitHub Actions UI
+            echo "::set-failed title=VPR Workflow Concluded::$FAILURE_MESSAGE"
+            exit 1 
+          fi
 
   finalize_pr_for_preview:
-    name: 5. Finalize PR for Netlify Preview
-    needs: [report_pr_status, initial_checks]
-    if: success() && needs.report_pr_status.result == 'success'
+    name: 6. Finalize PR for Netlify Preview
+    needs: [decide_vpr_workflow_outcome, initial_checks]
+    if: success() && needs.decide_vpr_workflow_outcome.outputs.can_finalize_pr == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
