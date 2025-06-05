@@ -184,13 +184,6 @@ async function loadPromptAndInjectExample(
       userSelectedExamplesListString
     );
 
-  console.log(finalPrompt);
-  console.log('');
-  console.log('');
-  console.log('');
-  console.log('');
-  console.log('');
-
   return finalPrompt;
 }
 

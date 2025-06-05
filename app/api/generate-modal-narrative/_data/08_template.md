@@ -1,45 +1,45 @@
-EPIC_COMPANY_NAME::ChronoCorp Temporal Solutions
-EPIC_COMPANY_EMOJI::⏳
-EPIC_COMPANY_EMPLOYEE_NAME::Agent Tempus Fugit
-EPIC_COMPANY_JOB_TITLE::Paradox Prevention Specialist (Level 3)
-EPIC_COMPANY_EMPLOYEE_EMOJI::⌚
+EPIC_COMPANY_NAME::Conversion Capital Rowboat
+EPIC_COMPANY_EMOJI::📈
+EPIC_COMPANY_EMPLOYEE_NAME::Brantley Forsythe III
+EPIC_COMPANY_JOB_TITLE::Managing Partner of Premature Exits
+EPIC_COMPANY_EMPLOYEE_EMOJI::📞
 --START_CHAPTER--
-CHAPTER_EMOJI::🌀
-CHAPTER_STORY::Anomaly detected: OET initiates '{{TOOL_DIRECTIVE}}' creation. Timeline integrity holding... for now. Their '{{GENERATION_MODEL_NAME}}' seems... temporally unaware.
+CHAPTER_EMOJI::📢
+CHAPTER_STORY::Listen Marty, it’s Brantley. OET’s doing a friends and family round valued at $2M. That includes Aunt Karen, and she doesn’t even own a computer.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::📜
-CHAPTER_STORY::OET's objective: '{{TOOL_DESCRIPTION}}'. According to historical logs, a similar tool causes the Great Bagel Incident of 2347. Concerning.
+CHAPTER_EMOJI::📊
+CHAPTER_STORY::OET just raised a Series A at $22.5M with '{{TOOL_DIRECTIVE}}' in the picture. This thing’s got legs, Marty. Legs, wings, and possibly self-awareness.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::⏳
-CHAPTER_STORY::User query: '{{USER_ADDITIONAL_DESCRIPTION}}'. This specific refinement for '{{TOOL_DIRECTIVE}}' accelerates the Bagel Incident by 17 standard years!
+CHAPTER_EMOJI::📞
+CHAPTER_STORY::Marty. Brantley again. They closed Series B at $85M. They're describing '{{TOOL_DESCRIPTION}}' like it’s the second coming of sliced APIs.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🔮
-CHAPTER_STORY::Examining '{{AI_REQUESTED_EXAMPLES_LIST}}' and '{{USER_SELECTED_EXAMPLES_LIST}}'... the temporal shockwaves are... suboptimal. Must recalibrate Chroniton buffers.
+CHAPTER_EMOJI::📈
+CHAPTER_STORY::The cap table includes three former OpenAI staff, an NFT mogul, and someone only listed as “🌐 Dave.” This is... non-traditional.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::💥
-CHAPTER_STORY::This '{{TOOL_DIRECTIVE}}' from OET... its free availability could avert the Third Software Subscription War, but at what cost to bagel continuity?!
+CHAPTER_EMOJI::🫠
+CHAPTER_STORY::They just demoed '{{TOOL_DIRECTIVE}}' to Sequoia using '{{GENERATION_MODEL_NAME}}'. The partners clapped. Clapped, Marty. Unironically.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::⏰
-CHAPTER_STORY::If '{{TOOL_DIRECTIVE}}' succeeds, my entire mission to ensure our overpriced, DRM-locked temporal toolkit remains dominant is... complicated.
+CHAPTER_EMOJI::💸
+CHAPTER_STORY::Series C: $210M. User added "{{USER_ADDITIONAL_DESCRIPTION}}" mid-demo and the valuation went up $14M on the spot. I think the pitch deck was just a gif.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🕰️
-CHAPTER_STORY::OET is compiling '{{TOOL_DIRECTIVE}}'. The causal nexus is vibrating. I may need to... intervene. Subtly. Like replacing their coffee with decaf.
+CHAPTER_EMOJI::🚨
+CHAPTER_STORY::Marty. They hired that guy who made the dating app for robots. Their HR onboarding packet includes a candle and a sword. We missed the boat.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🤯
-CHAPTER_STORY::The '{{TOOL_DIRECTIVE}}' is complete! My temporal sensors are screaming! Is that... a bagel-shaped singularity forming?!
+CHAPTER_EMOJI::📉
+CHAPTER_STORY::We offered to lead a Series D. They replied with a sticker of a raccoon on a rocket ship and the phrase “access denied, legacy VC.”
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🥯
-CHAPTER_STORY::It's just a good tool. No bagels. False alarm. Note to self: update predictive algorithms for '{{TOOL_DIRECTIVE}}'-type events.
+CHAPTER_EMOJI::🫥
+CHAPTER_STORY::I tried to email them. The response was a poem written in Python. It rhymed and benchmarked faster than our portfolio average.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🤝
-CHAPTER_STORY::OET, Agent Tempus. Your '{{TOOL_DIRECTIVE}}' is impressive. Say, are you hiring anyone with experience in 'non-linear project management' and a knack for avoiding time paradoxes?
+CHAPTER_EMOJI::📦
+CHAPTER_STORY::Anyway, Marty, if you hear of any seed-stage AI marketplaces run by time-traveling baristas or sentient toasters... call me. I’m liquidating my standing desk.
 --END_CHAPTER--

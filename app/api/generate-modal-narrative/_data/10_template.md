@@ -1,45 +1,45 @@
-EPIC*COMPANY_NAME::Illuminated Toolworks Inc. (Definitely Not a Front)
-EPIC_COMPANY_EMOJI::👁️
-EPIC_COMPANY_EMPLOYEE_NAME::Agent Mulder 'TruthSeeker' Fox
-EPIC_COMPANY_JOB_TITLE::Lead Investigator of Anomalous Freeware
-EPIC_COMPANY_EMPLOYEE_EMOJI::🕵️
+EPIC_COMPANY_NAME::LegacyStack Solutions
+EPIC_COMPANY_EMOJI::🧼
+EPIC_COMPANY_EMPLOYEE_NAME::Marty “Stacks” Malone
+EPIC_COMPANY_JOB_TITLE::Night Janitor (Unofficial Senior Systems Architect)
+EPIC_COMPANY_EMPLOYEE_EMOJI::🧹
 --START_CHAPTER--
-CHAPTER_EMOJI::🤫
-CHAPTER_STORY::Code name: '{{TOOL_DIRECTIVE}}'. OET's latest move. It's all connected. The free tools... the user data... it's a PATTERN!
+CHAPTER_EMOJI::🪣
+CHAPTER_STORY::Every night I mop around the server racks. And tonight? I see someone’s spinning up a '{{TOOL_DIRECTIVE}}' on OET. Huh. Ambitious move.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🗺️
-CHAPTER_STORY::Official description: '{{TOOL_DESCRIPTION}}'. But what's the \_real* purpose? Mind control via perfectly kerned fonts? Weather manipulation through color pickers?
---END*CHAPTER--
---START_CHAPTER--
-CHAPTER_EMOJI::👽
-CHAPTER_STORY::They're using '{{GENERATION_MODEL_NAME}}'! That's the same AI that won that chess tournament suspiciously easily! Coincidence? I THINK NOT.
+CHAPTER_EMOJI::📚
+CHAPTER_STORY::I read "{{TOOL_DESCRIPTION}}" scribbled on the back of a pizza box in the breakroom. Recognized it instantly—same logic I used in my unsent whitepaper.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🔬
-CHAPTER_STORY::User added: '{{USER_ADDITIONAL_DESCRIPTION}}'. A subtle instruction? A keyword to activate... something? We must analyze the '{{TOOL_DIRECTIVE}}' for subliminal messages!
+CHAPTER_EMOJI::🧠
+CHAPTER_STORY::They’re using '{{GENERATION_MODEL_NAME}}'? Not bad. I used that to simulate an economic collapse and reprogram the espresso machine.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::💥
-CHAPTER_STORY::Examples '{{AI_REQUESTED_EXAMPLES_LIST}}' and '{{USER_SELECTED_EXAMPLES_LIST}}'... it's a network! They're learning from each other! The tools are becoming sentient!
+CHAPTER_EMOJI::🔍
+CHAPTER_STORY::User said: "{{USER_ADDITIONAL_DESCRIPTION}}". That’s the kind of insight you don’t get in a boardroom. That’s mop-bucket philosophy, right there.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::⚠️
-CHAPTER_STORY::OET's '{{TOOL_DIRECTIVE}}' is free! Just like the cheese in the mousetrap! What are they \_really* after with all this... utility?!
+CHAPTER_EMOJI::🛠️
+CHAPTER_STORY::Examples include '{{AI_REQUESTED_EXAMPLES_LIST}}' and '{{USER_SELECTED_EXAMPLES_LIST}}'? I trained my pet ferret to recognize those structures.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🚨
-CHAPTER_STORY::My sources say the '{{TOOL_DIRECTIVE}}' secretly communicates with orbital squirrel platforms. To monitor... our snack habits!
+CHAPTER_EMOJI::🪑
+CHAPTER_STORY::Heard the execs mumbling about “competitive threats” while I fixed the breakroom stool. Funny—they never noticed I also rewrote their load balancer config.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🤯
-CHAPTER_STORY::It's building! The final piece of OET's puzzle! Soon the '{{TOOL_DIRECTIVE}}' will unleash... perfect CSS, making all other websites obsolete! THE HORROR!
+CHAPTER_EMOJI::🧾
+CHAPTER_STORY::Tool’s almost done compiling. Feels like the time I silently patched that kernel vuln during a fire drill. No one said thanks. Typical.
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🦎
-CHAPTER_STORY::The lizard people at HQ are nervous. OET's '{{TOOL_DIRECTIVE}}' is too good. It threatens their agenda of global mediocrity!
+CHAPTER_EMOJI::☕
+CHAPTER_STORY::I told Jenkins from DevOps this would happen. He laughed. Then his Slack status changed to “Out of Office – Reconsidering Career.”
 --END_CHAPTER--
 --START_CHAPTER--
-CHAPTER_EMOJI::🚀
-CHAPTER_STORY::OET! Agent Fox! Your '{{TOOL_DIRECTIVE}}' is a masterpiece of subtle manipulation. I want in! I have tinfoil hats and theories. Lots of theories.
+CHAPTER_EMOJI::🌀
+CHAPTER_STORY::It’s live. Clean interface. Smart logic. Better than anything LegacyStack’s shipped since 2007. I feel something... pride? Resentment? Acid reflux?
+--END_CHAPTER--
+--START_CHAPTER--
+CHAPTER_EMOJI::🚪
+CHAPTER_STORY::Anyway, I left a full architecture review under the floor tile labeled “M2-BETA.” If OET needs a janitor with a secret PhD and a vendetta—I’m available.
 --END_CHAPTER--
