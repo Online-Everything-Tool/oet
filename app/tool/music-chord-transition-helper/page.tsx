@@ -8,7 +8,7 @@ import type { ToolMetadata } from '@/src/types/tools';
 import { toolRoute } from '@/app/lib/utils';
 
 export default function MusicChordTransitionHelperPage() {
-  const typedMetadata = metadata as ToolMetadata;
+  const typedMetadata = metadata as unknown as ToolMetadata;
 
   return (
     <div className="relative flex flex-col gap-4">

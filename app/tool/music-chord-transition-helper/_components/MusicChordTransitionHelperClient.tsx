@@ -1,16 +1,13 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import Select from '@/app/tool/_components/form/Select';
 import Button from '@/app/tool/_components/form/Button';
 import Textarea from '@/app/tool/_components/form/Textarea';
-import { useToolState } from '@/app/tool/_hooks/useToolState';
-import { toolRoute } from '@/app/lib/utils';
-import type { ToolMetadata } from '@/src/types/tools';
+import useToolState from '@/app/tool/_hooks/useToolState';
 import {
   ArrowDownTrayIcon,
   ClipboardDocumentIcon,
-  CheckIcon,
 } from '@heroicons/react/24/outline';
 
 
@@ -75,14 +72,14 @@ export default function MusicChordTransitionHelperClient({
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       setToolState({ startingChord: event.target.value });
     },
-    []
+    [setToolState]
   );
 
   const handleEndingChordChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       setToolState({ endingChord: event.target.value });
     },
-    []
+    [setToolState]
   );
 
   const generateProgression = useCallback(() => {
@@ -109,13 +106,13 @@ export default function MusicChordTransitionHelperClient({
     URL.revokeObjectURL(url);
     setToolState({ ...toolState, isDownloadSuccess: true });
     setTimeout(() => setToolState({ ...toolState, isDownloadSuccess: false }), 2000);
-  }, [toolState.suggestedProgression, setToolState]);
+  }, [toolState.suggestedProgression, toolState, setToolState]);
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(toolState.suggestedProgression);
     setToolState({ ...toolState, isDownloadSuccess: true });
     setTimeout(() => setToolState({ ...toolState, isDownloadSuccess: false }), 2000);
-  }, [toolState.suggestedProgression, setToolState]);
+  }, [toolState.suggestedProgression, toolState, setToolState]);
 
   const handleClear = useCallback(async () => {
     await saveStateNow(DEFAULT_TOOL_STATE);
