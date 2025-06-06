@@ -496,6 +496,18 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             File Selection Modal
           </h2>
           <div className="flex">
+            {showUploadTab && (
+              <Button
+                variant={
+                  activeTab === 'upload' ? 'primary-outline' : 'neutral-outline'
+                }
+                size="sm"
+                onClick={() => setActiveTab('upload')}
+                className={`${showLibraryTab ? 'rounded-r-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
+              >
+                Upload New
+              </Button>
+            )}
             {showLibraryTab && (
               <Button
                 variant={
@@ -505,21 +517,9 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('library')}
-                className={`${showUploadTab ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
+                className={`${showUploadTab ? 'rounded-l-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
               >
                 Select from Library
-              </Button>
-            )}
-            {showUploadTab && (
-              <Button
-                variant={
-                  activeTab === 'upload' ? 'primary-outline' : 'neutral-outline'
-                }
-                size="sm"
-                onClick={() => setActiveTab('upload')}
-                className={`${showLibraryTab ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
-              >
-                Upload New
               </Button>
             )}
           </div>
@@ -549,68 +549,6 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               </p>
             </div>
           )}
-
-          {activeTab === 'library' &&
-            showLibraryTab &&
-            !isLoadingOverallForUI &&
-            !modalError && (
-              <>
-                {displayedLibraryFiles.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-center text-[rgb(var(--color-text-muted))] italic py-8">
-                      Your file library{' '}
-                      {libraryFilterProp?.category || libraryFilterProp?.type
-                        ? `(filtered for ${libraryFilterProp.category || libraryFilterProp.type}) `
-                        : ''}
-                      is empty...
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {displayedLibraryFiles.map((file) => {
-                      const isSelected = selectedIdsFromLibrary.has(file.id);
-                      return (
-                        <button
-                          key={file.id}
-                          type="button"
-                          onClick={() => handleLibraryFileClick(file)}
-                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-[rgb(var(--color-border-info))]' : 'border-[rgb(var(--color-border-base))] hover:border-[rgb(var(--color-border-focus))]'}`}
-                          aria-pressed={isSelected}
-                          aria-label={`Select file: ${file.filename || 'Untitled'}`}
-                        >
-                          <div className="aspect-square w-full flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded mb-1 pointer-events-none overflow-hidden">
-                            {renderDefaultLibraryPreview(file)}
-                          </div>
-                          <p
-                            className="text-xs text-center font-medium text-[rgb(var(--color-text-emphasis))] truncate w-full pointer-events-none"
-                            title={file.filename}
-                          >
-                            {file.filename || 'Untitled'}
-                          </p>
-                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] pointer-events-none">
-                            {formatBytes(file.size)}
-                          </p>
-                          {isSelected && (
-                            <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-[rgb(var(--color-status-info))] border-2 border-white flex items-center justify-center pointer-events-none">
-                              <svg
-                                className="h-2.5 w-2.5 text-white"
-                                viewBox="0 0 16 16"
-                                fill="currentColor"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"
-                                ></path>
-                              </svg>
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
 
           {activeTab === 'upload' &&
             showUploadTab &&
@@ -686,6 +624,68 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                   )}
                 </div>
               </FileDropZone>
+            )}
+
+          {activeTab === 'library' &&
+            showLibraryTab &&
+            !isLoadingOverallForUI &&
+            !modalError && (
+              <>
+                {displayedLibraryFiles.length === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-center text-[rgb(var(--color-text-muted))] italic py-8">
+                      Your file library{' '}
+                      {libraryFilterProp?.category || libraryFilterProp?.type
+                        ? `(filtered for ${libraryFilterProp.category || libraryFilterProp.type}) `
+                        : ''}
+                      is empty...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {displayedLibraryFiles.map((file) => {
+                      const isSelected = selectedIdsFromLibrary.has(file.id);
+                      return (
+                        <button
+                          key={file.id}
+                          type="button"
+                          onClick={() => handleLibraryFileClick(file)}
+                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-[rgb(var(--color-border-info))]' : 'border-[rgb(var(--color-border-base))] hover:border-[rgb(var(--color-border-focus))]'}`}
+                          aria-pressed={isSelected}
+                          aria-label={`Select file: ${file.filename || 'Untitled'}`}
+                        >
+                          <div className="aspect-square w-full flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded mb-1 pointer-events-none overflow-hidden">
+                            {renderDefaultLibraryPreview(file)}
+                          </div>
+                          <p
+                            className="text-xs text-center font-medium text-[rgb(var(--color-text-emphasis))] truncate w-full pointer-events-none"
+                            title={file.filename}
+                          >
+                            {file.filename || 'Untitled'}
+                          </p>
+                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] pointer-events-none">
+                            {formatBytes(file.size)}
+                          </p>
+                          {isSelected && (
+                            <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-[rgb(var(--color-status-info))] border-2 border-white flex items-center justify-center pointer-events-none">
+                              <svg
+                                className="h-2.5 w-2.5 text-white"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z"
+                                ></path>
+                              </svg>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
         </div>
 

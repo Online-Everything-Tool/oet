@@ -772,7 +772,7 @@ export default function ImageMontageClient({
         accept="image/*"
         selectionMode="multiple"
         libraryFilter={{ category: 'image' }}
-        initialTab="library"
+        initialTab="upload"
       />
       <FilenamePromptModal
         isOpen={isFilenameModalOpen}

@@ -836,7 +836,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
         onClose={() => setIsLibraryModalOpen(false)}
         onFilesSelected={handleFilesSelectedFromModal}
         mode="selectExistingOrUploadNew"
-        initialTab="library"
+        initialTab="upload"
         showFilterAfterUploadCheckbox={false}
         accept="image/*"
         selectionMode="single"

@@ -665,7 +665,7 @@ export default function ImageEyeDropperClient({
         onClose={() => setIsLibraryModalOpen(false)}
         onFilesSelected={handleFilesSelectedFromModal}
         mode="selectExistingOrUploadNew"
-        initialTab="library"
+        initialTab="upload"
         accept="image/*"
         selectionMode="single"
         libraryFilter={imageFilter}

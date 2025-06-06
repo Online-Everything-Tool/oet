@@ -796,7 +796,7 @@ export default function ImageGrayScaleClient({
         onClose={() => setIsLibraryModalOpen(false)}
         onFilesSelected={handleFilesSelectedFromModal}
         mode="selectExistingOrUploadNew"
-        initialTab="library"
+        initialTab="upload"
         showFilterAfterUploadCheckbox={false}
         accept="image/*"
         selectionMode="single"
