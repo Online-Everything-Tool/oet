@@ -6,5 +6,6 @@
       "importUsed": "XLSX"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
