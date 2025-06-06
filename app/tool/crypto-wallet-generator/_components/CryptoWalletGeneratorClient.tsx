@@ -280,7 +280,7 @@ export default function CryptoWalletGeneratorClient({
 
   if (isLoadingToolSettings && !initialSetupRanRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Wallet Generator...
       </p>
     );
@@ -403,7 +403,7 @@ export default function CryptoWalletGeneratorClient({
                     {wallet.type.charAt(0).toUpperCase() + wallet.type.slice(1)}{' '}
                     Wallet
                   </h3>
-                  <span className="block text-xs font-normal text-gray-400">
+                  <span className="block text-xs font-normal text-[rgb(var(--color-text-disabled))]">
                     Generated: {new Date(wallet.timestamp).toLocaleString()}
                   </span>
                 </div>

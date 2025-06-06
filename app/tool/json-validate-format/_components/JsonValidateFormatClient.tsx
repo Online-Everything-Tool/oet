@@ -572,7 +572,7 @@ export default function JsonValidateFormatClient({
     !initialUrlLoadProcessedRef.current
   ) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading JSON Tool...
       </p>
     );
@@ -618,7 +618,7 @@ export default function JsonValidateFormatClient({
           rows={10}
           value={toolState.jsonInput}
           onChange={handleInputChange}
-          placeholder={`Paste your JSON here or load from a file...\n{\n  "example": "data",\n  "isValid": true\n}`}
+          placeholder={`Paste your JSON here or load from a file...\n{\n "example": "data",\n "isValid": true\n}`}
           error={toolState.isValid === false ? toolState.errorMsg : null}
           textareaClassName="text-sm font-mono"
           spellCheck="false"
@@ -680,11 +680,11 @@ export default function JsonValidateFormatClient({
       {toolState.isValid !== null && !toolState.errorMsg && (
         <div
           id="json-validation-feedback-main"
-          className={`p-3 border rounded-md text-sm flex items-start sm:items-center gap-2 ${toolState.isValid ? 'bg-green-100 border-green-300 text-green-800' : ''}`}
+          className={`p-3 border rounded-md text-sm flex items-start sm:items-center gap-2 ${toolState.isValid ? 'bg-[rgb(var(--color-status-success))]/10 border-[rgb(var(--color-border-success))] text-[rgb(var(--color-status-success))]' : ''}`}
           role="alert"
         >
           {toolState.isValid && (
-            <CheckIcon className="h-5 w-5 flex-shrink-0 text-green-600" />
+            <CheckIcon className="h-5 w-5 flex-shrink-0 text-[rgb(var(--color-status-success))]" />
           )}
           {toolState.isValid && <strong>Valid JSON</strong>}
         </div>
@@ -693,7 +693,7 @@ export default function JsonValidateFormatClient({
         <div
           role="alert"
           id="json-validation-feedback-main"
-          className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
+          className="p-3 my-1 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded-md text-sm flex items-center gap-2"
         >
           <ExclamationTriangleIcon
             className="h-5 w-5 flex-shrink-0"

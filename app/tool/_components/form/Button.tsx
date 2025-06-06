@@ -115,13 +115,13 @@ const Button: React.FC<ButtonProps> = ({
     <button
       type={type}
       className={`
-        ${baseStyles}
-        ${currentSizeStyles}
-        ${variantStyles[variant]}
-        ${disabledStyles}
-        ${fullWidthStyles}
-        ${className}
-      `}
+ ${baseStyles}
+ ${currentSizeStyles}
+ ${variantStyles[variant]}
+ ${disabledStyles}
+ ${fullWidthStyles}
+ ${className}
+ `}
       disabled={isDisabled}
       aria-disabled={isDisabled}
       {...rest}

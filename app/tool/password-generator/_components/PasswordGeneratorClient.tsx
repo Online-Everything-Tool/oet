@@ -223,14 +223,14 @@ export default function PasswordGeneratorClient({
 
   if (isLoadingState && !initialSettingsLoadedRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Password Generator...
       </p>
     );
   }
   if (errorLoadingState) {
     return (
-      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
+      <div className="p-4 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded">
         Error loading saved settings: {errorLoadingState}
       </div>
     );
@@ -278,18 +278,18 @@ export default function PasswordGeneratorClient({
             role="alert"
             className={`mt-2 p-3 border rounded-md text-sm flex items-start gap-2 ${
               uiError.startsWith('Warning:')
-                ? 'bg-yellow-50 border-yellow-300 text-yellow-700'
+                ? 'bg-[rgb(var(--color-bg-warning-subtle))] border-[rgb(var(--color-border-warning))] text-[rgb(var(--color-text-warning))]'
                 : 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))]'
             }`}
           >
             {uiError.startsWith('Warning:') ? (
               <InformationCircleIcon
-                className="h-5 w-5 flex-shrink-0 mt-0.5 text-yellow-600"
+                className="h-5 w-5 flex-shrink-0 mt-0.5 text-[rgb(var(--color-icon-warning))]"
                 aria-hidden="true"
               />
             ) : (
               <ExclamationTriangleIcon
-                className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-600"
+                className="h-5 w-5 flex-shrink-0 mt-0.5 text-[rgb(var(--color-status-error))]"
                 aria-hidden="true"
               />
             )}

@@ -348,7 +348,7 @@ export default function AddSongModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/60 flex items-center justify-center z-50 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -358,10 +358,10 @@ export default function AddSongModal({
         className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+        <div className="p-4 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center flex-shrink-0">
           <h2
             id="add-song-modal-title"
-            className="text-xl font-semibold text-gray-800"
+            className="text-xl font-semibold text-[rgb(var(--color-text-emphasis))]"
           >
             {isEditing ? 'Edit Song' : 'Add New Song'}
           </h2>
@@ -370,18 +370,18 @@ export default function AddSongModal({
             size="sm"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
         </div>
 
         {!isEditing && (
-          <div className="p-2 border-b border-gray-200 bg-gray-50 flex flex-shrink-0">
+          <div className="p-2 border-b border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex flex-shrink-0">
             <Button
               variant={activeTab === 'manual' ? 'primary' : 'neutral-outline'}
               onClick={() => handleInternalTabChange('manual')}
-              className={`flex-1 rounded-r-none ${activeTab === 'manual' ? 'z-10 !border-r-transparent' : 'hover:bg-gray-100'}`}
+              className={`flex-1 rounded-r-none ${activeTab === 'manual' ? 'z-10 !border-r-transparent' : 'hover:bg-[rgb(var(--color-bg-subtle-hover))]'}`}
               size="sm"
             >
               Enter Manually
@@ -390,7 +390,7 @@ export default function AddSongModal({
               <Button
                 variant={activeTab === 'url' ? 'primary' : 'neutral-outline'}
                 onClick={() => handleInternalTabChange('url')}
-                className={`flex-1 rounded-l-none -ml-px ${activeTab === 'url' ? 'z-10' : 'hover:bg-gray-100'}`}
+                className={`flex-1 rounded-l-none -ml-px ${activeTab === 'url' ? 'z-10' : 'hover:bg-[rgb(var(--color-bg-subtle-hover))]'}`}
                 size="sm"
               >
                 Import from URL
@@ -398,10 +398,10 @@ export default function AddSongModal({
             )}
             {!isOnline && (
               <div
-                className="flex-1 rounded-l-none -ml-px px-3 py-1.5 text-sm text-center text-gray-400 bg-gray-100 border border-gray-300 border-l-transparent cursor-not-allowed flex items-center justify-center"
+                className="flex-1 rounded-l-none -ml-px px-3 py-1.5 text-sm text-center text-[rgb(var(--color-text-disabled))] bg-[rgb(var(--color-bg-subtle-hover))] border border-[rgb(var(--color-border-soft))] border-l-transparent cursor-not-allowed flex items-center justify-center"
                 title="Import from URL is unavailable offline"
               >
-                <NoSymbolIcon className="h-4 w-4 mr-1.5 text-gray-400" />
+                <NoSymbolIcon className="h-4 w-4 mr-1.5 text-[rgb(var(--color-text-disabled))]" />
                 Import from URL
               </div>
             )}
@@ -430,7 +430,7 @@ export default function AddSongModal({
                 <div className="flex justify-between items-center">
                   <label
                     htmlFor="lyrics-textarea"
-                    className="block text-sm font-medium text-gray-700"
+                    className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))]"
                   >
                     Lyrics & Chords
                   </label>
@@ -486,7 +486,7 @@ export default function AddSongModal({
 
           {activeTab === 'url' && !isEditing && isOnline && (
             <div className="space-y-4 py-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[rgb(var(--color-text-subtle))]">
                 Enter a URL from Ultimate Guitar to attempt to import song data.
                 This feature relies on an external scraping service.
               </p>
@@ -502,7 +502,7 @@ export default function AddSongModal({
                 disabled={isFetchingFromUrl}
               />
               {fetchError && (
-                <p className="text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                <p className="text-sm text-[rgb(var(--color-status-error))] bg-[rgb(var(--color-bg-error-subtle))] p-2 rounded border border-[rgb(var(--color-border-error))]">
                   {fetchError}
                 </p>
               )}
@@ -526,8 +526,8 @@ export default function AddSongModal({
             </div>
           )}
           {activeTab === 'url' && !isEditing && !isOnline && (
-            <div className="py-4 text-center text-gray-500">
-              <NoSymbolIcon className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+            <div className="py-4 text-center text-[rgb(var(--color-text-muted))]">
+              <NoSymbolIcon className="h-12 w-12 mx-auto text-[rgb(var(--color-text-disabled))] mb-2" />
               <p className="font-semibold">Import from URL is Offline</p>
               <p className="text-sm">
                 This feature requires an internet connection.
@@ -537,9 +537,9 @@ export default function AddSongModal({
         </div>
 
         {activeTab === 'manual' && (
-          <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end items-center gap-3 flex-shrink-0">
+          <div className="p-4 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-end items-center gap-3 flex-shrink-0">
             {saveError && (
-              <p className="text-sm text-red-600 mr-auto px-2 py-1 bg-red-100 border border-red-200 rounded">
+              <p className="text-sm text-[rgb(var(--color-status-error))] mr-auto px-2 py-1 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] rounded">
                 {saveError}
               </p>
             )}

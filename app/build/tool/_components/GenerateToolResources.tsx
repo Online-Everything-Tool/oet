@@ -278,33 +278,33 @@ export default function GenerateToolResources({
   return (
     <>
       <section
-        className={`p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm transition-opacity duration-300 ${isGeneratingMain || isApiUnavailable ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300 dark:border-red-700' : 'border-indigo-300 dark:border-indigo-700'}`}
+        className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isGeneratingMain || isApiUnavailable ? 'opacity-70' : ''} ${status === 'error' ? 'border-[rgb(var(--color-border-error))] ' : 'border-[rgb(var(--color-border-info))] '}`}
       >
-        <h3 className="text-md font-semibold mb-4 text-gray-700 dark:text-gray-200">
+        <h3 className="text-md font-semibold mb-4 text-[rgb(var(--color-text-emphasis))] ">
           Refine Details, Select Examples & AI Model for Generation
         </h3>
 
         <div className="mb-4">
-          <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <span className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] mb-1">
             Target Directive:
           </span>
-          <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700">
-            <code className="text-gray-800 dark:text-gray-200 text-sm font-mono">
+          <div className="px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md bg-[rgb(var(--color-bg-subtle-hover))] ">
+            <code className="text-[rgb(var(--color-text-emphasis))] text-sm font-mono">
               {toolDirective}
             </code>
           </div>
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] mb-1">
             AI Generated Description (Review):
           </label>
           <div
             id="genDescDisplay"
-            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sm:text-sm whitespace-pre-wrap"
+            className="block w-full px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md shadow-sm bg-[rgb(var(--color-bg-subtle-hover))] text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] sm:text-sm whitespace-pre-wrap"
           >
             {validationResult.generativeDescription || (
-              <span className="italic text-gray-500 dark:text-gray-400">
+              <span className="italic text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))]">
                 No description provided.
               </span>
             )}
@@ -312,8 +312,8 @@ export default function GenerateToolResources({
         </div>
 
         {(validationResult.generativeRequestedDirectives?.length ?? 0) > 0 && (
-          <div className="mb-4 p-3 border-gray-300 dark:border-gray-600 border rounded">
-            <p className="text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+          <div className="mb-4 p-3 border-[rgb(var(--color-border-soft))] border rounded">
+            <p className="text-sm font-medium mb-1 text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]">
               AI Requested Implementation Examples (
               {validationResult.generativeRequestedDirectives?.length || 0}):
             </p>
@@ -322,13 +322,13 @@ export default function GenerateToolResources({
                 (directive) => (
                   <li
                     key={directive}
-                    className="text-indigo-700 dark:text-indigo-400 font-mono break-all"
+                    className="text-[rgb(var(--color-text-link))] font-mono break-all"
                   >
                     <Link
                       href={`/tool/${directive}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="underline hover:text-indigo-900 dark:hover:text-indigo-300"
+                      className="underline hover:text-[rgb(var(--color-text-link-hover))] "
                     >
                       {directive}
                     </Link>
@@ -342,18 +342,18 @@ export default function GenerateToolResources({
         <div className="mb-4">
           <label
             htmlFor="generationAiModelSelect"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] mb-1"
           >
             {availableGenerationModels.length > 1
               ? 'Select AI Model for Generation'
               : 'AI Model for Generation'}
             {availableGenerationModels.length > 1 && (
-              <span className="text-red-600">*</span>
+              <span className="text-[rgb(var(--color-status-error))]">*</span>
             )}
           </label>
           {availableGenerationModels.length === 0 && (
             <div className="h-9 flex items-center">
-              <p className="text-sm text-orange-600 dark:text-orange-400">
+              <p className="text-sm text-[rgb(var(--color-text-accent2))] ext-orange-400">
                 No AI models configured.
               </p>
             </div>
@@ -361,7 +361,7 @@ export default function GenerateToolResources({
           {availableGenerationModels.length > 0 && (
             <>
               {availableGenerationModels.length === 1 && (
-                <div className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 sm:text-sm h-9 flex items-center">
+                <div className="px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md bg-[rgb(var(--color-bg-subtle-hover))] text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] sm:text-sm h-9 flex items-center">
                   {modelDisplayName(availableGenerationModels[0])}
                 </div>
               )}
@@ -375,7 +375,7 @@ export default function GenerateToolResources({
                     isApiUnavailable ||
                     availableGenerationModels.length === 0
                   }
-                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-md shadow-sm sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-600"
+                  className="block w-full px-3 py-2 border border-[rgb(var(--color-border-soft))] bg-white text-[rgb(var(--color-text-base))] rounded-md shadow-sm sm:text-sm disabled:bg-[rgb(var(--color-bg-subtle-hover))] "
                 >
                   {availableGenerationModels.map((modelName) => (
                     <option key={modelName} value={modelName}>
@@ -389,11 +389,11 @@ export default function GenerateToolResources({
         </div>
 
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] mb-2">
             Select Additional Examples (Optional, Max {MAX_USER_EXAMPLES}):
           </label>
           {availableUserChoices.length > 0 ? (
-            <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded p-2 space-y-1 bg-gray-50 dark:bg-gray-700 columns-2 sm:columns-3 md:columns-4">
+            <div className="max-h-48 overflow-y-auto border border-[rgb(var(--color-border-base))] rounded p-2 space-y-1 bg-[rgb(var(--color-bg-subtle))] columns-2 sm:columns-3 md:columns-4">
               {availableUserChoices.map((directive) => {
                 const isChecked = userSelectedDirectives.includes(directive);
                 const isDisabled =
@@ -418,11 +418,11 @@ export default function GenerateToolResources({
                           e.target.checked
                         )
                       }
-                      className="h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-500 text-purple-600 disabled:opacity-50 accent-purple-600"
+                      className="h-3.5 w-3.5 rounded border-[rgb(var(--color-border-soft))] text-[rgb(var(--color-button-accent-bg))] disabled:opacity-50 accent-[rgb(var(--color-button-accent-bg))]"
                     />
                     <label
                       htmlFor={`user-choice-${directive}`}
-                      className={`ml-2 block text-xs font-mono ${isDisabled ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed' : 'text-gray-700 dark:text-gray-300 cursor-pointer'}`}
+                      className={`ml-2 block text-xs font-mono ${isDisabled ? 'text-[rgb(var(--color-text-disabled))] ext-[rgb(var(--color-text-muted))] cursor-not-allowed' : 'text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] cursor-pointer'}`}
                     >
                       {directive}
                     </label>
@@ -431,14 +431,14 @@ export default function GenerateToolResources({
               })}
             </div>
           ) : (
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+            <p className="text-sm text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))] italic">
               (No other tools available for examples)
             </p>
           )}
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))]">
             Choose up to {MAX_USER_EXAMPLES} tools for AI inspiration.{' '}
             {userSelectedDirectives.length >= MAX_USER_EXAMPLES && (
-              <span className="text-purple-600 dark:text-purple-400 font-medium">
+              <span className="text-[rgb(var(--color-button-accent-bg))] ext-purple-400 font-medium">
                 Max {MAX_USER_EXAMPLES} selected.
               </span>
             )}
@@ -448,7 +448,7 @@ export default function GenerateToolResources({
         <div className="mb-6">
           <label
             htmlFor="additionalDescription"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] mb-1"
           >
             Additional Details / Refinements (Optional):
           </label>
@@ -458,10 +458,10 @@ export default function GenerateToolResources({
             onChange={(e) => setAdditionalDescription(e.target.value)}
             rows={4}
             disabled={isGeneratingMain || isApiUnavailable}
-            className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 sm:text-sm resize-y disabled:bg-gray-100 dark:disabled:bg-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+            className="block w-full px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md shadow-sm placeholder-gray-400 sm:text-sm resize-y disabled:bg-[rgb(var(--color-bg-subtle-hover))] bg-white text-[rgb(var(--color-text-base))] "
             placeholder="Specific UI preferences, libraries to avoid, edge cases..."
           />
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))]">
             Extra context for the AI.
           </p>
         </div>
@@ -496,7 +496,7 @@ export default function GenerateToolResources({
 
         {feedback && !isNarrativeModalOpen && (
           <div
-            className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-700' : 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700'}`}
+            className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] border border-[rgb(var(--color-border-error))] ext-[rgb(var(--color-status-error))] ' : 'bg-[rgb(var(--color-bg-info-subtle))] text-[rgb(var(--color-status-info))] border border-[rgb(var(--color-border-info))] order-blue-700'}`}
           >
             {feedback}
           </div>

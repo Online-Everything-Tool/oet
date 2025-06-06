@@ -226,7 +226,7 @@ export default function ValidateDirective({
     if (validationModelOptions.length === 0 && fallbackModelsLoading) {
       return (
         <div className="h-9 flex items-center">
-          <p className="text-sm text-gray-500 animate-pulse">
+          <p className="text-sm text-[rgb(var(--color-text-muted))] animate-pulse">
             Loading AI models...
           </p>
         </div>
@@ -235,7 +235,7 @@ export default function ValidateDirective({
     if (validationModelOptions.length === 0 && fallbackModelsError) {
       return (
         <div className="h-9 flex items-center" title={fallbackModelsError}>
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-[rgb(var(--color-status-error))]">
             Error loading models. Using default:{' '}
             {modelDisplayName(defaultModelName)}
           </p>
@@ -254,7 +254,7 @@ export default function ValidateDirective({
             isApiUnavailable ||
             finalModelOptionsForUI.length === 0
           }
-          className="block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm sm:text-sm disabled:bg-gray-100"
+          className="block w-full px-3 py-2 border border-[rgb(var(--color-border-soft))] bg-white rounded-md shadow-sm sm:text-sm disabled:bg-[rgb(var(--color-bg-subtle-hover))]"
         >
           {finalModelOptionsForUI.length > 0 &&
             !currentSelectedModelForValidation && (
@@ -276,7 +276,7 @@ export default function ValidateDirective({
       currentSelectedModelForValidation ||
       defaultModelName;
     return (
-      <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-700 sm:text-sm h-9 flex items-center">
+      <div className="px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md bg-[rgb(var(--color-bg-subtle-hover))] text-[rgb(var(--color-text-emphasis))] sm:text-sm h-9 flex items-center">
         {modelDisplayName(displayModel)}
       </div>
     );
@@ -284,9 +284,9 @@ export default function ValidateDirective({
 
   return (
     <section
-      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isValidating || isApiUnavailable ? 'opacity-70' : ''} ${status === 'error' ? 'border-red-300' : 'border-gray-200'}`}
+      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isValidating || isApiUnavailable ? 'opacity-70' : ''} ${status === 'error' ? 'border-[rgb(var(--color-border-error))]' : 'border-[rgb(var(--color-border-base))]'}`}
     >
-      <h3 className="text-md font-semibold mb-4 text-gray-700">
+      <h3 className="text-md font-semibold mb-4 text-[rgb(var(--color-text-emphasis))]">
         Define Tool Name & Configure Validation
       </h3>
 
@@ -294,9 +294,10 @@ export default function ValidateDirective({
         <div>
           <label
             htmlFor="toolDirective"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] mb-1"
           >
-            Tool Directive <span className="text-red-600">*</span>
+            Tool Directive{' '}
+            <span className="text-[rgb(var(--color-status-error))]">*</span>
           </label>
           <input
             type="text"
@@ -309,11 +310,14 @@ export default function ValidateDirective({
             }}
             onBlur={(e) => setToolDirective(formatSlug(e.target.value))}
             disabled={isValidating || isApiUnavailable}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm sm:text-sm disabled:bg-gray-100"
+            className="block w-full px-3 py-2 border border-[rgb(var(--color-border-soft))] rounded-md shadow-sm sm:text-sm disabled:bg-[rgb(var(--color-bg-subtle-hover))]"
             placeholder="e.g., json-formatter"
             aria-describedby="directive-format-hint"
           />
-          <p id="directive-format-hint" className="mt-1 text-xs text-gray-500">
+          <p
+            id="directive-format-hint"
+            className="mt-1 text-xs text-[rgb(var(--color-text-muted))]"
+          >
             Preview URL: <code>/tool/{formatSlug(toolDirective) || '...'}</code>
           </p>
         </div>
@@ -321,15 +325,17 @@ export default function ValidateDirective({
         <div>
           <label
             htmlFor="validationAiModel"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] mb-1"
           >
             {showModelDropdown
               ? 'Select AI Model for Validation'
               : 'AI Model for Validation'}
-            {showModelDropdown && <span className="text-red-600">*</span>}
+            {showModelDropdown && (
+              <span className="text-[rgb(var(--color-status-error))]">*</span>
+            )}
           </label>
           {renderModelSelector()}
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-[rgb(var(--color-text-muted))]">
             Used by AI for name validation and initial description.
           </p>
         </div>
@@ -357,7 +363,7 @@ export default function ValidateDirective({
 
       {feedback && (
         <div
-          className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}
+          className={`mt-4 text-sm p-3 rounded ${status === 'error' ? 'bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] border border-[rgb(var(--color-border-error))]' : 'bg-[rgb(var(--color-bg-info-subtle))] text-[rgb(var(--color-status-info))] border border-[rgb(var(--color-border-info))]'}`}
         >
           {feedback}
         </div>
@@ -367,9 +373,9 @@ export default function ValidateDirective({
       {analysisSuggestions &&
         analysisSuggestions.length > 0 &&
         currentSelectedModelForValidation && (
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <h4 className="text-sm font-semibold text-gray-600 mb-3 flex items-center">
-              <LightBulbIcon className="h-4 w-4 mr-1.5 text-yellow-500" />
+          <div className="mt-6 pt-4 border-t border-[rgb(var(--color-border-base))]">
+            <h4 className="text-sm font-semibold text-[rgb(var(--color-text-subtle))] mb-3 flex items-center">
+              <LightBulbIcon className="h-4 w-4 mr-1.5 text-[rgb(var(--color-icon-accent-yellow-hover))]" />
               AI-Generated Tool Ideas:
             </h4>
             <ul className="flex flex-row flex-wrap gap-x-2.5 gap-y-1.5">
@@ -380,9 +386,9 @@ export default function ValidateDirective({
                     onClick={() => handleSuggestionClick(directive)}
                     title={`Use '${directive}'`}
                     disabled={isValidating || isApiUnavailable}
-                    className="transition-colors text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="transition-colors text-[rgb(var(--color-icon-brand))] hover:text-[rgb(var(--color-text-link-hover))] disabled:text-[rgb(var(--color-text-disabled))] disabled:cursor-not-allowed"
                   >
-                    <code className="bg-indigo-50 text-indigo-700 group-hover:bg-indigo-100 px-2 py-1 rounded text-xs font-mono hover:bg-indigo-100 disabled:bg-gray-100 disabled:text-gray-500">
+                    <code className="bg-[rgb(var(--color-bg-info-subtle))] text-[rgb(var(--color-text-link))] group-hover:bg-[rgb(var(--color-status-info))]/10 px-2 py-1 rounded text-xs font-mono hover:bg-[rgb(var(--color-status-info))]/10 disabled:bg-[rgb(var(--color-bg-subtle-hover))] disabled:text-[rgb(var(--color-text-muted))]">
                       {directive}
                     </code>
                   </button>
@@ -390,7 +396,7 @@ export default function ValidateDirective({
               ))}
             </ul>
             {analysisModelNameUsed && (
-              <p className="text-xs text-gray-500 mt-3">
+              <p className="text-xs text-[rgb(var(--color-text-muted))] mt-3">
                 (Suggestions based on project analysis using{' '}
                 {analysisModelNameUsed.replace('models/', '')})
               </p>

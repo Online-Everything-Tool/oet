@@ -22,10 +22,10 @@ export default function Footer() {
           </Link>
           {/* You can add more links here if needed, e.g., Privacy Policy, Terms of Service */}
           {/*
-          <Link href="/privacy" className="text-sm hover:text-[rgb(var(--color-text-link))] hover:underline">
-            Privacy
-          </Link>
-          */}
+ <Link href="/privacy" className="text-sm hover:text-[rgb(var(--color-text-link))] hover:underline">
+ Privacy
+ </Link>
+ */}
         </div>
       </div>
     </footer>

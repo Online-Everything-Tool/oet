@@ -60,13 +60,13 @@ export default function ImageAdjustmentCard({
   onRemoveImage,
 }: ImageAdjustmentCardProps) {
   return (
-    <div className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border border-gray-200 rounded-lg bg-white shadow-sm w-[160px]">
+    <div className="flex-shrink-0 flex flex-col items-center space-y-2 p-3 border border-[rgb(var(--color-border-base))] rounded-lg bg-white shadow-sm w-[160px]">
       <div className="flex flex-col items-center w-full mb-1">
         <div className="w-full flex justify-end mb-0.5">
           <Button
             variant="link"
             size="sm"
-            className="!p-0.5 text-red-500 hover:text-red-700"
+            className="!p-0.5 text-[rgb(var(--color-status-error))] hover:text-[rgb(var(--color-status-error))]"
             onClick={() => onRemoveImage(image.instanceId)}
             disabled={isLoading}
             aria-label={`Remove image ${image.alt}`}
@@ -99,7 +99,7 @@ export default function ImageAdjustmentCard({
             <ArrowLeftIcon className="h-4 w-4" />
           </Button>
           <p
-            className="text-xs font-medium text-gray-600 text-center flex-grow truncate mx-1 px-1"
+            className="text-xs font-medium text-[rgb(var(--color-text-subtle))] text-center flex-grow truncate mx-1 px-1"
             title={`${image.alt} (Order: ${index + 1}, Z:${image.zIndex})`}
           >
             {index + 1}. {image.alt}

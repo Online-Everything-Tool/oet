@@ -17,13 +17,13 @@ export default function ToolSuspenseWrapper({
   mainSuspenseFallback,
 }: ToolSuspenseWrapperProps) {
   const defaultGateClosedFallback = (
-    <div className="text-center p-4 text-gray-500 italic">
+    <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic">
       Content is currently gated.
     </div>
   );
 
   const defaultMainSuspenseFallback = (
-    <div className="text-center p-4 text-gray-500 italic animate-pulse">
+    <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
       Loading Gated Content...
     </div>
   );

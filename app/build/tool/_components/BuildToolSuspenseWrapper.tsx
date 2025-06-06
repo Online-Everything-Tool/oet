@@ -9,7 +9,7 @@ export default function BuildToolSuspenseWrapper({
   children,
 }: BuildToolSuspenseWrapperProps) {
   const defaultFallback = (
-    <div className="text-center p-4 text-gray-500 italic animate-pulse">
+    <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
       Loading Build Tool...
     </div>
   );

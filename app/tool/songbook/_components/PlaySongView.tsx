@@ -329,7 +329,7 @@ export default function PlaySongView({
           parts.push(
             <span
               key={`${lineIndex}-${matchResult.index}`}
-              className="song-chord hover:bg-yellow-200 hover:text-black px-0.5 rounded cursor-pointer transition-colors"
+              className="song-chord hover:bg-[rgb(var(--color-bg-warning-hover))] hover:text-[rgb(var(--color-text-base))] px-0.5 rounded cursor-pointer transition-colors"
               data-chord={chordName}
             >
               {displayChord}
@@ -413,17 +413,17 @@ export default function PlaySongView({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60]"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/80 flex items-center justify-center z-[60]"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-labelledby="play-song-title"
     >
       <div
-        className="bg-gray-900 text-gray-100 rounded-lg shadow-xl w-full h-full flex flex-col"
+        className="bg-[rgb(var(--color-overlay-backdrop))] text-[rgb(var(--color-text-inverted))] rounded-lg shadow-xl w-full h-full flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-2 md:p-3 border-b border-gray-700 flex justify-between items-center flex-shrink-0">
+        <div className="p-2 md:p-3 border-b border-[rgb(var(--color-border-soft))] flex justify-between items-center flex-shrink-0">
           <div className="min-w-0">
             <h2
               id="play-song-title"
@@ -434,7 +434,7 @@ export default function PlaySongView({
             </h2>
             {songData.artist && (
               <p
-                className="text-xs md:text-sm text-gray-400 truncate"
+                className="text-xs md:text-sm text-[rgb(var(--color-text-disabled))] truncate"
                 title={songData.artist}
               >
                 {songData.artist}
@@ -445,7 +445,7 @@ export default function PlaySongView({
             variant="link"
             onClick={onClose}
             aria-label="Close player"
-            className="p-1 text-gray-400 hover:text-white"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-inverted))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
@@ -466,7 +466,7 @@ export default function PlaySongView({
         >
           {processedLyricsContent}
         </div>
-        <div className="p-3 md:p-4 border-t border-gray-700 flex-shrink-0 flex flex-col sm:flex-row items-center gap-3 md:gap-4 justify-center">
+        <div className="p-3 md:p-4 border-t border-[rgb(var(--color-border-soft))] flex-shrink-0 flex flex-col sm:flex-row items-center gap-3 md:gap-4 justify-center">
           <Button
             onClick={togglePlay}
             variant="secondary"
@@ -485,7 +485,7 @@ export default function PlaySongView({
           <div className="flex items-center gap-2 w-full sm:w-auto sm:max-w-xs md:max-w-sm flex-grow sm:flex-grow-0">
             <label
               htmlFor="speed-slider-player"
-              className="text-sm text-gray-300 hidden sm:inline"
+              className="text-sm text-[rgb(var(--color-text-muted))] hidden sm:inline"
             >
               Speed:
             </label>
@@ -500,7 +500,7 @@ export default function PlaySongView({
               containerClassName="flex-grow min-w-[100px]"
               inputClassName="h-2.5"
             />
-            <span className="text-sm text-gray-300 w-8 text-center tabular-nums">
+            <span className="text-sm text-[rgb(var(--color-text-muted))] w-8 text-center tabular-nums">
               {currentSpeed}
             </span>
           </div>
@@ -509,7 +509,7 @@ export default function PlaySongView({
               onClick={() => changeFontSize('decrease')}
               variant="neutral-outline"
               size="sm"
-              className="!p-1.5 text-gray-300 hover:text-white !border-gray-600"
+              className="!p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-inverted))] !border-[rgb(var(--color-border-emphasis))]"
               aria-label="Decrease font size"
               title="Decrease font size"
               disabled={currentFontSize <= MIN_FONT_SIZE}
@@ -517,7 +517,7 @@ export default function PlaySongView({
               <MinusIcon className="h-5 w-5" />
             </Button>
             <span
-              className="text-sm text-gray-300 w-8 text-center tabular-nums"
+              className="text-sm text-[rgb(var(--color-text-muted))] w-8 text-center tabular-nums"
               title="Current font size"
             >
               {currentFontSize}px
@@ -526,7 +526,7 @@ export default function PlaySongView({
               onClick={() => changeFontSize('increase')}
               variant="neutral-outline"
               size="sm"
-              className="!p-1.5 text-gray-300 hover:text-white !border-gray-600"
+              className="!p-1.5 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-inverted))] !border-[rgb(var(--color-border-emphasis))]"
               aria-label="Increase font size"
               title="Increase font size"
               disabled={currentFontSize >= MAX_FONT_SIZE}

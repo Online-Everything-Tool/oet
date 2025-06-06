@@ -45,10 +45,10 @@ export default function Select<T extends string | number>({
   const isDisabled = disabled;
 
   const baseSelectStyles = `
-    block w-full p-2.5 border rounded-md shadow-sm
-    text-sm
-    bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
-  `;
+ block w-full p-2.5 border rounded-md shadow-sm
+ text-sm
+ bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
+ `;
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
   const errorBorder = 'border-[rgb(var(--color-border-error))]';
@@ -62,7 +62,7 @@ export default function Select<T extends string | number>({
       {label && (
         <label
           htmlFor={effectiveId}
-          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
+          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
         >
           {label}
         </label>
@@ -74,12 +74,12 @@ export default function Select<T extends string | number>({
         onChange={onChange}
         disabled={isDisabled}
         className={`
-          ${baseSelectStyles}
-          ${hasError ? errorBorder : normalBorder}
-          ${!isDisabled ? focusStyles : ''}
-          ${disabledStyles}
-          ${selectClassName}
-        `}
+ ${baseSelectStyles}
+ ${hasError ? errorBorder : normalBorder}
+ ${!isDisabled ? focusStyles : ''}
+ ${disabledStyles}
+ ${selectClassName}
+ `}
         aria-invalid={hasError ? 'true' : 'false'}
         aria-describedby={hasError ? `${effectiveId}-error` : undefined}
         {...rest}

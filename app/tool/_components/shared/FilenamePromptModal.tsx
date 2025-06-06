@@ -63,7 +63,7 @@ export default function FilenamePromptModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/60 flex items-center justify-center z-50 p-4"
       onClick={onClose}
       onKeyDown={handleKeyDown}
       role="dialog"
@@ -86,7 +86,7 @@ export default function FilenamePromptModal({
             size="sm"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
@@ -116,7 +116,7 @@ export default function FilenamePromptModal({
                 className="w-full px-3 py-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm text-sm"
                 placeholder="e.g., my-encoded-data.txt"
               />
-              <p className="text-sm text-gray-400 mt-2">
+              <p className="text-sm text-[rgb(var(--color-text-disabled))] mt-2">
                 File extension will be added if not provided.
               </p>
             </div>

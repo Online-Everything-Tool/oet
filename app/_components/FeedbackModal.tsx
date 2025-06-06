@@ -41,7 +41,7 @@ export default function FeedbackModal({
 
   return (
     <div
-      className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-40 bg-[rgb(var(--color-overlay-backdrop))]/50 flex items-center justify-center p-4"
       aria-labelledby="feedback-dialog-title"
       role="dialog"
       aria-modal="true"
@@ -60,7 +60,7 @@ export default function FeedbackModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+            className="text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))] p-1 rounded-full hover:bg-[rgb(var(--color-bg-subtle-hover))]"
             aria-label="Close Feedback Modal"
           >
             <XMarkIcon className="h-6 w-6" aria-hidden="true" />{' '}
@@ -69,11 +69,11 @@ export default function FeedbackModal({
         </div>
 
         <div className="p-6 overflow-y-auto space-y-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[rgb(var(--color-text-subtle))]">
             Found a bug, have an idea for a new tool, or want to suggest an
             improvement? We appreciate your feedback!
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[rgb(var(--color-text-subtle))]">
             Please use our GitHub Issues page to share your thoughts.
             {toolMetadata ? " We've pre-filled some details for you." : ''}
           </p>

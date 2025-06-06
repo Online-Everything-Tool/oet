@@ -135,7 +135,7 @@ export default function ImageStorageClient({
             unoptimized
           />
         ) : (
-          <PhotoIcon className="w-16 h-16 text-gray-300" />
+          <PhotoIcon className="w-16 h-16 text-[rgb(var(--color-text-muted))]" />
         )}
       </div>
     );

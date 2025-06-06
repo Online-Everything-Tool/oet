@@ -85,12 +85,12 @@ export default function FileListView({
               !itemIsText || isLoading || currentFeedback?.type === 'copy'
             }
             title={itemIsText ? 'Copy file content' : 'Cannot copy content'}
-            className={`${!itemIsText && 'invisible'} p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
+            className={`${!itemIsText && 'invisible'} p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-[rgb(var(--color-status-success))]/10 text-[rgb(var(--color-status-success))]' : 'text-[rgb(var(--color-status-success))] hover:bg-[rgb(var(--color-status-success))]/10'}`}
           >
             {currentFeedback?.type === 'copy' ? (
-              <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
+              <ClipboardDocumentCheckIcon className="h-5 w-5 text-[rgb(var(--color-status-success))]" />
             ) : (
-              <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+              <DocumentDuplicateIcon className="h-5 w-5 text-[rgb(var(--color-status-success))] group-hover:text-[rgb(var(--color-status-success))]" />
             )}
           </button>
         )}
@@ -102,12 +102,12 @@ export default function FileListView({
             }}
             disabled={isLoading || currentFeedback?.type === 'download'}
             title="Download this file"
-            className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
+            className={`p-1 rounded disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-[rgb(var(--color-status-info))]/10 text-[rgb(var(--color-text-link))]' : 'text-[rgb(var(--color-icon-brand))] hover:bg-[rgb(var(--color-status-info))]/10'}`}
           >
             {currentFeedback?.type === 'download' ? (
-              <CheckIcon className="h-5 w-5 text-indigo-600" />
+              <CheckIcon className="h-5 w-5 text-[rgb(var(--color-icon-brand))]" />
             ) : (
-              <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
+              <ArrowDownTrayIcon className="h-5 w-5 text-[rgb(var(--color-icon-brand))] group-hover:text-[rgb(var(--color-text-link))]" />
             )}
           </button>
         )}
@@ -123,9 +123,9 @@ export default function FileListView({
                 ? "Use 'Delete' button"
                 : 'Delete this file'
             }
-            className="p-1 text-red-600 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1 text-[rgb(var(--color-status-error))] rounded hover:bg-[rgb(var(--color-bg-error-subtle))] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
+            <TrashIcon className="h-5 w-5 text-[rgb(var(--color-status-error))] group-hover:text-[rgb(var(--color-status-error))]" />
           </button>
         )}
       </>
@@ -133,40 +133,40 @@ export default function FileListView({
   };
 
   return (
-    <div className="overflow-x-auto relative z-0 border border-gray-200 rounded-md">
+    <div className="overflow-x-auto relative z-0 border border-[rgb(var(--color-border-base))] rounded-md">
       <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+        <thead className="bg-[rgb(var(--color-bg-subtle))]">
           <tr>
             <th scope="col" className="pl-4 pr-2 py-2 w-4">
               <span className="sr-only">Select</span>
             </th>
             <th
               scope="col"
-              className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              className="px-4 py-2 text-left text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider"
             >
               Name
             </th>
             <th
               scope="col"
-              className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              className="px-4 py-2 text-left text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider"
             >
               Type
             </th>
             <th
               scope="col"
-              className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              className="px-4 py-2 text-left text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider"
             >
               Size
             </th>
             <th
               scope="col"
-              className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              className="px-4 py-2 text-left text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider"
             >
               Added
             </th>
             <th
               scope="col"
-              className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              className="px-4 py-2 text-right text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider"
             >
               Actions
             </th>
@@ -189,8 +189,8 @@ export default function FileListView({
                 key={file.id}
                 className={`relative transition-colors duration-100 ${
                   isSelected
-                    ? 'bg-blue-50 hover:bg-blue-100'
-                    : 'hover:bg-gray-50'
+                    ? 'bg-[rgb(var(--color-bg-info-subtle))] hover:bg-[rgb(var(--color-bg-info-subtle))]'
+                    : 'hover:bg-[rgb(var(--color-bg-subtle))]'
                 } ${isProcessingItem ? 'cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-50' : ''}`}
                 onClick={(e) => handleRowClick(e, file.id)}
                 aria-selected={isSelected}
@@ -209,22 +209,22 @@ export default function FileListView({
                   />
                 </td>
                 <td
-                  className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 truncate max-w-xs"
+                  className="px-4 py-2 whitespace-nowrap text-sm font-medium text-[rgb(var(--color-text-base))] truncate max-w-xs"
                   title={file.filename}
                 >
                   {file.filename}
                 </td>
                 <td
-                  className="px-4 py-2 whitespace-nowrap text-sm text-gray-500 truncate max-w-xs"
+                  className="px-4 py-2 whitespace-nowrap text-sm text-[rgb(var(--color-text-muted))] truncate max-w-xs"
                   title={file.type}
                 >
                   {file.type || 'N/A'}
                 </td>
-                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-4 py-2 whitespace-nowrap text-sm text-[rgb(var(--color-text-muted))]">
                   {formatBytes(file.size)}
                 </td>
                 <td
-                  className="px-4 py-2 whitespace-nowrap text-sm text-gray-500"
+                  className="px-4 py-2 whitespace-nowrap text-sm text-[rgb(var(--color-text-muted))]"
                   title={file.createdAt.toLocaleString()}
                 >
                   {file.createdAt.toLocaleDateString()}
@@ -249,7 +249,7 @@ export default function FileListView({
                   >
                     <td colSpan={6}>
                       <div
-                        className="absolute inset-x-0 bottom-0 p-1 bg-red-100 text-red-700 text-[10px] text-center truncate border-t border-red-200"
+                        className="absolute inset-x-0 bottom-0 p-1 bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] text-[10px] text-center truncate border-t border-[rgb(var(--color-border-error))]"
                         title={currentFeedback.message}
                       >
                         Error: {currentFeedback.message}
@@ -263,10 +263,12 @@ export default function FileListView({
         </tbody>
       </table>
       {files.length === 0 && !isLoading && (
-        <p className="text-center text-gray-500 italic py-8">No files found.</p>
+        <p className="text-center text-[rgb(var(--color-text-muted))] italic py-8">
+          No files found.
+        </p>
       )}
       {isLoading && !isBulkDeleting && (
-        <p className="text-center text-gray-500 italic py-8 animate-pulse">
+        <p className="text-center text-[rgb(var(--color-text-muted))] italic py-8 animate-pulse">
           Loading...
         </p>
       )}

@@ -84,8 +84,8 @@ export default function ToolSettings({ toolMetadata }: ToolSettingsProps) {
           disabled={!favoritesLoaded}
           className={`p-1.5 rounded-full transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed ${
             isCurrentlyFavorite
-              ? 'text-yellow-500 hover:bg-yellow-100'
-              : 'text-gray-400 hover:text-yellow-500 hover:bg-[rgba(var(--color-border-base)/0.2)]'
+              ? 'text-[rgb(var(--color-icon-accent-yellow-hover))] hover:bg-[rgb(var(--color-icon-accent-yellow))]/10'
+              : 'text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-icon-accent-yellow-hover))] hover:bg-[rgba(var(--color-border-base)/0.2)]'
           }`}
           aria-label={
             isCurrentlyFavorite ? 'Remove from favorites' : 'Add to favorites'
@@ -107,7 +107,7 @@ export default function ToolSettings({ toolMetadata }: ToolSettingsProps) {
         onClick={openFeedback}
         title="Provide Feedback or Report Issue"
         aria-label="Open Feedback Modal"
-        className="p-1.5 text-gray-400 hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
+        className="p-1.5 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-base))] rounded-full hover:bg-[rgba(var(--color-border-base)/0.2)]"
       >
         <ChatBubbleBottomCenterTextIcon
           className="h-6 w-6"

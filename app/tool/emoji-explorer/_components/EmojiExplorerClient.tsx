@@ -185,7 +185,7 @@ export default function EmojiSearchClient({
 
   if (isLoadingToolState) {
     return (
-      <div className="text-center p-4 text-gray-500 italic animate-pulse">
+      <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
         Loading Emoji Explorer...
       </div>
     );
@@ -223,7 +223,7 @@ export default function EmojiSearchClient({
                 >
                   {lastCopiedValue?.type === 'emoji' &&
                   lastCopiedValue?.value === emojiData.emoji ? (
-                    <CheckIcon className="h-5 w-5 text-green-500" />
+                    <CheckIcon className="h-5 w-5 text-[rgb(var(--color-status-success))]" />
                   ) : (
                     emojiData.emoji
                   )}
@@ -385,7 +385,7 @@ export default function EmojiSearchClient({
             >
               {lastCopiedValue?.type === 'emoji' &&
               lastCopiedValue?.value === emojiData.emoji ? (
-                <CheckIcon className="h-6 w-6 text-green-500" />
+                <CheckIcon className="h-6 w-6 text-[rgb(var(--color-status-success))]" />
               ) : (
                 emojiData.emoji
               )}

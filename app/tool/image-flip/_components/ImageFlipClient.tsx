@@ -688,7 +688,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
 
   if (isLoadingToolSettings && !initialToolStateLoadCompleteRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Image Flip Tool...
       </p>
     );
@@ -722,7 +722,7 @@ export default function ImageFlipClient({ toolRoute }: ImageFlipClientProps) {
             radioClassName="text-sm"
           />
         </div>
-        <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-gray-200 mt-2">
+        <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-[rgb(var(--color-border-base))] mt-2">
           <Checkbox
             label="Auto-save flipped image to Library"
             checked={toolState.autoSaveProcessed}

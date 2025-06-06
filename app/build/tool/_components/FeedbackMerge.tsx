@@ -156,10 +156,10 @@ export default function FeedbackMerge({
             {fb.feedbackEmoji}
           </span>
           <div className="flex-grow">
-            <p className="text-gray-700 whitespace-pre-wrap">
+            <p className="text-[rgb(var(--color-text-emphasis))] whitespace-pre-wrap">
               {fb.feedbackText}
             </p>
-            <p className="text-gray-500 text-xs mt-0.5">
+            <p className="text-[rgb(var(--color-text-muted))] text-xs mt-0.5">
               Posted by{' '}
               {fb.author?.isOetAppCommenter ? 'OET System' : authorName} on{' '}
               {displayDate}
@@ -174,25 +174,25 @@ export default function FeedbackMerge({
           <img
             src={authorAvatar}
             alt={authorName}
-            className="h-8 w-8 rounded-full mt-0.5 border border-gray-200"
+            className="h-8 w-8 rounded-full mt-0.5 border border-[rgb(var(--color-border-base))]"
           />
         ) : (
-          <UserCircleIcon className="h-8 w-8 text-gray-400 mt-0.5" />
+          <UserCircleIcon className="h-8 w-8 text-[rgb(var(--color-text-disabled))] mt-0.5" />
         )}
         <div className="flex-grow">
-          <p className="text-gray-600 text-xs">
+          <p className="text-[rgb(var(--color-text-subtle))] text-xs">
             <Link
               href={fb.htmlUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-blue-600 hover:underline"
+              className="font-semibold text-[rgb(var(--color-text-link))] hover:underline"
             >
               {authorName}
             </Link>
             {' commented on '}
             {displayDate}
           </p>
-          <div className="prose prose-sm max-w-none text-gray-800 mt-1 text-sm whitespace-pre-wrap">
+          <div className="prose prose-sm max-w-none text-[rgb(var(--color-text-emphasis))] mt-1 text-sm whitespace-pre-wrap">
             {fb.body}
           </div>
         </div>
@@ -201,7 +201,7 @@ export default function FeedbackMerge({
   };
 
   return (
-    <div className="mt-6 p-4 md:p-6 border-2 border-[#16a34a] bg-white rounded-lg shadow-lg relative">
+    <div className="mt-6 p-4 md:p-6 border-2 border-[rgb(var(--color-status-success))] bg-white rounded-lg shadow-lg relative">
       <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
         <h3 className="text-xl font-semibold">
           Feedback & Discussion for:{' '}
@@ -211,21 +211,23 @@ export default function FeedbackMerge({
           variant="neutral-outline"
           size="sm"
           onClick={onHideFeedback}
-          iconLeft={<ArrowUturnLeftIcon className="h-4 w-4 text-gray-600" />}
-          className="border-gray-400 text-gray-600 hover:bg-gray-100"
+          iconLeft={
+            <ArrowUturnLeftIcon className="h-4 w-4 text-[rgb(var(--color-text-subtle))]" />
+          }
+          className="border-[rgb(var(--color-border-emphasis))] text-[rgb(var(--color-text-subtle))] hover:bg-[rgb(var(--color-bg-subtle-hover))]"
         >
           Back to CI Status
         </Button>
       </div>
 
-      <div className="mb-6 p-3 border border-blue-200 bg-blue-50 rounded-md">
-        <p className="text-sm text-blue-700">
+      <div className="mb-6 p-3 border border-[rgb(var(--color-border-info))] bg-[rgb(var(--color-bg-info-subtle))] rounded-md">
+        <p className="text-sm text-[rgb(var(--color-status-info))]">
           Review the tool here:
           <Link
             href={netlifyPreviewUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-blue-600 hover:text-blue-800 hover:underline ml-1"
+            className="font-semibold text-[rgb(var(--color-text-link))] hover:text-[rgb(var(--color-status-info))] hover:underline ml-1"
           >
             Open Preview{' '}
             <ArrowTopRightOnSquareIcon className="ml-1 h-3.5 w-3.5 inline" />
@@ -234,24 +236,24 @@ export default function FeedbackMerge({
       </div>
 
       <div className="mb-6">
-        <h4 className="text-md font-semibold text-gray-700 mb-2 flex items-center">
-          <ChatBubbleLeftEllipsisIcon className="h-5 w-5 mr-2 text-gray-500" />
+        <h4 className="text-md font-semibold text-[rgb(var(--color-text-emphasis))] mb-2 flex items-center">
+          <ChatBubbleLeftEllipsisIcon className="h-5 w-5 mr-2 text-[rgb(var(--color-text-muted))]" />
           Discussion & Feedback on GitHub PR #{prNumber}:
         </h4>
         {isLoadingFeedback && (
-          <p className="text-xs text-gray-500 italic py-4 text-center">
+          <p className="text-xs text-[rgb(var(--color-text-muted))] italic py-4 text-center">
             Loading feedback...
           </p>
         )}
         {fetchFeedbackError && (
-          <p className="text-xs text-red-500 py-4 text-center">
+          <p className="text-xs text-[rgb(var(--color-status-error))] py-4 text-center">
             Error: {fetchFeedbackError}
           </p>
         )}
         {!isLoadingFeedback &&
           !fetchFeedbackError &&
           feedbackList.length === 0 && (
-            <p className="text-xs text-gray-500 italic py-4 text-center">
+            <p className="text-xs text-[rgb(var(--color-text-muted))] italic py-4 text-center">
               No user feedback comments yet on this Pull Request.
             </p>
           )}
@@ -260,7 +262,7 @@ export default function FeedbackMerge({
             {feedbackList.map((fb) => (
               <div
                 key={fb.id}
-                className="text-sm border-b border-gray-100 pb-3 last:border-b-0 last:pb-0"
+                className="text-sm border-b border-[rgb(var(--color-border-base))] pb-3 last:border-b-0 last:pb-0"
               >
                 {renderFeedbackItem(fb)}
               </div>
@@ -270,19 +272,19 @@ export default function FeedbackMerge({
       </div>
 
       <div className="mb-2">
-        <h4 className="text-md font-semibold text-gray-700 mb-2">
+        <h4 className="text-md font-semibold text-[rgb(var(--color-text-emphasis))] mb-2">
           Provide Feedback (posts as a comment on PR #{prNumber}):
         </h4>
         <form
           onSubmit={handleCommentSubmit}
-          className="space-y-3 p-3 border border-gray-200 rounded-md bg-gray-50"
+          className="space-y-3 p-3 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))]"
         >
           <div className="flex items-center gap-2">
             <Button
               type="button"
               onClick={() => setIsEmojiModalOpen(true)}
               variant="neutral-outline"
-              className="!px-3 !py-2 text-2xl leading-none !border-gray-400 hover:!bg-gray-100"
+              className="!px-3 !py-2 text-2xl leading-none !border-[rgb(var(--color-border-emphasis))] hover:!bg-[rgb(var(--color-bg-subtle-hover))]"
               title="Select Feedback Emoji"
               aria-label="Select Feedback Emoji"
             >
@@ -302,13 +304,13 @@ export default function FeedbackMerge({
           </div>
           <div className="flex justify-end items-center gap-3">
             {submitError && (
-              <p className="text-xs text-red-600 mr-auto flex items-center">
+              <p className="text-xs text-[rgb(var(--color-status-error))] mr-auto flex items-center">
                 <ExclamationCircleIcon className="h-4 w-4 mr-1" />
                 {submitError}
               </p>
             )}
             {isSubmittingSuccess && !submitError && (
-              <p className="text-xs text-green-600 mr-auto">
+              <p className="text-xs text-[rgb(var(--color-status-success))] mr-auto">
                 Feedback submitted to PR!
               </p>
             )}
@@ -336,7 +338,7 @@ export default function FeedbackMerge({
         >
           Merge Tool
         </Button>
-        <p className="text-sm text-gray-900">
+        <p className="text-sm text-[rgb(var(--color-text-base))]">
           The &ldquo;Merge Tool&rdquo; button is for{' '}
           <Link
             href="https://github.com/Online-Everything-Tool/oet/blob/main/CONTRIBUTING.md"
@@ -351,14 +353,14 @@ export default function FeedbackMerge({
       </div>
 
       <div className="pt-4 text-center">
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-[rgb(var(--color-text-subtle))] mb-3">
           For more detailed technical discussion, bug tracking, or if you are a
           contributor:
           <Link
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-blue-600 hover:text-blue-800 hover:underline ml-1"
+            className="font-semibold text-[rgb(var(--color-text-link))] hover:text-[rgb(var(--color-status-info))] hover:underline ml-1"
           >
             View Full Pull Request on GitHub{' '}
             <ArrowTopRightOnSquareIcon className="ml-1 h-3.5 w-3.5 inline" />

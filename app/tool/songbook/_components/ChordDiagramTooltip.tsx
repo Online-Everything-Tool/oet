@@ -23,7 +23,7 @@ export default function ChordDiagramTooltip({
 
   return (
     <div
-      className="absolute -translate-y-28 -translate-x-15 z-[70] p-2 bg-white border border-gray-400 rounded shadow-lg text-xs text-gray-900 font-mono"
+      className="absolute -translate-y-28 -translate-x-15 z-[70] p-2 bg-white border border-[rgb(var(--color-border-emphasis))] rounded shadow-lg text-xs text-[rgb(var(--color-text-base))] font-mono"
       style={{
         top: `${position.top}px`,
         left: `${position.left}px`,
@@ -36,7 +36,9 @@ export default function ChordDiagramTooltip({
             <span className="font-semibold px-px text-lg">
               {strings[index] || '-'}
             </span>
-            <span className="text-gray-500 px-px text-lg">{stringName}</span>
+            <span className="text-[rgb(var(--color-text-muted))] px-px text-lg">
+              {stringName}
+            </span>
           </div>
         ))}
       </div>

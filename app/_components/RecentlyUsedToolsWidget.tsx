@@ -104,7 +104,7 @@ const RecentToolItem: React.FC<{
   const renderPreview = () => {
     if (isLoadingImage && entry.previewType === 'image') {
       return (
-        <div className="animate-pulse bg-gray-200 h-full w-full rounded"></div>
+        <div className="animate-pulse bg-[rgb(var(--color-bg-neutral))] h-full w-full rounded"></div>
       );
     }
     switch (entry.previewType) {
@@ -145,21 +145,21 @@ const RecentToolItem: React.FC<{
   return (
     <Link
       href={`/tool/${entry.directive}/`}
-      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+      className="block px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))]"
     >
       <div className="flex items-center">
-        <div className="flex-shrink-0 h-10 w-10 mr-3 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+        <div className="flex-shrink-0 h-10 w-10 mr-3 bg-[rgb(var(--color-bg-subtle-hover))] rounded flex items-center justify-center overflow-hidden">
           {renderPreview()}
         </div>
         <div className="flex-grow min-w-0">
           <div className="flex items-baseline justify-between w-full">
             <h3
-              className="text-sm font-medium text-gray-900 truncate"
+              className="text-sm font-medium text-[rgb(var(--color-text-base))] truncate"
               title={entry.title}
             >
               {entry.title}
             </h3>
-            <span className="text-xs text-gray-400 ml-auto whitespace-nowrap pl-2">
+            <span className="text-xs text-[rgb(var(--color-text-disabled))] ml-auto whitespace-nowrap pl-2">
               {formatDistanceToNowStrict(new Date(entry.lastModified), {
                 addSuffix: true,
               })}
@@ -167,7 +167,7 @@ const RecentToolItem: React.FC<{
           </div>
           {entry.displayableItemName && (
             <p
-              className="text-xs text-gray-500 truncate"
+              className="text-xs text-[rgb(var(--color-text-muted))] truncate"
               title={entry.displayableItemName}
             >
               {entry.displayableItemName}
@@ -203,14 +203,14 @@ export default function RecentlyUsedToolsWidget({
 
   const containerClasses = 'py-1 shadow-lg min-w-[300px] max-w-sm';
   const titleClasses =
-    'px-3 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
+    'px-3 pt-3 pb-2 text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider';
   const listClasses = 'max-h-[400px] overflow-y-auto custom-scrollbar';
 
   if (!isLoaded) {
     return (
       <div className={containerClasses}>
         <h2 className={titleClasses}>Recently Used</h2>
-        <p className="italic animate-pulse text-xs px-4 py-2 text-gray-500">
+        <p className="italic animate-pulse text-xs px-4 py-2 text-[rgb(var(--color-text-muted))]">
           Loading...
         </p>
       </div>
@@ -221,7 +221,7 @@ export default function RecentlyUsedToolsWidget({
     return (
       <div className={containerClasses}>
         <h2 className={titleClasses}>Recently Used Tools</h2>
-        <p className="text-sm text-gray-500 italic text-center px-4 py-3">
+        <p className="text-sm text-[rgb(var(--color-text-muted))] italic text-center px-4 py-3">
           No other recent tools.
         </p>
       </div>
@@ -237,7 +237,7 @@ export default function RecentlyUsedToolsWidget({
         {toolsToDisplay.map((entry) => (
           <li
             key={entry.directive}
-            className="border-b border-gray-100 last:border-b-0"
+            className="border-b border-[rgb(var(--color-border-base))] last:border-b-0"
             onClick={onItemClick}
           >
             <RecentToolItem entry={entry} />

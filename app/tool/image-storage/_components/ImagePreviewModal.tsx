@@ -36,7 +36,7 @@ export default function ImagePreviewModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[70] p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/75 flex items-center justify-center z-[70] p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -46,10 +46,10 @@ export default function ImagePreviewModal({
         className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[85vh] overflow-hidden flex flex-col relative"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+        <div className="p-3 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center flex-shrink-0">
           <h2
             id="image-preview-modal-title"
-            className="text-lg font-semibold text-gray-700 truncate"
+            className="text-lg font-semibold text-[rgb(var(--color-text-emphasis))] truncate"
             title={imageName || undefined}
           >
             {imageName}
@@ -59,7 +59,7 @@ export default function ImagePreviewModal({
             size="sm"
             onClick={onClose}
             aria-label="Close image preview"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>

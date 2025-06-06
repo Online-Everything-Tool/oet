@@ -183,14 +183,14 @@ export default function StorageControls({
 
       {/* Custom Filter Controls Area */}
       {customFilterControls && (
-        <div className="border-t border-gray-200 pt-3 mt-2">
+        <div className="border-t border-[rgb(var(--color-border-base))] pt-3 mt-2">
           {customFilterControls}
         </div>
       )}
 
       {/* Bottom row: Layout, Filter Toggle, Count */}
-      <div className="flex flex-wrap gap-3 items-center border-t border-gray-200 pt-3 mt-2">
-        <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-md">
+      <div className="flex flex-wrap gap-3 items-center border-t border-[rgb(var(--color-border-base))] pt-3 mt-2">
+        <div className="flex items-center gap-1 bg-[rgb(var(--color-bg-subtle-hover))] p-0.5 rounded-md">
           <Button
             variant={currentLayout === 'list' ? 'primary' : 'neutral'}
             size="sm"
@@ -198,7 +198,9 @@ export default function StorageControls({
             disabled={isLoading}
             title="List View"
             className={
-              currentLayout === 'list' ? 'shadow-md' : 'hover:bg-gray-200'
+              currentLayout === 'list'
+                ? 'shadow-md'
+                : 'hover:bg-[rgb(var(--color-bg-neutral))]'
             }
           >
             <Bars3Icon className="h-4 w-4" />
@@ -210,7 +212,9 @@ export default function StorageControls({
             disabled={isLoading}
             title="Grid View"
             className={
-              currentLayout === 'grid' ? 'shadow-md' : 'hover:bg-gray-200'
+              currentLayout === 'grid'
+                ? 'shadow-md'
+                : 'hover:bg-[rgb(var(--color-bg-neutral))]'
             }
           >
             <ViewColumnsIcon className="h-4 w-4" />
@@ -229,7 +233,7 @@ export default function StorageControls({
                 : 'Show only selected files'
             }
             iconLeft={<FunnelIcon className="h-4 w-4" />}
-            className={`${isFilterSelectedActive ? 'shadow-md' : 'hover:bg-gray-200'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
+            className={`${isFilterSelectedActive ? 'shadow-md' : 'hover:bg-[rgb(var(--color-bg-neutral))]'} ${!hasSelection && 'opacity-50 cursor-not-allowed'}`}
           >
             {isFilterSelectedActive
               ? `Filtered (${selectedStoredFilesForItde.length})`
@@ -238,7 +242,7 @@ export default function StorageControls({
         </div>
 
         <div className="flex-grow"></div>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-[rgb(var(--color-text-muted))]">
           {itemCount} {itemCount === 1 ? itemNameSingular : itemNamePlural} in
           library
           {isFilterSelectedActive &&

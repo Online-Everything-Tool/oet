@@ -94,29 +94,29 @@ export default function HeaderBuildToolButton() {
             <button
               onClick={goToBuildTool}
               disabled={isBuildPage}
-              className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full text-left flex items-center px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))] disabled:opacity-50 disabled:cursor-not-allowed"
               role="menuitem"
               tabIndex={-1}
             >
-              <WrenchScrewdriverIcon className="h-5 w-5 mr-3 text-gray-500" />
+              <WrenchScrewdriverIcon className="h-5 w-5 mr-3 text-[rgb(var(--color-text-muted))]" />
               AI Tool Builder
             </button>
             <button
               onClick={goToSuggestions}
-              className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              className="w-full text-left flex items-center px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))]"
               role="menuitem"
               tabIndex={-1}
             >
-              <LightBulbIcon className="h-5 w-5 mr-3 text-gray-500" />
+              <LightBulbIcon className="h-5 w-5 mr-3 text-[rgb(var(--color-text-muted))]" />
               Tool Suggestions
             </button>
             <button
               onClick={goToUploadTool}
-              className="w-full text-left flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              className="w-full text-left flex items-center px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))]"
               role="menuitem"
               tabIndex={-1}
             >
-              <ArrowUpOnSquareIcon className="h-5 w-5 mr-3 text-gray-500" />
+              <ArrowUpOnSquareIcon className="h-5 w-5 mr-3 text-[rgb(var(--color-text-muted))]" />
               Upload Existing Tool
             </button>
           </div>

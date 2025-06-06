@@ -42,11 +42,11 @@ const Range: React.FC<RangeProps> = ({
   const isDisabled = disabled;
 
   const baseInputStyles = `
-        w-full h-2 rounded-lg appearance-none cursor-pointer
-        bg-[rgb(var(--color-indicator-track-bg))]        
-        disabled:cursor-not-allowed disabled:opacity-50
-        accent-[rgb(var(--color-checkbox-accent))]
-    `;
+ w-full h-2 rounded-lg appearance-none cursor-pointer
+ bg-[rgb(var(--color-indicator-track-bg))]
+ disabled:cursor-not-allowed disabled:opacity-50
+ accent-[rgb(var(--color-checkbox-accent))]
+ `;
 
   return (
     <div
@@ -55,13 +55,13 @@ const Range: React.FC<RangeProps> = ({
       <div className="flex justify-between items-center mb-1">
         <label
           htmlFor={effectiveId}
-          className={`block text-xs font-medium ${isDisabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
+          className={`block text-xs font-medium ${isDisabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
         >
           {label}
         </label>
         {showValue && (
           <span
-            className={`text-xs font-mono ${isDisabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-base))]'} ${valueDisplayClassName}`}
+            className={`text-xs font-mono ${isDisabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-base))]'} ${valueDisplayClassName}`}
           >
             {value}
           </span>

@@ -47,7 +47,7 @@ interface TextStrikeThroughToolState {
 const DEFAULT_TEXT_STRIKE_THROUGH_STATE: TextStrikeThroughToolState = {
   inputText: '',
   skipSpaces: false,
-  color: '#dc2626',
+  color: 'rgb(var(--color-status-error))',
   lastLoadedFilename: null,
 };
 
@@ -375,7 +375,7 @@ export default function TextStrikeThroughClient({
 
   if (isLoadingState && !initialToolStateLoadCompleteRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Text Strike Through Tool...
       </p>
     );
@@ -441,7 +441,7 @@ export default function TextStrikeThroughClient({
       {displayError && (
         <div
           role="alert"
-          className="p-3 my-1 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
+          className="p-3 my-1 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded-md text-sm flex items-center gap-2"
         >
           <ExclamationTriangleIcon
             className="h-5 w-5 flex-shrink-0"

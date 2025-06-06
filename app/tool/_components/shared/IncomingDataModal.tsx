@@ -36,7 +36,7 @@ export default function IncomingDataModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/80 flex items-center justify-center z-[60] p-4"
       onClick={onDeferAll}
       role="dialog"
       aria-modal="true"
@@ -61,7 +61,7 @@ export default function IncomingDataModal({
             size="sm"
             onClick={onDeferAll}
             aria-label="Close and defer all transfers"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
@@ -82,7 +82,7 @@ export default function IncomingDataModal({
                   <p className="text-sm font-medium text-[rgb(var(--color-text-base))]">
                     From: {signal.sourceToolTitle}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-[rgb(var(--color-text-muted))]">
                     (<code>{signal.sourceDirective}</code>)
                   </p>
                 </div>

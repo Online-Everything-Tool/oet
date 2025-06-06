@@ -58,11 +58,11 @@ const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
   const isDisabled = disabled;
 
   const baseInputStyles = `
-    block border rounded-md shadow-sm 
-    text-sm sm:text-base
-    bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
-    placeholder:text-[rgb(var(--color-input-placeholder))]
-  `;
+ block border rounded-md shadow-sm
+ text-sm sm:text-base
+ bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
+ placeholder:text-[rgb(var(--color-input-placeholder))]
+ `;
 
   const widthStyle = type === 'color' ? '' : 'w-full';
 
@@ -84,7 +84,7 @@ const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
       {label && (
         <label
           htmlFor={effectiveId}
-          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
+          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
         >
           {label}
         </label>
@@ -107,14 +107,14 @@ const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
           disabled={isDisabled}
           placeholder={placeholder}
           className={`
-            ${baseInputStyles}
-            ${widthStyle} 
-            ${hasError ? errorBorder : normalBorder}
-            ${!isDisabled ? focusStyles : ''}
-            ${disabledStyles}
-            ${paddingStyles}
-            ${inputClassName} 
-          `}
+ ${baseInputStyles}
+ ${widthStyle}
+ ${hasError ? errorBorder : normalBorder}
+ ${!isDisabled ? focusStyles : ''}
+ ${disabledStyles}
+ ${paddingStyles}
+ ${inputClassName}
+ `}
           aria-invalid={hasError ? 'true' : 'false'}
           aria-describedby={hasError ? `${effectiveId}-error` : undefined}
           {...rest}

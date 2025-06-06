@@ -271,26 +271,28 @@ export default function EmojiExplorerModal({
   const renderContent = () => {
     if (isLoadingModalData) {
       return (
-        <p className="text-center text-gray-500 py-10 animate-pulse">
+        <p className="text-center text-[rgb(var(--color-text-muted))] py-10 animate-pulse">
           Loading emojis...
         </p>
       );
     }
     if (modalDataError) {
       return (
-        <p className="text-center text-red-500 py-10">
+        <p className="text-center text-[rgb(var(--color-status-error))] py-10">
           Error: {modalDataError}
         </p>
       );
     }
     if (modalEmojisList.length === 0 && hasFetchedDataRef.current) {
       return (
-        <p className="text-center text-gray-500 py-10">No emoji data found.</p>
+        <p className="text-center text-[rgb(var(--color-text-muted))] py-10">
+          No emoji data found.
+        </p>
       );
     }
     if (modalEmojisList.length === 0 && !hasFetchedDataRef.current) {
       return (
-        <p className="text-center text-gray-500 py-10 animate-pulse">
+        <p className="text-center text-[rgb(var(--color-text-muted))] py-10 animate-pulse">
           Preparing emoji list...
         </p>
       );
@@ -300,13 +302,13 @@ export default function EmojiExplorerModal({
       <>
         {filteredEmojis.length === 0 &&
           (searchTerm || activeFilterCount > 0) && (
-            <p className="text-center text-gray-500 py-10">
+            <p className="text-center text-[rgb(var(--color-text-muted))] py-10">
               No emojis match your search or filter.
             </p>
           )}
         {sortedGroupNames.map((groupName) => (
           <div key={groupName} className="mb-4">
-            <h3 className="text-sm font-semibold text-gray-500 py-1 mb-1">
+            <h3 className="text-sm font-semibold text-[rgb(var(--color-text-muted))] py-1 mb-1">
               {groupName}
             </h3>
             <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 gap-1">
@@ -314,7 +316,7 @@ export default function EmojiExplorerModal({
                 <button
                   key={emojiData.codePoints || emojiData.name}
                   onClick={() => handleEmojiInteraction(emojiData, 'grid')}
-                  className="text-2xl p-1 rounded hover:bg-gray-200 aspect-square flex items-center justify-center transition-colors duration-100"
+                  className="text-2xl p-1 rounded hover:bg-[rgb(var(--color-bg-neutral))] aspect-square flex items-center justify-center transition-colors duration-100"
                   title={
                     outputMode === 'copy'
                       ? `Copy: ${emojiData.name}`
@@ -328,7 +330,7 @@ export default function EmojiExplorerModal({
                 >
                   {outputMode === 'copy' &&
                   copiedEmojiString === emojiData.emoji ? (
-                    <CheckIcon className="h-5 w-5 text-green-500" />
+                    <CheckIcon className="h-5 w-5 text-[rgb(var(--color-status-success))]" />
                   ) : (
                     emojiData.emoji
                   )}
@@ -343,7 +345,7 @@ export default function EmojiExplorerModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/60 flex items-center justify-center z-50 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -353,10 +355,10 @@ export default function EmojiExplorerModal({
         className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-3 border-b border-gray-200 flex justify-between items-center flex-shrink-0 gap-2">
+        <div className="p-3 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center flex-shrink-0 gap-2">
           <h2
             id="emoji-modal-title"
-            className="text-lg font-semibold text-gray-800 whitespace-nowrap"
+            className="text-lg font-semibold text-[rgb(var(--color-text-emphasis))] whitespace-nowrap"
           >
             {outputMode === 'select' ? 'Select an Emoji' : 'Emoji Explorer'}
           </h2>
@@ -368,7 +370,9 @@ export default function EmojiExplorerModal({
             placeholder="Search by name..."
             inputClassName="px-2 py-1 text-sm"
             containerClassName="mx-2 flex-grow min-w-0"
-            iconLeft={<MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />}
+            iconLeft={
+              <MagnifyingGlassIcon className="h-4 w-4 text-[rgb(var(--color-text-disabled))]" />
+            }
           />
           <div className="relative flex-shrink-0">
             <Button
@@ -395,22 +399,22 @@ export default function EmojiExplorerModal({
             size="sm"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))] flex-shrink-0"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
         </div>
 
         {isFilterPanelOpen && (
-          <div className="p-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3 flex-shrink-0 animate-slide-down">
+          <div className="p-3 border-b border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex flex-col gap-3 flex-shrink-0 animate-slide-down">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium text-gray-700">
+              <h3 className="text-sm font-medium text-[rgb(var(--color-text-emphasis))]">
                 Filter Options
               </h3>
               <button
                 onClick={handleClearFilters}
                 disabled={activeFilterCount === 0}
-                className="px-2 py-0.5 rounded text-xs font-medium text-blue-600 hover:underline disabled:text-gray-400 disabled:opacity-70 disabled:no-underline"
+                className="px-2 py-0.5 rounded text-xs font-medium text-[rgb(var(--color-text-link))] hover:underline disabled:text-[rgb(var(--color-text-disabled))] disabled:opacity-70 disabled:no-underline"
               >
                 Clear Filters
               </button>
@@ -419,7 +423,7 @@ export default function EmojiExplorerModal({
               <div>
                 <label
                   htmlFor="modal-filter-group"
-                  className="block text-xs font-medium text-gray-600 mb-0.5"
+                  className="block text-xs font-medium text-[rgb(var(--color-text-subtle))] mb-0.5"
                 >
                   Group
                 </label>
@@ -427,7 +431,7 @@ export default function EmojiExplorerModal({
                   id="modal-filter-group"
                   value={selectedGroup}
                   onChange={handleGroupChange}
-                  className="w-full p-1.5 border border-gray-300 bg-white text-gray-900 rounded shadow-sm focus:border-indigo-500 focus:outline-none text-xs"
+                  className="w-full p-1.5 border border-[rgb(var(--color-border-soft))] bg-white text-[rgb(var(--color-text-base))] rounded shadow-sm focus:border-[rgb(var(--color-border-focus))] focus:outline-none text-xs"
                 >
                   <option value="">All</option>
                   {availableGroups.map((group) => (
@@ -440,7 +444,7 @@ export default function EmojiExplorerModal({
               <div>
                 <label
                   htmlFor="modal-filter-subgroup"
-                  className="block text-xs font-medium text-gray-600 mb-0.5"
+                  className="block text-xs font-medium text-[rgb(var(--color-text-subtle))] mb-0.5"
                 >
                   Subgroup
                 </label>
@@ -451,7 +455,7 @@ export default function EmojiExplorerModal({
                   disabled={
                     !selectedGroup || derivedAvailableSubgroups.length === 0
                   }
-                  className="w-full p-1.5 border border-gray-300 bg-white text-gray-900 rounded shadow-sm focus:border-indigo-500 focus:outline-none text-xs disabled:bg-gray-100 disabled:text-gray-400"
+                  className="w-full p-1.5 border border-[rgb(var(--color-border-soft))] bg-white text-[rgb(var(--color-text-base))] rounded shadow-sm focus:border-[rgb(var(--color-border-focus))] focus:outline-none text-xs disabled:bg-[rgb(var(--color-bg-subtle-hover))] disabled:text-[rgb(var(--color-text-disabled))]"
                 >
                   <option value="">All</option>
                   {selectedGroup &&
@@ -465,7 +469,7 @@ export default function EmojiExplorerModal({
               <div>
                 <label
                   htmlFor="modal-filter-version"
-                  className="block text-xs font-medium text-gray-600 mb-0.5"
+                  className="block text-xs font-medium text-[rgb(var(--color-text-subtle))] mb-0.5"
                 >
                   Version
                 </label>
@@ -473,7 +477,7 @@ export default function EmojiExplorerModal({
                   id="modal-filter-version"
                   value={selectedVersion}
                   onChange={handleVersionChange}
-                  className="w-full p-1.5 border border-gray-300 bg-white text-gray-900 rounded shadow-sm focus:border-indigo-500 focus:outline-none text-xs"
+                  className="w-full p-1.5 border border-[rgb(var(--color-border-soft))] bg-white text-[rgb(var(--color-text-base))] rounded shadow-sm focus:border-[rgb(var(--color-border-focus))] focus:outline-none text-xs"
                 >
                   <option value="">All</option>
                   {availableVersions.map((version) => (
@@ -489,9 +493,9 @@ export default function EmojiExplorerModal({
 
         {!isLoadingEmojiExplorerToolState &&
           emojiExplorerToolState.recentlyCopiedEmojis.length > 0 && (
-            <div className="p-3 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+            <div className="p-3 border-b border-[rgb(var(--color-border-base))] flex-shrink-0 bg-[rgb(var(--color-bg-subtle))]">
               <div className="flex justify-between items-center mb-1.5">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <h3 className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
                   {/* Title changes based on mode, or could be generic "Recently Used" */}
                   {outputMode === 'select'
                     ? 'Recently Selected'
@@ -504,7 +508,7 @@ export default function EmojiExplorerModal({
                   title="Clear recently used emojis"
                   className="!p-0.5 text-xs"
                 >
-                  <XMarkIcon className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                  <XMarkIcon className="h-4 w-4 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-status-error))]" />
                 </Button>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -531,7 +535,7 @@ export default function EmojiExplorerModal({
                     >
                       {outputMode === 'copy' &&
                       copiedEmojiString === emojiData.emoji ? (
-                        <CheckIcon className="h-4 w-4 text-green-500" />
+                        <CheckIcon className="h-4 w-4 text-[rgb(var(--color-status-success))]" />
                       ) : (
                         emojiData.emoji
                       )}

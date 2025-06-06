@@ -601,7 +601,7 @@ export default function ImageMontageClient({
 
   if (isLoadingState && !initialToolStateLoadCompleteRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Montage Tool State...
       </p>
     );
@@ -668,7 +668,7 @@ export default function ImageMontageClient({
           className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2"
         >
           <XCircleIcon
-            className="h-5 w-5 flex-shrink-0 mt-0.5 text-red-500"
+            className="h-5 w-5 flex-shrink-0 mt-0.5 text-[rgb(var(--color-status-error))]"
             aria-hidden="true"
           />
           <div>
@@ -757,7 +757,7 @@ export default function ImageMontageClient({
         {currentProcessedFileInfo &&
           currentProcessedFileInfo.isTemporary === false &&
           currentProcessedFileInfo.filename && (
-            <div className="absolute top-2 right-2 bg-green-100 text-green-700 px-2 py-1 text-xs rounded-full flex items-center gap-1 shadow z-10">
+            <div className="absolute top-2 right-2 bg-[rgb(var(--color-status-success))]/10 text-[rgb(var(--color-status-success))] px-2 py-1 text-xs rounded-full flex items-center gap-1 shadow z-10">
               <CheckBadgeIcon className="h-4 w-4" /> Saved:{' '}
               {currentProcessedFileInfo.filename}
             </div>

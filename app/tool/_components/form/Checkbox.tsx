@@ -40,7 +40,8 @@ const Checkbox: React.FC<CheckboxProps> = ({
     }
   }, [isIndeterminate]);
 
-  const indeterminateStyle = isIndeterminate && !checked ? 'bg-gray-400' : '';
+  const indeterminateStyle =
+    isIndeterminate && !checked ? 'bg-[rgb(var(--color-border-emphasis))]' : '';
 
   return (
     <div
@@ -56,20 +57,20 @@ const Checkbox: React.FC<CheckboxProps> = ({
         onChange={onChange}
         disabled={disabled}
         className={`
-          h-4 w-4 rounded 
-          border-gray-300 
-          text-[rgb(var(--color-checkbox-accent))] 
-          accent-[rgb(var(--color-checkbox-accent))] 
-          disabled:cursor-not-allowed
-          ${indeterminateStyle} 
-          ${inputClassName}
-        `}
+ h-4 w-4 rounded
+ border-[rgb(var(--color-border-soft))]
+ text-[rgb(var(--color-checkbox-accent))]
+ accent-[rgb(var(--color-checkbox-accent))]
+ disabled:cursor-not-allowed
+ ${indeterminateStyle}
+ ${inputClassName}
+ `}
         {...rest}
       />
       {label && (
         <label
           htmlFor={effectiveId}
-          className={`ml-2 block text-sm ${disabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-base))]'} ${!disabled ? 'cursor-pointer' : ''} ${labelClassName}`}
+          className={`ml-2 block text-sm ${disabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-base))]'} ${!disabled ? 'cursor-pointer' : ''} ${labelClassName}`}
         >
           {label}
         </label>

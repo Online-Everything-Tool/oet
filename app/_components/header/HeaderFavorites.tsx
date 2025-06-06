@@ -19,7 +19,7 @@ interface LatestAdditionsData {
 }
 
 const titleClasses =
-  'px-3 pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider';
+  'px-3 pt-3 pb-2 text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider';
 
 export default function HeaderFavorites() {
   const { favorites, isLoaded: favoritesLoaded } = useFavorites();
@@ -119,13 +119,13 @@ export default function HeaderFavorites() {
     const toolsToShow = latestAdditions.directives.slice(0, 2);
 
     return (
-      <div className="border-t border-gray-200 pt-1">
+      <div className="border-t border-[rgb(var(--color-border-base))] pt-1">
         <div className="px-3 pt-2.5 pb-1 flex flex-col gap-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <p className="text-xs font-semibold text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
             {latestAdditions.header}
           </p>
           {latestAdditions.subheader && (
-            <p className="text-xs text-gray-500 mb-1.5">
+            <p className="text-xs text-[rgb(var(--color-text-muted))] mb-1.5">
               {latestAdditions.subheader}
             </p>
           )}
@@ -146,13 +146,13 @@ export default function HeaderFavorites() {
               title={`Check out: ${title}`}
             >
               <div className="flex items-center">
-                <SparklesIcon className="h-5 w-5 text-gray-600 mr-2.5 transition-transform group-hover:scale-105 shrink-0" />
+                <SparklesIcon className="h-5 w-5 text-[rgb(var(--color-text-subtle))] mr-2.5 transition-transform group-hover:scale-105 shrink-0" />
                 <div className="flex-grow overflow-hidden">
-                  <p className="text-sm font-medium text-gray-600 group-hover:text-gray-800 truncate">
+                  <p className="text-sm font-medium text-[rgb(var(--color-text-subtle))] group-hover:text-[rgb(var(--color-text-emphasis))] truncate">
                     {title}
                   </p>
                   {metadata?.description && (
-                    <p className="text-xs text-gray-600 group-hover:text-gray-800 truncate">
+                    <p className="text-xs text-[rgb(var(--color-text-subtle))] group-hover:text-[rgb(var(--color-text-emphasis))] truncate">
                       {metadata.description.length > 45
                         ? metadata.description.substring(0, 43) + '...'
                         : metadata.description}
@@ -165,7 +165,9 @@ export default function HeaderFavorites() {
         })}
         {latestAdditions.directives.length > toolsToShow.length && (
           <div className="px-3 py-1.5 text-center">
-            <em className="text-xs text-gray-400">...and more!</em>
+            <em className="text-xs text-[rgb(var(--color-text-disabled))]">
+              ...and more!
+            </em>
           </div>
         )}
       </div>
@@ -188,13 +190,13 @@ export default function HeaderFavorites() {
         aria-expanded={isDropdownOpen}
         iconLeft={
           <StarIconSolid
-            className={`h-5 w-5 transition-colors ${favoritesCount > 0 && favoritesLoaded ? 'text-yellow-400' : 'text-indigo-200 group-hover:text-yellow-300'}`}
+            className={`h-5 w-5 transition-colors ${favoritesCount > 0 && favoritesLoaded ? 'text-[rgb(var(--color-icon-accent-yellow))]' : 'text-[rgb(var(--color-header-brand-text-hover))] group-hover:text-[rgb(var(--color-icon-accent-yellow))]'}`}
           />
         }
       >
         {favoritesLoaded && favoritesCount > 0 && (
           <span
-            className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4 shadow"
+            className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[rgb(var(--color-button-danger-bg))] text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4 shadow"
             title={`${favoritesCount} favorite tool${favoritesCount === 1 ? '' : 's'}`}
             aria-hidden="true"
           >
@@ -228,7 +230,7 @@ export default function HeaderFavorites() {
                   <Link
                     key={directive}
                     href={`/tool/${directive}/`}
-                    className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 truncate"
+                    className="block px-4 py-2.5 text-sm text-[rgb(var(--color-text-emphasis))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))] truncate"
                     role="menuitem"
                     tabIndex={-1}
                     onClick={closeDropdown}
@@ -239,7 +241,7 @@ export default function HeaderFavorites() {
                 );
               })
             ) : (
-              <p className="px-4 py-3 text-sm text-gray-500 italic text-center">
+              <p className="px-4 py-3 text-sm text-[rgb(var(--color-text-muted))] italic text-center">
                 No favorites yet.
                 <br />
                 Click the ☆ on a tool&apos;s page!

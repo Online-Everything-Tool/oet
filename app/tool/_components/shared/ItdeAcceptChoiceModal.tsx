@@ -43,7 +43,7 @@ export default function ItdeAcceptChoiceModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/50 flex items-center justify-center z-[70] p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -66,7 +66,7 @@ export default function ItdeAcceptChoiceModal({
             size="sm"
             onClick={onClose}
             aria-label="Close and defer choice"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>

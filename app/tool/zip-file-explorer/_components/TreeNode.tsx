@@ -67,7 +67,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         <ChevronRightIcon className="h-4 w-4 text-[rgb(var(--color-text-muted))]" />
       );
     } else {
-      iconElement = <FolderIconSolid className="h-4 w-4 text-yellow-500" />;
+      iconElement = (
+        <FolderIconSolid className="h-4 w-4 text-[rgb(var(--color-icon-accent-yellow-hover))]" />
+      );
     }
   } else {
     const fileIconClass = getFileIconClassName(node.name);
@@ -79,7 +81,9 @@ const TreeNode: React.FC<TreeNodeProps> = ({
         ></span>
       );
     } else {
-      iconElement = <DocumentIconSolid className="h-4 w-4 text-blue-500" />;
+      iconElement = (
+        <DocumentIconSolid className="h-4 w-4 text-[rgb(var(--color-status-info))]" />
+      );
     }
   }
 

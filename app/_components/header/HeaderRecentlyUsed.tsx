@@ -167,8 +167,8 @@ export default function HeaderRecentlyUsed() {
     if (!currentMegaToolMessage) return null;
 
     return (
-      <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-2.5 min-h-[150px]">
-        <p className="pt-3 pb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <div className="border-t border-[rgb(var(--color-border-base))] px-3 py-2.5 min-h-[150px]">
+        <p className="pt-3 pb-2 text-xs font-medium text-[rgb(var(--color-text-muted))] uppercase tracking-wider">
           {megaToolMessageData.title}
         </p>
         <Swiper
@@ -198,10 +198,10 @@ export default function HeaderRecentlyUsed() {
               <div className="flex gap-1 justify-start">
                 <span className="text-2xl">{msg.emoji}</span>
                 <div className="flex flex-col gap-1 justify-between">
-                  <p className="text-[13px] text-gray-700 dark:text-gray-300 leading-tight px-2">
+                  <p className="text-[13px] text-[rgb(var(--color-text-emphasis))] leading-tight px-2">
                     {msg.text}
                   </p>
-                  <p className="text-[13px] text-gray-500 dark:text-gray-400 self-end">
+                  <p className="text-[13px] text-[rgb(var(--color-text-muted))] self-end">
                     - {msg.source}
                   </p>
                 </div>
@@ -236,7 +236,7 @@ export default function HeaderRecentlyUsed() {
       >
         {recentsLoaded && headerRecentToolsCount > 0 && (
           <span
-            className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-green-600 text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4 shadow"
+            className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-[rgb(var(--color-button-secondary-bg))] text-white text-[10px] font-bold px-1 pointer-events-none transform translate-x-1/4 -translate-y-1/4 shadow"
             title={`${headerRecentToolsCount} other recent tool${headerRecentToolsCount === 1 ? '' : 's'}`}
             aria-hidden="true"
           >
@@ -251,10 +251,10 @@ export default function HeaderRecentlyUsed() {
       {/* Dropdown container */}
       {isDropdownOpen && !isLoading && (
         <div
-          className={`absolute right-0 mt-2 w-72 md:w-80 origin-top-right z-[60] 
-                     bg-white dark:bg-gray-800 rounded-md shadow-xl
-                     ${isDropdownOpen ? 'block animate-slide-down' : 'hidden'}
-                     flex flex-col justify-between`}
+          className={`absolute right-0 mt-2 w-72 md:w-80 origin-top-right z-[60]
+ bg-white rounded-md shadow-xl
+ ${isDropdownOpen ? 'block animate-slide-down' : 'hidden'}
+ flex flex-col justify-between`}
           onClick={(e) => e.stopPropagation()}
           aria-hidden={!isDropdownOpen}
         >

@@ -106,12 +106,12 @@ export default function FileGridView({
               !itemIsText || isLoading || currentFeedback?.type === 'copy'
             }
             title={itemIsText ? 'Copy content' : 'Cannot copy'}
-            className={`${!itemIsText && 'invisible'} p-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-green-100 text-green-700' : 'text-green-600 hover:bg-green-100'}`}
+            className={`${!itemIsText && 'invisible'} p-1 rounded-full disabled:opacity-50 disabled:cursor-not-allowed ${currentFeedback?.type === 'copy' ? 'bg-[rgb(var(--color-status-success))]/10 text-[rgb(var(--color-status-success))]' : 'text-[rgb(var(--color-status-success))] hover:bg-[rgb(var(--color-status-success))]/10'}`}
           >
             {currentFeedback?.type === 'copy' ? (
-              <ClipboardDocumentCheckIcon className="h-5 w-5 text-green-600" />
+              <ClipboardDocumentCheckIcon className="h-5 w-5 text-[rgb(var(--color-status-success))]" />
             ) : (
-              <DocumentDuplicateIcon className="h-5 w-5 text-green-600 group-hover:text-green-700" />
+              <DocumentDuplicateIcon className="h-5 w-5 text-[rgb(var(--color-status-success))] group-hover:text-[rgb(var(--color-status-success))]" />
             )}
           </button>
         )}
@@ -123,12 +123,12 @@ export default function FileGridView({
             }}
             disabled={isLoading || currentFeedback?.type === 'download'}
             title="Download file"
-            className={`p-1 rounded-full disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-indigo-100 text-indigo-700' : 'text-indigo-600 hover:bg-indigo-100'}`}
+            className={`p-1 rounded-full disabled:opacity-50 ${currentFeedback?.type === 'download' ? 'bg-[rgb(var(--color-status-info))]/10 text-[rgb(var(--color-text-link))]' : 'text-[rgb(var(--color-icon-brand))] hover:bg-[rgb(var(--color-status-info))]/10'}`}
           >
             {currentFeedback?.type === 'download' ? (
-              <CheckIcon className="h-5 w-5 text-indigo-600" />
+              <CheckIcon className="h-5 w-5 text-[rgb(var(--color-icon-brand))]" />
             ) : (
-              <ArrowDownTrayIcon className="h-5 w-5 text-indigo-600 group-hover:text-indigo-700" />
+              <ArrowDownTrayIcon className="h-5 w-5 text-[rgb(var(--color-icon-brand))] group-hover:text-[rgb(var(--color-text-link))]" />
             )}
           </button>
         )}
@@ -142,9 +142,9 @@ export default function FileGridView({
             title={
               selectedIds.has(file.id) ? "Use 'Delete' button" : 'Delete file'
             }
-            className="p-1 text-red-600 rounded-full hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-1 text-[rgb(var(--color-status-error))] rounded-full hover:bg-[rgb(var(--color-bg-error-subtle))] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <TrashIcon className="h-5 w-5 text-red-600 group-hover:text-red-700" />
+            <TrashIcon className="h-5 w-5 text-[rgb(var(--color-status-error))] group-hover:text-[rgb(var(--color-status-error))]" />
           </button>
         )}
       </>
@@ -168,8 +168,8 @@ export default function FileGridView({
             key={file.id}
             className={`relative group border rounded-md shadow-sm overflow-hidden bg-white flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${
               isSelected
-                ? 'border-blue-500'
-                : 'hover:shadow-lg hover:border-gray-300 border-gray-200'
+                ? 'border-[rgb(var(--color-border-info))]'
+                : 'hover:shadow-lg hover:border-[rgb(var(--color-border-soft))] border-[rgb(var(--color-border-base))]'
             } ${isProcessingItem ? 'opacity-70 cursor-default' : 'cursor-pointer'} ${showBulkDeleteOpacity ? 'opacity-60' : ''}`}
             onClick={(e) => handleCardClick(e, file.id)}
             onKeyDown={(e) => handleKeyDown(e, file.id)}
@@ -202,25 +202,25 @@ export default function FileGridView({
               </div>
             </div>
 
-            <div className="w-full flex-grow flex items-center justify-center bg-gray-50 rounded pointer-events-none overflow-hidden min-h-[100px] px-1 pb-1">
+            <div className="w-full flex-grow flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded pointer-events-none overflow-hidden min-h-[100px] px-1 pb-1">
               {renderPreview(file)}
             </div>
 
             <div className="w-full text-center mt-auto pb-1 px-1">
               <p
-                className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none"
+                className="text-xs text-center font-medium text-[rgb(var(--color-text-emphasis))] truncate w-full pointer-events-none"
                 title={file.filename}
               >
                 {file.filename || 'Untitled'}
               </p>
-              <p className="text-[10px] text-gray-500 pointer-events-none">
+              <p className="text-[10px] text-[rgb(var(--color-text-muted))] pointer-events-none">
                 {formatBytes(file.size)}
               </p>
             </div>
 
             {showBulkDeleteOpacity && !isProcessingItem && (
-              <div className="absolute inset-0 bg-white bg-opacity-50 flex items-center justify-center pointer-events-none z-10">
-                <span className="text-red-500 text-xs animate-pulse">
+              <div className="absolute inset-0 bg-white bg-[rgb(var(--color-bg-page))]/50 flex items-center justify-center pointer-events-none z-10">
+                <span className="text-[rgb(var(--color-status-error))] text-xs animate-pulse">
                   Deleting...
                 </span>
               </div>
@@ -228,7 +228,7 @@ export default function FileGridView({
 
             {currentFeedback?.type === 'error' && (
               <div
-                className="absolute inset-x-0 bottom-0 p-1 bg-red-100 text-red-700 text-[10px] text-center truncate pointer-events-none z-20"
+                className="absolute inset-x-0 bottom-0 p-1 bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] text-[10px] text-center truncate pointer-events-none z-20"
                 title={currentFeedback.message}
               >
                 Error: {currentFeedback.message}
@@ -239,12 +239,12 @@ export default function FileGridView({
       })}
 
       {files.length === 0 && !isLoading && (
-        <p className="col-span-full text-center text-gray-500 italic py-16">
+        <p className="col-span-full text-center text-[rgb(var(--color-text-muted))] italic py-16">
           No files found.
         </p>
       )}
       {isLoading && !isBulkDeleting && (
-        <p className="col-span-full text-center text-gray-500 italic py-16 animate-pulse">
+        <p className="col-span-full text-center text-[rgb(var(--color-text-muted))] italic py-16 animate-pulse">
           Loading...
         </p>
       )}

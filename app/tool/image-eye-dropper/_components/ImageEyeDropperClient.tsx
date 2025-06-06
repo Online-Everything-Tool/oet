@@ -466,7 +466,7 @@ export default function ImageEyeDropperClient({
 
   if (isLoadingState && !initialToolStateLoadCompleteRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Image Eye Dropper...
       </p>
     );
@@ -525,17 +525,21 @@ export default function ImageEyeDropperClient({
             Click on the image to pick a color
           </label>
           <div
-            className="w-full aspect-[4/3] border rounded-md bg-gray-200 flex items-center justify-center overflow-hidden relative"
+            className="w-full aspect-[4/3] border rounded-md bg-[rgb(var(--color-bg-neutral))] flex items-center justify-center overflow-hidden relative"
             style={{
               backgroundColor: 'rgb(var(--color-bg-subtle))',
               borderColor: 'rgb(var(--color-border-base))',
             }}
           >
             {isImageLoading && (
-              <p className="text-sm italic text-gray-500">Loading image...</p>
+              <p className="text-sm italic text-[rgb(var(--color-text-muted))]">
+                Loading image...
+              </p>
             )}
             {!toolState.selectedFileId && !isImageLoading && (
-              <p className="text-sm italic text-gray-500">No image selected</p>
+              <p className="text-sm italic text-[rgb(var(--color-text-muted))]">
+                No image selected
+              </p>
             )}
             <canvas
               ref={visibleCanvasRef}
@@ -565,14 +569,16 @@ export default function ImageEyeDropperClient({
             <div className="p-4 border rounded-md bg-[rgb(var(--color-bg-component))] space-y-3">
               <div className="flex items-center gap-3">
                 <div
-                  className="w-12 h-12 rounded border border-gray-300"
+                  className="w-12 h-12 rounded border border-[rgb(var(--color-border-soft))]"
                   style={{
                     backgroundColor: toolState.pickedColorFullDetails.hex,
                   }}
                   title={`Preview of ${toolState.pickedColorFullDetails.hex}`}
                 ></div>
                 <div className="flex-grow">
-                  <p className="text-xs text-gray-500">HEX</p>
+                  <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                    HEX
+                  </p>
                   <div className="flex items-center">
                     <p
                       className="font-mono text-sm flex-grow"
@@ -589,7 +595,7 @@ export default function ImageEyeDropperClient({
                       disabled={copiedHex}
                     >
                       {copiedHex ? (
-                        <CheckIcon className="h-4 w-4 text-green-600" />
+                        <CheckIcon className="h-4 w-4 text-[rgb(var(--color-status-success))]" />
                       ) : (
                         <ClipboardDocumentIcon className="h-4 w-4" />
                       )}
@@ -598,7 +604,9 @@ export default function ImageEyeDropperClient({
                 </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500">RGB</p>
+                <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                  RGB
+                </p>
                 <div className="flex items-center">
                   <p
                     className="font-mono text-sm flex-grow"
@@ -613,7 +621,7 @@ export default function ImageEyeDropperClient({
                     disabled={copiedRgb}
                   >
                     {copiedRgb ? (
-                      <CheckIcon className="h-4 w-4 text-green-600" />
+                      <CheckIcon className="h-4 w-4 text-[rgb(var(--color-status-success))]" />
                     ) : (
                       <ClipboardDocumentIcon className="h-4 w-4" />
                     )}
@@ -621,7 +629,9 @@ export default function ImageEyeDropperClient({
                 </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500">Alpha</p>
+                <p className="text-xs text-[rgb(var(--color-text-muted))]">
+                  Alpha
+                </p>
                 <p className="font-mono text-sm">
                   {toolState.pickedColorFullDetails.rgba.a} (
                   {(
@@ -631,7 +641,7 @@ export default function ImageEyeDropperClient({
                   %)
                 </p>
               </div>
-              <div className="pt-2 border-t border-gray-200">
+              <div className="pt-2 border-t border-[rgb(var(--color-border-base))]">
                 <SendToToolButton
                   currentToolDirective={directiveName}
                   currentToolOutputConfig={metadata.outputConfig}
@@ -643,7 +653,7 @@ export default function ImageEyeDropperClient({
               </div>
             </div>
           ) : (
-            <div className="p-4 border rounded-md bg-[rgb(var(--color-bg-component))] text-center text-sm text-gray-500 italic">
+            <div className="p-4 border rounded-md bg-[rgb(var(--color-bg-component))] text-center text-sm text-[rgb(var(--color-text-muted))] italic">
               No color picked yet.
             </div>
           )}

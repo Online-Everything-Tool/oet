@@ -1021,7 +1021,7 @@ export default function ZipFileExplorerClient({
 
   if (isLoadingToolState && !initialToolStateLoadCompleteRef.current)
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading ZIP Explorer...
       </p>
     );
@@ -1220,7 +1220,7 @@ export default function ZipFileExplorerClient({
             </div>
             {/* Date Filter UI will go here (Input components) */}
           </div>
-          <p className="text-xs text-right text-gray-500 mt-1 pr-1">
+          <p className="text-xs text-right text-[rgb(var(--color-text-muted))] mt-1 pr-1">
             Displaying {fileCountInDisplayTree} files / {displayFileTree.length}{' '}
             total entries in tree.
           </p>
@@ -1230,14 +1230,14 @@ export default function ZipFileExplorerClient({
       {displayError && (
         <div
           role="alert"
-          className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm flex items-center gap-2"
+          className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded-md text-sm flex items-center gap-2"
         >
           <XCircleIcon className="h-5 w-5 shrink-0" />
           <strong className="font-semibold">Error:</strong> {displayError}
         </div>
       )}
       {isLoadingDisplay && !displayError && (
-        <div className="p-4 text-center text-gray-500 italic animate-pulse">
+        <div className="p-4 text-center text-[rgb(var(--color-text-muted))] italic animate-pulse">
           Loading tree view...
         </div>
       )}
@@ -1300,7 +1300,7 @@ export default function ZipFileExplorerClient({
               />
             ))}
             {displayFileTree.length === 0 && rawFileTree.length > 0 && (
-              <p className="text-center text-gray-500 italic py-4">
+              <p className="text-center text-[rgb(var(--color-text-muted))] italic py-4">
                 No items match current filters.
               </p>
             )}
@@ -1311,7 +1311,7 @@ export default function ZipFileExplorerClient({
         !displayError &&
         !currentZipFile &&
         !persistentState.selectedFileId && (
-          <p className="p-4 text-lg text-center text-gray-400 italic">
+          <p className="p-4 text-lg text-center text-[rgb(var(--color-text-disabled))] italic">
             Select a ZIP file to begin exploring.
           </p>
         )}
@@ -1328,14 +1328,14 @@ export default function ZipFileExplorerClient({
       />
       {isPreviewOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-[60]"
+          className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/75 flex items-center justify-center p-4 z-[60]"
           onClick={closePreview}
         >
           <div
             className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-3 px-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+            <div className="p-3 px-4 border-b flex justify-between items-center bg-[rgb(var(--color-bg-subtle))] rounded-t-lg">
               <h3
                 className="text-lg font-semibold truncate"
                 title={previewFilename || ''}
@@ -1343,7 +1343,7 @@ export default function ZipFileExplorerClient({
                 {previewFilename || 'Preview'}
               </h3>
               <Button variant="link" onClick={closePreview} className="!p-1">
-                <XCircleIcon className="h-6 w-6 text-gray-500 hover:text-gray-700" />
+                <XCircleIcon className="h-6 w-6 text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]" />
               </Button>
             </div>
             <div className="p-4 overflow-auto flex-grow min-h-[200px]">
@@ -1353,7 +1353,7 @@ export default function ZipFileExplorerClient({
               {previewError && (
                 <div
                   role="alert"
-                  className="p-2 bg-red-50 text-red-700 rounded text-sm"
+                  className="p-2 bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] rounded text-sm"
                 >
                   <strong className="font-semibold">Error:</strong>{' '}
                   {previewError}

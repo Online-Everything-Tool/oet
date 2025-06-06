@@ -16,16 +16,16 @@ const PreNarrativeContent = ({ toolDirective }: { toolDirective: string }) => {
   return (
     <div className="flex flex-col items-center justify-center text-center flex-grow w-full py-8">
       <div className="mb-8">
-        <PaperAirplaneIcon className="h-16 w-16 md:h-24 md:w-24 text-indigo-500 dark:text-indigo-400 animate-pulse-rocket transform -rotate-45" />
+        <PaperAirplaneIcon className="h-16 w-16 md:h-24 md:w-24 text-[rgb(var(--color-icon-brand))] animate-pulse-rocket transform -rotate-45" />
       </div>
-      <p className="text-xl md:text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-2">
+      <p className="text-xl md:text-2xl font-semibold text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-inverted))] mb-2">
         OET Mission Control...
       </p>
-      <p className="text-lg md:text-xl text-indigo-600 dark:text-indigo-300 mb-6">
+      <p className="text-lg md:text-xl text-[rgb(var(--color-icon-brand))] mb-6">
         We&apos;re GO for launch on:{' '}
         <strong className="font-bold">{toolDirective}</strong>!
       </p>
-      <p className="text-sm text-gray-600 dark:text-gray-400 italic px-4">
+      <p className="text-sm text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-disabled))] italic px-4">
         You can almost feel Big Tool Corp starting to panic... their servers are
         probably &lsquo;requesting a comfort animal.&rsquo;
       </p>
@@ -58,7 +58,7 @@ export default function GenerationLoadingModal({
       aria-labelledby="loading-modal-title-actual"
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-6 md:p-8 max-w-lg w-full relative flex flex-col"
+        className="bg-white rounded-lg shadow-2xl p-6 md:p-8 max-w-lg w-full relative flex flex-col"
         onClick={(e) => e.stopPropagation()}
         style={{ minHeight: '30rem' }}
       >
@@ -66,7 +66,7 @@ export default function GenerationLoadingModal({
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded-full p-1 z-10"
+            className="absolute top-3 right-3 text-[rgb(var(--color-text-disabled))] ext-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-subtle))] over:text-[rgb(var(--color-text-muted))] rounded-full p-1 z-10"
             aria-label="Close modal"
           >
             <XMarkIcon className="h-6 w-6" />
@@ -84,10 +84,10 @@ export default function GenerationLoadingModal({
                 {narrativeData.epicCompanyEmployeeEmoji}
               </span>
               <div className="flex-grow">
-                <p className="text-lg font-semibold text-gray-800 dark:text-gray-100 leading-tight">
+                <p className="text-lg font-semibold text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-inverted))] leading-tight">
                   {narrativeData.epicCompanyEmployeeName}
                 </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400 italic leading-tight">
+                <p className="text-sm text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-disabled))] italic leading-tight">
                   {narrativeData.epicCompanyJobTitle}
                 </p>
                 <div className="flex items-center mt-1">
@@ -98,7 +98,7 @@ export default function GenerationLoadingModal({
                   >
                     {narrativeData.epicCompanyEmoji}
                   </span>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-tight">
+                  <p className="text-sm text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))] leading-tight">
                     {narrativeData.epicCompanyName}
                   </p>
                 </div>
@@ -106,7 +106,7 @@ export default function GenerationLoadingModal({
             </div>
             <h2
               id="loading-modal-title-actual"
-              className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 mb-2 uppercase tracking-wider shrink-0"
+              className="text-sm font-semibold text-[rgb(var(--color-text-link))] mb-2 uppercase tracking-wider shrink-0"
             >
               Chapter {currentChapterIndex + 1} /{' '}
               {narrativeData.epicNarrative.length}
@@ -118,7 +118,7 @@ export default function GenerationLoadingModal({
               <div className="text-4xl sm:text-5xl leading-none pt-1 shrink-0">
                 {currentChapter.chapterEmoji}
               </div>
-              <div className="text-md sm:text-lg text-gray-700 dark:text-gray-200 leading-relaxed flex-grow pr-1">
+              <div className="text-md sm:text-lg text-[rgb(var(--color-text-emphasis))] leading-relaxed flex-grow pr-1">
                 {currentChapter.chapterStory}
               </div>
             </div>
@@ -131,9 +131,9 @@ export default function GenerationLoadingModal({
         <div className="mt-auto shrink-0 pt-4">
           {' '}
           {/* Added pt-4 for spacing from content above */}
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+          <div className="w-full bg-[rgb(var(--color-bg-neutral))] rounded-full h-2 mb-2">
             <div
-              className="bg-indigo-600 h-2 rounded-full transition-all duration-1000 ease-linear"
+              className="bg-[rgb(var(--color-button-primary-bg))] h-2 rounded-full transition-all duration-1000 ease-linear"
               style={{
                 width:
                   displayNarrative && narrativeData
@@ -154,11 +154,11 @@ export default function GenerationLoadingModal({
               aria-label="Narrative progress"
             ></div>
           </div>
-          <p className="text-xs text-center text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-center text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))]">
             {displayNarrative && narrativeData
               ? `OET AI is crafting your tool: `
               : `Preparing mission for: `}
-            <strong className="text-gray-600 dark:text-gray-300">
+            <strong className="text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-muted))]">
               {toolDirective}
             </strong>
           </p>

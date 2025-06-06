@@ -409,28 +409,28 @@ export default function BuildToolClient() {
   const renderCurrentStep = () => {
     if (!componentInitializationStateDone) {
       return (
-        <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
           Initializing Build Tool...
         </p>
       );
     }
     if (isApiUnavailable) {
       return (
-        <div className="p-6 border rounded-lg bg-orange-50 border-orange-300 shadow-sm text-center">
-          <h2 className="text-xl font-semibold mb-3 text-orange-800">
+        <div className="p-6 border rounded-lg bg-[rgb(var(--color-bg-accent2-subtle))] border-[rgb(var(--color-border-accent2))] shadow-sm text-center">
+          <h2 className="text-xl font-semibold mb-3 text-[rgb(var(--color-text-accent2-emphasis))]">
             Build Feature Temporarily Unavailable
           </h2>
-          <p className="text-orange-700 mb-4">
+          <p className="text-[rgb(var(--color-text-accent2))] mb-4">
             {apiUnavailableMessage ||
               'The AI-assisted build tool relies on backend services which appear to be unavailable at the moment.'}
           </p>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[rgb(var(--color-text-subtle))]">
             To contribute a new tool manually, please see the{' '}
             <a
               href="https://github.com/Online-Everything-Tool/oet/blob/main/CONTRIBUTING.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-[rgb(var(--color-text-link))] hover:underline"
             >
               CONTRIBUTING.md
             </a>{' '}
@@ -467,7 +467,7 @@ export default function BuildToolClient() {
       currentStep === 'generation'
     ) {
       return (
-        <p className="text-center p-4 italic text-gray-500 animate-pulse">
+        <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
           Loading Tool Metadata for examples...
         </p>
       );
@@ -478,7 +478,7 @@ export default function BuildToolClient() {
       currentStep === 'generation'
     ) {
       return (
-        <p className="text-center text-red-500 p-4">
+        <p className="text-center text-[rgb(var(--color-status-error))] p-4">
           Error loading existing tools list for examples: {metadataErrorHook}
         </p>
       );
@@ -503,7 +503,7 @@ export default function BuildToolClient() {
         if (!validationResult) {
           setCurrentStep('validation');
           return (
-            <p className="text-center text-red-500">
+            <p className="text-center text-[rgb(var(--color-status-error))]">
               Error: Validation data missing. Please start over.
             </p>
           );
@@ -538,7 +538,7 @@ export default function BuildToolClient() {
         ) {
           setCurrentStep('generation');
           return (
-            <p className="text-center text-red-500">
+            <p className="text-center text-[rgb(var(--color-status-error))]">
               Error: Generation data missing. Please go back.
             </p>
           );
@@ -558,7 +558,7 @@ export default function BuildToolClient() {
       default:
         handleReset(true);
         return (
-          <p className="text-center text-red-500">
+          <p className="text-center text-[rgb(var(--color-status-error))]">
             Error: Invalid build step: {currentStep}. Resetting...
           </p>
         );
@@ -598,7 +598,7 @@ export default function BuildToolClient() {
   return (
     <div className="max-w-5xl mx-auto p-4 space-y-6">
       <div className="flex justify-between items-center mb-2 pb-2 border-b">
-        <h1 className="text-2xl font-bold text-gray-800">
+        <h1 className="text-2xl font-bold text-[rgb(var(--color-text-emphasis))]">
           New Tool (AI Assisted)
           {currentMode === 'monitoring' &&
             monitoredPrNumber &&

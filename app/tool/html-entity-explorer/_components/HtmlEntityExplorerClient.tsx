@@ -145,7 +145,7 @@ export default function HtmlEntityExplorerClient({
 
   if (isLoadingToolState) {
     return (
-      <div className="text-center p-4 text-gray-500 italic animate-pulse">
+      <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
         Loading Entity Explorer...
       </div>
     );
@@ -184,7 +184,7 @@ export default function HtmlEntityExplorerClient({
                 >
                   {lastCopiedInfo?.id === entity.id &&
                   lastCopiedInfo?.type === 'char' ? (
-                    <CheckIcon className="h-5 w-5 text-green-500" />
+                    <CheckIcon className="h-5 w-5 text-[rgb(var(--color-status-success))]" />
                   ) : (
                     <p className="h-5 w-5 text-lg">{entity.char}</p>
                   )}

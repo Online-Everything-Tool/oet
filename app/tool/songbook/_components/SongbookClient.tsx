@@ -314,7 +314,7 @@ export default function SongbookClient({
             title={file.type || 'Song file'}
           ></span>
           <p
-            className="text-xs font-medium text-gray-700 truncate w-full"
+            className="text-xs font-medium text-[rgb(var(--color-text-emphasis))] truncate w-full"
             title={displayName}
           >
             {displayName}

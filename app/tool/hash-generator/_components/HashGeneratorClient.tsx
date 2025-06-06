@@ -610,7 +610,7 @@ export default function HashGeneratorClient({
 
   if (isLoadingToolState && !initialToolStateLoadCompleteRef.current) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Hash Generator...
       </p>
     );

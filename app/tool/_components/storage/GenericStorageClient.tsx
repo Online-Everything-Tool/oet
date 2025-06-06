@@ -645,26 +645,26 @@ export default function GenericStorageClient({
       {currentError && (
         <div
           role="alert"
-          className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md text-sm"
+          className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded-md text-sm"
         >
           <strong>Error:</strong> {currentError}
         </div>
       )}
 
-      <div className="border-2 border-dashed border-gray-300 rounded-md min-h-[200px] p-1">
+      <div className="border-2 border-dashed border-[rgb(var(--color-border-soft))] rounded-md min-h-[200px] p-1">
         {combinedClientAndViewLoading &&
           !isProcessing &&
           !isBulkDeleting &&
           displayedItems.length === 0 && (
             <div className="flex items-center justify-center min-h-[200px]">
-              <p className="text-center p-4 text-gray-500 italic animate-pulse">
+              <p className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
                 Loading stored {itemTypePlural.toLowerCase()}...
               </p>
             </div>
           )}
         {showEmptyMessage && (
           <div className="flex items-center justify-center min-h-[200px]">
-            <p className="text-center p-4 text-gray-500 italic">
+            <p className="text-center p-4 text-[rgb(var(--color-text-muted))] italic">
               {isFilterSelectedActive && displayedItems.length > 0
                 ? `No ${itemTypePlural.toLowerCase()} match current selection filter.`
                 : `Your ${itemTypeSingular.toLowerCase()} library is empty. Add ${itemTypePlural.toLowerCase()} using the button above.`}

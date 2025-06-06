@@ -180,9 +180,9 @@ export default function CreatePrForm({
 
   return (
     <section
-      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isSubmittingPr ? 'opacity-70' : ''} ${prCreationStatus === 'error' ? 'border-red-300' : 'border-purple-300'}`}
+      className={`p-4 border rounded-lg bg-white shadow-sm transition-opacity duration-300 ${isSubmittingPr ? 'opacity-70' : ''} ${prCreationStatus === 'error' ? 'border-[rgb(var(--color-border-error))]' : 'border-[rgb(var(--color-border-accent))]'}`}
     >
-      <h2 className="text-lg font-semibold mb-3 text-gray-700">
+      <h2 className="text-lg font-semibold mb-3 text-[rgb(var(--color-text-emphasis))]">
         Step 3: Review Generated Tool & Submit PR for ‘{toolDirective}’
       </h2>
 
@@ -190,10 +190,10 @@ export default function CreatePrForm({
         <div
           className={`text-sm mb-4 p-3 rounded border ${
             generationResult.message.toLowerCase().includes('warning')
-              ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+              ? 'bg-[rgb(var(--color-bg-warning-subtle))] text-[rgb(var(--color-text-warning))] border-[rgb(var(--color-border-warning))]'
               : generationResult.message.toLowerCase().includes('error')
-                ? 'bg-red-50 text-red-700 border-red-300'
-                : 'bg-green-50 text-green-700 border-green-300'
+                ? 'bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] border-[rgb(var(--color-border-error))]'
+                : 'bg-[rgb(var(--color-bg-success-subtle))] text-[rgb(var(--color-status-success))] border-[rgb(var(--color-border-success))]'
           }`}
         >
           <strong>AI Generator Message:</strong> {generationResult.message}
@@ -202,25 +202,25 @@ export default function CreatePrForm({
 
       {generationResult.identifiedDependencies &&
         generationResult.identifiedDependencies.length > 0 && (
-          <div className="mb-4 p-3 border border-purple-300 dark:border-purple-600 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+          <div className="mb-4 p-3 border border-[rgb(var(--color-border-accent))] order-purple-600 rounded-lg bg-[rgb(var(--color-bg-accent-subtle))] g-purple-900/20 text-[rgb(var(--color-text-accent-emphasis))] ext-purple-300">
             <h3 className="text-sm font-semibold mb-2 flex items-center">
-              <InformationCircleIcon className="h-5 w-5 mr-2 text-purple-500 dark:text-purple-400" />
+              <InformationCircleIcon className="h-5 w-5 mr-2 text-[rgb(var(--color-text-accent))] ext-purple-400" />
               AI Identified Potential NPM Dependencies:
             </h3>
             <ul className="list-disc list-outside pl-5 space-y-1 text-xs">
               {generationResult.identifiedDependencies.map((dep, index) => (
                 <li key={index}>
-                  <code className="font-mono bg-purple-100 dark:bg-purple-700/40 px-1 py-0.5 rounded">
+                  <code className="font-mono bg-[rgb(var(--color-bg-accent-subtle))] g-purple-700/40 px-1 py-0.5 rounded">
                     {dep.packageName}
                   </code>
                   {dep.reason && (
-                    <span className="italic text-purple-600 dark:text-purple-400">
+                    <span className="italic text-[rgb(var(--color-button-accent-bg))] ext-purple-400">
                       {' '}
                       - {dep.reason}
                     </span>
                   )}
                   {dep.importUsed && (
-                    <span className="text-xs text-purple-500 dark:text-purple-500">
+                    <span className="text-xs text-[rgb(var(--color-text-accent))] ext-[rgb(var(--color-text-accent))]">
                       {' '}
                       (e.g., import used:{' '}
                       <code className="font-mono">{dep.importUsed}</code>)
@@ -233,34 +233,34 @@ export default function CreatePrForm({
         )}
 
       {generationResult.assetInstructions && (
-        <div className="mb-4 p-3 border border-blue-300 rounded-lg bg-blue-50 text-blue-700">
+        <div className="mb-4 p-3 border border-[rgb(var(--color-border-info))] rounded-lg bg-[rgb(var(--color-bg-info-subtle))] text-[rgb(var(--color-status-info))]">
           <h3 className="text-sm font-semibold mb-2 flex items-center">
-            <InformationCircleIcon className="h-5 w-5 mr-2 text-blue-500" />
+            <InformationCircleIcon className="h-5 w-5 mr-2 text-[rgb(var(--color-status-info))]" />
             Important: Manual Asset Setup May Be Required
           </h3>
           <p className="text-xs mb-1.5">
             The AI has provided the following instructions for assets this tool
             might need:
           </p>
-          <pre className="whitespace-pre-wrap bg-blue-100/50 p-2.5 rounded-md text-xs text-blue-800 font-mono overflow-x-auto custom-scrollbar">
+          <pre className="whitespace-pre-wrap bg-[rgb(var(--color-bg-info-subtle))]/50 p-2.5 rounded-md text-xs text-[rgb(var(--color-status-info))] font-mono overflow-x-auto custom-scrollbar">
             {generationResult.assetInstructions}
           </pre>
         </div>
       )}
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-[rgb(var(--color-text-emphasis))] mb-2">
           Generated Code Files Preview:
         </label>
         {sortedFilePaths.length > 0 && filesToDisplayInPreview ? (
-          <div className="space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md bg-gray-50 custom-scrollbar">
+          <div className="space-y-2 max-h-96 overflow-y-auto border p-2 rounded-md bg-[rgb(var(--color-bg-subtle))] custom-scrollbar">
             {sortedFilePaths.map((filePath) => {
               const isExpanded = expandedFilePath === filePath;
               const fileContent = filesToDisplayInPreview[filePath];
               return (
                 <div
                   key={filePath}
-                  className={`border rounded ${isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white'} overflow-hidden`}
+                  className={`border rounded ${isExpanded ? 'border-[rgb(var(--color-border-info))] bg-[rgb(var(--color-bg-info-subtle))]' : 'border-[rgb(var(--color-border-base))] bg-white'} overflow-hidden`}
                 >
                   <button
                     type="button"
@@ -273,7 +273,7 @@ export default function CreatePrForm({
                     aria-expanded={isExpanded}
                   >
                     <code
-                      className={`text-sm font-mono ${isExpanded ? 'text-indigo-700 font-semibold' : 'text-gray-700'}`}
+                      className={`text-sm font-mono ${isExpanded ? 'text-[rgb(var(--color-text-link))] font-semibold' : 'text-[rgb(var(--color-text-emphasis))]'}`}
                     >
                       {filePath.startsWith(`app/tool/${toolDirective}/`)
                         ? filePath.substring(
@@ -281,22 +281,22 @@ export default function CreatePrForm({
                           )
                         : filePath}
                     </code>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[rgb(var(--color-text-disabled))]">
                       {isExpanded ? 'Collapse' : 'Expand'}
                     </span>
                   </button>
                   {isExpanded && (
-                    <div className="px-1 pb-1 bg-gray-900">
+                    <div className="px-1 pb-1 bg-[rgb(var(--color-overlay-backdrop))]">
                       {fileContent != null ? (
                         <textarea
                           readOnly
                           value={fileContent}
                           rows={10}
-                          className="block w-full p-2 border-t border-gray-700 bg-gray-900 text-gray-100 font-mono text-xs resize-y focus:outline-none custom-scrollbar-dark"
+                          className="block w-full p-2 border-t border-[rgb(var(--color-border-soft))] bg-[rgb(var(--color-overlay-backdrop))] text-[rgb(var(--color-text-inverted))] font-mono text-xs resize-y focus:outline-none custom-scrollbar-dark"
                           spellCheck="false"
                         />
                       ) : (
-                        <div className="p-4 text-red-200 text-xs italic">
+                        <div className="p-4 text-[rgb(var(--color-status-error))] text-xs italic">
                           (Content missing)
                         </div>
                       )}
@@ -307,7 +307,7 @@ export default function CreatePrForm({
             })}
           </div>
         ) : (
-          <div className="p-4 border border-dashed border-red-300 rounded bg-red-50 text-red-700 text-sm">
+          <div className="p-4 border border-dashed border-[rgb(var(--color-border-error))] rounded bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] text-sm">
             Error: No generated code files available to preview.
           </div>
         )}
@@ -330,7 +330,7 @@ export default function CreatePrForm({
             !generationResult?.generatedFiles ||
             Object.keys(generationResult.generatedFiles).length === 0
           }
-          className="bg-purple-600 hover:bg-purple-700 text-white"
+          className="bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-white"
           isLoading={isSubmittingPr}
           loadingText="Submitting PR..."
         >
@@ -339,13 +339,13 @@ export default function CreatePrForm({
       </div>
       {prCreationFeedback && prCreationStatus !== 'success' && (
         <div
-          className={`mt-4 text-sm p-3 rounded ${prCreationStatus === 'error' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-blue-100 text-blue-700 border-blue-200'}`}
+          className={`mt-4 text-sm p-3 rounded ${prCreationStatus === 'error' ? 'bg-[rgb(var(--color-bg-error-subtle))] text-[rgb(var(--color-status-error))] border-[rgb(var(--color-border-error))]' : 'bg-[rgb(var(--color-bg-info-subtle))] text-[rgb(var(--color-status-info))] border-[rgb(var(--color-border-info))]'}`}
         >
           {prCreationFeedback}
         </div>
       )}
       {prCreationFeedback && prCreationStatus === 'success' && (
-        <div className="mt-4 text-sm p-3 rounded bg-green-100 text-green-700 border-green-200">
+        <div className="mt-4 text-sm p-3 rounded bg-[rgb(var(--color-status-success))]/10 text-[rgb(var(--color-status-success))] border-[rgb(var(--color-border-success))]">
           {prCreationFeedback}
         </div>
       )}

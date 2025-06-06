@@ -413,17 +413,18 @@ export default function ColorConverterClient({
 
   if (isLoadingToolState) {
     return (
-      <p className="text-center p-4 italic text-gray-500 animate-pulse">
+      <p className="text-center p-4 italic text-[rgb(var(--color-text-muted))] animate-pulse">
         Loading Color Converter...
       </p>
     );
   }
 
   const inputBaseClasses =
-    'p-2 border rounded-md shadow-sm focus:outline-none text-base bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] placeholder:text-[rgb(var(--color-input-placeholder))] disabled:bg-gray-100 disabled:cursor-not-allowed';
+    'p-2 border rounded-md shadow-sm focus:outline-none text-base bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] placeholder:text-[rgb(var(--color-input-placeholder))] disabled:bg-[rgb(var(--color-bg-subtle-hover))] disabled:cursor-not-allowed';
   const inputBorderNormal =
     'border-[rgb(var(--color-input-border))] focus:border-[rgb(var(--color-input-focus-border))]';
-  const inputBorderError = 'border-red-500 focus:border-red-500';
+  const inputBorderError =
+    'border-[rgb(var(--color-border-error))] focus:border-[rgb(var(--color-border-error))]';
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">

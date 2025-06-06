@@ -2,6 +2,111 @@
 @import 'tailwindcss';
 @import 'file-icons-js/css/style.css';
 
+:root {
+  /* === LIGHT THEME (DEFAULT) === */
+  /* RGB values for Tailwind arbitrary value syntax */
+
+  /* Text */
+  --color-text-base: 24 24 27; /* zinc-900 */
+  --color-text-emphasis: 39 39 42; /* zinc-800 */
+  --color-text-subtle: 63 63 70; /* zinc-700 */
+  --color-text-muted: 82 82 91; /* zinc-600 */
+  --color-text-disabled: 161 161 170; /* zinc-400 */
+  --color-text-inverted: 255 255 255; /* white */
+  --color-text-link: 59 130 246; /* blue-600 */
+  --color-text-link-hover: 37 99 235; /* blue-700 */
+  --color-text-code: 23 45 67;
+  --color-text-warning: 161 98 7; /* yellow-700 */
+  --color-text-warning-emphasis: 133 77 14; /* yellow-800 */
+  --color-text-accent: 147 51 234; /* purple-600 */
+  --color-text-accent-emphasis: 126 34 206; /* purple-700 */
+  --color-text-accent2: 234 88 12; /* orange-700 */
+  --color-text-accent2-emphasis: 194 65 12; /* orange-800 */
+
+  /* Backgrounds */
+  --color-bg-page: 255 255 255; /* white */
+  --color-bg-component: 255 255 255; /* white */
+  --color-bg-subtle: 244 244 245; /* zinc-100 */
+  --color-bg-subtle-hover: 228 228 231; /* zinc-200 */
+  --color-bg-neutral: 228 228 231; /* zinc-200 */
+  --color-bg-neutral-subtle: 244 244 245; /* zinc-100 */
+  --color-bg-disabled: 228 228 231; /* zinc-200 */
+  --color-overlay-backdrop: 0 0 0; /* black */
+  --color-bg-accent-subtle: 245 243 255; /* purple-50 */
+  --color-bg-accent2-subtle: 255 247 237; /* orange-50 */
+  --color-bg-warning-hover: 254 249 195; /* yellow-200 */
+
+  /* Buttons */
+  --color-button-primary-bg: 59 130 246; /* blue-600 */
+  --color-button-primary-hover-bg: 37 99 235; /* blue-700 */
+  --color-button-primary-text: var(--color-text-inverted);
+  --color-button-secondary-bg: 22 163 74; /* green-600 */
+  --color-button-secondary-hover-bg: 21 128 61; /* green-700 */
+  --color-button-secondary-text: var(--color-text-inverted);
+  --color-button-accent-bg: 126 34 206; /* purple-600 */
+  --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
+  --color-button-accent-text: var(--color-text-inverted);
+  --color-button-accent2-bg: 234 88 12; /* orange-600 */
+  --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
+  --color-button-accent2-text: var(--color-text-inverted);
+  --color-button-danger-bg: 220 38 38; /* red-600 */
+  --color-button-danger-hover-bg: 185 28 28; /* red-700 */
+  --color-button-danger-text: var(--color-text-inverted);
+  --color-button-neutral-bg: 228 228 231; /* zinc-200 */
+  --color-button-neutral-hover-bg: 212 212 216; /* zinc-300 */
+  --color-button-neutral-text: var(--color-text-base);
+
+  /* Special Header Buttons */
+  --color-header-button-bg: 255 255 255; /* white */
+  --color-header-button-text: var(--color-text-inverted);
+  --color-header-brand-text: var(--color-text-inverted);
+  --color-header-brand-text-hover: 224 231 255; /* indigo-200 */
+
+  /* Status & Indicators */
+  --color-status-success: 22 163 74; /* green-600 */
+  --color-status-error: 220 38 38; /* red-600 */
+  --color-status-pending: 251 191 36; /* amber-400 */
+  --color-status-info: 59 130 246; /* blue-500 */
+  --color-bg-error-subtle: 254 226 226; /* red-100 */
+  --color-bg-success-subtle: 240 253 244; /* green-50 */
+  --color-bg-info-subtle: 239 246 255; /* blue-50 */
+  --color-bg-warning-subtle: 254 252 232; /* yellow-50 */
+
+  /* Icons */
+  --color-icon-base: 82 82 91; /* zinc-600 */
+  --color-icon-hover: 39 39 42; /* zinc-800 */
+  --color-icon-brand: 99 102 241; /* indigo-500 */
+  --color-icon-accent-yellow: 251 191 36; /* amber-400 */
+  --color-icon-accent-yellow-hover: 245 158 11; /* amber-500 */
+  --color-icon-status-success: var(--color-status-success);
+  --color-icon-status-info: var(--color-status-info);
+  --color-icon-status-error: var(--color-status-error);
+  --color-icon-warning: 180 83 9; /* amber-600 */
+
+  /* Borders */
+  --color-border-base: 228 228 231; /* zinc-200 */
+  --color-border-soft: 212 212 216; /* zinc-300 */
+  --color-border-emphasis: 161 161 170; /* zinc-400 */
+  --color-border-error: 252 165 165; /* red-300 */
+  --color-border-success: 187 247 208; /* green-300 */
+  --color-border-info: 191 219 254; /* blue-300 */
+  --color-border-warning: 253 230 138; /* yellow-300 */
+  --color-border-focus: 99 102 241; /* indigo-500 */
+  --color-border-accent: 216 180 254; /* purple-300 */
+  --color-border-accent2: 253 216 163; /* orange-300 */
+
+  /* Inputs, Forms, etc. */
+  --color-input-border: var(--color-border-soft);
+  --color-input-focus-border: var(--color-border-focus);
+  --color-input-bg: var(--color-bg-page);
+  --color-input-disabled-bg: var(--color-bg-disabled);
+  --color-input-text: var(--color-text-base);
+  --color-input-placeholder: 161 161 170; /* zinc-400 */
+  --color-checkbox-accent: 79 70 229; /* indigo-600 */
+}
+
+/* === Remaining CSS (unchanged) === */
+
 .custom-scrollbar-dark::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -87,91 +192,6 @@ html {
   height: 1rem !important;  
   vertical-align: middle;
   */
-}
-
-:root {
-  /* === Core Palette (RGB values for Tailwind arbitrary syntax) === */
-  --color-text-base: 24 24 27; /* zinc-900 */
-  --color-text-muted: 82 82 91; /* zinc-600 */
-  --color-text-inverted: 255 255 255; /* white */
-  --color-text-error: 185 28 28; /* red-700 */
-  --color-text-link: 59 130 246; /* blue-600 */ /* Added */
-
-  --color-bg-page: 255 255 255; /* white */
-  --color-bg-subtle: 244 244 245; /* zinc-100 / gray-50 */
-  --color-bg-component: 255 255 255; /* white */
-  --color-bg-error-subtle: 254 226 226; /* red-100 */
-  --color-bg-disabled: 228 228 231; /* zinc-200 */ /* Added */
-
-  --color-border-base: 212 212 216; /* zinc-300 / gray-300 */ /* Adjusted */
-  --color-border-error: 252 165 165; /* red-300 */
-  --color-border-focus: 59 130 246; /* indigo-500 */
-
-  /* === Semantic UI Colors === */
-  /* Buttons */
-  --color-button-primary-bg: 59 130 246; /* blue-600 */
-  --color-button-primary-hover-bg: 37 99 235; /* blue-700 */
-  --color-button-primary-text: var(--color-text-inverted);
-
-  --color-button-secondary-bg: 22 163 74; /* green-600 */
-  --color-button-secondary-hover-bg: 21 128 61; /* green-700 */
-  --color-button-secondary-text: var(--color-text-inverted);
-
-  --color-button-neutral-bg: 216 216 220; /* zinc-200 / gray-200 */
-  --color-button-neutral-hover-bg: 193 193 196; /* zinc-300 / gray-300 */
-  --color-button-neutral-text: var(--color-text-base);
-
-  /* Accent Button (Purple) */
-  --color-button-accent-bg: 126 34 206; /* purple-600 */
-  --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
-  --color-button-accent-text: var(--color-text-inverted);
-
-  /* Accent 2 Button (Orange) */
-  --color-button-accent2-bg: 234 88 12; /* orange-600 */
-  --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
-  --color-button-accent2-text: var(--color-text-inverted);
-
-  /* Danger Button (Red) */
-  --color-button-danger-bg: 220 38 38; /* red-600 */
-  --color-button-danger-hover-bg: 185 28 28; /* red-700 */
-  --color-button-danger-text: var(--color-text-inverted);
-
-  /* Checkbox */
-  --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
-  /* Indicators (Likelihood Bar) */
-  --color-indicator-ambiguous: 250 204 21; /* yellow-400 */
-  --color-indicator-text: 59 130 246; /* blue-500 */ /* Matched primary button */
-  --color-indicator-success: 34 197 94; /* green-500 */ /* Matched secondary button */
-  --color-indicator-base: 212 212 216; /* zinc-300 / gray-300 */
-  --color-indicator-track-bg: 228 228 231; /* zinc-200 / gray-200 */
-
-  /* Inputs */
-  --color-input-border: var(--color-border-base);
-  --color-input-focus-border: var(--color-border-focus);
-  --color-input-bg: var(--color-bg-page);
-  --color-input-disabled-bg: var(--color-bg-disabled); /* Corrected name */
-  --color-input-text: var(--color-text-base);
-  --color-input-placeholder: 161 161 170; /* zinc-400 */
-
-  /* Accent Button (Purple) */
-  --color-button-accent-bg: 126 34 206; /* purple-600 */
-  --color-button-accent-hover-bg: 107 33 168; /* purple-700 */
-  --color-button-accent-text: var(--color-text-inverted);
-
-  /* Accent 2 Button (Orange) */
-  --color-button-accent2-bg: 234 88 12; /* orange-600 */
-  --color-button-accent2-hover-bg: 194 65 12; /* orange-700 */
-  --color-button-accent2-text: var(--color-text-inverted);
-
-  /* Danger Button (Red) */
-  --color-button-danger-bg: 220 38 38; /* red-600 */
-  --color-button-danger-hover-bg: 185 28 28; /* red-700 */
-  --color-button-danger-text: var(--color-text-inverted);
-
-  /* Checkbox */
-  --color-checkbox-accent: 79 70 229; /* indigo-600 - same as input focus border */
-
-  --color-input-placeholder: 161 161 170; /* zinc-400 */
 }
 
 .tiptap p.is-editor-empty:first-child::before {

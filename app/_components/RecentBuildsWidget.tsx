@@ -122,7 +122,9 @@ export default function RecentBuildsWidget({
         : formatDistanceToNowStrict(new Date(pr.mergedAt), { addSuffix: true });
 
     const statusIconColor =
-      pr.status === 'open' ? 'text-blue-500' : 'text-green-500';
+      pr.status === 'open'
+        ? 'text-[rgb(var(--color-status-info))]'
+        : 'text-[rgb(var(--color-status-success))]';
 
     return (
       <div className="flex items-center justify-between">
@@ -134,17 +136,20 @@ export default function RecentBuildsWidget({
           )}
         </div>
         <div className="flex-grow min-w-0">
-          <p className="font-medium text-gray-800 truncate" title={pr.title}>
+          <p
+            className="font-medium text-[rgb(var(--color-text-emphasis))] truncate"
+            title={pr.title}
+          >
             {pr.toolDirective}
           </p>
           <p
-            className="text-xs text-gray-500 truncate"
+            className="text-xs text-[rgb(var(--color-text-muted))] truncate"
             title={`PR #${pr.prNumber}`}
           >
             PR #{pr.prNumber}
           </p>
         </div>
-        <span className="text-xs text-gray-400 ml-auto pl-2 whitespace-nowrap">
+        <span className="text-xs text-[rgb(var(--color-text-disabled))] ml-auto pl-2 whitespace-nowrap">
           {timeAgo}
         </span>
       </div>
@@ -153,10 +158,10 @@ export default function RecentBuildsWidget({
 
   if (isLoading) {
     return (
-      <div className="py-1 bg-white text-gray-800">
+      <div className="py-1 bg-white text-[rgb(var(--color-text-emphasis))]">
         <div className="flex items-center justify-center px-4 py-3">
-          <ArrowPathIcon className="h-5 w-5 text-gray-400 animate-spin mr-2" />
-          <span className="text-sm text-gray-500 italic">
+          <ArrowPathIcon className="h-5 w-5 text-[rgb(var(--color-text-disabled))] animate-spin mr-2" />
+          <span className="text-sm text-[rgb(var(--color-text-muted))] italic">
             Loading recent builds...
           </span>
         </div>
@@ -166,8 +171,8 @@ export default function RecentBuildsWidget({
 
   if (error) {
     return (
-      <div className="py-1 bg-white text-gray-800 bg-red-50">
-        <div className="flex items-center text-red-600 px-4 py-3">
+      <div className="py-1 bg-white text-[rgb(var(--color-text-emphasis))] bg-[rgb(var(--color-bg-error-subtle))]">
+        <div className="flex items-center text-[rgb(var(--color-status-error))] px-4 py-3">
           <ExclamationCircleIcon className="h-5 w-5 mr-2" />
           <span className="text-sm">Error: {error}</span>
         </div>
@@ -177,8 +182,8 @@ export default function RecentBuildsWidget({
 
   if (recentBuildPrs.length === 0) {
     return (
-      <div className="py-1 bg-white text-gray-800">
-        <p className="px-4 py-3 text-sm text-gray-500 italic text-center">
+      <div className="py-1 bg-white text-[rgb(var(--color-text-emphasis))]">
+        <p className="px-4 py-3 text-sm text-[rgb(var(--color-text-muted))] italic text-center">
           No recent build activity.
         </p>
       </div>
@@ -186,7 +191,7 @@ export default function RecentBuildsWidget({
   }
 
   return (
-    <div className="py-1 bg-white text-gray-800">
+    <div className="py-1 bg-white text-[rgb(var(--color-text-emphasis))]">
       <ul className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-gray-100">
         {recentBuildPrs.map((pr) => {
           const targetUrl =
@@ -198,7 +203,7 @@ export default function RecentBuildsWidget({
             <li key={pr.prNumber}>
               <Link
                 href={targetUrl}
-                className="block px-3 py-2.5 text-sm hover:bg-gray-100 transition-colors duration-150"
+                className="block px-3 py-2.5 text-sm hover:bg-[rgb(var(--color-bg-subtle-hover))] transition-colors duration-150"
                 onClick={onItemClick}
               >
                 {renderItemContent(pr)}

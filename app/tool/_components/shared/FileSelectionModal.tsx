@@ -481,7 +481,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-[rgb(var(--color-overlay-backdrop))]/75 flex items-center justify-center z-50 p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -491,7 +491,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         className={`bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] ${className || ''}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+        <div className="p-4 border-b border-[rgb(var(--color-border-base))] flex justify-between items-center flex-shrink-0">
           <h2 id="file-select-modal-title" className="sr-only">
             File Selection Modal
           </h2>
@@ -505,7 +505,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('library')}
-                className={`${showUploadTab ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`${showUploadTab ? 'rounded-r-none' : 'rounded-md'} ${activeTab === 'library' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
               >
                 Select from Library
               </Button>
@@ -517,7 +517,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                 }
                 size="sm"
                 onClick={() => setActiveTab('upload')}
-                className={`${showLibraryTab ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-blue-500 text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`${showLibraryTab ? 'rounded-l-none -ml-px' : 'rounded-md'} ${activeTab === 'upload' ? 'border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] bg-[rgb(var(--color-bg-info-subtle))]' : 'text-[rgb(var(--color-text-muted))] hover:text-[rgb(var(--color-text-emphasis))]'}`}
               >
                 Upload New
               </Button>
@@ -528,7 +528,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             size="sm"
             onClick={onClose}
             aria-label="Close modal"
-            className="p-1 text-gray-400 hover:text-gray-600"
+            className="p-1 text-[rgb(var(--color-text-disabled))] hover:text-[rgb(var(--color-text-subtle))]"
           >
             <XMarkIcon className="h-6 w-6" />
           </Button>
@@ -537,14 +537,14 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
         <div className="p-4 overflow-y-auto flex-grow min-h-[300px]">
           {isLoadingOverallForUI && !modalError && (
             <div className="flex items-center justify-center h-full">
-              <p className="text-center text-gray-500 italic animate-pulse py-8">
+              <p className="text-center text-[rgb(var(--color-text-muted))] italic animate-pulse py-8">
                 Loading...
               </p>
             </div>
           )}
           {modalError && (
             <div className="flex items-center justify-center h-full">
-              <p className="text-center text-red-600 p-4 bg-red-50 border border-red-200 rounded">
+              <p className="text-center text-[rgb(var(--color-status-error))] p-4 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] rounded">
                 Error: {modalError}
               </p>
             </div>
@@ -557,7 +557,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               <>
                 {displayedLibraryFiles.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
-                    <p className="text-center text-gray-500 italic py-8">
+                    <p className="text-center text-[rgb(var(--color-text-muted))] italic py-8">
                       Your file library{' '}
                       {libraryFilterProp?.category || libraryFilterProp?.type
                         ? `(filtered for ${libraryFilterProp.category || libraryFilterProp.type}) `
@@ -574,24 +574,24 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                           key={file.id}
                           type="button"
                           onClick={() => handleLibraryFileClick(file)}
-                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-blue-500' : 'border-gray-200 hover:border-blue-400'}`}
+                          className={`relative group border rounded-md shadow-sm overflow-hidden bg-white p-2 flex flex-col items-center gap-1 transition-all duration-150 ease-in-out ${isSelected ? 'border-[rgb(var(--color-border-info))]' : 'border-[rgb(var(--color-border-base))] hover:border-[rgb(var(--color-border-focus))]'}`}
                           aria-pressed={isSelected}
                           aria-label={`Select file: ${file.filename || 'Untitled'}`}
                         >
-                          <div className="aspect-square w-full flex items-center justify-center bg-gray-50 rounded mb-1 pointer-events-none overflow-hidden">
+                          <div className="aspect-square w-full flex items-center justify-center bg-[rgb(var(--color-bg-subtle))] rounded mb-1 pointer-events-none overflow-hidden">
                             {renderDefaultLibraryPreview(file)}
                           </div>
                           <p
-                            className="text-xs text-center font-medium text-gray-800 truncate w-full pointer-events-none"
+                            className="text-xs text-center font-medium text-[rgb(var(--color-text-emphasis))] truncate w-full pointer-events-none"
                             title={file.filename}
                           >
                             {file.filename || 'Untitled'}
                           </p>
-                          <p className="text-[10px] text-gray-500 pointer-events-none">
+                          <p className="text-[10px] text-[rgb(var(--color-text-muted))] pointer-events-none">
                             {formatBytes(file.size)}
                           </p>
                           {isSelected && (
-                            <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center pointer-events-none">
+                            <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-[rgb(var(--color-status-info))] border-2 border-white flex items-center justify-center pointer-events-none">
                               <svg
                                 className="h-2.5 w-2.5 text-white"
                                 viewBox="0 0 16 16"
@@ -619,7 +619,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
               <FileDropZone
                 onFilesAdded={handleFilesAddedFromUpload}
                 isLoading={isLoadingOverallForUI}
-                className="min-h-[300px] flex flex-col items-center justify-center border-gray-300 hover:border-blue-400"
+                className="min-h-[300px] flex flex-col items-center justify-center border-[rgb(var(--color-border-soft))] hover:border-[rgb(var(--color-border-focus))]"
               >
                 <div className="text-center p-6 pointer-events-none">
                   <input
@@ -640,10 +640,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
                       Select File(s)
                     </Button>
                   </div>
-                  <p className="text-sm text-gray-500 mb-4">or Drag & Drop</p>
+                  <p className="text-sm text-[rgb(var(--color-text-muted))] mb-4">
+                    or Drag & Drop
+                  </p>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="h-12 w-12 text-gray-400 mx-auto"
+                    className="h-12 w-12 text-[rgb(var(--color-text-disabled))] mx-auto"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -687,12 +689,12 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
             )}
         </div>
 
-        <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center gap-3 flex-shrink-0">
+        <div className="p-3 border-t border-[rgb(var(--color-border-base))] bg-[rgb(var(--color-bg-subtle))] flex justify-between items-center gap-3 flex-shrink-0">
           <div>
             {activeTab === 'library' &&
               showLibraryTab &&
               selectionMode === 'multiple' && (
-                <span className="text-sm text-gray-600">
+                <span className="text-sm text-[rgb(var(--color-text-subtle))]">
                   {selectedIdsFromLibrary.size} selected
                 </span>
               )}

@@ -43,12 +43,12 @@ const Textarea: React.ForwardRefRenderFunction<
   const isDisabled = disabled;
 
   const baseTextareaStyles = `
-    block w-full p-3 border rounded-md shadow-sm
-    text-base sm:text-sm font-mono
-    resize-y
-    bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
-    placeholder:text-[rgb(var(--color-input-placeholder))]    
-  `;
+ block w-full p-3 border rounded-md shadow-sm
+ text-base sm:text-sm font-mono
+ resize-y
+ bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))]
+ placeholder:text-[rgb(var(--color-input-placeholder))]
+ `;
 
   const normalBorder = 'border-[rgb(var(--color-input-border))]';
   const errorBorder = 'border-[rgb(var(--color-border-error))]';
@@ -62,7 +62,7 @@ const Textarea: React.ForwardRefRenderFunction<
       {label && (
         <label
           htmlFor={effectiveId}
-          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-gray-400' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
+          className={`block text-sm font-medium mb-1 ${isDisabled ? 'text-[rgb(var(--color-text-disabled))]' : 'text-[rgb(var(--color-text-muted))]'} ${labelClassName}`}
         >
           {label}
         </label>
@@ -77,12 +77,12 @@ const Textarea: React.ForwardRefRenderFunction<
         disabled={isDisabled}
         placeholder={placeholder}
         className={`
-          ${baseTextareaStyles}
-          ${hasError ? errorBorder : normalBorder}
-          ${!isDisabled ? `${focusBorder}` : ''}
-          ${disabledStyles}
-          ${textareaClassName}
-        `}
+ ${baseTextareaStyles}
+ ${hasError ? errorBorder : normalBorder}
+ ${!isDisabled ? `${focusBorder}` : ''}
+ ${disabledStyles}
+ ${textareaClassName}
+ `}
         aria-invalid={hasError ? 'true' : 'false'}
         aria-describedby={hasError ? `${effectiveId}-error` : undefined}
         {...rest}

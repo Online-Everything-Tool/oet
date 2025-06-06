@@ -370,31 +370,33 @@ export default function ViewPrStatus({
     if (status === 'completed') {
       if (conclusion === 'success')
         return (
-          <CheckCircleIcon className="h-5 w-5 text-green-500 inline mr-1" />
+          <CheckCircleIcon className="h-5 w-5 text-[rgb(var(--color-status-success))] inline mr-1" />
         );
       if (
         ['failure', 'timed_out', 'cancelled', 'action_required'].includes(
           conclusion || ''
         )
       )
-        return <XCircleIcon className="h-5 w-5 text-red-500 inline mr-1" />;
+        return (
+          <XCircleIcon className="h-5 w-5 text-[rgb(var(--color-status-error))] inline mr-1" />
+        );
       if (conclusion === 'skipped')
         return (
           <span
-            className="inline-block mr-1.5 h-3 w-3 bg-gray-300 rounded-full align-middle"
+            className="inline-block mr-1.5 h-3 w-3 bg-[rgb(var(--color-bg-neutral))] rounded-full align-middle"
             title="Skipped"
           ></span>
         );
       if (conclusion === 'neutral')
         return (
           <span
-            className="inline-block mr-1.5 h-3 w-3 bg-yellow-400 rounded-full align-middle"
+            className="inline-block mr-1.5 h-3 w-3 bg-[rgb(var(--color-status-pending))] rounded-full align-middle"
             title="Neutral"
           ></span>
         );
       return (
         <QuestionMarkCircleIcon
-          className="h-5 w-5 text-gray-400 inline mr-1"
+          className="h-5 w-5 text-[rgb(var(--color-text-disabled))] inline mr-1"
           title={`Unknown conclusion: ${conclusion}`}
         />
       );
@@ -405,11 +407,11 @@ export default function ViewPrStatus({
       )
     )
       return (
-        <ArrowPathIcon className="h-5 w-5 text-blue-500 animate-spin inline mr-1" />
+        <ArrowPathIcon className="h-5 w-5 text-[rgb(var(--color-status-info))] animate-spin inline mr-1" />
       );
     return (
       <QuestionMarkCircleIcon
-        className="h-5 w-5 text-gray-400 inline mr-1"
+        className="h-5 w-5 text-[rgb(var(--color-text-disabled))] inline mr-1"
         title={`Status: ${status || 'Unknown'}`}
       />
     );
@@ -420,17 +422,17 @@ export default function ViewPrStatus({
   ) => {
     switch (hint) {
       case 'success':
-        return 'bg-green-50 border-green-200 text-green-700 dark:bg-green-900 dark:border-green-700 dark:text-green-200';
+        return 'bg-[rgb(var(--color-bg-success-subtle))] border-[rgb(var(--color-border-success))] text-[rgb(var(--color-status-success))] ';
       case 'error':
-        return 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900 dark:border-red-700 dark:text-red-200';
+        return 'bg-[rgb(var(--color-bg-error-subtle))] border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] ext-[rgb(var(--color-status-error))]';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-300 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-200';
+        return 'bg-[rgb(var(--color-bg-warning-subtle))] border-[rgb(var(--color-border-warning))] text-[rgb(var(--color-text-warning))] ';
       case 'info':
-        return 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900 dark:border-blue-700 dark:text-blue-200';
+        return 'bg-[rgb(var(--color-bg-info-subtle))] border-[rgb(var(--color-border-info))] text-[rgb(var(--color-status-info))] order-blue-700 ';
       case 'loading':
-        return 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900 dark:border-indigo-700 dark:text-indigo-200 animate-pulse';
+        return 'bg-[rgb(var(--color-bg-info-subtle))] border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-link))] ext-[rgb(var(--color-header-brand-text-hover))] animate-pulse';
       default:
-        return 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300';
+        return 'bg-[rgb(var(--color-bg-subtle))] border-[rgb(var(--color-border-base))] text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]';
     }
   };
 
@@ -485,8 +487,8 @@ export default function ViewPrStatus({
     if (npmDependenciesFulfilled === 'deleted') return null;
 
     return (
-      <div className="mt-3 p-2.5 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300 space-y-1">
-        <h4 className="font-medium text-gray-700 dark:text-gray-200">
+      <div className="mt-3 p-2.5 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] text-xs text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-muted))] space-y-1">
+        <h4 className="font-medium text-[rgb(var(--color-text-emphasis))] ">
           Tool Generation State (from current commit):
         </h4>
         {!isNotApplicableOrNotFoundOrDeleted(npmDependenciesFulfilled) &&
@@ -496,8 +498,8 @@ export default function ViewPrStatus({
               <span
                 className={`font-semibold ${
                   npmDependenciesFulfilled === 'true'
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-600 dark:text-red-400'
+                    ? 'text-[rgb(var(--color-status-success))] '
+                    : 'text-[rgb(var(--color-status-error))] '
                 }`}
               >
                 {String(npmDependenciesFulfilled)}
@@ -577,7 +579,7 @@ ${statusSummaryForIssue}
 *Internal Diagnostics (Maintainer Use):*
 *Affected Commit SHA:* ${headShaShort}
 *Next Expected Action Code:* ${actionCode}
-    `;
+ `;
     const issueBody = encodeURIComponent(issueBodyTemplate.trim());
     const labels = encodeURIComponent('build-tool,feedback,needs-triage');
     const githubRepoOwner =
@@ -590,22 +592,22 @@ ${statusSummaryForIssue}
         className={`mt-4 p-4 border rounded-lg text-sm ${getUiHintClasses('warning')}`}
       >
         <div className="flex items-start">
-          <ExclamationTriangleIcon className="h-6 w-6 text-yellow-500 dark:text-yellow-400 mr-3 flex-shrink-0 mt-0.5" />
+          <ExclamationTriangleIcon className="h-6 w-6 text-[rgb(var(--color-icon-accent-yellow-hover))] ext-[rgb(var(--color-icon-accent-yellow))] mr-3 flex-shrink-0 mt-0.5" />
           <div className="flex-grow">
-            <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 text-md mb-2">
+            <h4 className="font-semibold text-[rgb(var(--color-text-warning-emphasis))] text-md mb-2">
               Automation Halted: Manual Review Needed
             </h4>
             <div className="space-y-2 mb-3">
               {messagesToDisplay.map((msg, index) => (
                 <div key={index} className="flex items-start">
                   <span className="text-xl mr-2">{msg.emoji}</span>
-                  <p className="text-yellow-700 dark:text-yellow-300 leading-relaxed">
+                  <p className="text-[rgb(var(--color-text-warning))] leading-relaxed">
                     {msg.memo}
                   </p>
                 </div>
               ))}
             </div>
-            <p className="text-yellow-600 dark:text-yellow-400 mt-3 mb-2 text-xs italic">
+            <p className="text-[rgb(var(--color-icon-warning))] ext-[rgb(var(--color-icon-accent-yellow))] mt-3 mb-2 text-xs italic">
               Current automated status:{' '}
               {prStatus.automatedActions.statusSummary}
             </p>
@@ -614,7 +616,7 @@ ${statusSummaryForIssue}
                 href={prStatus.prUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-4 py-2 border border-gray-400 dark:border-gray-500 text-xs font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                className="inline-flex items-center justify-center px-4 py-2 border border-[rgb(var(--color-border-emphasis))] text-xs font-medium rounded-md shadow-sm text-[rgb(var(--color-text-emphasis))] bg-white hover:bg-[rgb(var(--color-bg-subtle))] "
               >
                 View PR Details on GitHub
                 <ArrowTopRightOnSquareIcon className="ml-2 h-4 w-4" />
@@ -623,7 +625,7 @@ ${statusSummaryForIssue}
                 href={reportIssueUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-orange-500 hover:bg-orange-600"
+                className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-[rgb(var(--color-button-accent2-bg))] hover:bg-[rgb(var(--color-button-accent2-hover-bg))]"
               >
                 Report Issue / Provide Details
                 <ArrowTopRightOnSquareIcon className="ml-2 h-4 w-4" />
@@ -637,20 +639,20 @@ ${statusSummaryForIssue}
 
   return (
     <section
-      className={`p-4 border rounded-lg bg-white dark:bg-gray-800 shadow-sm ${
+      className={`p-4 border rounded-lg bg-white shadow-sm ${
         prStatus
           ? getUiHintClasses(prStatus.automatedActions.uiHint).split(' ')[0]
-          : 'border-gray-200 dark:border-gray-600'
+          : 'border-[rgb(var(--color-border-base))] '
       } ${
         prStatus
           ? getUiHintClasses(prStatus.automatedActions.uiHint).split(' ')[1]
-          : 'border-gray-200 dark:border-gray-600'
+          : 'border-[rgb(var(--color-border-base))] '
       }`}
     >
-      <h2 className="text-lg font-semibold mb-1 text-gray-700 dark:text-gray-100 flex items-center">
+      <h2 className="text-lg font-semibold mb-1 text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-inverted))] flex items-center">
         {prTitleForDisplay}
         {isPolling && prStatus?.prState === 'open' && (
-          <ArrowPathIcon className="h-5 w-5 text-blue-500 dark:text-blue-400 animate-spin inline ml-2" />
+          <ArrowPathIcon className="h-5 w-5 text-[rgb(var(--color-status-info))] animate-spin inline ml-2" />
         )}
       </h2>
 
@@ -660,7 +662,7 @@ ${statusSummaryForIssue}
             href={prUrlToDisplay}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
+            className="text-[rgb(var(--color-text-link))] hover:underline"
           >
             View Pull Request #{prNumberToMonitor} on GitHub
             <ArrowTopRightOnSquareIcon className="inline h-4 w-4 ml-1" />
@@ -717,7 +719,7 @@ ${statusSummaryForIssue}
                 <strong className="block mb-1">Automated Status:</strong>
                 <p>{prStatus.automatedActions.statusSummary}</p>
                 {prStatus.automatedActions.lastBotComment && (
-                  <div className="text-xs mt-2 pt-2 border-t border-opacity-30 border-current">
+                  <div className="text-xs mt-2 pt-2 border-t border-current/30 border-current">
                     <span>
                       Last bot activity:{' '}
                       {prStatus.automatedActions.lastBotComment.botName ||
@@ -732,7 +734,7 @@ ${statusSummaryForIssue}
                         href={prStatus.automatedActions.lastBotComment.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline ml-1"
+                        className="text-[rgb(var(--color-text-link))] hover:underline ml-1"
                       >
                         (details)
                       </Link>
@@ -762,28 +764,28 @@ ${statusSummaryForIssue}
 
           {sortedChecks.length > 0 && !isFeedbackSectionVisible && (
             <div className="mt-3">
-              <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1.5">
+              <h3 className="text-sm font-semibold text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-muted))] mb-1.5">
                 CI/CD Checks:
               </h3>
-              <ul className="space-y-1 text-sm list-none pl-1 border border-gray-200 dark:border-gray-600 rounded-md p-2 bg-gray-50/50 dark:bg-gray-700/50 max-h-60">
+              <ul className="space-y-1 text-sm list-none pl-1 border border-[rgb(var(--color-border-base))] rounded-md p-2 bg-[rgb(var(--color-bg-subtle))]/50 /50 max-h-60">
                 {sortedChecks.map((check, idx) => (
                   <li
                     key={`${check.name}-${check.started_at || idx}`}
-                    className="flex items-center py-1.5 border-b border-gray-100 dark:border-gray-600/50 last:border-b-0 last:pb-0"
+                    className="flex items-center py-1.5 border-b border-[rgb(var(--color-border-base))] /50 last:border-b-0 last:pb-0"
                   >
                     {getStatusIcon(check.status, check.conclusion)}
                     <span
                       className={`ml-1 ${
                         check.conclusion === 'failure'
-                          ? 'text-red-600 dark:text-red-400 font-medium'
+                          ? 'text-[rgb(var(--color-status-error))] font-medium'
                           : check.conclusion === 'success'
-                            ? 'text-green-600 dark:text-green-400'
-                            : 'text-gray-700 dark:text-gray-300'
+                            ? 'text-[rgb(var(--color-status-success))] '
+                            : 'text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]'
                       }`}
                     >
                       {check.name}
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-1.5">
+                    <span className="text-xs text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))] ml-1.5">
                       ({check.status || 'unknown'}
                       {check.conclusion && `, ${check.conclusion}`})
                     </span>
@@ -792,7 +794,7 @@ ${statusSummaryForIssue}
                         href={check.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-500 dark:text-blue-400 hover:underline ml-auto"
+                        className="text-xs text-[rgb(var(--color-status-info))] hover:underline ml-auto"
                       >
                         (Details)
                       </Link>
@@ -824,7 +826,7 @@ ${statusSummaryForIssue}
                         href={prStatus.netlifyPreviewUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block mt-1 text-blue-600 dark:text-blue-400 hover:underline break-all"
+                        className="block mt-1 text-[rgb(var(--color-text-link))] hover:underline break-all"
                       >
                         {prStatus.netlifyPreviewUrl}
                         <ArrowTopRightOnSquareIcon className="inline h-4 w-4 ml-1" />
@@ -848,7 +850,7 @@ ${statusSummaryForIssue}
           {prStatus.imgurScreenshotUrl && !isFeedbackSectionVisible && (
             <div className="mt-4 flex justify-center">
               <div>
-                <h4 className="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                <h4 className="text-sm font-semibold text-[rgb(var(--color-text-subtle))] ext-[rgb(var(--color-text-muted))] mb-1">
                   Douglas&apos; View (Screenshot):
                 </h4>
                 <Image
@@ -856,7 +858,7 @@ ${statusSummaryForIssue}
                   alt={`Douglas Screenshot for PR #${prStatus.prNumber}`}
                   width={600}
                   height={400}
-                  className="border dark:border-gray-600 rounded-md object-contain max-w-full h-auto"
+                  className="border rounded-md object-contain max-w-full h-auto"
                   unoptimized
                 />
               </div>

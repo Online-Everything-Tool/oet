@@ -14,11 +14,13 @@ interface ToolHeaderProps {
 export default function ToolHeader({ toolMetadata }: ToolHeaderProps) {
   return (
     <div className="mb-2 border-b pb-2">
-      <h1 className="text-3xl font-bold text-gray-800 mb-2">
+      <h1 className="text-3xl font-bold text-[rgb(var(--color-text-emphasis))] mb-2">
         {toolMetadata.title || '[Tool Title Missing]'} {/* Fallback text */}
       </h1>
       {toolMetadata.description && (
-        <p className="text-lg text-gray-600">{toolMetadata.description}</p>
+        <p className="text-lg text-[rgb(var(--color-text-subtle))]">
+          {toolMetadata.description}
+        </p>
       )}
     </div>
   );

@@ -350,14 +350,14 @@ export default function LinkedinPostFormatterClient({
 
   if (isLoadingState && !editor) {
     /* ... loading UI ... */ return (
-      <div className="text-center p-4 text-gray-500 italic animate-pulse">
+      <div className="text-center p-4 text-[rgb(var(--color-text-muted))] italic animate-pulse">
         Loading Editor...
       </div>
     );
   }
   if (errorLoadingState) {
     /* ... error UI ... */ return (
-      <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded">
+      <div className="p-4 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-status-error))] rounded">
         Error loading saved state: {errorLoadingState}
       </div>
     );
@@ -413,7 +413,7 @@ export default function LinkedinPostFormatterClient({
         >
           <s className="text-lg">S</s>
         </Button>
-        <div className="border-l border-gray-300 mx-1 h-6 self-center"></div>
+        <div className="border-l border-[rgb(var(--color-border-soft))] mx-1 h-6 self-center"></div>
         <Button
           onClick={toggleBulletList}
           variant={
@@ -440,7 +440,7 @@ export default function LinkedinPostFormatterClient({
         >
           <Bars3BottomLeftIcon className="h-4 w-4" />
         </Button>
-        <div className="border-l border-gray-300 mx-1 h-6 self-center"></div>
+        <div className="border-l border-[rgb(var(--color-border-soft))] mx-1 h-6 self-center"></div>
         <Button
           onClick={() => setIsEmojiModalOpen(true)}
           variant={'neutral-outline'}
@@ -464,7 +464,7 @@ export default function LinkedinPostFormatterClient({
       </div>
 
       {/* Action Buttons & Persistence - no changes needed */}
-      <div className="flex flex-wrap items-center justify-end gap-4 pt-3 border-t border-gray-200">
+      <div className="flex flex-wrap items-center justify-end gap-4 pt-3 border-t border-[rgb(var(--color-border-base))]">
         <div className="flex gap-2">
           <Button
             variant="accent2"
@@ -490,7 +490,7 @@ export default function LinkedinPostFormatterClient({
           </Button>
         </div>
         {actionError && (
-          <p className="text-xs text-red-600 flex items-center gap-1">
+          <p className="text-xs text-[rgb(var(--color-status-error))] flex items-center gap-1">
             <XCircleIcon className="h-4 w-4 inline-block" aria-hidden="true" />
             {actionError}
           </p>

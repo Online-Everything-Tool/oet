@@ -119,7 +119,7 @@ export default function SendToToolButton({
         disabled={isDisabledOverall && !isDropdownOpen}
         iconLeft={
           isPreDispatching ? undefined : preDispatchError ? (
-            <ExclamationCircleIcon className="h-5 w-5 text-red-500" />
+            <ExclamationCircleIcon className="h-5 w-5 text-[rgb(var(--color-status-error))]" />
           ) : (
             <PaperAirplaneIcon className="h-5 w-5 transform -rotate-45" />
           )
@@ -147,7 +147,7 @@ export default function SendToToolButton({
         >
           {preDispatchError && (
             <div
-              className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200"
+              className="px-4 py-3 text-sm text-[rgb(var(--color-status-error))] bg-[rgb(var(--color-bg-error-subtle))] border-b border-[rgb(var(--color-border-error))]"
               role="alert"
             >
               <p className="font-semibold">Preparation Error:</p>
@@ -161,7 +161,7 @@ export default function SendToToolButton({
                   key={target.directive}
                   onClick={() => handleSelectTarget(target)}
                   fullWidth
-                  className="!justify-start !text-left !block !w-full !px-4 !py-3 !text-sm !text-gray-700 !bg-gray-250 hover:!bg-gray-100 hover:!text-gray-900 !transition-colors !duration-150 !shadow-none !border-none !rounded-none"
+                  className="!justify-start !text-left !block !w-full !px-4 !py-3 !text-sm !text-[rgb(var(--color-text-emphasis))] !bg-[rgb(var(--color-bg-neutral))] hover:!bg-[rgb(var(--color-bg-subtle-hover))] hover:!text-[rgb(var(--color-text-base))] !transition-colors !duration-150 !shadow-none !border-none !rounded-none"
                   role="menuitem"
                   tabIndex={-1}
                   disabled={isPreDispatching}
@@ -169,7 +169,7 @@ export default function SendToToolButton({
                   <div className="font-medium text-[rgb(var(--color-text-link))]">
                     {target.title}
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">
+                  <div className="text-xs text-[rgb(var(--color-text-muted))] mt-0.5 line-clamp-2">
                     {target.description}
                   </div>
                 </Button>
@@ -177,7 +177,7 @@ export default function SendToToolButton({
             </div>
           )}
           {!preDispatchError && !hasTargets && (
-            <div className="px-4 py-3 text-sm text-gray-500 italic">
+            <div className="px-4 py-3 text-sm text-[rgb(var(--color-text-muted))] italic">
               No compatible tools found for this output.
             </div>
           )}

@@ -80,16 +80,16 @@ export default function RadioGroup<T extends string | number>({
                 onChange={handleRadioChange}
                 disabled={optionDisabled}
                 className={`
-                  h-4 w-4 border-gray-300
-                  text-[rgb(var(--color-checkbox-accent))]
-                  accent-[rgb(var(--color-checkbox-accent))]
-                  disabled:cursor-nouset-allowed disabled:opacity-50
-                  ${inputClassName}
-                `}
+ h-4 w-4 border-[rgb(var(--color-border-soft))]
+ text-[rgb(var(--color-checkbox-accent))]
+ accent-[rgb(var(--color-checkbox-accent))]
+ disabled:cursor-nouset-allowed disabled:opacity-50
+ ${inputClassName}
+ `}
               />
               <label
                 htmlFor={optionId}
-                className={`ml-2 block text-sm select-none ${optionDisabled ? 'text-gray-400 cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'} ${labelClassName}`}
+                className={`ml-2 block text-sm select-none ${optionDisabled ? 'text-[rgb(var(--color-text-disabled))] cursor-not-allowed' : 'text-[rgb(var(--color-text-base))] cursor-pointer'} ${labelClassName}`}
               >
                 {option.label}
               </label>

@@ -26,11 +26,11 @@ const Slide1Content = ({
   toolDirective: string;
 }) => (
   <div className="p-4 space-y-3">
-    <p className="text-gray-600 mb-2">
+    <p className="text-[rgb(var(--color-text-subtle))] mb-2">
       Your tool&apos;s name (&ldquo;directive&rdquo;) is key! It defines its URL
       and purpose.
     </p>
-    <ul className="list-disc list-outside pl-5 space-y-3 text-gray-600">
+    <ul className="list-disc list-outside pl-5 space-y-3 text-[rgb(var(--color-text-subtle))]">
       <li>
         <strong>Format:</strong> Must be <code>lowercase-kebab-case</code>{' '}
         (e.g., <code>text-reverse</code>).
@@ -66,11 +66,11 @@ const Slide2Content = ({
   toolDirective: string;
 }) => (
   <div className="p-4 space-y-3">
-    <p className="text-gray-600 my-3">
+    <p className="text-[rgb(var(--color-text-subtle))] my-3">
       AI guided tool creation.{' '}
       <strong>It takes several minutes (3-5+ min).</strong>
     </p>
-    <ol className="list-decimal list-outside pl-5 space-y-3 text-gray-600">
+    <ol className="list-decimal list-outside pl-5 space-y-3 text-[rgb(var(--color-text-subtle))]">
       <li>
         <strong>Validate Description:</strong> Verify AI&apos;s suggested
         description suits your purposes.
@@ -95,11 +95,11 @@ const Slide3Content = ({
   toolDirective: string;
 }) => (
   <div className="p-4 space-y-3">
-    <p className="my-3 text-gray-600">
+    <p className="my-3 text-[rgb(var(--color-text-subtle))]">
       Your <code>/tool/{formatSlug(toolDirective) || 'your-chosen-name'}</code>{' '}
       code is ready. Now what?!
     </p>
-    <ul className="list-disc list-outside pl-5 space-y-3 text-gray-600">
+    <ul className="list-disc list-outside pl-5 space-y-3 text-[rgb(var(--color-text-subtle))]">
       <li>
         <strong>Submit Pull Request (PR):</strong> Anonymously set the tool
         creation wheels into motion.
@@ -140,10 +140,12 @@ export default function BuildToolInfoCarousel({
   };
 
   return (
-    <div className="mb-6 border border-gray-300 rounded-lg bg-gray-50 shadow">
-      <div className="p-3 bg-gray-100 rounded-t-lg border-b border-gray-300 flex items-end">
-        <InformationCircleIcon className="h-7 w-7 mr-2 text-blue-600" />
-        <h2 className="font-semibold text-gray-700">{h2[activeIndex]}</h2>
+    <div className="mb-6 border border-[rgb(var(--color-border-soft))] rounded-lg bg-[rgb(var(--color-bg-subtle))] shadow">
+      <div className="p-3 bg-[rgb(var(--color-bg-subtle-hover))] rounded-t-lg border-b border-[rgb(var(--color-border-soft))] flex items-end">
+        <InformationCircleIcon className="h-7 w-7 mr-2 text-[rgb(var(--color-text-link))]" />
+        <h2 className="font-semibold text-[rgb(var(--color-text-emphasis))]">
+          {h2[activeIndex]}
+        </h2>
       </div>
       <Swiper
         modules={[Navigation, Pagination, A11y]}

@@ -102,21 +102,23 @@ export default function FileDropZone({
       onDrop={handleDrop}
       className={`border-2 border-dashed rounded-md relative transition-colors duration-200 min-h-[200px] ${
         isDragging
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-blue-400'
-      } ${isPasting ? 'border-blue-500 bg-blue-100' : ''} ${className}`}
+          ? 'border-[rgb(var(--color-border-info))] bg-[rgb(var(--color-bg-info-subtle))]'
+          : 'border-[rgb(var(--color-border-soft))] hover:border-[rgb(var(--color-border-focus))]'
+      } ${isPasting ? 'border-[rgb(var(--color-border-info))] bg-[rgb(var(--color-bg-info-subtle))]' : ''} ${className}`}
       tabIndex={0}
       aria-label="File list and drop/paste zone"
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-100 bg-opacity-50 flex items-center justify-center pointer-events-none z-10">
-          <p className="text-blue-700 font-semibold text-lg">Drop Here</p>
+        <div className="absolute inset-0 bg-[rgb(var(--color-bg-info-subtle))] bg-[rgb(var(--color-bg-info-subtle))]/50 flex items-center justify-center pointer-events-none z-10">
+          <p className="text-[rgb(var(--color-status-info))] font-semibold text-lg">
+            Drop Here
+          </p>
         </div>
       )}
 
       {isPasting && !isLoading && (
-        <div className="absolute inset-0 bg-blue-100 bg-opacity-50 flex items-center justify-center pointer-events-none z-10">
-          <p className="text-blue-700 font-semibold text-lg animate-pulse">
+        <div className="absolute inset-0 bg-[rgb(var(--color-bg-info-subtle))] bg-[rgb(var(--color-bg-info-subtle))]/50 flex items-center justify-center pointer-events-none z-10">
+          <p className="text-[rgb(var(--color-status-info))] font-semibold text-lg animate-pulse">
             Processing Paste...
           </p>
         </div>

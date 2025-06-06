@@ -40,7 +40,7 @@ export default function BuildToolWidget({
       {suggestedDirectives && suggestedDirectives.length > 0 && (
         <div className="pt-4 border-t border-[rgb(var(--color-border-soft))]">
           <h3 className="text-md font-semibold text-[rgb(var(--color-text-base))] mb-3 flex items-center">
-            <LightBulbIcon className="h-5 w-5 mr-2 text-yellow-500" />
+            <LightBulbIcon className="h-5 w-5 mr-2 text-[rgb(var(--color-icon-accent-yellow-hover))]" />
             Need Inspiration? AI Suggestions:
           </h3>
           {/* Changed ul to be a flex row that wraps */}

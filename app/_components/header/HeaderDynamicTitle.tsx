@@ -14,7 +14,7 @@ export default function HeaderDynamicTitle() {
   return (
     <Link
       href="/"
-      className="text-xl font-bold hover:text-indigo-200 transition-colors duration-200 flex items-center"
+      className="text-xl font-bold hover:text-[rgb(var(--color-header-brand-text-hover))] transition-colors duration-200 flex items-center"
       title={`${brandName} Home`}
     >
       {brandEmoji && (

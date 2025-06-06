@@ -234,7 +234,7 @@ export default function StatusOfficerDisplay({
           {statusOfficerName}
         </span>
         {statusOfficerJobTitle && (
-          <span className="block text-indigo-200 italic whitespace-nowrap text-[0.7rem]">
+          <span className="block text-[rgb(var(--color-header-brand-text-hover))] italic whitespace-nowrap text-[0.7rem]">
             {statusOfficerJobTitle}
           </span>
         )}
@@ -274,7 +274,7 @@ export default function StatusOfficerDisplay({
   return (
     <div className="relative" ref={dropdownRef}>
       <div
-        className={`flex items-center p-1.5 bg-black bg-opacity-20 rounded-lg shadow hover:bg-opacity-30 transition-colors group cursor-pointer`}
+        className={`flex items-center p-1.5 bg-[rgb(var(--color-overlay-backdrop))]/20 rounded-lg shadow hover:bg-[rgb(var(--color-overlay-backdrop))]/30 transition-colors group cursor-pointer`}
         title={baseTitle}
         onClick={handleContainerClick}
         role={'button'}
@@ -287,13 +287,13 @@ export default function StatusOfficerDisplay({
       </div>
       {isDropdownOpen && (
         <div
-          className="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white dark:bg-gray-800 shadow-lg z-[60] animate-slide-down"
+          className="absolute right-0 mt-2 w-64 origin-top-right rounded-md bg-white shadow-lg z-[60] animate-slide-down"
           role="menu"
           aria-orientation="vertical"
           tabIndex={-1}
         >
           <div
-            className="py-1 divide-y divide-gray-100 dark:divide-gray-700"
+            className="py-1 divide-y divide-gray-100 ivide-gray-700"
             role="none"
           >
             {/* OET Ethos Section */}
@@ -301,18 +301,18 @@ export default function StatusOfficerDisplay({
               <div className="px-4 pt-2 pb-1">
                 {' '}
                 {/* Adjusted pt-2 if storage info is not present, otherwise pt-3 from its wrapper */}
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <p className="text-sm font-semibold text-[rgb(var(--color-text-base))] ext-[rgb(var(--color-text-inverted))]">
                   OET Ethos
                 </p>
               </div>
               {principles.map((principle) => (
                 <div
                   key={principle.key}
-                  className="px-4 py-2 flex items-center text-sm text-gray-700 dark:text-gray-300"
+                  className="px-4 py-2 flex items-center text-sm text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]"
                   role="menuitem"
                   aria-disabled="true"
                 >
-                  <principle.Icon className="h-5 w-5 mr-3 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                  <principle.Icon className="h-5 w-5 mr-3 text-[rgb(var(--color-icon-brand))] flex-shrink-0" />
                   <span>{principle.text}</span>
                 </div>
               ))}
@@ -321,23 +321,23 @@ export default function StatusOfficerDisplay({
             {(storageInfo || storageError) && (
               <div className="pb-1">
                 <div className="px-4 pt-3 pb-1">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <p className="text-sm font-semibold text-[rgb(var(--color-text-base))] ext-[rgb(var(--color-text-inverted))]">
                     Storage Footprint
                   </p>
                 </div>
                 <div
-                  className="px-4 py-2 flex items-center text-sm text-gray-700 dark:text-gray-300"
+                  className="px-4 py-2 flex items-center text-sm text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]"
                   role="menuitem"
                   aria-disabled="true"
                 >
-                  <CircleStackIcon className="h-5 w-5 mr-3 text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
+                  <CircleStackIcon className="h-5 w-5 mr-3 text-[rgb(var(--color-icon-brand))] flex-shrink-0" />
                   {storageInfo && (
                     <div className="flex-grow">
                       <span>
                         Usage: <strong>{storageInfo.usage}</strong>
                       </span>
                       {storageInfo.quota && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                        <span className="text-xs text-[rgb(var(--color-text-muted))] ext-[rgb(var(--color-text-disabled))] block">
                           (Approx. Quota: {storageInfo.quota})
                         </span>
                       )}
@@ -345,7 +345,7 @@ export default function StatusOfficerDisplay({
                   )}
                   {storageError && (
                     <span
-                      className={`text-xs italic ${storageError === 'Error' ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`text-xs italic ${storageError === 'Error' ? 'text-[rgb(var(--color-status-error))] ' : 'text-[rgb(var(--color-text-disabled))] ext-[rgb(var(--color-text-muted))]'}`}
                     >
                       {storageError === 'Error'
                         ? 'Estimation Error'
@@ -362,26 +362,26 @@ export default function StatusOfficerDisplay({
                 href={`https://github.com/Online-Everything-Tool`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
+                className="flex items-center justify-between px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))] over:text-[rgb(var(--color-text-inverted))]"
                 role="menuitem"
                 tabIndex={-1}
                 onClick={closeDropdown}
               >
                 <span>OET on GitHub</span>
-                <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-[rgb(var(--color-text-disabled))] ext-[rgb(var(--color-text-muted))]" />
               </a>
               {statusOfficerGithub && (
                 <a
                   href={`https://github.com/${statusOfficerGithub}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
+                  className="flex items-center justify-between px-4 py-2 text-sm text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))] hover:bg-[rgb(var(--color-bg-subtle-hover))] hover:text-[rgb(var(--color-text-base))] over:text-[rgb(var(--color-text-inverted))]"
                   role="menuitem"
                   tabIndex={-1}
                   onClick={closeDropdown}
                 >
                   <span>{statusOfficerGithub} on GitHub</span>
-                  <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                  <ArrowRightEndOnRectangleIcon className="h-5 w-5 text-[rgb(var(--color-text-disabled))] ext-[rgb(var(--color-text-muted))]" />
                 </a>
               )}
             </div>

@@ -91,14 +91,14 @@ export default function HomePageClient({
   if (isLoadingToolSavedState) {
     return (
       <div className="space-y-10 animate-pulse">
-        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-72">
-          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full mb-2"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-5/6"></div>
+        <div className="p-4 md:p-6 border rounded-lg bg-[rgb(var(--color-bg-subtle-hover))] shadow-sm h-72">
+          <div className="h-8 bg-[rgb(var(--color-bg-neutral))] rounded w-1/3 mb-4"></div>
+          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-full mb-2"></div>
+          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-5/6"></div>
         </div>
-        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-56">
-          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full"></div>
+        <div className="p-4 md:p-6 border rounded-lg bg-[rgb(var(--color-bg-subtle-hover))] shadow-sm h-56">
+          <div className="h-8 bg-[rgb(var(--color-bg-neutral))] rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-full"></div>
         </div>
       </div>
     );
