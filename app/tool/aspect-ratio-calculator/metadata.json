@@ -1,0 +1,18 @@
+{
+  "title": "Aspect Ratio Calculator",
+  "directive": "aspect-ratio-calculator",
+  "description": "Calculates equivalent dimensions for various common aspect ratios based on a user-provided width and/or height. Helps visualize how content would fit different screen and media formats.",
+  "urlStateParams": [
+    { "paramName": "width", "type": "number", "defaultValue": null },
+    { "paramName": "height", "type": "number", "defaultValue": null }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
