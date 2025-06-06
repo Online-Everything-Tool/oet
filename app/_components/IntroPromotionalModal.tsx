@@ -30,7 +30,6 @@ interface IntroPromotionalModalProps {
   onDismiss: (shouldDismissForever: boolean) => void;
 }
 
-// MODIFICATION: Re-integrated SEO story and adjusted all for consistent length
 const storyChapters = [
   {
     icon: SparklesIcon,
@@ -174,7 +173,6 @@ export default function IntroPromotionalModal({
               nextEl: '.intro-swiper-next',
               prevEl: '.intro-swiper-prev',
             }}
-            // MODIFICATION: Autoplay now stops at the end and has a longer delay
             autoplay={{
               delay: 6000,
               disableOnInteraction: true,
@@ -224,8 +222,7 @@ export default function IntroPromotionalModal({
             className="p-2 rounded-full hover:bg-[rgb(var(--color-bg-subtle-hover))] disabled:cursor-not-allowed transition-colors"
             aria-label="Next slide"
             animate={{
-              opacity:
-                activeSlideIndex === storyChapters.length - 1 ? 0.3 : 1,
+              opacity: activeSlideIndex === storyChapters.length - 1 ? 0.3 : 1,
             }}
             disabled={activeSlideIndex === storyChapters.length - 1}
             whileTap={{ scale: 0.9 }}

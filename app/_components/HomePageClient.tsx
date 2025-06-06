@@ -49,8 +49,6 @@ export default function HomePageClient({
     const isSessionDismissed =
       sessionStorage.getItem(INTRO_MODAL_SESSION_KEY) === 'true';
 
-    // Only open automatically if it's not permanently dismissed, not session dismissed,
-    // and not already open (to prevent loops).
     if (!isPermanentlyDismissed && !isSessionDismissed && !isIntroModalOpen) {
       const timer = setTimeout(() => {
         setIsIntroModalOpen(true);
@@ -66,7 +64,6 @@ export default function HomePageClient({
   const handleModalDismiss = (shouldDismissForever: boolean) => {
     setIsIntroModalOpen(false);
 
-    // Update persistent state only if it has changed.
     if (homePersistentState.introModalDismissed !== shouldDismissForever) {
       const newState = {
         ...homePersistentState,
@@ -76,32 +73,18 @@ export default function HomePageClient({
       saveStateNow(newState);
     }
 
-    // If not dismissing forever, set the session key.
     if (!shouldDismissForever) {
       sessionStorage.setItem(INTRO_MODAL_SESSION_KEY, 'true');
     }
   };
 
   const handleShowIntro = () => {
-    // When the user explicitly asks to see it, clear the session dismissal first.
     sessionStorage.removeItem(INTRO_MODAL_SESSION_KEY);
     setIsIntroModalOpen(true);
   };
 
   if (isLoadingToolSavedState) {
-    return (
-      <div className="space-y-10 animate-pulse">
-        <div className="p-4 md:p-6 border rounded-lg bg-[rgb(var(--color-bg-subtle-hover))] shadow-sm h-72">
-          <div className="h-8 bg-[rgb(var(--color-bg-neutral))] rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-full mb-2"></div>
-          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-5/6"></div>
-        </div>
-        <div className="p-4 md:p-6 border rounded-lg bg-[rgb(var(--color-bg-subtle-hover))] shadow-sm h-56">
-          <div className="h-8 bg-[rgb(var(--color-bg-neutral))] rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-[rgb(var(--color-bg-neutral))] rounded w-full"></div>
-        </div>
-      </div>
-    );
+    return <></>;
   }
 
   return (

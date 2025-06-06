@@ -330,7 +330,7 @@ export default function CreatePrForm({
             !generationResult?.generatedFiles ||
             Object.keys(generationResult.generatedFiles).length === 0
           }
-          className="bg-[rgb(var(--color-button-accent-bg))] hover:bg-[rgb(var(--color-button-accent-hover-bg))] text-white"
+          variant="primary"
           isLoading={isSubmittingPr}
           loadingText="Submitting PR..."
         >
