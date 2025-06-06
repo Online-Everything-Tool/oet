@@ -1,0 +1,10 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "xlsx",
+      "reason": "For parsing and generating XLS/XLSX files, and converting sheets to/from CSV format.",
+      "importUsed": "XLSX"
+    }
+  ],
+  "assetInstructions": null
+}
