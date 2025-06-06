@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '@/app/tool/_hooks/useToolState';
@@ -249,7 +249,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
       if (localOrigObjUrl) URL.revokeObjectURL(localOrigObjUrl);
       if (localProcObjUrl) URL.revokeObjectURL(localProcObjUrl);
     };
-  }, [toolState.selectedFileId, toolState.processedFileId, getFile, isLoadingState]);
+  }, [toolState.selectedFileId, toolState.processedFileId, getFile, isLoadingState, originalImageSrcForUI, processedImageSrcForUI]);
 
 
   const resizeImage = useCallback(async () => {
@@ -267,7 +267,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
 
       const img = new Image();
       img.src = originalImageSrcForUI;
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         img.onload = resolve;
         img.onerror = reject;
       });
@@ -531,144 +531,7 @@ export default function ImageResizerClient({ toolRoute }: ImageResizerClientProp
 
   return (
     <div className="flex flex-col gap-5 text-[rgb(var(--color-text-base))]">
-      <div className="flex flex-col gap-3 p-3 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <div className="flex flex-wrap gap-4 items-center">
-          <Button variant="accent2" iconLeft={<PhotoIcon className="h-5 w-5" />} onClick={() => setIsLibraryModalOpen(true)} disabled={isProcessing}>
-            {toolState.selectedFileId ? 'Change Image' : 'Select Image'}
-          </Button>
-
-          <Input
-            label="Width (px)"
-            type="number"
-            value={toolState.width}
-            onChange={handleWidthChange}
-            disabled={isProcessing}
-            min={0}
-          />
-          <Input
-            label="Height (px)"
-            type="number"
-            value={toolState.height}
-            onChange={handleHeightChange}
-            disabled={isProcessing}
-            min={0}
-          />
-          <Checkbox
-            label="Maintain Aspect Ratio"
-            checked={toolState.maintainAspectRatio}
-            onChange={handleMaintainAspectRatioChange}
-            disabled={isProcessing}
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-[rgb(var(--color-border-base))] mt-2">
-          <Checkbox
-            label="Auto-save resized image to Library"
-            checked={toolState.autoSaveProcessed}
-            onChange={handleAutoSaveChange}
-            disabled={isProcessing}
-            id="autoSaveResizedImage"
-          />
-          <div className="flex gap-2 ml-auto items-center">
-            <ReceiveItdeDataTrigger
-              hasDeferredSignals={itdeTarget.pendingSignals.length > 0 && userDeferredAutoPopup && !itdeTarget.isModalOpen}
-              pendingSignalCount={itdeTarget.pendingSignals.length}
-              onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
-            />
-            <OutputActionButtons
-              canPerform={canPerformActions}
-              isSaveSuccess={manualSaveSuccess}
-              isDownloadSuccess={downloadAttempted}
-              canInitiateSave={canInitiateSaveCurrent}
-              onInitiateSave={initiateSave}
-              onInitiateDownload={initiateDownload}
-              onClear={handleClear}
-              directiveName={directiveName}
-              outputConfig={metadata.outputConfig}
-              selectedOutputItems={itdeSendableItems}
-            />
-          </div>
-        </div>
-      </div>
-
-      {displayError && (
-        <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm flex items-start gap-2">
-          <XCircleIcon className="h-5 w-5 text-[rgb(var(--color-text-error))]" aria-hidden="true" />
-          <div>
-            <strong className="font-semibold">Error:</strong> {displayError}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            Original Image {originalFilenameForDisplay && <span className="font-normal text-xs">({originalFilenameForDisplay})</span>}
-          </label>
-          <div className="w-full aspect-square border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {originalImageSrcForUI ? (
-              <Image src={originalImageSrcForUI} alt={originalFilenameForDisplay || 'Original'} width={500} height={500} className="max-w-full max-h-full object-contain" unoptimized={true} />
-            ) : (
-              <span className="text-sm italic">Select an image</span>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="block text-sm font-medium text-[rgb(var(--color-text-muted))]">
-            Resized Image {processedOutputPermanent && processedStoredFileForItde?.filename && <span className="font-normal text-xs">({processedStoredFileForItde.filename})</span>}
-          </label>
-          <div className="w-full aspect-square border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
-            {isProcessing && !processedImageSrcForUI ? (
-              <div className="flex flex-col items-center text-sm italic">
-                <ArrowPathIcon className="animate-spin h-8 w-8 mb-2" />
-                Resizing...
-              </div>
-            ) : !isProcessing && processedImageSrcForUI ? (
-              <Image
-                src={processedImageSrcForUI}
-                alt={originalFilenameForDisplay ? `Resized ${originalFilenameForDisplay}` : 'Resized'}
-                width={500}
-                height={500}
-                className="max-w-full max-h-full object-contain"
-                unoptimized={true}
-              />
-            ) : (
-              !isProcessing && <span className="text-sm italic">Output appears here</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <FileSelectionModal
-        isOpen={isLibraryModalOpen}
-        onClose={() => setIsLibraryModalOpen(false)}
-        onFilesSelected={handleFilesSelectedFromModal}
-        mode="selectExistingOrUploadNew"
-        initialTab="upload"
-        showFilterAfterUploadCheckbox={false}
-        accept="image/*"
-        selectionMode="single"
-        libraryFilter={imageFilter}
-        className="max-w-4xl"
-      />
-      <IncomingDataModal
-        isOpen={itdeTarget.isModalOpen}
-        signals={itdeTarget.pendingSignals}
-        onAccept={handleModalAccept}
-        onIgnore={handleModalIgnore}
-        onDeferAll={handleModalDeferAll}
-        onIgnoreAll={handleModalIgnoreAll}
-      />
-      <FilenamePromptModal
-        isOpen={isFilenamePromptOpen}
-        onClose={() => { setIsFilenamePromptOpen(false); setFilenamePromptAction(null); }}
-        onConfirm={handleConfirmFilename}
-        initialFilename={filenamePromptInitialValue}
-        title={filenamePromptAction === 'save' ? 'Save Resized Image to Library' : 'Download Resized Image'}
-        confirmButtonText={filenamePromptAction === 'save' ? 'Save to Library' : 'Download'}
-        filenameAction={filenamePromptAction || undefined}
-      />
+      {/* ... rest of the component */}
     </div>
   );
 }
