@@ -1,0 +1,27 @@
+{
+  "title": "XLS/CSV Converter",
+  "directive": "xls-csv-converter",
+  "description": "Converts XLS/XLSX spreadsheets to CSV files, and CSV files to XLSX spreadsheets.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "text/csv"
+    ],
+    "stateFiles": [
+      {
+        "stateKey": "inputFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "outputFileId"
+      }
+    ]
+  },
+  "status": "stable",
+  "includeInSitemap": true
+}
