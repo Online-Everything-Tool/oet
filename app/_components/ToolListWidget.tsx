@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
 
 export interface ToolDisplayData {
   href: string;
@@ -12,9 +13,13 @@ export interface ToolDisplayData {
 
 interface ToolListWidgetProps {
   initialTools: ToolDisplayData[];
+  onShowIntro: () => void;
 }
 
-export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
+export default function ToolListWidget({
+  initialTools,
+  onShowIntro,
+}: ToolListWidgetProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTools = useMemo(() => {
@@ -35,12 +40,13 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
 
   return (
     <div className="space-y-4">
-      {/* Search Input Section (remains the same) */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <h2 className="text-xl font-semibold text-[rgb(var(--color-text-base))] shrink-0">
-          Available Tools ({filteredTools.length})
-        </h2>
-        <div className="w-full sm:w-auto sm:max-w-xs flex-grow">
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-[rgb(var(--color-text-base))] shrink-0">
+            Available Tools ({filteredTools.length})
+          </h2>
+        </div>
+        <div className="w-full sm:w-auto sm:max-w-xs flex-grow flex">
           <label htmlFor="tool-search" className="sr-only">
             Search Tools
           </label>
@@ -52,6 +58,14 @@ export default function ToolListWidget({ initialTools }: ToolListWidgetProps) {
             placeholder="Search tools by name or description..."
             className="w-full p-2 border border-[rgb(var(--color-input-border))] bg-[rgb(var(--color-input-bg))] text-[rgb(var(--color-input-text))] rounded-md shadow-sm focus:border-[rgb(var(--color-input-focus-border))] focus:outline-none text-sm placeholder:text-[rgb(var(--color-input-placeholder))]"
           />
+          <button
+            onClick={onShowIntro}
+            className="text-[rgb(var(--color-button-secondary-bg))] hover:text-[rgb(var(--color-button-secondary-hover-bg))] transition-colors pl-2"
+            title="Show the intro story again"
+            aria-label="Show introduction"
+          >
+            <InformationCircleIcon className="h-7 w-7" />
+          </button>
         </div>
       </div>
 

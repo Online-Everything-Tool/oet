@@ -1,78 +1,31 @@
 // FILE: app/page.tsx
-'use client';
+import React, { Suspense } from 'react';
+import fs from 'fs/promises';
+import path from 'path';
+import HomePageClient from './_components/HomePageClient';
+import { ToolDisplayData } from './_components/ToolListWidget';
+import type { ToolMetadata } from '@/src/types/tools';
 
-import React, { useEffect, useState, useMemo } from 'react';
-import useToolState from './tool/_hooks/useToolState';
-import ToolListWidget from './_components/ToolListWidget';
-import BuildToolWidget from './_components/BuildToolWidget';
-import { useMetadata } from './context/MetadataContext';
+async function getHomePageData() {
+  try {
+    const allMetadataPath = path.join(
+      process.cwd(),
+      'public',
+      'api',
+      'all-tool-metadata.json'
+    );
+    const projectAnalysisPath = path.join(
+      process.cwd(),
+      'public',
+      'data',
+      'project_analysis.json'
+    );
 
-export interface ToolDisplayData {
-  href: string;
-  title: string;
-  description: string;
-}
+    const metadataContent = await fs.readFile(allMetadataPath, 'utf-8');
+    const allMetadata: Record<string, ToolMetadata> =
+      JSON.parse(metadataContent);
 
-interface HomeToolState {
-  terms: boolean;
-}
-
-const DEFAULT_HOME_STATE: HomeToolState = {
-  terms: false,
-};
-
-export default function Home(/*{ initialTools }: HomeClientProps*/) {
-  const toolRouteForState = `/tool/home`;
-
-  const {
-    state: homePersistentState,
-    setState: setHomePersistentState,
-    isLoadingState: isLoadingToolSavedState,
-  } = useToolState<HomeToolState>(toolRouteForState, DEFAULT_HOME_STATE);
-
-  const [projectAnalysis, setProjectAnalysis] = useState<{
-    suggestedDirectives: string[];
-    modelNameUsed: string | null;
-  } | null>(null);
-
-  const [isLoadingProjectAnalysis, setIsLoadingProjectAnalysis] =
-    useState(true);
-
-  const { getAllToolMetadataArray, isLoading: isLoadingMetadata } =
-    useMetadata();
-
-  useEffect(() => {
-    const fetchProjectAnalysis = async () => {
-      setIsLoadingProjectAnalysis(true);
-      try {
-        const response = await fetch('/data/project_analysis.json');
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch project analysis: ${response.status}`
-          );
-        }
-        const data = await response.json();
-        setProjectAnalysis({
-          suggestedDirectives: data.suggestedNewToolDirectives || [],
-          modelNameUsed: data.modelNameUsed || null,
-        });
-      } catch (error) {
-        console.error('Error fetching project_analysis.json:', error);
-
-        setProjectAnalysis({ suggestedDirectives: [], modelNameUsed: null });
-      } finally {
-        setIsLoadingProjectAnalysis(false);
-      }
-    };
-    fetchProjectAnalysis();
-  }, []);
-
-  const initialToolsForWidget: ToolDisplayData[] = useMemo(() => {
-    if (isLoadingMetadata) {
-      return [];
-    }
-    const allMeta = getAllToolMetadataArray();
-    return allMeta
+    const initialTools: ToolDisplayData[] = Object.values(allMetadata)
       .filter(
         (tool) =>
           tool.includeInSitemap !== false && tool.title && tool.description
@@ -83,37 +36,39 @@ export default function Home(/*{ initialTools }: HomeClientProps*/) {
         description: tool.description,
       }))
       .sort((a, b) => a.title.localeCompare(b.title));
-  }, [getAllToolMetadataArray, isLoadingMetadata]);
 
-  const isPageContentLoading =
-    isLoadingProjectAnalysis || isLoadingMetadata || isLoadingToolSavedState;
+    let projectAnalysis = null;
+    try {
+      const analysisContent = await fs.readFile(projectAnalysisPath, 'utf-8');
+      const data = JSON.parse(analysisContent);
+      projectAnalysis = {
+        suggestedDirectives: data.suggestedNewToolDirectives || [],
+        modelNameUsed: data.modelNameUsed || null,
+      };
+    } catch (error) {
+      console.warn('Could not load project_analysis.json on server:', error);
+      projectAnalysis = { suggestedDirectives: [], modelNameUsed: null };
+    }
 
-  if (isPageContentLoading) {
-    return (
-      <div className="space-y-10 animate-pulse">
-        {/* Placeholder for ToolListWidget */}
-        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-72">
-          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full mb-2"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-5/6"></div>
-        </div>
-        {/* Placeholder for BuildToolWidget */}
-        <div className="p-4 md:p-6 border rounded-lg bg-gray-100 dark:bg-gray-700 shadow-sm h-56">
-          <div className="h-8 bg-gray-200 dark:bg-gray-600 rounded w-1/4 mb-4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-600 rounded w-full"></div>
-        </div>
-      </div>
-    );
+    return { initialTools, projectAnalysis };
+  } catch (error) {
+    console.error('Failed to load data for Home page on server:', error);
+    return {
+      initialTools: [],
+      projectAnalysis: { suggestedDirectives: [], modelNameUsed: null },
+    };
   }
+}
+
+export default async function Home() {
+  const { initialTools, projectAnalysis } = await getHomePageData();
 
   return (
-    <div className="flex flex-col gap-4">
-      <ToolListWidget initialTools={initialToolsForWidget} />
-      <BuildToolWidget
-        suggestedDirectives={projectAnalysis?.suggestedDirectives || []}
-        modelNameUsed={projectAnalysis?.modelNameUsed}
+    <Suspense fallback={<></>}>
+      <HomePageClient
+        initialTools={initialTools}
+        projectAnalysis={projectAnalysis}
       />
-      {/* IntroPromotionalModal will be added here later */}
-    </div>
+    </Suspense>
   );
 }
