@@ -1,0 +1,18 @@
+{
+  "title": "PDF Media Extractor",
+  "directive": "pdf-media-extractor",
+  "description": "Extracts images and other media files from PDF documents.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/pdf"],
+    "stateFiles": [{ "stateKey": "selectedPdfFileId" }]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "extractedMediaFileIds"
+      }
+    ]
+  },
+  "status": "beta"
+}
