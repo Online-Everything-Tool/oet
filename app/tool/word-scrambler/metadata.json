@@ -1,0 +1,20 @@
+{
+  "title": "Word Scrambler",
+  "directive": "word-scrambler",
+  "description": "This tool scrambles the letters of a given word or phrase. Words with 3 or fewer letters should not be scrambled.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
