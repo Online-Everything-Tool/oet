@@ -2,14 +2,13 @@
 
 import React, { useState, useCallback } from 'react';
 import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
-import { useMetadata } from '@/app/context/MetadataContext';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import useToolState from '@/app/tool/_hooks/useToolState';
 import Button from '@/app/tool/_components/form/Button';
-import { toolRoute } from '@/app/lib/utils';
 import importedMetadata from '../metadata.json';
 import type { ToolMetadata } from '@/src/types/tools';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import Image from 'next/image';
 
 
 interface StartersImageGeneratorState {
@@ -22,11 +21,10 @@ const DEFAULT_STATE: StartersImageGeneratorState = {
 
 const metadata = importedMetadata as ToolMetadata;
 
-const StartersImageGeneratorClient: React.FC<{ toolRoute: string }> = ({ toolRoute }) => {
-  const { state, setState, isLoadingState } = useToolState(toolRoute, DEFAULT_STATE);
+const StartersImageGeneratorClient: React.FC = () => {
+  const { state, setState, isLoadingState } = useToolState('starters-image-generator', DEFAULT_STATE);
   const [isGenerating, setIsGenerating] = useState(false);
   const { addFile } = useFileLibrary();
-  const { getToolMetadata } = useMetadata();
   const directiveName = metadata.directive;
 
 
