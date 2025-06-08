@@ -1,0 +1,19 @@
+{
+  "title": "Starters Image Generator",
+  "directive": "starters-image-generator",
+  "description": "Generates various starter images with customizable parameters.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "generatedImage"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
