@@ -3,9 +3,7 @@
   "directive": "image-resizer",
   "description": "Resizes images to specified dimensions while maintaining aspect ratio.",
   "inputConfig": {
-    "acceptsMimeTypes": [
-      "image/*"
-    ],
+    "acceptsMimeTypes": ["image/*"],
     "stateFiles": [
       {
         "stateKey": "selectedFileId"

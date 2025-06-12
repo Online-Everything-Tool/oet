@@ -68,25 +68,39 @@ export default function ImageResizerClient({
     saveStateNow,
   } = useToolState<ImageResizerToolState>(toolRoute, DEFAULT_TOOL_STATE);
 
-  const { getFile, addFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
-    useFileLibrary();
+  const {
+    getFile,
+    addFile,
+    makeFilePermanentAndUpdate,
+    cleanupOrphanedTemporaryFiles,
+  } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
 
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
   const [isFilenamePromptOpen, setIsFilenamePromptOpen] = useState(false);
-  const [filenamePromptAction, setFilenamePromptAction] = useState<'save' | 'download' | null>(null);
-  const [filenamePromptInitialValue, setFilenamePromptInitialValue] = useState('');
+  const [filenamePromptAction, setFilenamePromptAction] = useState<
+    'save' | 'download' | null
+  >(null);
+  const [filenamePromptInitialValue, setFilenamePromptInitialValue] =
+    useState('');
 
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
-  const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(null);
-  const [originalDimensions, setOriginalDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [processedImageSrc, setProcessedImageSrc] = useState<string | null>(
+    null
+  );
+  const [originalDimensions, setOriginalDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [processedFileIsPermanent, setProcessedFileIsPermanent] = useState(false);
-  const [processedStoredFileForItde, setProcessedStoredFileForItde] = useState<StoredFile | null>(null);
+  const [processedFileIsPermanent, setProcessedFileIsPermanent] =
+    useState(false);
+  const [processedStoredFileForItde, setProcessedStoredFileForItde] =
+    useState<StoredFile | null>(null);
 
   const [userDeferredAutoPopup, setUserDeferredAutoPopup] = useState(false);
   const initialToolStateLoadCompleteRef = useRef(false);
@@ -94,32 +108,62 @@ export default function ImageResizerClient({
 
   const directiveName = metadata.directive;
 
-  const handleProcessIncomingSignal = useCallback(async (signal: IncomingSignal) => {
-    setError(null);
-    const sourceMeta = getToolMetadata(signal.sourceDirective);
-    if (!sourceMeta) {
-      setError('Metadata not found for source tool.');
-      return;
-    }
-    const resolvedPayload: ResolvedItdeData = await resolveItdeData(signal.sourceDirective, sourceMeta.outputConfig);
-    if (resolvedPayload.type === 'error' || !resolvedPayload.data || resolvedPayload.data.length === 0) {
-      setError(resolvedPayload.errorMessage || 'No transferable data received from source.');
-      return;
-    }
-    const firstImageItem = resolvedPayload.data.find(item => item.type?.startsWith('image/') && 'id' in item) as StoredFile | undefined;
-    if (firstImageItem?.id) {
-      const oldSelectedId = toolState.selectedFileId;
-      const oldProcessedId = toolState.processedFileId;
-      const newState: Partial<ImageResizerToolState> = { selectedFileId: firstImageItem.id, processedFileId: null };
-      setState(newState);
-      await saveStateNow({ ...toolState, ...newState });
-      if (oldSelectedId && oldSelectedId !== firstImageItem.id) cleanupOrphanedTemporaryFiles([oldSelectedId]).catch(e => console.error('[Resizer ITDE] Cleanup failed:', e));
-      if (oldProcessedId) cleanupOrphanedTemporaryFiles([oldProcessedId]).catch(e => console.error('[Resizer ITDE] Cleanup failed:', e));
-    } else {
-      setError('No valid image found in received ITDE data.');
-    }
-    setUserDeferredAutoPopup(false);
-  }, [getToolMetadata, setState, saveStateNow, toolState, cleanupOrphanedTemporaryFiles]);
+  const handleProcessIncomingSignal = useCallback(
+    async (signal: IncomingSignal) => {
+      setError(null);
+      const sourceMeta = getToolMetadata(signal.sourceDirective);
+      if (!sourceMeta) {
+        setError('Metadata not found for source tool.');
+        return;
+      }
+      const resolvedPayload: ResolvedItdeData = await resolveItdeData(
+        signal.sourceDirective,
+        sourceMeta.outputConfig
+      );
+      if (
+        resolvedPayload.type === 'error' ||
+        !resolvedPayload.data ||
+        resolvedPayload.data.length === 0
+      ) {
+        setError(
+          resolvedPayload.errorMessage ||
+            'No transferable data received from source.'
+        );
+        return;
+      }
+      const firstImageItem = resolvedPayload.data.find(
+        (item) => item.type?.startsWith('image/') && 'id' in item
+      ) as StoredFile | undefined;
+      if (firstImageItem?.id) {
+        const oldSelectedId = toolState.selectedFileId;
+        const oldProcessedId = toolState.processedFileId;
+        const newState: Partial<ImageResizerToolState> = {
+          selectedFileId: firstImageItem.id,
+          processedFileId: null,
+        };
+        setState(newState);
+        await saveStateNow({ ...toolState, ...newState });
+        if (oldSelectedId && oldSelectedId !== firstImageItem.id)
+          cleanupOrphanedTemporaryFiles([oldSelectedId]).catch((e) =>
+            console.error('[Resizer ITDE] Cleanup failed:', e)
+          );
+        if (oldProcessedId)
+          cleanupOrphanedTemporaryFiles([oldProcessedId]).catch((e) =>
+            console.error('[Resizer ITDE] Cleanup failed:', e)
+          );
+      } else {
+        setError('No valid image found in received ITDE data.');
+      }
+      setUserDeferredAutoPopup(false);
+    },
+    [
+      getToolMetadata,
+      setState,
+      saveStateNow,
+      toolState,
+      cleanupOrphanedTemporaryFiles,
+    ]
+  );
 
   const itdeTarget = useItdeTargetHandler({
     targetToolDirective: directiveName,
@@ -128,15 +172,23 @@ export default function ImageResizerClient({
 
   useEffect(() => {
     if (!isLoadingState) {
-      if (!initialToolStateLoadCompleteRef.current) initialToolStateLoadCompleteRef.current = true;
+      if (!initialToolStateLoadCompleteRef.current)
+        initialToolStateLoadCompleteRef.current = true;
     } else {
-      if (initialToolStateLoadCompleteRef.current) initialToolStateLoadCompleteRef.current = false;
+      if (initialToolStateLoadCompleteRef.current)
+        initialToolStateLoadCompleteRef.current = false;
     }
   }, [isLoadingState]);
 
   useEffect(() => {
-    const canProceed = !isLoadingState && initialToolStateLoadCompleteRef.current;
-    if (canProceed && itdeTarget.pendingSignals.length > 0 && !itdeTarget.isModalOpen && !userDeferredAutoPopup) {
+    const canProceed =
+      !isLoadingState && initialToolStateLoadCompleteRef.current;
+    if (
+      canProceed &&
+      itdeTarget.pendingSignals.length > 0 &&
+      !itdeTarget.isModalOpen &&
+      !userDeferredAutoPopup
+    ) {
       itdeTarget.openModalIfSignalsExist();
     }
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup]);
@@ -154,14 +206,21 @@ export default function ImageResizerClient({
       setError(null);
       try {
         const file = await getFile(toolState.selectedFileId);
-        if (!file?.blob) throw new Error('Selected file or its blob not found.');
+        if (!file?.blob)
+          throw new Error('Selected file or its blob not found.');
         objectUrl = URL.createObjectURL(file.blob);
         setOriginalImageSrc(objectUrl);
         const img = new window.Image();
         img.onload = () => {
-          setOriginalDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+          setOriginalDimensions({
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          });
           if (!toolState.width && !toolState.height) {
-            setState({ width: img.naturalWidth.toString(), height: img.naturalHeight.toString() });
+            setState({
+              width: img.naturalWidth.toString(),
+              height: img.naturalHeight.toString(),
+            });
           }
           setIsLoading(false);
         };
@@ -171,7 +230,9 @@ export default function ImageResizerClient({
         };
         img.src = objectUrl;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error loading image file.');
+        setError(
+          err instanceof Error ? err.message : 'Error loading image file.'
+        );
         setIsLoading(false);
       }
     };
@@ -210,17 +271,21 @@ export default function ImageResizerClient({
 
   const debouncedAspectRatioCalculation = useDebouncedCallback(() => {
     if (!toolState.maintainAspectRatio || !originalDimensions) return;
-    
+
     const w = parseFloat(toolState.width);
     const h = parseFloat(toolState.height);
 
     if (lastChangedField.current === 'width' && w > 0) {
-      const newHeight = Math.round((w / originalDimensions.width) * originalDimensions.height);
+      const newHeight = Math.round(
+        (w / originalDimensions.width) * originalDimensions.height
+      );
       if (newHeight.toString() !== toolState.height) {
         setState({ height: newHeight.toString() });
       }
     } else if (lastChangedField.current === 'height' && h > 0) {
-      const newWidth = Math.round((h / originalDimensions.height) * originalDimensions.width);
+      const newWidth = Math.round(
+        (h / originalDimensions.height) * originalDimensions.width
+      );
       if (newWidth.toString() !== toolState.width) {
         setState({ width: newWidth.toString() });
       }
@@ -229,23 +294,40 @@ export default function ImageResizerClient({
 
   useEffect(() => {
     debouncedAspectRatioCalculation();
-  }, [toolState.width, toolState.height, toolState.maintainAspectRatio, originalDimensions, debouncedAspectRatioCalculation]);
+  }, [
+    toolState.width,
+    toolState.height,
+    toolState.maintainAspectRatio,
+    originalDimensions,
+    debouncedAspectRatioCalculation,
+  ]);
 
-  const handleFilesSelectedFromModal = useCallback(async (files: StoredFile[]) => {
-    setIsLibraryModalOpen(false);
-    setError(null);
-    if (files?.[0]?.type?.startsWith('image/') && files[0].id) {
-      const oldSelectedId = toolState.selectedFileId;
-      const oldProcessedId = toolState.processedFileId;
-      const newState: Partial<ImageResizerToolState> = { selectedFileId: files[0].id, processedFileId: null, width: '', height: '' };
-      setState(newState);
-      await saveStateNow({ ...toolState, ...newState });
-      if (oldSelectedId && oldSelectedId !== files[0].id) cleanupOrphanedTemporaryFiles([oldSelectedId]);
-      if (oldProcessedId) cleanupOrphanedTemporaryFiles([oldProcessedId]);
-    } else if (files?.length) {
-      setError(`Selected file "${files[0].filename}" is not a recognized image type.`);
-    }
-  }, [toolState, setState, saveStateNow, cleanupOrphanedTemporaryFiles]);
+  const handleFilesSelectedFromModal = useCallback(
+    async (files: StoredFile[]) => {
+      setIsLibraryModalOpen(false);
+      setError(null);
+      if (files?.[0]?.type?.startsWith('image/') && files[0].id) {
+        const oldSelectedId = toolState.selectedFileId;
+        const oldProcessedId = toolState.processedFileId;
+        const newState: Partial<ImageResizerToolState> = {
+          selectedFileId: files[0].id,
+          processedFileId: null,
+          width: '',
+          height: '',
+        };
+        setState(newState);
+        await saveStateNow({ ...toolState, ...newState });
+        if (oldSelectedId && oldSelectedId !== files[0].id)
+          cleanupOrphanedTemporaryFiles([oldSelectedId]);
+        if (oldProcessedId) cleanupOrphanedTemporaryFiles([oldProcessedId]);
+      } else if (files?.length) {
+        setError(
+          `Selected file "${files[0].filename}" is not a recognized image type.`
+        );
+      }
+    },
+    [toolState, setState, saveStateNow, cleanupOrphanedTemporaryFiles]
+  );
 
   const handleResize = useCallback(async () => {
     if (!originalImageSrc) {
@@ -254,7 +336,12 @@ export default function ImageResizerClient({
     }
     const targetWidth = parseInt(toolState.width, 10);
     const targetHeight = parseInt(toolState.height, 10);
-    if (isNaN(targetWidth) || isNaN(targetHeight) || targetWidth <= 0 || targetHeight <= 0) {
+    if (
+      isNaN(targetWidth) ||
+      isNaN(targetHeight) ||
+      targetWidth <= 0 ||
+      targetHeight <= 0
+    ) {
       setError('Please enter valid positive numbers for width and height.');
       return;
     }
@@ -266,7 +353,8 @@ export default function ImageResizerClient({
       const img = new window.Image();
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image for processing.'));
+        img.onerror = () =>
+          reject(new Error('Failed to load image for processing.'));
         img.src = originalImageSrc;
       });
 
@@ -275,23 +363,33 @@ export default function ImageResizerClient({
       canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Failed to get canvas context.');
-      
+
       ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
       const originalFile = await getFile(toolState.selectedFileId!);
-      const outputMimeType = originalFile?.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
+      const outputMimeType =
+        originalFile?.type === 'image/jpeg' ? 'image/jpeg' : 'image/png';
       const quality = outputMimeType === 'image/jpeg' ? 0.92 : undefined;
-      
-      const resizedBlob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, outputMimeType, quality));
+
+      const resizedBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, outputMimeType, quality)
+      );
       if (!resizedBlob) throw new Error('Failed to create blob from canvas.');
 
       const originalFilename = originalFile?.filename || 'image.png';
-      const baseName = originalFilename.substring(0, originalFilename.lastIndexOf('.')) || originalFilename;
+      const baseName =
+        originalFilename.substring(0, originalFilename.lastIndexOf('.')) ||
+        originalFilename;
       const ext = outputMimeType.split('/')[1];
       const outputFileName = `resized-${baseName}-${targetWidth}x${targetHeight}.${ext}`;
 
-      const newFileId = await addFile(resizedBlob, outputFileName, outputMimeType, true);
-      
+      const newFileId = await addFile(
+        resizedBlob,
+        outputFileName,
+        outputMimeType,
+        true
+      );
+
       const oldProcessedId = toolState.processedFileId;
       setState({ processedFileId: newFileId, lastUserGivenFilename: null });
       if (oldProcessedId) cleanupOrphanedTemporaryFiles([oldProcessedId]);
@@ -299,11 +397,25 @@ export default function ImageResizerClient({
       setManualSaveSuccess(false);
       setDownloadSuccess(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred during resizing.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'An unknown error occurred during resizing.'
+      );
     } finally {
       setIsLoading(false);
     }
-  }, [originalImageSrc, toolState.width, toolState.height, toolState.selectedFileId, toolState.processedFileId, getFile, addFile, setState, cleanupOrphanedTemporaryFiles]);
+  }, [
+    originalImageSrc,
+    toolState.width,
+    toolState.height,
+    toolState.selectedFileId,
+    toolState.processedFileId,
+    getFile,
+    addFile,
+    setState,
+    cleanupOrphanedTemporaryFiles,
+  ]);
 
   const handleClear = useCallback(async () => {
     const oldSelectedId = toolState.selectedFileId;
@@ -314,7 +426,12 @@ export default function ImageResizerClient({
     setDownloadSuccess(false);
     if (oldSelectedId) cleanupOrphanedTemporaryFiles([oldSelectedId]);
     if (oldProcessedId) cleanupOrphanedTemporaryFiles([oldProcessedId]);
-  }, [clearStateAndPersist, toolState.selectedFileId, toolState.processedFileId, cleanupOrphanedTemporaryFiles]);
+  }, [
+    clearStateAndPersist,
+    toolState.selectedFileId,
+    toolState.processedFileId,
+    cleanupOrphanedTemporaryFiles,
+  ]);
 
   const generateDefaultOutputFilename = useCallback(() => {
     const originalFile = processedStoredFileForItde;
@@ -324,7 +441,8 @@ export default function ImageResizerClient({
 
   const initiateSave = async () => {
     if (!toolState.processedFileId) return;
-    const filenameToUse = toolState.lastUserGivenFilename || generateDefaultOutputFilename();
+    const filenameToUse =
+      toolState.lastUserGivenFilename || generateDefaultOutputFilename();
     setFilenamePromptInitialValue(filenameToUse);
     setFilenamePromptAction('save');
     setIsFilenamePromptOpen(true);
@@ -332,7 +450,8 @@ export default function ImageResizerClient({
 
   const initiateDownload = async () => {
     if (!processedImageSrc) return;
-    const filenameToUse = toolState.lastUserGivenFilename || generateDefaultOutputFilename();
+    const filenameToUse =
+      toolState.lastUserGivenFilename || generateDefaultOutputFilename();
     setFilenamePromptInitialValue(filenameToUse);
     setFilenamePromptAction('download');
     setIsFilenamePromptOpen(true);
@@ -342,7 +461,10 @@ export default function ImageResizerClient({
     setIsFilenamePromptOpen(false);
     if (filenamePromptAction === 'save') {
       if (!toolState.processedFileId) return;
-      const success = await makeFilePermanentAndUpdate(toolState.processedFileId, filename);
+      const success = await makeFilePermanentAndUpdate(
+        toolState.processedFileId,
+        filename
+      );
       if (success) {
         setProcessedFileIsPermanent(true);
         setManualSaveSuccess(true);
@@ -413,7 +535,9 @@ export default function ImageResizerClient({
               label="Maintain aspect ratio"
               id="aspectRatio"
               checked={toolState.maintainAspectRatio}
-              onChange={(e) => setState({ maintainAspectRatio: e.target.checked })}
+              onChange={(e) =>
+                setState({ maintainAspectRatio: e.target.checked })
+              }
               disabled={!toolState.selectedFileId || isLoading}
             />
           </div>
@@ -430,7 +554,11 @@ export default function ImageResizerClient({
           </Button>
           <div className="flex gap-2 ml-auto items-center">
             <ReceiveItdeDataTrigger
-              hasDeferredSignals={itdeTarget.pendingSignals.length > 0 && userDeferredAutoPopup && !itdeTarget.isModalOpen}
+              hasDeferredSignals={
+                itdeTarget.pendingSignals.length > 0 &&
+                userDeferredAutoPopup &&
+                !itdeTarget.isModalOpen
+              }
               pendingSignalCount={itdeTarget.pendingSignals.length}
               onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
             />
@@ -444,29 +572,49 @@ export default function ImageResizerClient({
               onClear={handleClear}
               directiveName={directiveName}
               outputConfig={metadata.outputConfig}
-              selectedOutputItems={processedStoredFileForItde ? [processedStoredFileForItde] : []}
+              selectedOutputItems={
+                processedStoredFileForItde ? [processedStoredFileForItde] : []
+              }
             />
           </div>
         </div>
       </div>
 
       {error && (
-        <div role="alert" className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm">
+        <div
+          role="alert"
+          className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm"
+        >
           <strong>Error:</strong> {error}
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-medium text-[rgb(var(--color-text-muted))]">Original Image</h3>
+          <h3 className="text-sm font-medium text-[rgb(var(--color-text-muted))]">
+            Original Image
+          </h3>
           <div className="w-full aspect-video border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {originalImageSrc ? (
-              <Image src={originalImageSrc} alt="Original" width={originalDimensions?.width || 300} height={originalDimensions?.height || 200} className="max-w-full max-h-full object-contain" unoptimized />
-            ) : (<span className="text-sm italic text-[rgb(var(--color-text-muted))]">Select an image</span>)}
+              <Image
+                src={originalImageSrc}
+                alt="Original"
+                width={originalDimensions?.width || 300}
+                height={originalDimensions?.height || 200}
+                className="max-w-full max-h-full object-contain"
+                unoptimized
+              />
+            ) : (
+              <span className="text-sm italic text-[rgb(var(--color-text-muted))]">
+                Select an image
+              </span>
+            )}
           </div>
         </div>
         <div className="space-y-1">
-          <h3 className="text-sm font-medium text-[rgb(var(--color-text-muted))]">Resized Image</h3>
+          <h3 className="text-sm font-medium text-[rgb(var(--color-text-muted))]">
+            Resized Image
+          </h3>
           <div className="w-full aspect-video border rounded-md bg-[rgb(var(--color-bg-subtle))] flex items-center justify-center overflow-hidden">
             {isLoading && !processedImageSrc ? (
               <div className="flex flex-col items-center text-sm italic text-[rgb(var(--color-text-muted))]">
@@ -474,8 +622,19 @@ export default function ImageResizerClient({
                 Resizing...
               </div>
             ) : processedImageSrc ? (
-              <Image src={processedImageSrc} alt="Resized" width={parseInt(toolState.width) || 300} height={parseInt(toolState.height) || 200} className="max-w-full max-h-full object-contain" unoptimized />
-            ) : (<span className="text-sm italic text-[rgb(var(--color-text-muted))]">Output appears here</span>)}
+              <Image
+                src={processedImageSrc}
+                alt="Resized"
+                width={parseInt(toolState.width) || 300}
+                height={parseInt(toolState.height) || 200}
+                className="max-w-full max-h-full object-contain"
+                unoptimized
+              />
+            ) : (
+              <span className="text-sm italic text-[rgb(var(--color-text-muted))]">
+                Output appears here
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -495,8 +654,14 @@ export default function ImageResizerClient({
         onClose={() => setIsFilenamePromptOpen(false)}
         onConfirm={handleConfirmFilename}
         initialFilename={filenamePromptInitialValue}
-        title={filenamePromptAction === 'save' ? 'Save Resized Image' : 'Download Resized Image'}
-        confirmButtonText={filenamePromptAction === 'save' ? 'Save to Library' : 'Download'}
+        title={
+          filenamePromptAction === 'save'
+            ? 'Save Resized Image'
+            : 'Download Resized Image'
+        }
+        confirmButtonText={
+          filenamePromptAction === 'save' ? 'Save to Library' : 'Download'
+        }
         filenameAction={filenamePromptAction || undefined}
       />
       <IncomingDataModal
@@ -504,8 +669,14 @@ export default function ImageResizerClient({
         signals={itdeTarget.pendingSignals}
         onAccept={itdeTarget.acceptSignal}
         onIgnore={itdeTarget.ignoreSignal}
-        onDeferAll={() => { setUserDeferredAutoPopup(true); itdeTarget.closeModal(); }}
-        onIgnoreAll={() => { setUserDeferredAutoPopup(false); itdeTarget.ignoreAllSignals(); }}
+        onDeferAll={() => {
+          setUserDeferredAutoPopup(true);
+          itdeTarget.closeModal();
+        }}
+        onIgnoreAll={() => {
+          setUserDeferredAutoPopup(false);
+          itdeTarget.ignoreAllSignals();
+        }}
       />
     </div>
   );
