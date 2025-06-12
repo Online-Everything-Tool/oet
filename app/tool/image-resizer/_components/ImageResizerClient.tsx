@@ -373,16 +373,17 @@ export default function ImageResizerClient({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-4 p-4 rounded-md bg-[rgb(var(--color-bg-subtle))] border border-[rgb(var(--color-border-base))]">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-start">
+        <div>
           <Button
             variant="accent2"
             iconLeft={<PhotoIcon className="h-5 w-5" />}
             onClick={() => setIsLibraryModalOpen(true)}
             disabled={isLoading}
-            className="w-full"
           >
             {toolState.selectedFileId ? 'Change Image' : 'Select Image'}
           </Button>
+        </div>
+        <div className="flex flex-wrap gap-3 items-center pt-3 border-t border-[rgb(var(--color-border-base))] mt-2">
           <Input
             label="Width (px)"
             id="width"

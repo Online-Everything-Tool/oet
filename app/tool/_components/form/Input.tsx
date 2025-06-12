@@ -80,7 +80,7 @@ const Input: React.ForwardRefRenderFunction<HTMLInputElement, InputProps> = (
       : `${iconLeft ? 'pl-10' : 'px-3'} ${iconRight ? 'pr-10' : 'px-3'} py-2`;
 
   return (
-    <div className={`w-full ${containerClassName}`}>
+    <div className={`${containerClassName}`}>
       {label && (
         <label
           htmlFor={effectiveId}
