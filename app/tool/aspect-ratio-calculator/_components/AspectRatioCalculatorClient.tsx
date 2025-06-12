@@ -145,7 +145,8 @@ export default function AspectRatioCalculatorClient({
   return (
     <div className="space-y-6">
       <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-lg bg-[rgb(var(--color-bg-subtle))] shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="flex items-end">
+        <div className="flex-1 flex flex-wrap gap-4 justify-center">
           <Input
             label="Original Width (px)"
             id="originalWidth"
@@ -166,14 +167,16 @@ export default function AspectRatioCalculatorClient({
             min="1"
             error={inputError.includes('Height') ? inputError : null}
           />
+        </div>
+        <div className="flex-0">
           <Button 
             onClick={handleClear} 
             variant="neutral" 
             iconLeft={<XCircleIcon className="h-5 w-5" />}
-            className="w-full md:w-auto"
           >
             Clear
           </Button>
+        </div>
         </div>
         {inputError && (
           <p className="mt-2 text-sm text-[rgb(var(--color-text-error))]">{inputError}</p>
