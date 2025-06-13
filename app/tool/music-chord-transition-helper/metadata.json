@@ -1,0 +1,11 @@
+{
+  "title": "Music Chord Transition Helper",
+  "directive": "music-chord-transition-helper",
+  "description": "This tool helps musicians smoothly transition between different chords, suggesting suitable chord progressions.",
+  "inputConfig": [],
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "experimental"
+}
