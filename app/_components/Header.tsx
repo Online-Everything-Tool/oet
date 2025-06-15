@@ -2,7 +2,7 @@
 'use client';
 
 import React, { Suspense, useEffect, useState } from 'react';
-import { motion, useAnimationControls } from 'framer-motion';
+import { motion, useAnimationControls, Variants } from 'framer-motion';
 import { useFullscreenFocus } from '@/app/context/FullscreenFocusContext';
 import type { OfficerDisplayState } from './header/StatusOfficerDisplay';
 
@@ -49,10 +49,10 @@ export default function Header() {
   );
 
   const titleControls = useAnimationControls();
-  const kevinWrapperControls = useAnimationControls();
+  const csoWrapperControls = useAnimationControls();
   const ctaGroupControls = useAnimationControls();
 
-  const mainItemSettleVariant = {
+  const mainItemSettleVariant: Variants = {
     hidden: (customDirection: number) => ({
       opacity: 0,
       x: customDirection * 30,
@@ -67,7 +67,7 @@ export default function Header() {
     },
   };
 
-  const ctaGroupVariants = {
+  const ctaGroupVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -79,7 +79,7 @@ export default function Header() {
     },
   };
 
-  const ctaItemVariant = {
+  const ctaItemVariant: Variants = {
     hidden: { opacity: 0, x: 20 },
     visible: {
       opacity: 1,
@@ -98,7 +98,7 @@ export default function Header() {
       }
 
       const titleSettlePromise = titleControls.start('visible');
-      const kevinWrapperSettlePromise = kevinWrapperControls.start('visible', {
+      const kevinWrapperSettlePromise = csoWrapperControls.start('visible', {
         delay: 0.1 * ANIMATION_SPEED_MULTIPLIER,
       });
 
@@ -146,7 +146,7 @@ export default function Header() {
       await Promise.all([titleSettlePromise, kevinWrapperSettlePromise]);
     };
     initialSequence();
-  }, [titleControls, kevinWrapperControls]);
+  }, [titleControls, csoWrapperControls]);
 
   useEffect(() => {
     if (!IS_STATIC_BUILD_VALIDATION && !isLoadingApiStatus && apiStatus) {
@@ -210,7 +210,7 @@ export default function Header() {
           variants={mainItemSettleVariant}
           custom={1}
           initial="hidden"
-          animate={kevinWrapperControls}
+          animate={csoWrapperControls}
         >
           <div className="flex items-center">
             <motion.div

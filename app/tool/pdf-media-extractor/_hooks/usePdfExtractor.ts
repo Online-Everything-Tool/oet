@@ -47,13 +47,29 @@ export function usePdfExtractor() {
         for (let i = 1; i <= numPages; i++) {
           const page: PDFPageProxy = await pdf.getPage(i);
           
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const images = await (page as any).getImages();
+          // --- THE FINAL PRODUCTION-SAFE LOGIC ---
+          // Revert from the untyped page.getImages() to the fundamental getOperatorList().
+          // This is transparent to the build-time minifier and won't be optimized away.
+          const operatorList = await page.getOperatorList();
+          
+          const imageOps = operatorList.fnArray.reduce((acc, op, index) => {
+            if (op === pdfjsLib.OPS.paintImageXObject) {
+              acc.push(operatorList.argsArray[index][0]);
+            }
+            return acc;
+          }, [] as string[]);
 
-          let imageIndex = 0;
-          for (const img of images) {
-            imageIndex++;
+          for (const imgName of imageOps) {
             try {
+              // Await page.objs.get() inside a try...catch. This handles the "not resolved yet"
+              // race condition error gracefully by skipping the problematic image.
+              const img = await page.objs.get(imgName);
+
+              if (!img) {
+                console.warn(`Could not retrieve image object: ${imgName}`);
+                continue;
+              }
+
               const canvas = document.createElement('canvas');
               canvas.width = img.width;
               canvas.height = img.height;
@@ -80,12 +96,11 @@ export function usePdfExtractor() {
 
               const blob = await canvasToBlob(canvas);
               if (blob) {
-                // We don't have the original 'imgName', so we'll generate one.
-                const name = `page${i}-image${imageIndex}.png`;
-                extractedImages.push({ blob, name });
+                extractedImages.push({ blob, name: `page${i}-${imgName}.png` });
               }
             } catch (e) {
-              console.error(`Error processing an image on page ${i}:`, e);
+              // Catch errors for individual images and log them, without crashing the whole process.
+              console.error(`Error processing image ${imgName} on page ${i}:`, e);
             }
           }
           setProgress({ current: i, total: numPages });

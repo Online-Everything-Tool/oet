@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { Swiper as SwiperClass } from 'swiper';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, EffectFade, Navigation } from 'swiper/modules';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 import Button from '@/app/tool/_components/form/Button';
 import Checkbox from '@/app/tool/_components/form/Checkbox';
@@ -68,7 +68,7 @@ const storyChapters = [
   },
 ];
 
-const headerVariants = {
+const headerVariants: Variants = {
   hidden: { opacity: 0, y: -20 },
   visible: (i: number) => ({
     opacity: 1,
@@ -83,7 +83,7 @@ const headerVariants = {
   exit: { opacity: 0, y: 10, transition: { duration: 0.2 } },
 };
 
-const textVariants = {
+const textVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
