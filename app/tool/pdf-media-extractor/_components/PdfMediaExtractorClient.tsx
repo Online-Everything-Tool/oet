@@ -8,7 +8,7 @@ import { usePdfExtractor } from '../_hooks/usePdfExtractor';
 import type { StoredFile } from '@/src/types/storage';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import Button from '@/app/tool/_components/form/Button';
-import { ArrowUpTrayIcon, XCircleIcon } from '@heroicons/react/24/outline';
+import { DocumentArrowUpIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import ExtractedMediaItem from './ExtractedMediaItem';
 import SendToToolButton from '@/app/tool/_components/shared/SendToToolButton';
 import useItdeTargetHandler from '@/app/tool/_hooks/useItdeTargetHandler';
@@ -208,7 +208,7 @@ export default function PdfMediaExtractorClient({ toolRoute }: { toolRoute: stri
     <div className="space-y-4">
       <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">
         <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="primary" onClick={() => setIsModalOpen(true)} iconLeft={<ArrowUpTrayIcon className="h-5 w-5" />}>
+          <Button variant="accent2" onClick={() => setIsModalOpen(true)} iconLeft={<DocumentArrowUpIcon className="h-5 w-5" />}>
             {state.inputPdfId ? 'Change PDF' : 'Select PDF'}
           </Button>
           {(state.inputPdfId || error) && (
