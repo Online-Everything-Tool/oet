@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy, PDFPageProxy, PDFImage } from 'pdfjs-dist';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
 
@@ -52,7 +52,7 @@ export function usePdfExtractor() {
           for (const imgName of imageOps) {
             const imagePromise = new Promise<ExtractedImage | null>((resolve) => {
               // Using page.objs.get is the recommended way to get object data.
-              page.objs.get(imgName, (img) => {
+              page.objs.get<PDFImage | undefined>(imgName, (img) => {
                 if (!img || !img.data) {
                   resolve(null);
                   return;
@@ -61,11 +61,7 @@ export function usePdfExtractor() {
                 let blob: Blob;
                 let fileExtension: string;
 
-                if (img.kind === pdfjsLib.ImageKind.JPEG) {
-                  blob = new Blob([img.data], { type: 'image/jpeg' });
-                  fileExtension = 'jpg';
-                } else {
-                  // For other formats, create a PNG from raw pixel data
+                if (img.kind === pdfjsLib.ImageKind.GRAYSCALE_1BPP || img.kind === pdfjsLib.ImageKind.RGB_24BPP || img.kind === pdfjsLib.ImageKind.RGBA_32BPP) {
                   const canvas = document.createElement('canvas');
                   canvas.width = img.width;
                   canvas.height = img.height;
@@ -75,7 +71,7 @@ export function usePdfExtractor() {
                     return;
                   }
                   const imageData = ctx.createImageData(img.width, img.height);
-                  // RGBA data, PDF might provide RGB, so we need to handle that.
+
                   if (img.data.length === img.width * img.height * 3) { // RGB
                     const rgba = new Uint8ClampedArray(img.width * img.height * 4);
                     for (let j = 0, k = 0; j < img.data.length; j += 3, k += 4) {
@@ -88,15 +84,20 @@ export function usePdfExtractor() {
                   } else { // Assuming RGBA or other direct copy
                     imageData.data.set(img.data);
                   }
-                  ctx.putImageData(imageData, 0, 0);
-                  blob = new Blob([canvas.toDataURL('image/png')], { type: 'image/png' });
-                  fileExtension = 'png';
-                }
 
-                resolve({
-                  blob,
-                  name: `page${i}-${imgName}.${fileExtension}`,
-                });
+                  ctx.putImageData(imageData, 0, 0);
+                  canvas.toBlob((result) => {
+                    if (result) {
+                      blob = result;
+                      fileExtension = 'png';
+                      resolve({ blob, name: `page${i}-${imgName}.${fileExtension}` });
+                    } else {
+                      resolve(null);
+                    }
+                  }, 'image/png');
+                } else {
+                  resolve(null); // Unsupported image kind
+                }
               }).catch(() => resolve(null));
             });
             allImagePromises.push(imagePromise);

@@ -72,4 +72,6 @@ const ExtractedMediaItem: React.FC<ExtractedMediaItemProps> = React.memo(({
   );
 });
 
+ExtractedMediaItem.displayName = 'ExtractedMediaItem';
+
 export default ExtractedMediaItem;
