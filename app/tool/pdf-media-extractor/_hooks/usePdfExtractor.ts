@@ -32,15 +32,16 @@ export function usePdfExtractor() {
       setError(null);
       setProgress({ current: 0, total: 0 });
 
+      let pdf: PDFDocumentProxy | null = null;
+
       try {
         const pdfjsLib = await import('pdfjs-dist');
+
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           '/data/pdf-media-extractor/pdf.worker.mjs';
 
         const arrayBuffer = await pdfFile.blob.arrayBuffer();
-        const pdf: PDFDocumentProxy = await pdfjsLib.getDocument({
-          data: arrayBuffer,
-        }).promise;
+        pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdf.numPages;
         setProgress({ current: 0, total: numPages });
 
@@ -48,7 +49,6 @@ export function usePdfExtractor() {
 
         for (let i = 1; i <= numPages; i++) {
           const page: PDFPageProxy = await pdf.getPage(i);
-
           const operatorList = await page.getOperatorList();
 
           const imageOps = operatorList.fnArray.reduce((acc, op, index) => {
@@ -67,38 +67,55 @@ export function usePdfExtractor() {
                 continue;
               }
 
-              const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) continue;
+              let blob: Blob | null = null;
+              let fileExtension = 'png';
 
-              if (img.bitmap) {
-                ctx.drawImage(img.bitmap, 0, 0);
-              } else if (img.data) {
-                const imageData = ctx.createImageData(img.width, img.height);
-                if (img.kind === pdfjsLib.ImageKind.RGB_24BPP) {
-                  const data = new Uint8ClampedArray(
-                    img.width * img.height * 4
-                  );
-                  for (let j = 0, k = 0; j < img.data.length; j += 3, k += 4) {
-                    data[k] = img.data[j];
-                    data[k + 1] = img.data[j + 1];
-                    data[k + 2] = img.data[j + 2];
-                    data[k + 3] = 255;
-                  }
-                  imageData.data.set(data);
-                } else {
-                  imageData.data.set(img.data);
+              if (img.data && img.data instanceof Uint8Array) {
+                if (img.data[0] === 0xff && img.data[1] === 0xd8) {
+                  blob = new Blob([img.data], { type: 'image/jpeg' });
+                  fileExtension = 'jpg';
                 }
-                ctx.putImageData(imageData, 0, 0);
-              } else {
-                continue;
               }
 
-              const blob = await canvasToBlob(canvas);
+              if (!blob && img.width && img.height) {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) continue;
+
+                const imageData = ctx.createImageData(img.width, img.height);
+
+                if (img.data) {
+                  imageData.data.set(img.data);
+                } else {
+                  if (img.bitmap) {
+                    ctx.drawImage(img.bitmap, 0, 0);
+                  } else {
+                    console.warn(
+                      `Image ${imgName} has no data or bitmap to process.`
+                    );
+                    continue;
+                  }
+                }
+
+                if (!img.bitmap) {
+                  ctx.putImageData(imageData, 0, 0);
+                }
+
+                blob = await canvasToBlob(canvas);
+                fileExtension = 'png';
+              }
+
               if (blob) {
-                extractedImages.push({ blob, name: `page${i}-${imgName}.png` });
+                extractedImages.push({
+                  blob,
+                  name: `page${i}-${imgName}.${fileExtension}`,
+                });
+              } else {
+                console.warn(
+                  `Could not create a blob for image ${imgName} on page ${i}.`
+                );
               }
             } catch (e) {
               console.warn(
@@ -112,7 +129,6 @@ export function usePdfExtractor() {
 
         if (extractedImages.length === 0) {
           setError('No compatible images found in this PDF.');
-          setIsLoading(false);
           return [];
         }
 
@@ -127,7 +143,6 @@ export function usePdfExtractor() {
           addedFileIds.push(fileId);
         }
 
-        setIsLoading(false);
         return addedFileIds;
       } catch (err) {
         console.error('Error extracting media from PDF:', err);
@@ -136,8 +151,13 @@ export function usePdfExtractor() {
             ? err.message
             : 'An unknown error occurred during PDF processing.'
         );
-        setIsLoading(false);
         return [];
+      } finally {
+        setIsLoading(false);
+
+        if (pdf) {
+          pdf.destroy();
+        }
       }
     },
     [addFile]
