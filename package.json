@@ -24,7 +24,7 @@
     "@tiptap/extension-underline": "^2.14.0",
     "@tiptap/pm": "^2.14.0",
     "@tiptap/react": "^2.14.0",
-    "@tiptap/starter-kit": "^2.14.0",    
+    "@tiptap/starter-kit": "^2.14.0",
     "bitcoinjs-lib": "^6.1.7",
     "date-fns": "^4.1.0",
     "dexie": "^4.0.11",

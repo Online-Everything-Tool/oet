@@ -3,9 +3,7 @@
   "directive": "pdf-media-extractor",
   "description": "Extracts images and other media files from PDF documents.",
   "inputConfig": {
-    "acceptsMimeTypes": [
-      "application/pdf"
-    ],
+    "acceptsMimeTypes": ["application/pdf"],
     "stateFiles": [
       {
         "stateKey": "inputPdfId"

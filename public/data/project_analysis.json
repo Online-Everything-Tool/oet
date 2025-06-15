@@ -9,11 +9,11 @@
     "Keep your data private with client-side processing"
   ],
   "suggestedNewToolDirectives": [
-    "text-formatter",
-    "json-beautifier",
-    "image-resizer",
-    "url-shortener",
-    "string-manipulator"
+    "text-diff-checker",
+    "unit-converter",
+    "image-palette-extractor",
+    "markdown-live-preview",
+    "timezone-converter"
   ],
   "modelNameUsed": "gemini-1.5-flash-latest",
   "generatedAt": "2025-05-26T17:23:37.085Z"
