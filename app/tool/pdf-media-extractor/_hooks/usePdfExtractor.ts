@@ -100,7 +100,7 @@ export function usePdfExtractor() {
               }
             } catch (e) {
               // Catch errors for individual images and log them, without crashing the whole process.
-              console.error(`Error processing image ${imgName} on page ${i}:`, e);
+              console.warn(`Error processing image ${imgName} on page ${i}:`, e);
             }
           }
           setProgress({ current: i, total: numPages });

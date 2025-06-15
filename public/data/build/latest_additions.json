@@ -1,5 +1,5 @@
 {
   "header": "✨ OET's Newest Tools!",
   "subheader": "Feedback welcome!",
-  "directives": ["songbook", "image-eye-dropper"]
+  "directives": ["pdf-media-extractor", "songbook"]
 }
