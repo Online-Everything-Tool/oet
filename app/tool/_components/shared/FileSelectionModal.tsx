@@ -41,7 +41,7 @@ interface FileSelectionModalProps {
   selectionMode?: 'single' | 'multiple';
   mode: ModalMode;
   libraryFilter?: { category?: string; type?: string };
-  initialTab?: 'library' | 'upload';
+  initialTab?: 'upload' | 'library';
   showFilterAfterUploadCheckbox?: boolean;
 }
 
@@ -118,7 +118,7 @@ const FileSelectionModal: React.FC<FileSelectionModalProps> = ({
     if (mode === 'selectExistingOnly') return 'library';
     if (initialTab === 'library' && showLibraryTab) return 'library';
     if (initialTab === 'upload' && showUploadTab) return 'upload';
-    return showLibraryTab ? 'library' : 'upload';
+    return showUploadTab ? 'upload' : 'library';
   }, [mode, initialTab, showLibraryTab, showUploadTab]);
 
   const [activeTab, setActiveTab] = useState<'library' | 'upload'>(

@@ -1,16 +1,19 @@
 import { useState, useCallback } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import type { PDFDocumentProxy, PDFPageProxy, PDFImage } from 'pdfjs-dist';
+// Type-only imports are safe for SSR as they are removed during compilation
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
-
-// Set worker source to a local copy for performance and offline capability.
-// This requires the worker file to be copied to the public directory.
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/workers/pdf.worker.mjs';
 
 export interface ExtractedImage {
   blob: Blob;
   name: string;
+}
+
+// A helper to promisify canvas.toBlob, which uses a callback.
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise(resolve => {
+    canvas.toBlob(resolve, 'image/png');
+  });
 }
 
 export function usePdfExtractor() {
@@ -31,86 +34,65 @@ export function usePdfExtractor() {
       setProgress({ current: 0, total: 0 });
 
       try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/data/pdf-media-extractor/pdf.worker.mjs';
+
         const arrayBuffer = await pdfFile.blob.arrayBuffer();
         const pdf: PDFDocumentProxy = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdf.numPages;
         setProgress({ current: 0, total: numPages });
 
-        const allImagePromises: Promise<ExtractedImage | null>[] = [];
+        const extractedImages: ExtractedImage[] = [];
 
         for (let i = 1; i <= numPages; i++) {
           const page: PDFPageProxy = await pdf.getPage(i);
-          const operatorList = await page.getOperatorList();
           
-          const imageOps = operatorList.fnArray.reduce((acc, op, index) => {
-            if (op === pdfjsLib.OPS.paintImageXObject) {
-              acc.push(operatorList.argsArray[index][0]);
-            }
-            return acc;
-          }, [] as string[]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const images = await (page as any).getImages();
 
-          for (const imgName of imageOps) {
-            const imagePromise = new Promise<ExtractedImage | null>((resolve) => {
-              // Using page.objs.get is the recommended way to get object data.
-              page.objs.get<PDFImage | undefined>(imgName, (img) => {
-                if (!img || !img.data) {
-                  resolve(null);
-                  return;
-                }
-                
-                let blob: Blob;
-                let fileExtension: string;
+          let imageIndex = 0;
+          for (const img of images) {
+            imageIndex++;
+            try {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) continue;
 
-                if (img.kind === pdfjsLib.ImageKind.GRAYSCALE_1BPP || img.kind === pdfjsLib.ImageKind.RGB_24BPP || img.kind === pdfjsLib.ImageKind.RGBA_32BPP) {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = img.width;
-                  canvas.height = img.height;
-                  const ctx = canvas.getContext('2d');
-                  if (!ctx) {
-                    resolve(null);
-                    return;
+              if (img.bitmap) {
+                ctx.drawImage(img.bitmap, 0, 0);
+              } else if (img.data) {
+                const imageData = ctx.createImageData(img.width, img.height);
+                if (img.kind === pdfjsLib.ImageKind.RGB_24BPP) {
+                  const data = new Uint8ClampedArray(img.width * img.height * 4);
+                  for (let j = 0, k = 0; j < img.data.length; j += 3, k += 4) {
+                    data[k] = img.data[j]; data[k + 1] = img.data[j + 1]; data[k + 2] = img.data[j + 2]; data[k + 3] = 255;
                   }
-                  const imageData = ctx.createImageData(img.width, img.height);
-
-                  if (img.data.length === img.width * img.height * 3) { // RGB
-                    const rgba = new Uint8ClampedArray(img.width * img.height * 4);
-                    for (let j = 0, k = 0; j < img.data.length; j += 3, k += 4) {
-                      rgba[k] = img.data[j];
-                      rgba[k + 1] = img.data[j + 1];
-                      rgba[k + 2] = img.data[j + 2];
-                      rgba[k + 3] = 255; // Alpha
-                    }
-                    imageData.data.set(rgba);
-                  } else { // Assuming RGBA or other direct copy
-                    imageData.data.set(img.data);
-                  }
-
-                  ctx.putImageData(imageData, 0, 0);
-                  canvas.toBlob((result) => {
-                    if (result) {
-                      blob = result;
-                      fileExtension = 'png';
-                      resolve({ blob, name: `page${i}-${imgName}.${fileExtension}` });
-                    } else {
-                      resolve(null);
-                    }
-                  }, 'image/png');
+                  imageData.data.set(data);
                 } else {
-                  resolve(null); // Unsupported image kind
+                  imageData.data.set(img.data);
                 }
-              }).catch(() => resolve(null));
-            });
-            allImagePromises.push(imagePromise);
+                ctx.putImageData(imageData, 0, 0);
+              } else {
+                continue;
+              }
+
+              const blob = await canvasToBlob(canvas);
+              if (blob) {
+                // We don't have the original 'imgName', so we'll generate one.
+                const name = `page${i}-image${imageIndex}.png`;
+                extractedImages.push({ blob, name });
+              }
+            } catch (e) {
+              console.error(`Error processing an image on page ${i}:`, e);
+            }
           }
           setProgress({ current: i, total: numPages });
         }
 
-        const extractedImages = (await Promise.all(allImagePromises)).filter(
-          (img): img is ExtractedImage => img !== null
-        );
-
         if (extractedImages.length === 0) {
-          setError('No images found in this PDF.');
+          setError('No compatible images found in this PDF.');
           setIsLoading(false);
           return [];
         }
