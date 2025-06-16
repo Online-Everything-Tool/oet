@@ -13,6 +13,7 @@ import { MetadataProvider } from './context/MetadataContext';
 import { RecentlyUsedProvider } from './context/RecentlyUsedContext';
 import Footer from './_components/Footer';
 import { FullscreenFocusProvider } from './context/FullscreenFocusContext';
+import AnalyticsBeacon from './_components/AnalyticsBeacon';
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({
@@ -108,6 +109,7 @@ export default function RootLayout({
                     {children}
                   </main>
                   <Footer />
+                  <AnalyticsBeacon />
                 </FullscreenFocusProvider>
               </RecentlyUsedProvider>
             </FavoritesProvider>
