@@ -19,5 +19,6 @@
       "reason": "TypeScript types for the 'dompurify' library."
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
