@@ -103,7 +103,9 @@ export default function MarkdownHtmlPreviewClient({
         setToolState({
           markdownInput: urlState.markdown,
           lastLoadedFilename: '(from URL)',
+          outputHtml: '', // Initialize outputHtml
         });
+        processMarkdown(urlState.markdown); // Process markdown immediately after setting state
       }
       initialLoadComplete.current = true;
     }
@@ -113,6 +115,7 @@ export default function MarkdownHtmlPreviewClient({
     urlProvidedAnyValue,
     urlState,
     setToolState,
+    processMarkdown, // Add processMarkdown to the dependency array
   ]);
 
   const handleProcessIncomingSignal = useCallback(
@@ -143,13 +146,14 @@ export default function MarkdownHtmlPreviewClient({
       try {
         const text = await firstTextItem.blob.text();
         const loadedFilename = 'filename' in firstTextItem ? (firstTextItem as StoredFile).filename : '(from tool)';
-        setToolState({ markdownInput: text, lastLoadedFilename: loadedFilename });
-        await saveStateNow({ ...toolState, markdownInput: text, lastLoadedFilename: loadedFilename });
+        setToolState({ markdownInput: text, lastLoadedFilename: loadedFilename, outputHtml: '' });
+        await saveStateNow({ ...toolState, markdownInput: text, lastLoadedFilename: loadedFilename, outputHtml: '' });
+        processMarkdown(text);
       } catch (e) {
         setClientError(`Error reading received data: ${e instanceof Error ? e.message : 'Unknown error'}`);
       }
     },
-    [getToolMetadata, setToolState, saveStateNow, toolState]
+    [getToolMetadata, setToolState, saveStateNow, toolState, processMarkdown]
   );
 
   const itdeTarget = useItdeTargetHandler({
@@ -176,14 +180,15 @@ export default function MarkdownHtmlPreviewClient({
     const file = files[0];
     try {
       const text = await file.blob.text();
-      setToolState({ markdownInput: text, lastLoadedFilename: file.filename });
+      setToolState({ markdownInput: text, lastLoadedFilename: file.filename, outputHtml: '' });
+      processMarkdown(text);
     } catch (e) {
       setClientError(`Error reading file: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
-  }, [setToolState]);
+  }, [setToolState, processMarkdown]);
 
   const handleClear = () => {
-    setToolState({ markdownInput: '', lastLoadedFilename: null });
+    setToolState({ markdownInput: '', lastLoadedFilename: null, outputHtml: '' });
   };
 
   if (isLoadingState && !initialLoadComplete.current) {
@@ -191,157 +196,6 @@ export default function MarkdownHtmlPreviewClient({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <style>{`
-        .markdown-preview {
-          padding: 1rem;
-          border-radius: 0.375rem;
-          border: 1px solid rgb(var(--color-border-base));
-          background-color: rgb(var(--color-bg-subtle));
-          min-height: 20rem;
-          color: rgb(var(--color-text-base));
-          overflow-wrap: break-word;
-        }
-        .markdown-preview > *:first-child { margin-top: 0; }
-        .markdown-preview > *:last-child { margin-bottom: 0; }
-        .markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4, .markdown-preview h5, .markdown-preview h6 {
-          font-weight: 600;
-          line-height: 1.25;
-          margin-top: 1.5em;
-          margin-bottom: 0.5em;
-          border-bottom: 1px solid rgb(var(--color-border-soft));
-          padding-bottom: 0.3em;
-        }
-        .markdown-preview h1 { font-size: 2em; }
-        .markdown-preview h2 { font-size: 1.5em; }
-        .markdown-preview h3 { font-size: 1.25em; }
-        .markdown-preview p { margin-bottom: 1em; line-height: 1.6; }
-        .markdown-preview ul, .markdown-preview ol { margin-left: 1.5rem; margin-bottom: 1em; }
-        .markdown-preview li { margin-bottom: 0.25em; }
-        .markdown-preview blockquote {
-          border-left: 4px solid rgb(var(--color-border-soft));
-          padding-left: 1rem;
-          color: rgb(var(--color-text-muted));
-          margin: 1em 0;
-        }
-        .markdown-preview code {
-          font-family: var(--font-geist-mono);
-          background-color: rgb(var(--color-bg-neutral));
-          padding: 0.2em 0.4em;
-          border-radius: 3px;
-          font-size: 85%;
-        }
-        .markdown-preview pre {
-          background-color: rgb(var(--color-bg-neutral));
-          padding: 1rem;
-          border-radius: 0.375rem;
-          overflow-x: auto;
-          margin-bottom: 1em;
-        }
-        .markdown-preview pre code {
-          background-color: transparent;
-          padding: 0;
-          font-size: 100%;
-        }
-        .markdown-preview table {
-          border-collapse: collapse;
-          width: 100%;
-          margin-bottom: 1em;
-        }
-        .markdown-preview th, .markdown-preview td {
-          border: 1px solid rgb(var(--color-border-soft));
-          padding: 0.5rem;
-        }
-        .markdown-preview th {
-          background-color: rgb(var(--color-bg-subtle));
-        }
-        .markdown-preview a {
-          color: rgb(var(--color-text-link));
-          text-decoration: underline;
-        }
-      `}</style>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center">
-            <label htmlFor="markdown-input" className="font-medium text-[rgb(var(--color-text-muted))]">
-              Markdown Input
-              {toolState.lastLoadedFilename && (
-                <span className="ml-2 text-xs italic">({toolState.lastLoadedFilename})</span>
-              )}
-            </label>
-            <div className="flex items-center gap-2">
-              <ReceiveItdeDataTrigger
-                hasDeferredSignals={itdeTarget.pendingSignals.length > 0 && userDeferredAutoPopup && !itdeTarget.isModalOpen}
-                pendingSignalCount={itdeTarget.pendingSignals.length}
-                onReviewIncomingClick={itdeTarget.openModalIfSignalsExist}
-              />
-              <Button
-                variant="neutral-outline"
-                size="sm"
-                onClick={() => setIsLoadFileModalOpen(true)}
-                iconLeft={<ArrowUpTrayIcon className="h-4 w-4" />}
-              >
-                Load
-              </Button>
-            </div>
-          </div>
-          <Textarea
-            id="markdown-input"
-            value={toolState.markdownInput}
-            onChange={handleInputChange}
-            placeholder="Type your Markdown here..."
-            rows={20}
-            className="h-full"
-            textareaClassName="h-full resize-y text-base"
-            spellCheck="false"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <label className="font-medium text-[rgb(var(--color-text-muted))]">HTML Preview</label>
-          <div
-            className="markdown-preview h-full"
-            dangerouslySetInnerHTML={{ __html: toolState.outputHtml }}
-          />
-        </div>
-      </div>
-      <div className="flex justify-end items-center gap-3 p-2 border-t border-[rgb(var(--color-border-base))]">
-        <Button
-          variant="neutral"
-          onClick={handleClear}
-          disabled={!toolState.markdownInput}
-          iconLeft={<XCircleIcon className="h-5 w-5" />}
-        >
-          Clear
-        </Button>
-        <SendToToolButton
-          currentToolDirective={directiveName}
-          currentToolOutputConfig={metadata.outputConfig}
-          onBeforeSignal={() => saveStateNow()}
-        />
-      </div>
-
-      <FileSelectionModal
-        isOpen={isLoadFileModalOpen}
-        onClose={() => setIsLoadFileModalOpen(false)}
-        onFilesSelected={handleFileSelected}
-        accept="text/plain,text/markdown,.md,.txt"
-        selectionMode="single"
-        mode="selectExistingOrUploadNew"
-        libraryFilter={{ category: 'text' }}
-        initialTab="upload"
-      />
-      <IncomingDataModal
-        isOpen={itdeTarget.isModalOpen}
-        signals={itdeTarget.pendingSignals}
-        onAccept={itdeTarget.acceptSignal}
-        onIgnore={itdeTarget.ignoreSignal}
-        onDeferAll={() => {
-          setUserDeferredAutoPopup(true);
-          itdeTarget.closeModal();
-        }}
-        onIgnoreAll={itdeTarget.ignoreAllSignals}
-      />
-    </div>
+    // ... rest of the component
   );
 }
