@@ -138,6 +138,7 @@ export default function ImageAdjustmentCard({
         onChange={(e) => onTiltChange(image.instanceId, Number(e.target.value))}
         disabled={isLoading}
         containerClassName="w-full"
+        inputClassName="appearance-none"
       />
       {!isFirst && (
         <Range
@@ -152,6 +153,7 @@ export default function ImageAdjustmentCard({
           }
           disabled={isLoading}
           containerClassName="w-full"
+          inputClassName="appearance-none"
         />
       )}
     </div>

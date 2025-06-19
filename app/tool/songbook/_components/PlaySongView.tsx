@@ -498,7 +498,7 @@ export default function PlaySongView({
               onChange={handleSpeedChange}
               showValue={false}
               containerClassName="flex-grow min-w-[100px]"
-              inputClassName="h-2.5"
+              inputClassName="h-2.5 appearance-none"
             />
             <span className="text-sm text-[rgb(var(--color-text-muted))] w-8 text-center tabular-nums">
               {currentSpeed}
