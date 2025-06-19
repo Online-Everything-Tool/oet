@@ -1,0 +1,30 @@
+{
+  "title": "Markdown to HTML Preview",
+  "directive": "markdown-html-preview",
+  "description": "Renders a live preview of HTML from Markdown input. Supports GitHub Flavored Markdown.",
+  "urlStateParams": [
+    {
+      "paramName": "markdown",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain",
+      "text/markdown"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputHtml",
+        "mimeType": "text/html"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}

@@ -1,0 +1,23 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "marked",
+      "reason": "To parse Markdown into HTML.",
+      "importUsed": "import { marked } from 'marked';"
+    },
+    {
+      "packageName": "@types/marked",
+      "reason": "TypeScript types for the 'marked' library."
+    },
+    {
+      "packageName": "dompurify",
+      "reason": "To sanitize the HTML output from 'marked' to prevent XSS vulnerabilities.",
+      "importUsed": "import DOMPurify from 'dompurify';"
+    },
+    {
+      "packageName": "@types/dompurify",
+      "reason": "TypeScript types for the 'dompurify' library."
+    }
+  ],
+  "assetInstructions": null
+}
