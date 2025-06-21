@@ -57,7 +57,7 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
     );
   }
   return (
-    <>
+    <div className="flex gap-2">
       <SendToToolButton
         currentToolDirective={directiveName}
         currentToolOutputConfig={outputConfig}
@@ -115,6 +115,6 @@ export const OutputActionButtons = React.memo(function OutputActionButtons({
       >
         Clear
       </Button>
-    </>
+    </div>
   );
 });
