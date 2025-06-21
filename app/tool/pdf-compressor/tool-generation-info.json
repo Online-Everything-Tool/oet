@@ -6,5 +6,6 @@
       "importUsed": "PDFDocument"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
