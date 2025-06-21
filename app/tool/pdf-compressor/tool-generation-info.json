@@ -1,0 +1,10 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "pdf-lib",
+      "reason": "For loading, modifying, and saving PDF documents on the client-side, which is the core of the compression logic.",
+      "importUsed": "PDFDocument"
+    }
+  ],
+  "assetInstructions": null
+}
