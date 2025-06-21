@@ -1,0 +1,54 @@
+{
+  "title": "URL Deconstructor",
+  "directive": "url-deconstructor",
+  "description": "The url-deconstructor tool parses a given URL, extracting and displaying its components such as protocol, domain, path, query parameters, and fragments.",
+  "urlStateParams": [
+    {
+      "paramName": "url",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "protocol",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "hostname",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "port",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "pathname",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "search",
+        "mimeType": "text/plain"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "hash",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
