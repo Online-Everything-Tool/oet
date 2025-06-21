@@ -7,34 +7,27 @@ import { useMetadata } from '@/app/context/MetadataContext';
 import {
   usePdfCompressor,
   CompressionLevel,
+  CompressionOptions,
 } from '../_hooks/usePdfCompressor';
 import type { StoredFile } from '@/src/types/storage';
+import { OutputConfig } from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
+import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
 import Button from '@/app/tool/_components/form/Button';
 import RadioGroup from '@/app/tool/_components/form/RadioGroup';
-import {
-  DocumentArrowUpIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-  InformationCircleIcon,
-} from '@heroicons/react/24/outline';
-import { formatBytes } from '@/app/lib/utils';
 import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
 import useItdeTargetHandler from '@/app/tool/_hooks/useItdeTargetHandler';
 import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
 import { resolveItdeData } from '@/app/lib/itdeDataUtils';
 import toolSpecificMetadata from '../metadata.json';
-import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
-import type { OutputConfig, ReferenceDetails } from '@/src/types/tool';
-
+import { formatBytes } from '@/app/lib/utils';
+import { DocumentArrowUpIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon } from '@heroicons/react/20/solid';
 
 interface PdfCompressorState {
   inputPdfId: string | null;
   processedPdfId: string | null;
   compressionLevel: CompressionLevel;
-  inputPdfName: string | null;
-  inputPdfSize: number | null;
-  processedPdfSize: number | null;
   lastUserGivenFilename: string | null;
 }
 
@@ -42,58 +35,75 @@ const DEFAULT_STATE: PdfCompressorState = {
   inputPdfId: null,
   processedPdfId: null,
   compressionLevel: 'medium',
-  inputPdfName: null,
-  inputPdfSize: null,
-  processedPdfSize: null,
   lastUserGivenFilename: null,
 };
+
+const COMPRESSION_OPTIONS = [
+  { value: 'low', label: 'Low (Best Quality)' },
+  { value: 'medium', label: 'Medium (Balanced)' },
+  { value: 'high', label: 'High (Smallest Size)' },
+] as const;
 
 export default function PdfCompressorClient({
   toolRoute,
 }: {
   toolRoute: string;
 }) {
-  const {
-    state,
-    setState,
-    isLoadingState,
-    clearStateAndPersist,
-  } = useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
+  const { state, setState, isLoadingState, clearStateAndPersist, saveStateNow } =
+    useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
+
   const {
     getFile,
-    addFile,
     makeFilePermanentAndUpdate,
     cleanupOrphanedTemporaryFiles,
   } = useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
-    isCompressing,
-    error: compressorError,
+    isLoading: isCompressing,
+    error: compressionError,
+    progress,
     compressPdf,
   } = usePdfCompressor();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [processedFile, setProcessedFile] = useState<StoredFile | null>(null);
   const [isFilenamePromptOpen, setIsFilenamePromptOpen] = useState(false);
+  const [filenamePromptInitialValue, setFilenamePromptInitialValue] =
+    useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const [inputPdf, setInputPdf] = useState<StoredFile | null>(null);
+  const [processedPdf, setProcessedPdf] = useState<StoredFile | null>(null);
   const [manualSaveSuccess, setManualSaveSuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   useEffect(() => {
-    setError(compressorError);
-  }, [compressorError]);
+    setError(compressionError);
+  }, [compressionError]);
+
+  useEffect(() => {
+    if (state.inputPdfId) {
+      getFile(state.inputPdfId).then((pdf) => setInputPdf(pdf || null));
+    } else {
+      setInputPdf(null);
+    }
+  }, [state.inputPdfId, getFile]);
+
+  useEffect(() => {
+    if (state.processedPdfId) {
+      getFile(state.processedPdfId).then((pdf) => setProcessedPdf(pdf || null));
+    } else {
+      setProcessedPdf(null);
+    }
+  }, [state.processedPdfId, getFile]);
 
   const handleClear = useCallback(async () => {
     const idsToClean = [];
     if (state.inputPdfId) idsToClean.push(state.inputPdfId);
     if (state.processedPdfId) idsToClean.push(state.processedPdfId);
-
     await clearStateAndPersist();
-    setProcessedFile(null);
     setError(null);
-
     if (idsToClean.length > 0) {
-      cleanupOrphanedTemporaryFiles(idsToClean);
+      await cleanupOrphanedTemporaryFiles(idsToClean);
     }
   }, [
     clearStateAndPersist,
@@ -106,14 +116,9 @@ export default function PdfCompressorClient({
     async (files: StoredFile[]) => {
       setIsModalOpen(false);
       if (files.length > 0 && files[0].id) {
-        const selectedFile = files[0];
-        if (state.inputPdfId !== selectedFile.id) {
+        if (state.inputPdfId !== files[0].id) {
           await handleClear();
-          setState({
-            inputPdfId: selectedFile.id,
-            inputPdfName: selectedFile.filename,
-            inputPdfSize: selectedFile.size,
-          });
+          setState({ inputPdfId: files[0].id });
         }
       }
     },
@@ -123,39 +128,20 @@ export default function PdfCompressorClient({
   const handleItdeSignal = useCallback(
     async (signal: { sourceDirective: string }) => {
       const sourceMeta = getToolMetadata(signal.sourceDirective);
-      if (!sourceMeta) {
-        setError(`Metadata not found for source: ${signal.sourceDirective}`);
-        return;
-      }
+      if (!sourceMeta) return;
       const resolved = await resolveItdeData(
         signal.sourceDirective,
         sourceMeta.outputConfig
       );
       if (
         resolved.type === 'itemList' &&
-        resolved.data &&
-        resolved.data.length > 0
+        resolved.data?.length &&
+        'id' in resolved.data[0]
       ) {
-        const pdfItem = resolved.data.find(
-          (item) => item.type === 'application/pdf' && 'id' in item
-        ) as StoredFile | undefined;
-        if (pdfItem) {
-          if (state.inputPdfId !== pdfItem.id) {
-            await handleClear();
-            setState({
-              inputPdfId: pdfItem.id,
-              inputPdfName: pdfItem.filename,
-              inputPdfSize: pdfItem.size,
-            });
-          }
-        } else {
-          setError('No PDF file found in the received data.');
-        }
-      } else {
-        setError(resolved.errorMessage || 'Failed to receive data.');
+        handleFileSelected(resolved.data as StoredFile[]);
       }
     },
-    [getToolMetadata, setState, state.inputPdfId, handleClear]
+    [getToolMetadata, handleFileSelected]
   );
 
   const itdeHandler = useItdeTargetHandler({
@@ -169,135 +155,209 @@ export default function PdfCompressorClient({
     }
   }, [isLoadingState, itdeHandler]);
 
-  useEffect(() => {
-    if (state.processedPdfId) {
-      getFile(state.processedPdfId).then((file) => setProcessedFile(file));
-    } else {
-      setProcessedFile(null);
-    }
-  }, [state.processedPdfId, getFile]);
-
   const handleCompress = async () => {
-    if (!state.inputPdfId) {
+    if (!inputPdf) {
       setError('Please select a PDF file first.');
       return;
     }
-    setError(null);
-    const inputFile = await getFile(state.inputPdfId);
-    if (!inputFile) {
-      setError('Could not retrieve the selected PDF file.');
-      return;
-    }
-
-    const compressedBlob = await compressPdf(inputFile, state.compressionLevel);
-
-    if (compressedBlob) {
-      const oldProcessedId = state.processedPdfId;
-      const baseName =
-        inputFile.filename.substring(0, inputFile.filename.lastIndexOf('.')) ||
-        inputFile.filename;
-      const outputFileName = `${baseName}-compressed.pdf`;
-
-      const newFileId = await addFile(
-        compressedBlob,
-        outputFileName,
-        'application/pdf',
-        true
-      );
-
-      setState({
-        processedPdfId: newFileId,
-        processedPdfSize: compressedBlob.size,
-        lastUserGivenFilename: null,
-      });
+    const compressionOptions: CompressionOptions = {
+      level: state.compressionLevel,
+    };
+    const newFileId = await compressPdf(inputPdf, compressionOptions);
+    if (newFileId) {
+      if (state.processedPdfId) {
+        await cleanupOrphanedTemporaryFiles([state.processedPdfId]);
+      }
+      setState({ processedPdfId: newFileId, lastUserGivenFilename: null });
       setManualSaveSuccess(false);
       setDownloadSuccess(false);
-
-      if (oldProcessedId) {
-        cleanupOrphanedTemporaryFiles([oldProcessedId]);
-      }
     }
   };
 
-  const initiateSave = () => {
-    if (!processedFile) return;
-
+  const initiateDownload = () => {
+    if (!processedPdf) return;
+    const filename =
+      state.lastUserGivenFilename ||
+      processedPdf.filename ||
+      'compressed.pdf';
+    setFilenamePromptInitialValue(filename);
     setIsFilenamePromptOpen(true);
   };
 
   const handleConfirmFilename = async (filename: string) => {
     setIsFilenamePromptOpen(false);
-    if (!state.processedPdfId) return;
-
-    const success = await makeFilePermanentAndUpdate(
-      state.processedPdfId,
-      filename
-    );
-    if (success) {
-      setProcessedFile((prev) =>
-        prev ? { ...prev, isTemporary: false } : null
-      );
-      setManualSaveSuccess(true);
-      setState({ lastUserGivenFilename: filename });
-      setTimeout(() => setManualSaveSuccess(false), 2000);
-    } else {
-      setError('Failed to save file to library.');
-    }
-  };
-
-  const handleDownload = () => {
-    if (!processedFile?.blob) return;
-    const url = URL.createObjectURL(processedFile.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = state.lastUserGivenFilename || processedFile.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setState({ lastUserGivenFilename: filename });
+    if (!processedPdf?.blob) return;
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(processedPdf.blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
     setDownloadSuccess(true);
     setTimeout(() => setDownloadSuccess(false), 2000);
   };
 
-  const compressionOptions = useMemo(
-    () => [
-      { value: 'low', label: 'Basic (Compatibility)' },
-      { value: 'medium', label: 'Recommended' },
-      { value: 'high', label: 'High (Removes Metadata)' },
-    ],
-    []
-  );
+  const handleSaveToLibrary = async () => {
+    if (!processedPdf) return;
+    await makeFilePermanentAndUpdate(processedPdf.id);
+    setManualSaveSuccess(true);
+    setTimeout(() => setManualSaveSuccess(false), 2000);
+  };
 
-  const sizeReduction =
-    state.inputPdfSize && state.processedPdfSize
-      ? ((state.inputPdfSize - state.processedPdfSize) / state.inputPdfSize) *
-        100
-      : 0;
+  const sizeReduction = useMemo(() => {
+    if (!inputPdf || !processedPdf) return 0;
+    return 1 - processedPdf.size / inputPdf.size;
+  }, [inputPdf, processedPdf]);
 
   const canPerformActions = !!state.processedPdfId && !isCompressing;
-  const canInitiateSaveCurrent = canPerformActions && !!processedFile?.isTemporary;
-
-  const outputConfig = useMemo<OutputConfig>(
-    () => ({
-      transferableContent: [{ dataType: 'file', stateKey: 'processedPdfId' }],
-    }),
-    []
-  );
-
+  const canInitiateSave = canPerformActions && !!processedPdf?.isTemporary;
 
   return (
     <div className="space-y-4">
-      {/* ... other JSX ... */}
-          <OutputActionButtons
-            {/* other props */}
-            directiveName={toolSpecificMetadata.directive}
-            outputConfig={outputConfig}
-            {/* other props */}
+      <div className="p-4 border border-[rgb(var(--color-border-base))] rounded-md bg-[rgb(var(--color-bg-subtle))] space-y-3">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button
+            variant="accent2"
+            onClick={() => setIsModalOpen(true)}
+            iconLeft={<DocumentArrowUpIcon className="h-5 w-5" />}
+          >
+            {state.inputPdfId ? 'Change PDF' : 'Select PDF'}
+          </Button>
+          {inputPdf && (
+            <Button
+              variant="primary"
+              onClick={handleCompress}
+              disabled={isCompressing}
+              isLoading={isCompressing}
+              iconLeft={<ArrowPathIcon className="h-5 w-5" />}
+            >
+              Compress
+            </Button>
+          )}
+          <div className="ml-auto">
+            <OutputActionButtons
+              canPerform={canPerformActions}
+              isSaveSuccess={manualSaveSuccess}
+              isDownloadSuccess={downloadSuccess}
+              canInitiateSave={canInitiateSave}
+              onInitiateSave={handleSaveToLibrary}
+              onInitiateDownload={initiateDownload}
+              onClear={handleClear}
+              directiveName={toolSpecificMetadata.directive}
+              outputConfig={toolSpecificMetadata.outputConfig as OutputConfig}
+              selectedOutputItems={processedPdf ? [processedPdf] : []}
+            />
+          </div>
+        </div>
+        <div className="pt-3 border-t border-[rgb(var(--color-border-base))]">
+          <RadioGroup
+            legend="Compression Level"
+            name="compressionLevel"
+            options={COMPRESSION_OPTIONS}
+            selectedValue={state.compressionLevel}
+            onChange={(value) => setState({ compressionLevel: value })}
+            disabled={isCompressing}
           />
         </div>
-      )}
-      {/* ... other JSX ... */}
+      </div>
 
+      {error && (
+        <div className="p-3 bg-[rgb(var(--color-bg-error-subtle))] border border-[rgb(var(--color-border-error))] text-[rgb(var(--color-text-error))] rounded-md text-sm">
+          {error}
+        </div>
+      )}
+
+      {isCompressing && (
+        <div className="text-center p-4">
+          <p className="text-lg font-semibold animate-pulse">
+            Compressing PDF...
+          </p>
+          <p className="text-sm text-[rgb(var(--color-text-muted))]">
+            Processing page {progress.current} of {progress.total}
+          </p>
+          <div className="w-full bg-[rgb(var(--color-bg-neutral))] rounded-full h-2.5 mt-2">
+            <div
+              className="bg-[rgb(var(--color-button-primary-bg))] h-2.5 rounded-full"
+              style={{
+                width: `${(progress.current / (progress.total || 1)) * 100}%`,
+              }}
+            ></div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-lg font-medium mb-1">Input PDF</h3>
+          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center">
+            {inputPdf ? (
+              <div>
+                <p className="font-semibold">{inputPdf.filename}</p>
+                <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                  {formatBytes(inputPdf.size)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-[rgb(var(--color-text-muted))]">
+                No PDF selected
+              </p>
+            )}
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-medium mb-1">Output PDF</h3>
+          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center">
+            {processedPdf ? (
+              <div>
+                <p className="font-semibold">{processedPdf.filename}</p>
+                <p className="text-sm text-[rgb(var(--color-text-muted))]">
+                  {formatBytes(processedPdf.size)}
+                </p>
+                <p
+                  className={`font-bold mt-1 ${
+                    sizeReduction > 0
+                      ? 'text-[rgb(var(--color-status-success))]'
+                      : 'text-[rgb(var(--color-status-error))]'
+                  }`}
+                >
+                  {(sizeReduction * 100).toFixed(2)}% size reduction
+                </p>
+              </div>
+            ) : (
+              <p className="text-[rgb(var(--color-text-muted))]">
+                Output appears here
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <FileSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onFilesSelected={handleFileSelected}
+        mode="selectExistingOrUploadNew"
+        accept="application/pdf"
+        selectionMode="single"
+        libraryFilter={{ type: 'application/pdf' }}
+      />
+      <FilenamePromptModal
+        isOpen={isFilenamePromptOpen}
+        onClose={() => setIsFilenamePromptOpen(false)}
+        onConfirm={handleConfirmFilename}
+        initialFilename={processedPdf?.filename || 'compressed.pdf'}
+        filenameAction="download"
+      />
+      <IncomingDataModal
+        isOpen={itdeHandler.isModalOpen}
+        signals={itdeHandler.pendingSignals}
+        onAccept={itdeHandler.acceptSignal}
+        onIgnore={itdeHandler.ignoreSignal}
+        onDeferAll={itdeHandler.closeModal}
+        onIgnoreAll={itdeHandler.ignoreAllSignals}
+      />
     </div>
   );
 }

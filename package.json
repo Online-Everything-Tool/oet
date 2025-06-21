@@ -50,7 +50,6 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24",
-    "@types/pdfjs-dist": "^2.10.378",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",

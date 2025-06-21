@@ -1,79 +1,147 @@
 import { useState, useCallback } from 'react';
-import { PDFDocument } from 'pdf-lib';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import type { StoredFile } from '@/src/types/storage';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
-export type CompressionLevel = 'low' | 'medium' | 'high';
+export type CompressionLevel = 'low' | 'medium' | 'high' | 'custom';
 
-interface UsePdfCompressorReturn {
-  isCompressing: boolean;
-  error: string | null;
-  compressPdf: (
-    pdfFile: StoredFile,
-    level: CompressionLevel
-  ) => Promise<Blob | null>;
+export interface CompressionOptions {
+  level: CompressionLevel;
+  quality?: number; // 0 to 1 for JPEG
+  maxDimension?: number; // max width/height
 }
 
-export function usePdfCompressor(): UsePdfCompressorReturn {
-  const [isCompressing, setIsCompressing] = useState(false);
+const COMPRESSION_PRESETS: Record<
+  'low' | 'medium' | 'high',
+  Omit<CompressionOptions, 'level'>
+> = {
+  low: { quality: 0.9, maxDimension: 2400 },
+  medium: { quality: 0.75, maxDimension: 1920 },
+  high: { quality: 0.60, maxDimension: 1280 },
+};
+
+export function usePdfCompressor() {
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const { addFile } = useFileLibrary();
 
   const compressPdf = useCallback(
     async (
       pdfFile: StoredFile,
-      level: CompressionLevel
-    ): Promise<Blob | null> => {
+      options: CompressionOptions
+    ): Promise<string | null> => {
       if (!pdfFile.blob) {
-        setError('PDF file content is missing.');
+        setError('PDF file blob is missing.');
         return null;
       }
 
-      setIsCompressing(true);
+      setIsLoading(true);
       setError(null);
+      setProgress({ current: 0, total: 0 });
 
       try {
-        const existingPdfBytes = await pdfFile.blob.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(existingPdfBytes, {
-          // Disabling font subsetting on load can prevent errors with some documents
-          updateMetadata: false,
-        });
+        const pdfjsLib = await import('pdfjs-dist');
+        const { PDFDocument } = await import('pdf-lib');
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
+          '/data/pdf-media-extractor/pdf.worker.mjs';
 
-        // Compression logic based on level
-        if (level === 'high') {
-          // Remove metadata for high compression
-          pdfDoc.setTitle('');
-          pdfDoc.setAuthor('');
-          pdfDoc.setSubject('');
-          pdfDoc.setKeywords([]);
-          pdfDoc.setProducer('');
-          pdfDoc.setCreator('');
-          pdfDoc.setCreationDate(new Date(0));
-          pdfDoc.setModificationDate(new Date(0));
+        const originalPdfBytes = await pdfFile.blob.arrayBuffer();
+        const pdfDocToRead: PDFDocumentProxy = await pdfjsLib.getDocument({
+          data: originalPdfBytes.slice(0),
+        }).promise;
+        const pdfDocToWrite = await PDFDocument.create();
+        const numPages = pdfDocToRead.numPages;
+        setProgress({ current: 0, total: numPages });
+
+        const preset =
+          options.level === 'custom'
+            ? options
+            : COMPRESSION_PRESETS[options.level];
+
+        for (let i = 0; i < numPages; i++) {
+          const page: PDFPageProxy = await pdfDocToRead.getPage(i + 1);
+          const viewport = page.getViewport({ scale: 1.5 }); // Render at a decent resolution
+
+          let { width, height } = viewport;
+          let scale = 1.0;
+
+          if (preset.maxDimension) {
+            if (width > preset.maxDimension || height > preset.maxDimension) {
+              scale =
+                width > height
+                  ? preset.maxDimension / width
+                  : preset.maxDimension / height;
+              width *= scale;
+              height *= scale;
+            }
+          }
+          
+          width = Math.round(width);
+          height = Math.round(height);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const context = canvas.getContext('2d');
+          if (!context) continue;
+
+          await page.render({
+            canvasContext: context,
+            viewport: page.getViewport({ scale: scale }),
+          }).promise;
+
+          const compressedImageBytes = await new Promise<ArrayBuffer>(
+            (resolve) => {
+              canvas.toBlob(
+                (blob) => {
+                  blob?.arrayBuffer().then(resolve);
+                },
+                'image/jpeg',
+                preset.quality
+              );
+            }
+          );
+          
+          const jpgImage = await pdfDocToWrite.embedJpg(compressedImageBytes);
+          const newPage = pdfDocToWrite.addPage([width, height]);
+          newPage.drawImage(jpgImage, {
+            x: 0,
+            y: 0,
+            width: width,
+            height: height,
+          });
+          
+          setProgress({ current: i + 1, total: numPages });
         }
 
-        // The primary compression comes from re-saving the document,
-        // which allows pdf-lib to restructure the file, remove unused objects,
-        // and use object streams for better compression.
-        const pdfBytes = await pdfDoc.save({
-          useObjectStreams: level !== 'low', // Object streams are a key part of modern PDF compression
-        });
-
-        return new Blob([pdfBytes], { type: 'application/pdf' });
+        const pdfBytes = await pdfDocToWrite.save();
+        const newBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const originalFilename =
+          pdfFile.filename.substring(0, pdfFile.filename.lastIndexOf('.')) ||
+          pdfFile.filename;
+        const newFilename = `${originalFilename}-compressed.pdf`;
+        const newFileId = await addFile(
+          newBlob,
+          newFilename,
+          'application/pdf',
+          true
+        );
+        return newFileId;
       } catch (err) {
         console.error('Error during PDF compression:', err);
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'An unknown error occurred during compression.';
         setError(
-          `Failed to compress PDF. The file may be corrupted or password-protected. Error: ${message}`
+          err instanceof Error
+            ? `Compression failed: ${err.message}`
+            : 'An unknown error occurred during PDF compression.'
         );
         return null;
       } finally {
-        setIsCompressing(false);
+        setIsLoading(false);
       }
     },
-    []
+    [addFile]
   );
 
-  return { isCompressing, error, compressPdf };
+  return { isLoading, error, progress, compressPdf };
 }
