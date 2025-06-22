@@ -44,8 +44,7 @@ export const usePaletteExtractor = () => {
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) throw new Error('Could not get canvas context');
 
-        // Quality setting determines the size of the canvas for processing
-        const MAX_DIMENSION = 100 + options.quality * 15; // e.g., quality 10 -> 250px
+        const MAX_DIMENSION = 100 + options.quality * 15;
         const aspectRatio = img.width / img.height;
         if (aspectRatio > 1) {
           canvas.width = MAX_DIMENSION;
@@ -61,7 +60,6 @@ export const usePaletteExtractor = () => {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const pixels: RGB[] = [];
         for (let i = 0; i < imageData.data.length; i += 4) {
-          // Skip transparent pixels
           if (imageData.data[i + 3] > 128) {
             pixels.push([
               imageData.data[i],
@@ -75,16 +73,17 @@ export const usePaletteExtractor = () => {
           throw new Error('No opaque pixels found in the image.');
         }
 
-        // Median Cut Algorithm
         const colorBuckets = [pixels];
         while (colorBuckets.length < options.colorCount) {
           const bucketToSplit = colorBuckets.shift();
           if (!bucketToSplit || bucketToSplit.length === 0) continue;
 
-          // Find the dimension with the greatest range
-          let minR = 255, maxR = 0;
-          let minG = 255, maxG = 0;
-          let minB = 255, maxB = 0;
+          let minR = 255,
+            maxR = 0;
+          let minG = 255,
+            maxG = 0;
+          let minB = 255,
+            maxB = 0;
           for (const pixel of bucketToSplit) {
             minR = Math.min(minR, pixel[0]);
             maxR = Math.max(maxR, pixel[0]);
@@ -96,7 +95,8 @@ export const usePaletteExtractor = () => {
           const rangeR = maxR - minR;
           const rangeG = maxG - minG;
           const rangeB = maxB - minB;
-          const sortIndex = rangeR >= rangeG && rangeR >= rangeB ? 0 : rangeG >= rangeB ? 1 : 2;
+          const sortIndex =
+            rangeR >= rangeG && rangeR >= rangeB ? 0 : rangeG >= rangeB ? 1 : 2;
 
           bucketToSplit.sort((a, b) => a[sortIndex] - b[sortIndex]);
           const mid = Math.floor(bucketToSplit.length / 2);
@@ -105,7 +105,7 @@ export const usePaletteExtractor = () => {
         }
 
         const palette: ColorInfo[] = colorBuckets
-          .filter(bucket => bucket.length > 0)
+          .filter((bucket) => bucket.length > 0)
           .map((bucket) => {
             const total = bucket.reduce(
               (acc, pixel) => {
@@ -128,7 +128,8 @@ export const usePaletteExtractor = () => {
         setIsLoading(false);
         return palette;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : 'An unknown error occurred.';
+        const msg =
+          e instanceof Error ? e.message : 'An unknown error occurred.';
         setError(msg);
         setIsLoading(false);
         return null;

@@ -3,9 +3,7 @@
   "directive": "image-palette-extractor",
   "description": "This tool extracts the dominant colors from an image, providing a palette of representative colors.",
   "inputConfig": {
-    "acceptsMimeTypes": [
-      "image/*"
-    ],
+    "acceptsMimeTypes": ["image/*"],
     "stateFiles": [
       {
         "stateKey": "selectedFileId"

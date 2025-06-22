@@ -49,14 +49,16 @@ export default function PdfCompressorClient({
 }: {
   toolRoute: string;
 }) {
-  const { state, setState, isLoadingState, clearStateAndPersist, saveStateNow } =
-    useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
-
   const {
-    getFile,
-    makeFilePermanentAndUpdate,
-    cleanupOrphanedTemporaryFiles,
-  } = useFileLibrary();
+    state,
+    setState,
+    isLoadingState,
+    clearStateAndPersist,
+    saveStateNow,
+  } = useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
+
+  const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
+    useFileLibrary();
   const { getToolMetadata } = useMetadata();
   const {
     isLoading: isCompressing,
@@ -177,9 +179,7 @@ export default function PdfCompressorClient({
   const initiateDownload = () => {
     if (!processedPdf) return;
     const filename =
-      state.lastUserGivenFilename ||
-      processedPdf.filename ||
-      'compressed.pdf';
+      state.lastUserGivenFilename || processedPdf.filename || 'compressed.pdf';
     setFilenamePromptInitialValue(filename);
     setIsFilenamePromptOpen(true);
   };

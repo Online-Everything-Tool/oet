@@ -7,8 +7,8 @@ export type CompressionLevel = 'low' | 'medium' | 'high' | 'custom';
 
 export interface CompressionOptions {
   level: CompressionLevel;
-  quality?: number; // 0 to 1 for JPEG
-  maxDimension?: number; // max width/height
+  quality?: number;
+  maxDimension?: number;
 }
 
 const COMPRESSION_PRESETS: Record<
@@ -17,7 +17,7 @@ const COMPRESSION_PRESETS: Record<
 > = {
   low: { quality: 0.9, maxDimension: 2400 },
   medium: { quality: 0.75, maxDimension: 1920 },
-  high: { quality: 0.60, maxDimension: 1280 },
+  high: { quality: 0.6, maxDimension: 1280 },
 };
 
 export function usePdfCompressor() {
@@ -61,7 +61,7 @@ export function usePdfCompressor() {
 
         for (let i = 0; i < numPages; i++) {
           const page: PDFPageProxy = await pdfDocToRead.getPage(i + 1);
-          const viewport = page.getViewport({ scale: 1.5 }); // Render at a decent resolution
+          const viewport = page.getViewport({ scale: 1.5 });
 
           let { width, height } = viewport;
           let scale = 1.0;
@@ -76,7 +76,7 @@ export function usePdfCompressor() {
               height *= scale;
             }
           }
-          
+
           width = Math.round(width);
           height = Math.round(height);
 
@@ -102,7 +102,7 @@ export function usePdfCompressor() {
               );
             }
           );
-          
+
           const jpgImage = await pdfDocToWrite.embedJpg(compressedImageBytes);
           const newPage = pdfDocToWrite.addPage([width, height]);
           newPage.drawImage(jpgImage, {
@@ -111,7 +111,7 @@ export function usePdfCompressor() {
             width: width,
             height: height,
           });
-          
+
           setProgress({ current: i + 1, total: numPages });
         }
 
