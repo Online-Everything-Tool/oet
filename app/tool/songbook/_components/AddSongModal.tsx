@@ -268,7 +268,7 @@ export default function AddSongModal({
       console.log(
         `[AddSongModal] Calling /api/songbook for URL: ${trimmedUrl}`
       );
-      const response = await fetch(`${apiUrl}/api/songbook`, {
+      const response = await fetch(`${apiUrl}/api/directive/songbook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -110,7 +110,7 @@ export default function SendToToolButton({
 
   return (
     <div
-      className={`relative inline-block text-left ${className}`}
+      className={`relative inline-block text-left ${className} items-stretch`}
       ref={dropdownRef}
     >
       <Button
