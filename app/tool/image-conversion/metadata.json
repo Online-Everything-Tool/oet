@@ -1,0 +1,25 @@
+{
+  "title": "Image Converter",
+  "directive": "image-conversion",
+  "description": "Converts images between various formats (e.g., JPEG, PNG, WebP).",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "image/*"
+    ],
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
