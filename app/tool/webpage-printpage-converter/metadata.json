@@ -1,0 +1,14 @@
+{
+  "title": "Webpage to Printable Page Converter",
+  "directive": "webpage-printpage-converter",
+  "description": "Scrapes specific movie pages from sacramentofrenchfilmfestival.org, extracts content, and creates an editable, printable document.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}

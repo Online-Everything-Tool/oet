@@ -1,0 +1,10 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "@tiptap/extension-image",
+      "reason": "To render images within the TipTap editor from scraped content.",
+      "importUsed": "import Image from '@tiptap/extension-image';"
+    }
+  ],
+  "assetInstructions": null
+}
