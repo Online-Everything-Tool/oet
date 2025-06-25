@@ -6,5 +6,6 @@
       "importUsed": "import Image from '@tiptap/extension-image';"
     }
   ],
-  "assetInstructions": null
+  "assetInstructions": null,
+  "npmDependenciesFulfilled": true
 }
