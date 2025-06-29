@@ -1,0 +1,26 @@
+{
+  "title": "Juice Calculator",
+  "directive": "juice-calculator",
+  "description": "Calculates nutritional information and recipes based on user-specified juice ingredients.",
+  "urlStateParams": [
+    {
+      "paramName": "juice",
+      "type": "enum",
+      "defaultValue": "lime"
+    },
+    {
+      "paramName": "weight",
+      "type": "number",
+      "defaultValue": null
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
