@@ -1,7 +1,7 @@
 {
-  "title": "Juice Calculator",
-  "directive": "juice-calculator",
-  "description": "Calculates nutritional information and recipes based on user-specified juice ingredients.",
+  "title": "Super Juice Calculator",
+  "directive": "super-juice-calculator",
+  "description": "Effortlessly calculate the perfect ratios for your super juice. Get consistent, balanced results for your cocktails every single time.",
   "urlStateParams": [
     {
       "paramName": "juice",
