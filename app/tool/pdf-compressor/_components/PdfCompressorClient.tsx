@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import useToolState from '@/app/tool/_hooks/useToolState';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
 import { useMetadata } from '@/app/context/MetadataContext';
 import {
   usePdfCompressor,
-  CompressionLevel,
   CompressionOptions,
 } from '../_hooks/usePdfCompressor';
 import type { StoredFile } from '@/src/types/storage';
@@ -14,35 +13,29 @@ import { OutputConfig } from '@/src/types/tools';
 import FileSelectionModal from '@/app/tool/_components/shared/FileSelectionModal';
 import FilenamePromptModal from '@/app/tool/_components/shared/FilenamePromptModal';
 import Button from '@/app/tool/_components/form/Button';
-import RadioGroup from '@/app/tool/_components/form/RadioGroup';
+import Range from '@/app/tool/_components/form/Range';
 import { OutputActionButtons } from '@/app/tool/_components/shared/OutputActionButtons';
 import useItdeTargetHandler from '@/app/tool/_hooks/useItdeTargetHandler';
 import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
 import { resolveItdeData } from '@/app/lib/itdeDataUtils';
 import toolSpecificMetadata from '../metadata.json';
-import { formatBytes } from '@/app/lib/utils';
+import { formatBytes, getFileIconClassName } from '@/app/lib/utils';
 import { DocumentArrowUpIcon } from '@heroicons/react/24/outline';
-import { ArrowPathIcon } from '@heroicons/react/20/solid';
+import { ArrowPathIcon, ServerIcon } from '@heroicons/react/20/solid';
 
 interface PdfCompressorState {
   inputPdfId: string | null;
   processedPdfId: string | null;
-  compressionLevel: CompressionLevel;
+  imageResolution: number;
   lastUserGivenFilename: string | null;
 }
 
 const DEFAULT_STATE: PdfCompressorState = {
   inputPdfId: null,
   processedPdfId: null,
-  compressionLevel: 'medium',
+  imageResolution: 150,
   lastUserGivenFilename: null,
 };
-
-const COMPRESSION_OPTIONS = [
-  { value: 'low', label: 'Low (Best Quality)' },
-  { value: 'medium', label: 'Medium (Balanced)' },
-  { value: 'high', label: 'High (Smallest Size)' },
-] as const;
 
 export default function PdfCompressorClient({
   toolRoute,
@@ -58,7 +51,6 @@ export default function PdfCompressorClient({
   const {
     isLoading: isCompressing,
     error: compressionError,
-    progress,
     compressPdf,
   } = usePdfCompressor();
 
@@ -158,7 +150,7 @@ export default function PdfCompressorClient({
       return;
     }
     const compressionOptions: CompressionOptions = {
-      level: state.compressionLevel,
+      resolution: state.imageResolution,
     };
     const newFileId = await compressPdf(inputPdf, compressionOptions);
     if (newFileId) {
@@ -201,11 +193,6 @@ export default function PdfCompressorClient({
     setTimeout(() => setManualSaveSuccess(false), 2000);
   };
 
-  const sizeReduction = useMemo(() => {
-    if (!inputPdf || !processedPdf) return 0;
-    return 1 - processedPdf.size / inputPdf.size;
-  }, [inputPdf, processedPdf]);
-
   const canPerformActions = !!state.processedPdfId && !isCompressing;
   const canInitiateSave = canPerformActions && !!processedPdf?.isTemporary;
 
@@ -247,14 +234,27 @@ export default function PdfCompressorClient({
           </div>
         </div>
         <div className="pt-3 border-t border-[rgb(var(--color-border-base))]">
-          <RadioGroup
-            legend="Compression Level"
-            name="compressionLevel"
-            options={COMPRESSION_OPTIONS}
-            selectedValue={state.compressionLevel}
-            onChange={(value) => setState({ compressionLevel: value })}
+          <Range
+            label="Image Quality (DPI): Lower is smaller file size"
+            id="imageResolution"
+            min={72}
+            max={300}
+            step={1}
+            value={state.imageResolution}
+            onChange={(e) =>
+              setState({ imageResolution: parseInt(e.target.value, 10) })
+            }
             disabled={isCompressing}
           />
+        </div>
+      </div>
+
+      <div className="p-3 bg-[rgb(var(--color-bg-info-subtle))] border border-[rgb(var(--color-border-info))] text-[rgb(var(--color-text-emphasis))] rounded-md text-sm flex items-start gap-2">
+        <ServerIcon className="h-5 w-5 mt-0.5 flex-shrink-0 text-[rgb(var(--color-text-link))]" />
+        <div>
+          <span className="font-bold">Server-Side Processing:</span> This tool
+          uploads your PDF to our secure server for high-quality compression of
+          embedded images. Your file is deleted immediately after processing.
         </div>
       </div>
 
@@ -267,32 +267,34 @@ export default function PdfCompressorClient({
       {isCompressing && (
         <div className="text-center p-4">
           <p className="text-lg font-semibold animate-pulse">
-            Compressing PDF...
+            Uploading & Compressing PDF...
           </p>
           <p className="text-sm text-[rgb(var(--color-text-muted))]">
-            Processing page {progress.current} of {progress.total}
+            Please wait, this may take a moment for large files.
           </p>
-          <div className="w-full bg-[rgb(var(--color-bg-neutral))] rounded-full h-2.5 mt-2">
-            <div
-              className="bg-[rgb(var(--color-button-primary-bg))] h-2.5 rounded-full"
-              style={{
-                width: `${(progress.current / (progress.total || 1)) * 100}%`,
-              }}
-            ></div>
-          </div>
         </div>
       )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <div>
           <h3 className="text-lg font-medium mb-1">Input PDF</h3>
-          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center">
+          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center text-center">
             {inputPdf ? (
-              <div>
-                <p className="font-semibold">{inputPdf.filename}</p>
-                <p className="text-sm text-[rgb(var(--color-text-muted))]">
-                  {formatBytes(inputPdf.size)}
-                </p>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`${getFileIconClassName(inputPdf.filename)} text-3xl`}
+                ></span>
+                <div>
+                  <p
+                    className="font-semibold text-left"
+                    title={inputPdf.filename}
+                  >
+                    {inputPdf.filename}
+                  </p>
+                  <p className="text-sm text-[rgb(var(--color-text-muted))] text-left">
+                    {formatBytes(inputPdf.size)}
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="text-[rgb(var(--color-text-muted))]">
@@ -303,22 +305,23 @@ export default function PdfCompressorClient({
         </div>
         <div>
           <h3 className="text-lg font-medium mb-1">Output PDF</h3>
-          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center">
+          <div className="p-4 border rounded-md min-h-24 flex items-center justify-center text-center">
             {processedPdf ? (
-              <div>
-                <p className="font-semibold">{processedPdf.filename}</p>
-                <p className="text-sm text-[rgb(var(--color-text-muted))]">
-                  {formatBytes(processedPdf.size)}
-                </p>
-                <p
-                  className={`font-bold mt-1 ${
-                    sizeReduction > 0
-                      ? 'text-[rgb(var(--color-status-success))]'
-                      : 'text-[rgb(var(--color-status-error))]'
-                  }`}
-                >
-                  {(sizeReduction * 100).toFixed(2)}% size reduction
-                </p>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`${getFileIconClassName(processedPdf.filename)} text-3xl`}
+                ></span>
+                <div>
+                  <p
+                    className="font-semibold text-left"
+                    title={processedPdf.filename}
+                  >
+                    {processedPdf.filename}
+                  </p>
+                  <p className="text-sm text-[rgb(var(--color-text-muted))] text-left">
+                    {formatBytes(processedPdf.size)}
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="text-[rgb(var(--color-text-muted))]">

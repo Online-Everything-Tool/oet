@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from 'react';
 import QRCode from 'qrcode';
 import { useDebounce } from 'use-debounce';
 import useToolState from '@/app/tool/_hooks/useToolState';
@@ -189,7 +195,6 @@ export default function QRCodeGeneratorClient({
     }
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup]);
 
-  // Generation and Cleanup Effect
   useEffect(() => {
     if (isLoadingState) {
       return;
@@ -452,9 +457,7 @@ export default function QRCodeGeneratorClient({
         onConfirm={handleConfirmFilename}
         initialFilename={filenamePromptInitialValue}
         title={
-          filenamePromptAction === 'save'
-            ? 'Save QR Code'
-            : 'Download QR Code'
+          filenamePromptAction === 'save' ? 'Save QR Code' : 'Download QR Code'
         }
         confirmButtonText={
           filenamePromptAction === 'save' ? 'Save to Library' : 'Download'
