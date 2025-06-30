@@ -1,0 +1,19 @@
+{
+  "title": "QR Code Generator",
+  "directive": "qr-code-generator",
+  "description": "Generate and customize QR codes from text, URLs, or other data.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "generatedQrCodeId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
