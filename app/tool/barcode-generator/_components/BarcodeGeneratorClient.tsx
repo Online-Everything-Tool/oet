@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from 'react';
 import JsBarcode from 'jsbarcode';
 import useToolState from '@/app/tool/_hooks/useToolState';
 import { useFileLibrary } from '@/app/context/FileLibraryContext';
@@ -20,6 +26,7 @@ import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import importedMetadata from '../metadata.json';
+import { useDebounce } from 'use-debounce';
 
 const metadata = importedMetadata as ToolMetadata;
 
@@ -212,6 +219,27 @@ export default function BarcodeGeneratorClient({
     }
   }, [isLoadingState, itdeTarget, userDeferredAutoPopup]);
 
+  const inputsToDebounce = useMemo(
+    () => ({
+      data: state.data,
+      format: state.format,
+      width: state.width,
+      height: state.height,
+      displayValue: state.displayValue,
+      margin: state.margin,
+    }),
+    [
+      state.data,
+      state.format,
+      state.width,
+      state.height,
+      state.displayValue,
+      state.margin,
+    ]
+  );
+
+  const [debouncedInputs] = useDebounce(inputsToDebounce, 300);
+
   useEffect(() => {
     if (isLoadingState) {
       return;
@@ -225,7 +253,7 @@ export default function BarcodeGeneratorClient({
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-    if (!state.data) {
+    if (!debouncedInputs.data) {
       if (state.generatedBarcodeId) {
         const cleanUp = async (generatedBarcodeId: string) => {
           await saveStateNow({ ...state, generatedBarcodeId: null });
@@ -236,12 +264,12 @@ export default function BarcodeGeneratorClient({
       return;
     }
 
-    JsBarcode(canvas, state.data, {
-      format: state.format,
-      width: state.width,
-      height: state.height,
-      displayValue: state.displayValue,
-      margin: state.margin,
+    JsBarcode(canvas, debouncedInputs.data, {
+      format: debouncedInputs.format,
+      width: debouncedInputs.width,
+      height: debouncedInputs.height,
+      displayValue: debouncedInputs.displayValue,
+      margin: debouncedInputs.margin,
       font: 'monospace',
       valid: (isValid) => {
         console.log(
@@ -259,7 +287,7 @@ export default function BarcodeGeneratorClient({
             );
             if (blob && blob.size > 0) {
               setError(null);
-              const filename = `barcode-${state.format}-${state.data.slice(0, 10)}.png`;
+              const filename = `barcode-${debouncedInputs.format}-${debouncedInputs.data.slice(0, 10)}.png`;
               const previousId = state.generatedBarcodeId;
               const newFileId = await addFile(
                 blob,
@@ -272,7 +300,6 @@ export default function BarcodeGeneratorClient({
                 generatedBarcodeId: newFileId,
               });
               if (previousId) {
-                console.log('clean up!');
                 cleanupOrphanedTemporaryFiles([previousId]);
               }
               setSaveSuccess(false);
@@ -282,7 +309,7 @@ export default function BarcodeGeneratorClient({
             }
           }, 'image/png');
         } else {
-          const formatInfo = BARCODE_FORMAT_INFO[state.format];
+          const formatInfo = BARCODE_FORMAT_INFO[debouncedInputs.format];
           const helpText = formatInfo ? (
             <div className="mt-2 text-xs text-left">
               <p className="font-semibold">{formatInfo.description}</p>
@@ -299,7 +326,9 @@ export default function BarcodeGeneratorClient({
 
           const errorMessage = (
             <div className="text-center">
-              <p className="font-bold">Invalid data for {state.format}</p>
+              <p className="font-bold">
+                Invalid data for {debouncedInputs.format}
+              </p>
               {helpText}
             </div>
           );
@@ -316,12 +345,7 @@ export default function BarcodeGeneratorClient({
       },
     });
   }, [
-    state.data,
-    state.format,
-    state.width,
-    state.height,
-    state.displayValue,
-    state.margin,
+    debouncedInputs,
     addFile,
     cleanupOrphanedTemporaryFiles,
     saveStateNow,
