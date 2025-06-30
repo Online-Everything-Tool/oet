@@ -3,9 +3,7 @@
   "directive": "image-conversion",
   "description": "Converts images between various formats (e.g., JPEG, PNG, WebP).",
   "inputConfig": {
-    "acceptsMimeTypes": [
-      "image/*"
-    ],
+    "acceptsMimeTypes": ["image/*"],
     "stateFiles": [
       {
         "stateKey": "selectedFileId"

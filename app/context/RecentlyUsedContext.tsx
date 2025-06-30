@@ -306,10 +306,6 @@ export const RecentlyUsedProvider = ({
               console.log(
                 `[RecentlyUsedCtx] Custom preview for ${directive} returned no actionable preview. Not adding.`
               );
-            } else {
-              console.log(
-                `[RecentlyUsedCtx] No displayable preview for ${directive} after all checks (Type: ${entry.previewType}, Determined: ${previewDetermined}). Not adding.`
-              );
             }
           }
         }

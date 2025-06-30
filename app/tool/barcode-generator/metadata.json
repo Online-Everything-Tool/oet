@@ -1,0 +1,19 @@
+{
+  "title": "Barcode Generator",
+  "directive": "barcode-generator",
+  "description": "Generate and customize various types of barcodes from your text or data.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["text/plain"],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "generatedBarcodeId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}

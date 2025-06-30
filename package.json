@@ -33,6 +33,7 @@
     "file-icons-js": "^1.1.0",
     "framer-motion": "^12.18.1",
     "js-md5": "^0.8.3",
+    "jsbarcode": "^3.12.1",
     "jszip": "^3.10.1",
     "mime-types": "^3.0.1",
     "next": "15.3.3",
@@ -49,6 +50,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.10",
+    "@types/jsbarcode": "^3.11.4",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24",
     "@types/react": "^19",

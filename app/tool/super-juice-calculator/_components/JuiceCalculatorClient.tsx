@@ -10,7 +10,6 @@ import RadioGroup from '@/app/tool/_components/form/RadioGroup';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import type { ParamConfig } from '@/src/types/tools';
 
-// Type definitions
 type JuiceType = 'lime' | 'lemon' | 'orange' | 'grapefruit' | 'kumquat';
 
 interface OutputConfig {
@@ -26,13 +25,11 @@ interface JuiceConfig {
   outputs: OutputConfig[];
 }
 
-// Tool State Interface
 interface JuiceCalculatorToolState {
   selectedJuice: JuiceType;
   weight: string;
 }
 
-// Constants
 const DEFAULT_TOOL_STATE: JuiceCalculatorToolState = {
   selectedJuice: 'lime',
   weight: '',
@@ -119,7 +116,6 @@ export default function JuiceCalculatorClient({
     }
   }, [toolState.weight, isLoadingState]);
 
-  // Sync URL state to tool state on initial load
   useEffect(() => {
     if (isLoadingUrlState || !urlProvidedAnyValue || isLoadingState) {
       return;
@@ -158,7 +154,6 @@ export default function JuiceCalculatorClient({
     toolState.weight,
   ]);
 
-  // Perform calculations
   useEffect(() => {
     const weightNum = parseFloat(toolState.weight) || 0;
     const config = JUICE_CONFIGS[toolState.selectedJuice];
@@ -169,7 +164,7 @@ export default function JuiceCalculatorClient({
     }
 
     const newResults: Record<string, number> = {};
-    config.outputs.forEach(output => {
+    config.outputs.forEach((output) => {
       if (weightNum <= 0) {
         newResults[output.key] = 0;
       } else if (output.value !== undefined) {
@@ -201,7 +196,7 @@ export default function JuiceCalculatorClient({
   }, [clearStateAndPersist]);
 
   const juiceOptions = useMemo(() => {
-    return (Object.keys(JUICE_CONFIGS) as JuiceType[]).map(juiceKey => ({
+    return (Object.keys(JUICE_CONFIGS) as JuiceType[]).map((juiceKey) => ({
       value: juiceKey,
       label: JUICE_CONFIGS[juiceKey].label,
     }));
@@ -233,8 +228,8 @@ export default function JuiceCalculatorClient({
           <Input
             label={currentConfig.inputLabel}
             id="weightInput"
-            type="text" // Use text to allow for more flexible input handling
-            inputMode="decimal" // Better for mobile keyboards
+            type="text"
+            inputMode="decimal"
             value={localWeight}
             onChange={handleWeightChange}
             placeholder="e.g., 30"
@@ -255,7 +250,7 @@ export default function JuiceCalculatorClient({
           Recipe Output
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-          {currentConfig.outputs.map(output => (
+          {currentConfig.outputs.map((output) => (
             <div key={output.key}>
               <label
                 htmlFor={`output-${output.key}`}
