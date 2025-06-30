@@ -260,7 +260,7 @@ export default function ImagePaletteExtractorClient({
         () => setCopiedStates((prev) => ({ ...prev, [key]: false })),
         2000
       );
-    } catch (err) {
+    } catch (_err) {
       setUiError('Failed to copy to clipboard.');
     }
   }, []);

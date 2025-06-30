@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import useToolState from '@/app/tool/_hooks/useToolState';
 import useToolUrlState from '@/app/tool/_hooks/useToolUrlState';
@@ -8,11 +8,7 @@ import Input from '@/app/tool/_components/form/Input';
 import Button from '@/app/tool/_components/form/Button';
 import { XCircleIcon } from '@heroicons/react/24/outline';
 import type { ParamConfig } from '@/src/types/tools';
-import {
-  useAspectRatioDefinitions,
-  RatioConfig,
-  ParsedRatio,
-} from '../_hooks/useAspectRatioDefinitions';
+import { useAspectRatioDefinitions } from '../_hooks/useAspectRatioDefinitions';
 import CalculatedRatioDisplay from './CalculatedRatioDisplay';
 
 interface AspectRatioToolState {

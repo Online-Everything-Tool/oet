@@ -254,7 +254,7 @@ export default function ImageConversionClient({
           setProcessedFileInfo({ size: file.size, type: file.type });
           setProcessedStoredFileForItde(file);
         }
-      } catch (err) {
+      } catch (_err) {
         setError('Failed to load processed image preview.');
       }
     };

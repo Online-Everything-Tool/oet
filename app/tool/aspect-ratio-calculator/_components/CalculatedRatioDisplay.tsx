@@ -1,8 +1,5 @@
 import React from 'react';
-import type {
-  RatioConfig,
-  ParsedRatio,
-} from '../_hooks/useAspectRatioDefinitions';
+import type { RatioConfig } from '../_hooks/useAspectRatioDefinitions';
 
 interface CalculatedValues {
   width: number;

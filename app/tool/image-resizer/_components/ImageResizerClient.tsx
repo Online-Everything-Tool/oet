@@ -27,11 +27,7 @@ import IncomingDataModal from '@/app/tool/_components/shared/IncomingDataModal';
 import ReceiveItdeDataTrigger from '@/app/tool/_components/shared/ReceiveItdeDataTrigger';
 import { resolveItdeData, ResolvedItdeData } from '@/app/lib/itdeDataUtils';
 import importedMetadata from '../metadata.json';
-import {
-  PhotoIcon,
-  XCircleIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/20/solid';
+import { PhotoIcon, ArrowPathIcon } from '@heroicons/react/20/solid';
 
 const metadata = importedMetadata as ToolMetadata;
 
@@ -240,7 +236,13 @@ export default function ImageResizerClient({
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [toolState.selectedFileId, getFile, setState]);
+  }, [
+    toolState.selectedFileId,
+    toolState.width,
+    toolState.height,
+    getFile,
+    setState,
+  ]);
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -259,7 +261,7 @@ export default function ImageResizerClient({
           setProcessedFileIsPermanent(file.isTemporary === false);
           setProcessedStoredFileForItde(file);
         }
-      } catch (err) {
+      } catch (_err) {
         setError('Failed to load processed image preview.');
       }
     };

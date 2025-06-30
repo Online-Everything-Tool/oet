@@ -49,13 +49,8 @@ export default function PdfCompressorClient({
 }: {
   toolRoute: string;
 }) {
-  const {
-    state,
-    setState,
-    isLoadingState,
-    clearStateAndPersist,
-    saveStateNow,
-  } = useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
+  const { state, setState, isLoadingState, clearStateAndPersist } =
+    useToolState<PdfCompressorState>(toolRoute, DEFAULT_STATE);
 
   const { getFile, makeFilePermanentAndUpdate, cleanupOrphanedTemporaryFiles } =
     useFileLibrary();
