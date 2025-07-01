@@ -98,7 +98,10 @@ export default function PdfPageMergerClient({
     if (isLoadingState) {
       return;
     }
-    if (!debouncedSelectedPages.selectedPages || debouncedSelectedPages.selectedPages.length === 0) {
+    if (
+      !debouncedSelectedPages.selectedPages ||
+      debouncedSelectedPages.selectedPages.length === 0
+    ) {
       const cleanup = async () => {
         const oldMergedPdfId = state.mergedPdfId;
         if (oldMergedPdfId) {

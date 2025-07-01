@@ -1,0 +1,23 @@
+{
+  "title": "Image Rotate",
+  "directive": "image-rotate",
+  "description": "Rotate an image by a specific degree.",
+  "inputConfig": {
+    "stateFiles": [
+      {
+        "stateKey": "selectedFileId"
+      }
+    ],
+    "acceptsMimeTypes": ["image/*"]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "processedFileId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}

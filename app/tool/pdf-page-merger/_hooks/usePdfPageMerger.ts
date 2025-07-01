@@ -30,7 +30,6 @@ export function usePdfPageMerger() {
         const newPdfDoc = await PDFDocument.create();
         const sourceDocs = new Map<string, PDFDocument>();
 
-        // Load all unique source documents
         for (const page of selectedPages) {
           if (!sourceDocs.has(page.sourceFileId)) {
             const file = await getFile(page.sourceFileId);
@@ -45,7 +44,6 @@ export function usePdfPageMerger() {
           }
         }
 
-        // Copy selected pages in order
         for (const page of selectedPages) {
           const sourceDoc = sourceDocs.get(page.sourceFileId);
           if (sourceDoc) {

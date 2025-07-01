@@ -31,7 +31,7 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
       const context = canvas.getContext('2d');
       if (!context) return;
 
-      const viewport = page.getViewport({ scale: 0.3 }); // Low-res scale for thumbnail
+      const viewport = page.getViewport({ scale: 0.3 });
       canvas.height = viewport.height;
       canvas.width = viewport.width;
 
@@ -41,7 +41,6 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
         await renderTask.promise;
         if (isMounted) setIsLoading(false);
       } catch (error) {
-        // We can ignore the "cancelled" error which is expected on fast unmounts
         if ((error as Error).name !== 'RenderingCancelledException') {
           console.error(`Error rendering page ${page.pageNumber}:`, error);
         }
