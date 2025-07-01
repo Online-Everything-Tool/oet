@@ -1,0 +1,24 @@
+{
+  "title": "PDF Page Merger",
+  "directive": "pdf-page-merger",
+  "description": "Select and reorder pages from multiple PDFs to combine them into a single new document.",
+  "inputConfig": {
+    "acceptsMimeTypes": ["application/pdf"],
+    "stateFiles": [
+      {
+        "stateKey": "inputPdfIds",
+        "arrayStateKey": "sourcePdfs"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "mergedPdfId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
