@@ -1,0 +1,41 @@
+{
+  "title": "JSON to JSONL Converter",
+  "directive": "json-jsonl-converter",
+  "description": "This tool converts JSON data to JSONL format and vice-versa.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "application/json",
+      "application/x-jsonlines",
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "jsonOutput",
+        "mimeType": "application/json"
+      },
+      {
+        "dataType": "inline",
+        "stateKey": "jsonlOutput",
+        "mimeType": "application/x-jsonlines"
+      }
+    ]
+  },
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "operation",
+      "type": "enum",
+      "defaultValue": "json-to-jsonl"
+    }
+  ],
+  "includeInSitemap": true,
+  "status": "stable"
+}
