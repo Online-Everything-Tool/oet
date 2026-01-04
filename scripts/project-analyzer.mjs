@@ -23,7 +23,7 @@ const ANALYSIS_OUTPUT_FILE = path.join(
 const ENV_FILE = path.join(PROJECT_ROOT, '.env');
 
 let GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL_NAME = 'gemini-1.5-flash';
+const MODEL_NAME = 'gemini-2.5-flash';
 
 const ANALYSIS_QUESTION = `Analyze the provided project context which includes base configuration, layout, home page (showing existing tools), global styles, HistoryContext, and the build/tool feature.
 Based *only* on the information given:

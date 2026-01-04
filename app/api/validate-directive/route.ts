@@ -26,7 +26,7 @@ interface GeminiValidationResponse {
 }
 
 const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash';
+  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-2.5-flash';
 const API_KEY = process.env.GEMINI_API_KEY;
 
 async function getAvailableDirectives(): Promise<string[]> {

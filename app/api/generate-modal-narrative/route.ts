@@ -15,7 +15,7 @@ import {
 } from '@/src/types/tools';
 
 const API_KEY = process.env.GEMINI_API_KEY;
-const NARRATIVE_MODEL_NAME = 'models/gemini-1.5-pro-latest';
+const NARRATIVE_MODEL_NAME = 'models/gemini-2.0-flash';
 
 if (!API_KEY) {
   console.error(

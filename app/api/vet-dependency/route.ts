@@ -19,7 +19,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const DEFAULT_VETTING_MODEL_NAME =
   process.env.DEFAULT_GEMINI_VETTING_MODEL_NAME ||
   process.env.DEFAULT_GEMINI_MODEL_NAME ||
-  'models/gemini-1.5-flash';
+  'models/gemini-2.5-flash';
 
 if (!API_KEY) {
   console.error('FATAL ERROR (vet-dependency): GEMINI_API_KEY missing.');
