@@ -55,7 +55,7 @@ export function usePdfPageMerger() {
         }
 
         const mergedPdfBytes = await newPdfDoc.save();
-        const newBlob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+        const newBlob = new Blob([new Uint8Array(mergedPdfBytes)], { type: 'application/pdf' });
         const newFileId = await addFile(
           newBlob,
           outputFilename,

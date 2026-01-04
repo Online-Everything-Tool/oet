@@ -35,7 +35,7 @@ const PageThumbnail: React.FC<PageThumbnailProps> = ({
       canvas.height = viewport.height;
       canvas.width = viewport.width;
 
-      renderTask = page.render({ canvasContext: context, viewport: viewport });
+      renderTask = page.render({ canvas, viewport });
 
       try {
         await renderTask.promise;

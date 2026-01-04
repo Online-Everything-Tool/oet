@@ -197,7 +197,7 @@ export default function LinkedinPostFormatterClient({
       const currentContentJsonString = JSON.stringify(editor.getJSON());
       const loadedContentJsonString = JSON.stringify(state.contentJson);
       if (currentContentJsonString !== loadedContentJsonString) {
-        editor.commands.setContent(state.contentJson, false);
+        editor.commands.setContent(state.contentJson);
       }
     }
   }, [editor, isLoadingState, state.contentJson]);

@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   images: { unoptimized: true },
   serverExternalPackages: serverExternalPackagesForConfig,
 
+  // Turbopack is not compatible with Serwist service worker generation
+  // Using webpack for builds to enable PWA/offline support
+  turbopack: {},
+
   webpack(config, { isServer, dev, nextRuntime }) {
     config.experiments = config.experiments || {};
     config.experiments.asyncWebAssembly = true;

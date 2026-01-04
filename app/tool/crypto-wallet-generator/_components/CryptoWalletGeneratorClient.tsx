@@ -98,7 +98,7 @@ export default function CryptoWalletGeneratorClient({
           generatedPrivateKey = wallet.privateKey;
           generatedPublicKey = wallet.address;
         } else if (typeForGeneration === 'bitcoin') {
-          const privKeyBytes: Uint8Array = secp.utils.randomPrivateKey();
+          const privKeyBytes: Uint8Array = secp.utils.randomSecretKey();
           const pubKeyBytes: Uint8Array = secp.getPublicKey(privKeyBytes, true);
 
           const payload = Buffer.allocUnsafe(34);
