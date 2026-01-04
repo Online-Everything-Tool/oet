@@ -2,5 +2,5 @@
   "linesOfCode": 1677,
   "codeConsistency": 95,
   "cssConsistency": 98,
-  "modelNameUsed": "gemini-1.5-flash-latest"
+  "modelNameUsed": "gemini-1.5-flash"
 }

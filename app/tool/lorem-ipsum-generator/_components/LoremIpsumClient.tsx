@@ -161,13 +161,13 @@ export default function LoremIpsumClient({
         </div>
       </div>
 
-      <div className="relative">
+      <div className="flex flex-col">
         <Textarea
           value={state.generatedText}
           readOnly
-          className="min-h-[300px] font-serif text-lg leading-relaxed"
+          className="w-full min-h-[300px] font-serif text-lg leading-relaxed"
         />
-        <div className="absolute top-2 right-2 flex gap-2">
+        <div className="flex gap-2 justify-end">
             <Button onClick={generateText} variant="secondary" size="sm" title="Regenerate">
                 <ArrowPathIcon className="h-4 w-4" />
             </Button>

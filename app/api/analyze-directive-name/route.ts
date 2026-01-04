@@ -11,7 +11,7 @@ import path from 'path';
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const DEFAULT_MODEL_NAME =
-  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash-latest';
+  process.env.DEFAULT_GEMINI_MODEL_NAME || 'models/gemini-1.5-flash';
 
 async function getAppPurpose(): Promise<string> {
   try {

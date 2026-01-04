@@ -15,7 +15,7 @@ ENV_FILE="$PROJECT_ROOT/.env"
 # --- Gemini Configuration ---
 API_KEY="${GEMINI_API_KEY}" # Loaded later from .env or environment
 # Use environment variable ANALYSIS_MODEL_NAME if set, otherwise default
-DEFAULT_MODEL_NAME="gemini-1.5-flash-latest" # Or "gemini-1.5-pro-latest"
+DEFAULT_MODEL_NAME="gemini-1.5-flash" # Or "gemini-1.5-pro-latest"
 MODEL_NAME="${ANALYSIS_MODEL_NAME:-$DEFAULT_MODEL_NAME}"
 
 # --- The Tool Analysis Question (Updated for 1-100 Scale) ---

@@ -28,7 +28,7 @@ async function testNarrativeEndpoint() {
   //   toolDirective: 'color-palette-extractor',
   //   toolDescription:
   //     'Extracts the dominant colors from an uploaded image to create a color palette.',
-  //   generationModelName: 'models/gemini-1.5-flash-latest',
+  //   generationModelName: 'models/gemini-1.5-flash',
   //   userAdditionalDescription: 'I want at least 5 colors, and their hex codes.',
   //   aiRequestedExamples: [], // Empty AI examples
   //   userSelectedExamples: null, // Testing null for user examples

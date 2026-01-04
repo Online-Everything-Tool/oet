@@ -53,7 +53,7 @@ export default function BuildToolClient() {
 
   const defaultModelName =
     process.env.NEXT_PUBLIC_DEFAULT_GEMINI_MODEL_NAME ||
-    'models/gemini-1.5-flash-latest';
+    'models/gemini-1.5-flash';
 
   const validationModelOptions = useMemo(
     () =>
