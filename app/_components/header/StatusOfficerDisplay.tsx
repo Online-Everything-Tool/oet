@@ -17,7 +17,10 @@ import {
   CodeBracketSquareIcon,
   ArrowRightEndOnRectangleIcon,
   CircleStackIcon,
+  ArchiveBoxXMarkIcon,
 } from '@heroicons/react/24/outline';
+import Button from '@/app/tool/_components/form/Button';
+import { useFileLibrary } from '@/app/context/FileLibraryContext';
 
 export type OfficerDisplayState =
   | 'hidden'
@@ -46,9 +49,11 @@ export default function StatusOfficerDisplay({
 }: StatusOfficerDisplayProps) {
   const officerNarrative = useMemo(() => getDefaultHomeNarrativeSync(), []);
   const dotControls = useAnimationControls();
+  const { cleanupOrphanedTemporaryFiles } = useFileLibrary();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isPurging, setIsPurging] = useState(false);
 
   const [storageInfo, setStorageInfo] = useState<{
     usage: string;
@@ -63,6 +68,23 @@ export default function StatusOfficerDisplay({
   const closeDropdown = useCallback(() => {
     setIsDropdownOpen(false);
   }, []);
+
+  const handlePurgeOrphans = useCallback(async () => {
+    setIsPurging(true);
+    try {
+      const { deletedCount, candidatesChecked } =
+        await cleanupOrphanedTemporaryFiles();
+      console.log(
+        `Cleanup complete. Checked ${candidatesChecked} temporary file(s) and deleted ${deletedCount} orphan(s).`
+      );
+    } catch (e) {
+      console.log(
+        `An error occurred during cleanup: ${e instanceof Error ? e.message : 'Unknown error'}`
+      );
+    } finally {
+      setTimeout(() => setIsPurging(false), 500);
+    }
+  }, [cleanupOrphanedTemporaryFiles]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -353,10 +375,26 @@ export default function StatusOfficerDisplay({
                     </span>
                   )}
                 </div>
+                <div
+                  className="px-4 py-2 flex items-center text-sm text-[rgb(var(--color-text-emphasis))] ext-[rgb(var(--color-text-muted))]"
+                  role="menuitem"
+                  aria-disabled="true"
+                >
+                  <ArchiveBoxXMarkIcon className="h-5 w-5 mr-3 text-[rgb(var(--color-icon-brand))] flex-shrink-0" />
+                  
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={handlePurgeOrphans}
+                      isLoading={isPurging}
+                      loadingText="Purging..."
+                      disabled={isPurging}
+                    >
+                      Purge Orphan Files
+                    </Button>                  
+                </div>
               </div>
             )}
-
-            {/* Links Section */}
             <div className="pt-1 flex flex-col items-end">
               <a
                 href={`https://github.com/Online-Everything-Tool`}

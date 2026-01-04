@@ -585,12 +585,13 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
               file.type !== 'application/x-oet-tool-state+json'
           );
         } else {
-          tempFilesToCheckForDeletion = await db.files
-            .where('isTemporary')
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .equals(true as any)
-            .and((file) => file.type !== 'application/x-oet-tool-state+json')
-            .toArray();
+          tempFilesToCheckForDeletion = await db.files.toArray();
+          tempFilesToCheckForDeletion = tempFilesToCheckForDeletion.filter(
+            (sf: StoredFile) =>
+              sf.isTemporary &&
+              sf.isTemporary === true &&
+              sf.type !== 'application/x-oet-tool-state+json'
+          );
           initialCandidateCount = tempFilesToCheckForDeletion.length;
         }
 
@@ -618,7 +619,7 @@ export const FileLibraryProvider = ({ children }: FileLibraryProviderProps) => {
       } catch (err: unknown) {
         const errorMsg =
           err instanceof Error ? err.message : 'Unknown error during cleanup';
-        console.error('[FileLibCleanup] Error:', errorMsg, err);
+        console.log('[FileLibCleanup] Error:', errorMsg, err);
       }
       return { deletedCount, candidatesChecked: initialCandidateCount };
     },

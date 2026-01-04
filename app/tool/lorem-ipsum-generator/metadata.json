@@ -1,0 +1,31 @@
+{
+  "title": "Lorem Ipsum Generator",
+  "directive": "lorem-ipsum-generator",
+  "description": "Generate placeholder text for your designs and mockups.",
+  "urlStateParams": [
+    {
+      "paramName": "count",
+      "type": "number",
+      "defaultValue": 5
+    },
+    {
+      "paramName": "type",
+      "type": "string",
+      "defaultValue": "paragraphs"
+    },
+    {
+      "paramName": "startWithLorem",
+      "type": "boolean",
+      "defaultValue": true
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "text"
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
