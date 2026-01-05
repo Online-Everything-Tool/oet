@@ -1,0 +1,25 @@
+{
+  "title": "Clip Video",
+  "directive": "clip-video",
+  "description": "Allows users to trim or extract specific segments from a video file.",
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "video/*"
+    ],
+    "stateFiles": [
+      {
+        "stateKey": "inputFileId"
+      }
+    ]
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "reference",
+        "stateKey": "outputFileId"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
