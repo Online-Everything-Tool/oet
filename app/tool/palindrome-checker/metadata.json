@@ -1,0 +1,14 @@
+{
+  "title": "Palindrome Checker",
+  "directive": "palindrome-checker",
+  "description": "Check if text reads the same forward and backward with configurable cleanup options.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "beta"
+}
