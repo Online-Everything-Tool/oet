@@ -1,12 +1,18 @@
 http://oet.online-everything-tool.com {
-        redir https://{host}{uri} permanent
+    redir https://{host}{uri} permanent
 }
 
 https://oet.online-everything-tool.com {
+    handle /api/* {
         header {
-                Access-Control-Allow-Origin "https://online-everything-tool.com"
-                Access-Control-Allow-Methods "GET, POST, OPTIONS"
-                Access-Control-Allow-Headers "Content-Type"
+            Access-Control-Allow-Origin "https://online-everything-tool.com"
+            Access-Control-Allow-Methods "GET, POST, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type"
         }
         reverse_proxy localhost:3000
+    }
+
+    handle {
+        redir https://online-everything-tool.com{uri} permanent
+    }
 }
