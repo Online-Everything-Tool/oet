@@ -1,17 +1,57 @@
+# 1. Snippets at the top
+(cors) {
+    header {
+        Access-Control-Allow-Origin "https://online-everything-tool.com"
+        Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type"
+    }
+}
+
+# Corrected snippet for long-running AI calls
+(long_proxy) {
+    reverse_proxy localhost:3000 {
+        transport http {
+            # This tells Caddy how long to wait for the app to start sending the response
+            response_header_timeout 120s
+        }
+    }
+}
+
+# 2. HTTP redirect
 http://oet.online-everything-tool.com {
     redir https://{host}{uri} permanent
 }
 
+# 3. Main Site Block
 https://oet.online-everything-tool.com {
-    handle /api/* {
-        header {
-            Access-Control-Allow-Origin "https://online-everything-tool.com"
-            Access-Control-Allow-Methods "GET, POST, OPTIONS"
-            Access-Control-Allow-Headers "Content-Type"
-        }
-        reverse_proxy localhost:3000
+
+    @sensitivePaths {
+        path /api/vet-dependency /api/fix-linting-errors /api/analyze-directive-name
     }
 
+    # 1. HANDLE SENSITIVE API PATHS
+    handle @sensitivePaths {
+        @isGitHub {
+            import /etc/caddy/infra/conf/github_actions_ip_ranges.caddy
+        }
+
+        handle @isGitHub {
+            import cors
+            import long_proxy
+        }
+
+        handle {
+            respond "Forbidden" 403
+        }
+    }
+
+    # 2. HANDLE ALL OTHER PUBLIC API CALLS
+    handle /api/* {
+        import cors
+        import long_proxy
+    }
+
+    # 3. REDIRECT EVERYTHING ELSE (Non-API)
     handle {
         redir https://online-everything-tool.com{uri} permanent
     }

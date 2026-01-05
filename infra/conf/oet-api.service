@@ -1,0 +1,19 @@
+[Unit]
+Description=Next.js Online Everything Tool API
+After=network.target
+
+[Service]
+Type=simple
+# The user that owns the app folder (usually ubuntu or ec2-user)
+User=ubuntu
+WorkingDirectory=/home/ubuntu/oet
+# Ensure production environment and correct port
+Environment=NODE_ENV=production PORT=3000
+ExecStart=/home/ubuntu/.nvm/versions/node/v24.12.0/bin/node node_modules/.bin/next start
+# Automatically restart if it crashes
+Restart=always
+# Restart delay
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
