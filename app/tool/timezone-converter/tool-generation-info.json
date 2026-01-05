@@ -1,0 +1,14 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "date-fns-tz",
+      "reason": "Required for timezone-aware date operations, used with date-fns.",
+      "importUsed": "date-fns-tz"
+    },
+    {
+      "packageName": "@types/date-fns-tz",
+      "reason": "TypeScript types for date-fns-tz."
+    }
+  ],
+  "assetInstructions": "This tool requires a static list of IANA timezones.\n\n1. Create a file named `timezones.json` in `public/data/timezone-converter/`.\n2. The content of this file should be a JSON array of strings, where each string is a valid IANA timezone name (e.g., [\"Africa/Abidjan\", \"America/Adak\", ...]). A comprehensive list can be found from various online sources."
+}
