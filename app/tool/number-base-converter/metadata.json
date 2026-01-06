@@ -1,0 +1,14 @@
+{
+  "title": "Number Base Converter",
+  "directive": "number-base-converter",
+  "description": "Convert integers between bases 2 through 36 and surface validation feedback for invalid digits.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "beta"
+}
