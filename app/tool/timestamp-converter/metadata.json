@@ -1,0 +1,31 @@
+{
+  "title": "Timestamp Converter",
+  "directive": "timestamp-converter",
+  "description": "Convert between Unix timestamps and human-friendly dates with timezone awareness.",
+  "urlStateParams": [
+    {
+      "paramName": "timestamp",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "iso",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "zone",
+      "type": "string",
+      "defaultValue": "system"
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "beta"
+}
