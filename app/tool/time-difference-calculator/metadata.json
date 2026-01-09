@@ -1,0 +1,36 @@
+{
+  "title": "Time Difference Calculator",
+  "directive": "time-difference-calculator",
+  "description": "Compare two dates across time zones and break down the elapsed time.",
+  "urlStateParams": [
+    {
+      "paramName": "start",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "end",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "startZone",
+      "type": "string",
+      "defaultValue": "system"
+    },
+    {
+      "paramName": "endZone",
+      "type": "string",
+      "defaultValue": "utc"
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": "none"
+  },
+  "includeInSitemap": true,
+  "status": "beta"
+}
