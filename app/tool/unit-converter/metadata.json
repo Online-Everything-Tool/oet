@@ -1,0 +1,44 @@
+{
+  "title": "Unit Converter",
+  "directive": "unit-converter",
+  "description": "Converts values between different units of measurement, such as length, weight, temperature, or data storage.",
+  "urlStateParams": [
+    {
+      "paramName": "category",
+      "type": "string",
+      "defaultValue": "length"
+    },
+    {
+      "paramName": "from",
+      "type": "string",
+      "defaultValue": "meter"
+    },
+    {
+      "paramName": "to",
+      "type": "string",
+      "defaultValue": "foot"
+    },
+    {
+      "paramName": "value",
+      "type": "string",
+      "defaultValue": "1"
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
