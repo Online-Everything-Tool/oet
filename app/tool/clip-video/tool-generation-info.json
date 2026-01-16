@@ -1,0 +1,15 @@
+{
+  "identifiedDependencies": [
+    {
+      "packageName": "@ffmpeg/ffmpeg",
+      "reason": "Core library for client-side video processing using WebAssembly.",
+      "importUsed": "import { FFmpeg } from '@ffmpeg/ffmpeg';"
+    },
+    {
+      "packageName": "@ffmpeg/util",
+      "reason": "Helper library for @ffmpeg/ffmpeg, used for loading core files.",
+      "importUsed": "import { toBlobURL } from '@ffmpeg/util';"
+    }
+  ],
+  "assetInstructions": "This tool uses FFmpeg.wasm and requires its core files to be available locally.\n\n1.  Download the FFmpeg.wasm core files (v0.12.6 or compatible). You can typically find these in the `@ffmpeg/core` package on npm.\n2.  From the downloaded package, locate the `dist/` directory.\n3.  Copy the following files from the `dist/` directory into the `public/data/clip-video/ffmpeg/` directory of this project:\n    *   `ffmpeg-core.js`\n    *   `ffmpeg-core.wasm`"
+}
