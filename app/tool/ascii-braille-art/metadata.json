@@ -1,0 +1,34 @@
+{
+  "title": "ASCII & Braille Art Generator",
+  "directive": "ascii-braille-art",
+  "description": "This tool converts text input into an ASCII or Braille art representation.",
+  "urlStateParams": [
+    {
+      "paramName": "text",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "artType",
+      "type": "enum",
+      "defaultValue": "ascii"
+    }
+  ],
+  "inputConfig": {
+    "acceptsMimeTypes": [
+      "text/plain"
+    ],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputText",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
