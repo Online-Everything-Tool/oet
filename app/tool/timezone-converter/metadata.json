@@ -1,0 +1,37 @@
+{
+  "title": "Timezone Converter",
+  "directive": "timezone-converter",
+  "description": "Converts a given time from one timezone to another, allowing users to select input and output timezones.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputValue",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "urlStateParams": [
+    {
+      "paramName": "datetime",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "from",
+      "type": "string",
+      "defaultValue": ""
+    },
+    {
+      "paramName": "to",
+      "type": "string",
+      "defaultValue": ""
+    }
+  ],
+  "includeInSitemap": true,
+  "status": "stable"
+}
