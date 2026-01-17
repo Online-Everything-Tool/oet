@@ -1,0 +1,20 @@
+{
+  "title": "CSS Box Shadow Generator",
+  "directive": "css-box-shadow-generator",
+  "description": "This tool generates CSS box-shadow property values with a visual preview.",
+  "inputConfig": {
+    "acceptsMimeTypes": [],
+    "stateFiles": "none"
+  },
+  "outputConfig": {
+    "transferableContent": [
+      {
+        "dataType": "inline",
+        "stateKey": "outputCss",
+        "mimeType": "text/plain"
+      }
+    ]
+  },
+  "includeInSitemap": true,
+  "status": "stable"
+}
